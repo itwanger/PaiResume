@@ -3,7 +3,7 @@ import * as PDFJS from 'pdfjs-dist'
 // 设置 PDF.js worker
 PDFJS.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.8.69/pdf.worker.min.js'
 
-import { ParsedResume } from '../types'
+import type { Education, Experience, ParsedResume } from '../types'
 
 /**
  * 从 PDF 文件中提取文本内容
@@ -18,7 +18,7 @@ export async function extractTextFromPDF(file: File): Promise<string> {
     const page = await pdf.getPage(i)
     const textContent = await page.getTextContent()
     const pageText = textContent.items
-      .map((item: any) => item.str)
+      .map((item) => ('str' in item ? item.str : ''))
       .join(' ')
     fullText += pageText + '\n'
   }
@@ -36,8 +36,6 @@ export function parseResumeText(text: string): ParsedResume {
     skills: [],
     experiences: []
   }
-
-  const lines = text.split('\n').filter(line => line.trim())
 
   // 解析基本信息
   parseBasicInfo(text, result)

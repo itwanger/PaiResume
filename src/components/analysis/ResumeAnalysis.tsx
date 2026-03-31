@@ -1,52 +1,106 @@
+import { useEffect, useMemo, useState } from 'react'
 import { useAnalysis } from '../../hooks/useAnalysis'
-import { useResume } from '../../hooks/useResume'
+import { AutoResizeTextarea } from '../ui/AutoResizeTextarea'
 import { Button } from '../ui/Button'
 import { Section } from '../ui/Section'
 
-export function ResumeAnalysis() {
-  const { resume } = useResume()
+interface ResumeAnalysisProps {
+  resumeId: number
+}
+
+const ANALYSIS_PROMPT_STORAGE_KEY = 'pai-resume.analysis-prompt'
+
+const DEFAULT_ANALYSIS_PROMPT = `请站在校招技术简历评审视角分析这份简历。
+
+重点要求：
+1. 重点看项目经历、实习经历、专业技能，这三部分权重最高。
+2. 不要因为获奖较少、没有 AI 竞赛、没有 GPA、GitHub 没有额外包装，就明显拉低分数。
+3. 不要把“专业技能没有分类展示”当成问题，也不要要求把整句技能改成分类标签。
+4. 不要把“缺少个人简介 / 职业总结 / 自我评价”当成问题。
+5. 只有在确实存在明显短板时才指出问题，避免泛泛而谈。
+6. 对已经写得比较成熟的内容，尽量少挑边角问题。
+7. 如果整份简历主体已经可以直接投递，分数应落在 90 分以上。
+
+输出偏好：
+1. 问题最多 4 条，建议最多 4 条。
+2. 建议必须具体、可执行，避免空话。
+3. 优先指出真正影响投递效果的问题，比如邮箱错误、量化成果不足、表达不够聚焦。`
+
+export function ResumeAnalysis({ resumeId }: ResumeAnalysisProps) {
   const {
     analysisResult,
     isAnalyzing,
     analyze,
     resetAnalysis,
-    useAI,
-    toggleAIAnalysis,
     error,
-    isLLMConfigured
   } = useAnalysis()
+  const [promptDraft, setPromptDraft] = useState(DEFAULT_ANALYSIS_PROMPT)
+  const [savedPrompt, setSavedPrompt] = useState(DEFAULT_ANALYSIS_PROMPT)
+  const [saveHint, setSaveHint] = useState<string | null>(null)
 
-  const handleAnalyze = () => {
-    analyze(resume, useAI)
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const storedPrompt = window.localStorage.getItem(ANALYSIS_PROMPT_STORAGE_KEY)?.trim()
+    const nextPrompt = storedPrompt || DEFAULT_ANALYSIS_PROMPT
+    setPromptDraft(nextPrompt)
+    setSavedPrompt(nextPrompt)
+  }, [])
+
+  const hasUnsavedChanges = useMemo(
+    () => promptDraft.trim() !== savedPrompt.trim(),
+    [promptDraft, savedPrompt]
+  )
+
+  const handleSavePrompt = () => {
+    const nextPrompt = promptDraft.trim() || DEFAULT_ANALYSIS_PROMPT
+    window.localStorage.setItem(ANALYSIS_PROMPT_STORAGE_KEY, nextPrompt)
+    setPromptDraft(nextPrompt)
+    setSavedPrompt(nextPrompt)
+    setSaveHint('提示词已保存，本次及后续分析都会使用这版。')
   }
 
-  const handleAnalyzeWithAI = () => {
-    analyze(resume, true)
+  const handleResetPrompt = () => {
+    setPromptDraft(DEFAULT_ANALYSIS_PROMPT)
+    setSaveHint('已恢复默认提示词，记得保存后再开始分析。')
+  }
+
+  const handleAnalyze = () => {
+    const nextPrompt = promptDraft.trim()
+    if (!nextPrompt) {
+      setSaveHint('请先填写提示词，再保存并开始分析。')
+      return
+    }
+
+    setSaveHint(null)
+    void analyze(resumeId, nextPrompt)
   }
 
   const getIssueIcon = (type: string) => {
     switch (type) {
       case 'missing':
         return (
-          <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="h-5 w-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         )
       case 'weak':
         return (
-          <svg className="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="h-5 w-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
         )
       case 'format':
         return (
-          <svg className="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="h-5 w-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
           </svg>
         )
       default:
         return (
-          <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="h-5 w-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         )
@@ -69,124 +123,62 @@ export function ResumeAnalysis() {
 
   return (
     <div className="space-y-6">
-      {/* 分析操作区 */}
-      {!analysisResult && (
-        <Section
-          title="简历分析"
-          description="智能分析您的简历，发现不足并给出改进建议"
-        >
-          <div className="text-center py-8">
-            <svg className="w-20 h-20 mx-auto mb-4 text-primary-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-            </svg>
-            <p className="text-gray-600 mb-4">
-              选择分析模式开始分析您的简历
-            </p>
+      <div className="space-y-4 rounded-xl border border-gray-200 bg-white p-5">
+        <AutoResizeTextarea
+          minRows={12}
+          value={promptDraft}
+          onChange={(event) => {
+            setPromptDraft(event.target.value)
+            setSaveHint(null)
+          }}
+          className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm leading-7 text-gray-700 outline-none transition focus:border-primary-300 focus:ring-4 focus:ring-primary-100"
+          placeholder="在这里编写你的简历分析提示词"
+        />
 
-            {/* 分析模式选择 */}
-            <div className="mb-6">
-              <div className="inline-flex items-center gap-2 p-1 bg-gray-100 rounded-lg">
-                <button
-                  onClick={() => useAI && toggleAIAnalysis()}
-                  className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                    !useAI
-                      ? 'bg-white text-gray-900 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  <span className="flex items-center gap-2">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-                    </svg>
-                    快速分析
-                  </span>
-                </button>
-                <button
-                  onClick={() => !useAI && toggleAIAnalysis()}
-                  className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                    useAI
-                      ? 'bg-white text-gray-900 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  <span className="flex items-center gap-2">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                    </svg>
-                    AI 智能分析
-                    {!isLLMConfigured && (
-                      <span className="ml-1 px-2 py-0.5 text-xs bg-yellow-100 text-yellow-700 rounded-full">
-                        未配置
-                      </span>
-                    )}
-                  </span>
-                </button>
-              </div>
-              <p className="mt-3 text-sm text-gray-500">
-                {useAI
-                  ? 'AI 智能分析：使用大语言模型进行深度内容分析，提供专业级改进建议（需要配置 API Key）'
-                  : '快速分析：基于规则检查简历完整性、格式规范性'}
-              </p>
-            </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button type="button" onClick={handleSavePrompt}>
+            保存提示词
+          </Button>
+          <Button type="button" variant="outline" onClick={handleResetPrompt}>
+            恢复默认
+          </Button>
+          <Button
+            type="button"
+            onClick={handleAnalyze}
+            loading={isAnalyzing}
+            disabled={hasUnsavedChanges}
+          >
+            开始分析
+          </Button>
+          {hasUnsavedChanges && (
+            <span className="text-sm text-amber-600">提示词有未保存修改，保存后才能开始分析。</span>
+          )}
+        </div>
 
-            {/* 分析按钮 */}
-            <div className="flex justify-center gap-3">
-              <Button onClick={handleAnalyze} loading={isAnalyzing}>
-                {useAI ? '开始 AI 分析' : '开始快速分析'}
-              </Button>
-              {useAI && isLLMConfigured && (
-                <Button variant="outline" onClick={handleAnalyzeWithAI} loading={isAnalyzing}>
-                  使用 AI 分析
-                </Button>
-              )}
-            </div>
-
-            {/* API Key 提示 */}
-            {useAI && !isLLMConfigured && (
-              <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-left">
-                <p className="text-sm font-medium text-yellow-800 mb-2">
-                  ⚠️ 需要配置 API Key
-                </p>
-                <p className="text-sm text-yellow-700 mb-2">
-                  要使用 AI 智能分析功能，需要在项目中配置 AI API Key。
-                </p>
-                <div className="bg-white p-3 rounded border border-yellow-200 mt-2">
-                  <p className="text-xs text-gray-600 font-mono">
-                    # 在项目根目录创建或编辑 .env 文件：<br/>
-                    VITE_AI_API_KEY=your_api_key_here<br/>
-                    VITE_AI_BASE_URL=https://api.anthropic.com/v1<br/>
-                    VITE_AI_MODEL=claude-sonnet-4-20250514
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* 错误提示 */}
-            {error && (
-              <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-sm text-red-700">{error}</p>
-              </div>
-            )}
+        {saveHint && (
+          <div className="rounded-lg border border-primary-100 bg-primary-50 px-4 py-3 text-sm text-primary-700">
+            {saveHint}
           </div>
-        </Section>
-      )}
+        )}
 
-      {/* 分析结果 */}
+        {error && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+      </div>
+
       {analysisResult && (
         <>
-          {/* 总分卡片 */}
           <Section title="" description="">
             <div className="text-center">
-              <div className={`text-6xl font-bold ${getScoreColor(analysisResult.score)} mb-2`}>
+              <div className={`mb-2 text-6xl font-bold ${getScoreColor(analysisResult.score)}`}>
                 {analysisResult.score}
               </div>
-              <div className="text-lg text-gray-600 mb-4">
+              <div className="mb-4 text-lg text-gray-600">
                 简历得分 - {getScoreLabel(analysisResult.score)}
-                <span className="ml-2 text-sm">
-                  ({useAI ? 'AI 分析' : '快速分析'})
-                </span>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-3 mb-4">
+              <div className="mb-4 h-3 w-full rounded-full bg-gray-200">
                 <div
                   className={`h-3 rounded-full transition-all ${
                     analysisResult.score >= 80
@@ -200,33 +192,32 @@ export function ResumeAnalysis() {
               </div>
               <div className="flex justify-center gap-4">
                 <Button variant="outline" onClick={resetAnalysis}>
-                  返回
+                  清空结果
                 </Button>
-                <Button onClick={() => analyze(resume, useAI)} loading={isAnalyzing}>
+                <Button onClick={handleAnalyze} loading={isAnalyzing} disabled={hasUnsavedChanges}>
                   重新分析
                 </Button>
               </div>
             </div>
           </Section>
 
-          {/* 问题列表 */}
           {analysisResult.issues.length > 0 && (
             <Section
               title={`发现的问题 (${analysisResult.issues.length})`}
-              description="以下是检测到的问题，建议优先处理标红的重要问题"
+              description="以下是检测到的问题，建议优先处理真正影响投递效果的内容。"
             >
               <div className="space-y-3">
                 {analysisResult.issues.map((issue, index) => (
                   <div
                     key={index}
-                    className={`p-4 rounded-lg border-l-4 ${
+                    className={`rounded-lg border-l-4 p-4 ${
                       issue.type === 'missing'
-                        ? 'bg-red-50 border-red-500'
+                        ? 'border-red-500 bg-red-50'
                         : issue.type === 'weak'
-                        ? 'bg-yellow-50 border-yellow-500'
+                        ? 'border-yellow-500 bg-yellow-50'
                         : issue.type === 'format'
-                        ? 'bg-orange-50 border-orange-500'
-                        : 'bg-blue-50 border-blue-500'
+                        ? 'border-orange-500 bg-orange-50'
+                        : 'border-blue-500 bg-blue-50'
                     }`}
                   >
                     <div className="flex items-start gap-3">
@@ -242,19 +233,18 @@ export function ResumeAnalysis() {
             </Section>
           )}
 
-          {/* 改进建议 */}
           {analysisResult.suggestions.length > 0 && (
             <Section
               title="改进建议"
-              description="以下建议可以帮助您进一步提升简历质量"
+              description="这些建议不是硬性问题，更偏向继续往上打磨。"
             >
               <ul className="space-y-2">
                 {analysisResult.suggestions.map((suggestion, index) => (
                   <li
                     key={index}
-                    className="flex items-start gap-3 p-3 bg-green-50 rounded-lg"
+                    className="flex items-start gap-3 rounded-lg bg-green-50 p-3"
                   >
-                    <svg className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="mt-0.5 h-5 w-5 flex-shrink-0 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                     </svg>
                     <span className="text-gray-700">{suggestion}</span>
@@ -264,15 +254,14 @@ export function ResumeAnalysis() {
             </Section>
           )}
 
-          {/* 无问题提示 */}
           {analysisResult.issues.length === 0 && analysisResult.suggestions.length === 0 && (
             <Section title="" description="">
-              <div className="text-center py-8">
-                <svg className="w-16 h-16 mx-auto mb-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="py-8 text-center">
+                <svg className="mx-auto mb-4 h-16 w-16 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <p className="text-lg font-medium text-gray-900">太棒了！</p>
-                <p className="text-gray-600 mt-2">您的简历没有发现明显问题</p>
+                <p className="mt-2 text-gray-600">您的简历没有发现明显问题</p>
               </div>
             </Section>
           )}

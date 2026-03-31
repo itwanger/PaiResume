@@ -11,9 +11,16 @@ interface AuthState {
   restoreSession: () => void
 }
 
+function hasStoredSession() {
+  if (typeof window === 'undefined') {
+    return false
+  }
+  return Boolean(window.localStorage.getItem('accessToken'))
+}
+
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
-  isAuthenticated: false,
+  isAuthenticated: hasStoredSession(),
 
   login: async (email, password) => {
     const { data: res } = await authApi.login({ email, password })
@@ -47,6 +54,8 @@ export const useAuthStore = create<AuthState>((set) => ({
     // 简单检查 token 存在即可，详细校验由后端拦截器处理
     if (token) {
       set({ isAuthenticated: true })
+      return
     }
+    set({ user: null, isAuthenticated: false })
   },
 }))

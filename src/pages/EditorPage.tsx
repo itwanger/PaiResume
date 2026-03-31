@@ -5,6 +5,7 @@ import { Header } from '../components/layout/Header'
 import { ModuleSidebar } from '../components/editor/ModuleSidebar'
 import { PreviewPanel } from '../components/editor/PreviewPanel'
 import { AiOptimizePanel } from '../components/analysis/AiOptimizePanel'
+import { ResumeAnalysis } from '../components/analysis/ResumeAnalysis'
 import { BasicInfoForm } from '../components/modules/BasicInfoForm'
 import { EducationForm } from '../components/modules/EducationForm'
 import { InternshipForm } from '../components/modules/InternshipForm'
@@ -13,26 +14,43 @@ import { SkillForm } from '../components/modules/SkillForm'
 import { PaperForm } from '../components/modules/PaperForm'
 import { ResearchForm } from '../components/modules/ResearchForm'
 import { AwardForm } from '../components/modules/AwardForm'
-import { JobIntentionForm } from '../components/modules/JobIntentionForm'
-import { MODULE_LABELS, type ModuleType } from '../types'
+import { MODULE_LABELS, SINGLETON_MODULES, type ModuleType } from '../types'
+import { normalizeJobIntentionContent } from '../utils/moduleContent'
+import { downloadResumePdf } from '../utils/resumePdf'
+
+type EditorView = 'module' | 'analysis'
 
 export default function EditorPage() {
   const { id } = useParams<{ id: string }>()
   const { modules, loading, fetchModules, addModule, deleteModule } = useResumeStore()
   const [activeModuleType, setActiveModuleType] = useState<ModuleType | null>(null)
   const [aiModuleId, setAiModuleId] = useState<number | null>(null)
+  const [editorView, setEditorView] = useState<EditorView>('module')
+  const [exporting, setExporting] = useState(false)
+  const [exportError, setExportError] = useState('')
 
   const resumeId = Number(id)
 
   useEffect(() => {
     if (resumeId) {
+      setActiveModuleType(null)
+      setAiModuleId(null)
+      setEditorView('module')
       fetchModules(resumeId)
     }
   }, [resumeId, fetchModules])
 
   useEffect(() => {
-    if (modules.length > 0 && !activeModuleType) {
-      setActiveModuleType(modules[0].moduleType as ModuleType)
+    if (modules.length === 0) {
+      return
+    }
+
+    const nextActiveModuleType = activeModuleType && modules.some((module) => module.moduleType === activeModuleType)
+      ? activeModuleType
+      : (modules[0].moduleType as ModuleType)
+
+    if (nextActiveModuleType !== activeModuleType) {
+      setActiveModuleType(nextActiveModuleType)
     }
   }, [modules, activeModuleType])
 
@@ -41,6 +59,7 @@ export default function EditorPage() {
       const defaultContent = getDefaultContent(moduleType)
       await addModule(resumeId, moduleType, defaultContent)
       setActiveModuleType(moduleType)
+      setEditorView('module')
     },
     [resumeId, addModule]
   )
@@ -58,15 +77,45 @@ export default function EditorPage() {
     async (moduleType: ModuleType) => {
       const defaultContent = getDefaultContent(moduleType)
       await addModule(resumeId, moduleType, defaultContent)
+      setEditorView('module')
     },
     [resumeId, addModule]
   )
 
   const activeModules = modules.filter((m) => m.moduleType === activeModuleType)
+  const canAddAnotherInstance = activeModuleType ? !SINGLETON_MODULES.includes(activeModuleType) : false
+
+  const handleExportPdf = useCallback(async () => {
+    if (modules.length === 0) {
+      setExportError('请先完善简历内容后再导出 PDF')
+      return
+    }
+
+    setExporting(true)
+    setExportError('')
+    try {
+      await downloadResumePdf(modules, resumeId)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : '导出 PDF 失败，请稍后重试'
+      setExportError(message)
+    } finally {
+      setExporting(false)
+    }
+  }, [modules, resumeId])
 
   const renderModuleForm = (moduleId: number, content: Record<string, unknown>) => {
     if (!activeModuleType) return null
-    const props = { resumeId, moduleId, initialContent: content }
+    const jobIntentionModule = modules.find((module) => module.moduleType === 'job_intention')
+    const mergedBasicInfoContent = activeModuleType === 'basic_info' && jobIntentionModule
+      ? {
+          ...content,
+          jobIntention: (content.jobIntention as string) || normalizeJobIntentionContent(jobIntentionModule.content).targetPosition,
+          targetCity: (content.targetCity as string) || normalizeJobIntentionContent(jobIntentionModule.content).targetCity,
+          salaryRange: (content.salaryRange as string) || normalizeJobIntentionContent(jobIntentionModule.content).salaryRange,
+          expectedEntryDate: (content.expectedEntryDate as string) || normalizeJobIntentionContent(jobIntentionModule.content).expectedEntryDate,
+        }
+      : content
+    const props = { resumeId, moduleId, initialContent: mergedBasicInfoContent }
     switch (activeModuleType) {
       case 'basic_info': return <BasicInfoForm {...props} />
       case 'education': return <EducationForm {...props} />
@@ -76,30 +125,62 @@ export default function EditorPage() {
       case 'paper': return <PaperForm {...props} />
       case 'research': return <ResearchForm {...props} />
       case 'award': return <AwardForm {...props} />
-      case 'job_intention': return <JobIntentionForm {...props} />
+      case 'job_intention': return null
     }
   }
 
   return (
     <div className="h-screen flex flex-col bg-gray-50">
-      <Header />
+      <Header
+        onExportPdf={() => void handleExportPdf()}
+        exporting={exporting}
+      />
 
       <div className="flex flex-1 overflow-hidden">
         <ModuleSidebar
           modules={modules}
           activeModuleType={activeModuleType}
-          onSelect={setActiveModuleType}
+          onSelect={(moduleType) => {
+            setActiveModuleType(moduleType)
+            setEditorView('module')
+          }}
           onAddModule={handleAddModule}
+          analysisActive={editorView === 'analysis'}
+          onSelectAnalysis={() => {
+            setAiModuleId(null)
+            setEditorView('analysis')
+          }}
         />
 
-        <main className="flex-1 overflow-y-auto p-6">
-          {activeModuleType ? (
-            <div>
+        <main className="min-w-0 flex-1 overflow-y-auto p-6 xl:px-8">
+          {editorView === 'analysis' ? (
+            <div className="mx-auto max-w-4xl">
+              {exportError && (
+                <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {exportError}
+                </div>
+              )}
+
+              <div className="mb-4">
+                <h2 className="text-lg font-semibold text-gray-900">简历分析</h2>
+                <p className="mt-1 text-sm text-gray-500">由服务端 AI 分析当前整份简历，给出更聚焦的优化建议。</p>
+              </div>
+
+              <ResumeAnalysis resumeId={resumeId} />
+            </div>
+          ) : activeModuleType ? (
+            <div className="mx-auto max-w-3xl">
+              {exportError && (
+                <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {exportError}
+                </div>
+              )}
+
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-gray-900">
                   {MODULE_LABELS[activeModuleType]}
                 </h2>
-                {activeModules.length > 0 && (
+                {activeModules.length > 0 && canAddAnotherInstance && (
                   <button
                     onClick={() => handleAddInstanceOfType(activeModuleType)}
                     className="text-sm text-primary-600 hover:text-primary-700"
@@ -167,7 +248,7 @@ export default function EditorPage() {
           )}
         </main>
 
-        <div className="w-[420px] border-l border-gray-200 bg-gray-100">
+        <div className="w-[540px] max-w-[42vw] min-w-[500px] overflow-y-auto border-l border-gray-200 bg-gray-50 p-6 xl:px-8">
           <PreviewPanel modules={modules} loading={loading} />
         </div>
       </div>
@@ -186,8 +267,9 @@ export default function EditorPage() {
 function getDefaultContent(moduleType: ModuleType): Record<string, unknown> {
   const defaults: Record<ModuleType, Record<string, unknown>> = {
     basic_info: {
-      name: '', jobIntention: '', phone: '', wechat: '', isPartyMember: false,
+      name: '', email: '', jobIntention: '', targetCity: '', salaryRange: '', expectedEntryDate: '', phone: '', wechat: '', isPartyMember: false,
       photo: '', hometown: '', blog: '', github: '', leetcode: '', workYears: '',
+      summary: '',
     },
     education: {
       school: '', schoolLogo: '', department: '', major: '', degree: '',
@@ -195,13 +277,13 @@ function getDefaultContent(moduleType: ModuleType): Record<string, unknown> {
     },
     internship: {
       company: '', projectName: '', position: '', startDate: '', endDate: '',
-      techStack: '', responsibilities: '', achievements: [],
+      techStack: '', projectDescription: '', responsibilities: [],
     },
     project: {
       projectName: '', role: '', startDate: '', endDate: '', techStack: '',
       description: '', achievements: [],
     },
-    skill: { categories: [{ name: '编程语言', items: [] }] },
+    skill: { categories: [{ name: '', items: [] }] },
     paper: { journalType: '', journalName: '', publishTime: '', content: '' },
     research: { projectName: '', projectCycle: '', background: '', workContent: '', achievements: '' },
     award: { awardName: '', awardTime: '' },

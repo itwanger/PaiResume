@@ -204,7 +204,7 @@ export function ResumeProvider({ children }: { children: ReactNode }) {
   )
 }
 
-// Hook
+// eslint-disable-next-line react-refresh/only-export-components
 export function useResume() {
   const context = useContext(ResumeContext)
   if (!context) {
@@ -213,7 +213,7 @@ export function useResume() {
   return context
 }
 
-// 生成唯一 ID
+// eslint-disable-next-line react-refresh/only-export-components
 export function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).substr(2)
 }

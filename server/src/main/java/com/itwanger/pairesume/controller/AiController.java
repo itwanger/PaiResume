@@ -47,7 +47,7 @@ public class AiController {
 
     private void validateOwnership(Long resumeId, Long userId) {
         var resume = resumeMapper.selectById(resumeId);
-        if (resume == null || !resume.getUserId().equals(userId)) {
+        if (resume == null || !resume.getUserId().equals(userId) || resume.getStatus() == 0) {
             throw new BusinessException(ResultCode.RESUME_NOT_FOUND);
         }
     }

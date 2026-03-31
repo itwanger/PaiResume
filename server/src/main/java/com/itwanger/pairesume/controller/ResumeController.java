@@ -4,6 +4,7 @@ import com.itwanger.pairesume.common.Result;
 import com.itwanger.pairesume.dto.ModuleCreateDTO;
 import com.itwanger.pairesume.dto.ModuleUpdateDTO;
 import com.itwanger.pairesume.dto.ResumeCreateDTO;
+import com.itwanger.pairesume.dto.ResumeUpdateDTO;
 import com.itwanger.pairesume.entity.ResumeModule;
 import com.itwanger.pairesume.service.ResumeModuleService;
 import com.itwanger.pairesume.service.ResumeService;
@@ -40,6 +41,12 @@ public class ResumeController {
     @PostMapping
     public Result<ResumeListVO> create(@RequestBody ResumeCreateDTO dto) {
         return Result.success(resumeService.create(getCurrentUserId(), dto));
+    }
+
+    @Operation(summary = "更新简历信息")
+    @PutMapping("/{id}")
+    public Result<ResumeListVO> update(@PathVariable Long id, @Valid @RequestBody ResumeUpdateDTO dto) {
+        return Result.success(resumeService.update(getCurrentUserId(), id, dto));
     }
 
     @Operation(summary = "删除简历")

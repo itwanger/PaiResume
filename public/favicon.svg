@@ -1,0 +1,25 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="64" cy="64" r="58" fill="white"/>
+  <circle cx="64" cy="64" r="57.5" stroke="#DBEAFE"/>
+  <circle cx="48" cy="40" r="20" fill="url(#glow)"/>
+  <rect x="22" y="29" width="84" height="26" rx="13" fill="url(#topBar)"/>
+  <rect x="37" y="49" width="20" height="48" rx="10" fill="url(#pillar)"/>
+  <rect x="71" y="49" width="20" height="48" rx="10" fill="url(#pillar)"/>
+  <defs>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(48 42) rotate(47.49) scale(33.0492)">
+      <stop stop-color="#93C5FD" stop-opacity="0.24"/>
+      <stop offset="1" stop-color="#93C5FD" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="topBar" x1="64" y1="30" x2="64" y2="54" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#79B2FF"/>
+      <stop offset="0.48" stop-color="#4B86F5"/>
+      <stop offset="1" stop-color="#3369E8"/>
+    </linearGradient>
+    <linearGradient id="pillar" x1="47" y1="49" x2="47" y2="96" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#B7D6FF"/>
+      <stop offset="0.3" stop-color="#7CAEFF"/>
+      <stop offset="0.62" stop-color="#4F87F2"/>
+      <stop offset="1" stop-color="#3369E8"/>
+    </linearGradient>
+  </defs>
+</svg>

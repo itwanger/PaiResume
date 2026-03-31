@@ -2,7 +2,11 @@
 
 export interface BasicInfoContent {
   name: string
+  email: string
   jobIntention: string
+  targetCity: string
+  salaryRange: string
+  expectedEntryDate: string
   phone: string
   wechat: string
   isPartyMember: boolean
@@ -12,6 +16,7 @@ export interface BasicInfoContent {
   github: string
   leetcode: string
   workYears: string
+  summary: string
 }
 
 export interface EducationContent {
@@ -34,8 +39,8 @@ export interface InternshipContent {
   startDate: string
   endDate: string
   techStack: string
-  responsibilities: string
-  achievements: string[]
+  projectDescription: string
+  responsibilities: string[]
 }
 
 export interface ProjectContent {
@@ -134,4 +139,63 @@ export type ModuleContentMap = {
 }
 
 // Singleton module types (only one per resume)
-export const SINGLETON_MODULES: ModuleType[] = ['basic_info', 'skill', 'job_intention']
+export const SINGLETON_MODULES: ModuleType[] = ['basic_info', 'skill']
+
+// ==================== Legacy Analysis Types ====================
+
+export interface BasicInfo {
+  name: string
+  email: string
+  phone: string
+  github: string
+  website: string
+  location: string
+  summary: string
+}
+
+export interface Education {
+  id: string
+  school: string
+  degree: string
+  major: string
+  startDate: string
+  endDate: string
+  description?: string
+}
+
+export interface Experience {
+  id: string
+  company: string
+  position: string
+  startDate: string
+  endDate: string
+  description: string
+  achievements?: string[]
+}
+
+export interface Resume {
+  basicInfo: BasicInfo
+  educations: Education[]
+  skills: string[]
+  experiences: Experience[]
+}
+
+export interface ParsedResume {
+  basicInfo?: Partial<BasicInfo>
+  educations?: Array<Partial<Education>>
+  skills?: string[]
+  experiences?: Array<Partial<Experience>>
+}
+
+export interface AnalysisIssue {
+  type: 'missing' | 'weak' | 'format' | 'content'
+  field: string
+  message: string
+  suggestion: string
+}
+
+export interface AnalysisResult {
+  score: number
+  issues: AnalysisIssue[]
+  suggestions: string[]
+}

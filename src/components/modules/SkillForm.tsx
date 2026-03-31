@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import type { SkillContent } from '../../types'
 import { useAutoSave } from '../../hooks/useAutoSave'
+import { normalizeSkillContent } from '../../utils/moduleContent'
+import { AutoResizeTextarea } from '../ui/AutoResizeTextarea'
 
 interface Props {
   resumeId: number
@@ -8,63 +10,73 @@ interface Props {
   initialContent: Record<string, unknown>
 }
 
+function toFlatSkillContent(content: SkillContent): SkillContent {
+  const items = content.categories.flatMap((category) => category.items).filter(Boolean)
+  return {
+    categories: [{ name: '', items }],
+  }
+}
+
 export function SkillForm({ resumeId, moduleId, initialContent }: Props) {
-  const [content, setContent] = useState<SkillContent>({
-    categories: [{ name: '编程语言', items: [] }],
-    ...initialContent as Partial<SkillContent>,
-  })
+  const [content, setContent] = useState<SkillContent>(() => toFlatSkillContent(normalizeSkillContent(initialContent)))
   const { save } = useAutoSave(resumeId, moduleId)
+
+  useEffect(() => {
+    setContent(toFlatSkillContent(normalizeSkillContent(initialContent)))
+  }, [initialContent])
 
   useEffect(() => {
     save(content as unknown as Record<string, unknown>)
   }, [content, save])
 
-  const addCategory = () => {
+  const skillItems = content.categories[0]?.items ?? []
+
+  const addItem = () => {
     setContent((prev) => ({
-      categories: [...prev.categories, { name: '', items: [] }],
+      categories: [{ name: '', items: [...(prev.categories[0]?.items ?? []), ''] }],
     }))
   }
 
-  const removeCategory = (index: number) => {
+  const removeItem = (index: number) => {
     setContent((prev) => ({
-      categories: prev.categories.filter((_, i) => i !== index),
+      categories: [{
+        name: '',
+        items: (prev.categories[0]?.items ?? []).filter((_, i) => i !== index),
+      }],
     }))
   }
 
-  const updateCategoryName = (index: number, name: string) => {
+  const updateItem = (index: number, value: string) => {
     setContent((prev) => ({
-      categories: prev.categories.map((cat, i) => (i === index ? { ...cat, name } : cat)),
-    }))
-  }
-
-  const updateCategoryItems = (index: number, itemsText: string) => {
-    const items = itemsText.split(/[,，、]/).map((s) => s.trim()).filter(Boolean)
-    setContent((prev) => ({
-      categories: prev.categories.map((cat, i) => (i === index ? { ...cat, items } : cat)),
+      categories: [{
+        name: '',
+        items: (prev.categories[0]?.items ?? []).map((item, i) => (i === index ? value : item)),
+      }],
     }))
   }
 
   return (
-    <div className="space-y-4">
-      {content.categories.map((cat, index) => (
-        <div key={index} className="border border-gray-200 rounded-lg p-4">
-          <div className="flex gap-3 mb-2">
-            <input type="text" value={cat.name}
-              onChange={(e) => updateCategoryName(index, e.target.value)}
-              placeholder="分类名称，如：编程语言、框架、工具"
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none text-sm" />
-            <button type="button" onClick={() => removeCategory(index)}
-              className="text-gray-300 hover:text-red-500 px-2 text-sm">删除</button>
-          </div>
-          <input type="text"
-            value={cat.items.join('、')}
-            onChange={(e) => updateCategoryItems(index, e.target.value)}
-            placeholder="用顿号或逗号分隔，如：Java、Go、Python"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none text-sm" />
+      <div className="space-y-4">
+      {skillItems.map((item, index) => (
+        <div key={index} className="flex items-start gap-2">
+          <AutoResizeTextarea
+            value={item}
+            onChange={(e) => updateItem(index, e.target.value)}
+            minRows={3}
+            placeholder={`技能 ${index + 1}`}
+            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none text-sm resize-none leading-6"
+          />
+          <button
+            type="button"
+            onClick={() => removeItem(index)}
+            className="text-gray-300 hover:text-red-500 px-2 text-sm"
+          >
+            删除
+          </button>
         </div>
       ))}
-      <button type="button" onClick={addCategory}
-        className="text-sm text-primary-600 hover:text-primary-700">+ 添加技能分类</button>
+      <button type="button" onClick={addItem}
+        className="text-sm text-primary-600 hover:text-primary-700">+ 添加</button>
     </div>
   )
 }

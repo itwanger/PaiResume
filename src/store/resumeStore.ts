@@ -1,5 +1,22 @@
 import { create } from 'zustand'
 import { resumeApi, type ResumeListItem, type ResumeModule } from '../api/resume'
+import type { ImportedResumeData } from '../utils/importers'
+
+function getSortTime(value: string): number {
+  const time = new Date(value).getTime()
+  return Number.isNaN(time) ? 0 : time
+}
+
+function sortResumeList(resumeList: ResumeListItem[]): ResumeListItem[] {
+  return [...resumeList].sort((a, b) => {
+    const createdAtDiff = getSortTime(b.createdAt) - getSortTime(a.createdAt)
+    if (createdAtDiff !== 0) {
+      return createdAtDiff
+    }
+
+    return b.id - a.id
+  })
+}
 
 interface ResumeState {
   resumeList: ResumeListItem[]
@@ -8,6 +25,8 @@ interface ResumeState {
   loading: boolean
   fetchResumeList: () => Promise<void>
   createResume: (title?: string) => Promise<ResumeListItem>
+  importResume: (payload: ImportedResumeData) => Promise<ResumeListItem>
+  renameResume: (id: number, title: string) => Promise<ResumeListItem>
   deleteResume: (id: number) => Promise<void>
   fetchModules: (resumeId: number) => Promise<void>
   updateModuleContent: (resumeId: number, moduleId: number, content: Record<string, unknown>) => Promise<void>
@@ -16,7 +35,7 @@ interface ResumeState {
   setCurrentResumeId: (id: number | null) => void
 }
 
-export const useResumeStore = create<ResumeState>((set, get) => ({
+export const useResumeStore = create<ResumeState>((set) => ({
   resumeList: [],
   currentResumeId: null,
   modules: [],
@@ -26,7 +45,7 @@ export const useResumeStore = create<ResumeState>((set, get) => ({
     set({ loading: true })
     try {
       const { data: res } = await resumeApi.list()
-      set({ resumeList: res.data, loading: false })
+      set({ resumeList: sortResumeList(res.data), loading: false })
     } catch {
       set({ loading: false })
     }
@@ -35,8 +54,35 @@ export const useResumeStore = create<ResumeState>((set, get) => ({
   createResume: async (title) => {
     const { data: res } = await resumeApi.create({ title })
     const newResume = res.data
-    set((state) => ({ resumeList: [...state.resumeList, newResume] }))
+    set((state) => ({ resumeList: sortResumeList([newResume, ...state.resumeList]) }))
     return newResume
+  },
+
+  importResume: async ({ title, modules }) => {
+    const { data: resumeRes } = await resumeApi.create({ title })
+    const newResume = resumeRes.data
+
+    for (const [index, module] of modules.entries()) {
+      await resumeApi.addModule(newResume.id, {
+        moduleType: module.moduleType,
+        content: module.content,
+        sortOrder: index,
+      })
+    }
+
+    set((state) => ({ resumeList: sortResumeList([newResume, ...state.resumeList]) }))
+    return newResume
+  },
+
+  renameResume: async (id, title) => {
+    const { data: res } = await resumeApi.update(id, { title })
+    const updatedResume = res.data
+    set((state) => ({
+      resumeList: state.resumeList.map((resume) =>
+        resume.id === id ? updatedResume : resume
+      ),
+    }))
+    return updatedResume
   },
 
   deleteResume: async (id) => {
@@ -48,7 +94,7 @@ export const useResumeStore = create<ResumeState>((set, get) => ({
   },
 
   fetchModules: async (resumeId) => {
-    set({ loading: true, currentResumeId: resumeId })
+    set({ loading: true, currentResumeId: resumeId, modules: [] })
     try {
       const { data: res } = await resumeApi.getModules(resumeId)
       set({ modules: res.data, loading: false })
@@ -58,23 +104,31 @@ export const useResumeStore = create<ResumeState>((set, get) => ({
   },
 
   updateModuleContent: async (resumeId, moduleId, content) => {
-    await resumeApi.updateModule(resumeId, moduleId, content)
+    const { data: res } = await resumeApi.updateModule(resumeId, moduleId, content)
     set((state) => ({
-      modules: state.modules.map((m) =>
-        m.id === moduleId ? { ...m, content } : m
-      ),
+      modules: state.currentResumeId === resumeId
+        ? state.modules.map((m) =>
+            m.id === moduleId ? res.data : m
+          )
+        : state.modules,
     }))
   },
 
   addModule: async (resumeId, moduleType, content) => {
     const { data: res } = await resumeApi.addModule(resumeId, { moduleType, content })
-    set((state) => ({ modules: [...state.modules, res.data] }))
+    set((state) => ({
+      modules: state.currentResumeId === resumeId
+        ? [...state.modules, res.data]
+        : state.modules,
+    }))
   },
 
   deleteModule: async (resumeId, moduleId) => {
     await resumeApi.deleteModule(resumeId, moduleId)
     set((state) => ({
-      modules: state.modules.filter((m) => m.id !== moduleId),
+      modules: state.currentResumeId === resumeId
+        ? state.modules.filter((m) => m.id !== moduleId)
+        : state.modules,
     }))
   },
 

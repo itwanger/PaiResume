@@ -1,4 +1,5 @@
-import client from './client'
+import client, { type ApiEnvelope } from './client'
+import type { AnalysisResult } from '../types'
 
 export interface ResumeListItem {
   id: number
@@ -20,28 +21,36 @@ export interface ResumeModule {
 
 export const resumeApi = {
   list: () =>
-    client.get<{ data: ResumeListItem[] }>('/resumes'),
+    client.get<ApiEnvelope<ResumeListItem[]>>('/resumes'),
 
   create: (data?: { title?: string; templateId?: string }) =>
-    client.post<{ data: ResumeListItem }>('/resumes', data || {}),
+    client.post<ApiEnvelope<ResumeListItem>>('/resumes', data || {}),
+
+  update: (id: number, data: { title: string }) =>
+    client.put<ApiEnvelope<ResumeListItem>>(`/resumes/${id}`, data),
 
   delete: (id: number) =>
     client.delete(`/resumes/${id}`),
 
   getModules: (resumeId: number) =>
-    client.get<{ data: ResumeModule[] }>(`/resumes/${resumeId}/modules`),
+    client.get<ApiEnvelope<ResumeModule[]>>(`/resumes/${resumeId}/modules`),
 
   addModule: (resumeId: number, data: { moduleType: string; content: Record<string, unknown>; sortOrder?: number }) =>
-    client.post<{ data: ResumeModule }>(`/resumes/${resumeId}/modules`, data),
+    client.post<ApiEnvelope<ResumeModule>>(`/resumes/${resumeId}/modules`, data),
 
   updateModule: (resumeId: number, moduleId: number, content: Record<string, unknown>) =>
-    client.post<{ data: ResumeModule }>(`/resumes/${resumeId}/modules/${moduleId}/update`, { content }),
+    client.post<ApiEnvelope<ResumeModule>>(`/resumes/${resumeId}/modules/${moduleId}/update`, { content }),
 
   deleteModule: (resumeId: number, moduleId: number) =>
     client.delete(`/resumes/${resumeId}/modules/${moduleId}`),
 
   aiOptimize: (resumeId: number, moduleId: number) =>
-    client.post<{ data: { original: Record<string, unknown>; optimized: Record<string, unknown> } }>(
+    client.post<ApiEnvelope<{ original: Record<string, unknown>; optimized: Record<string, unknown> }>>(
       `/resumes/${resumeId}/modules/${moduleId}/ai-optimize`
     ),
+
+  analyze: (resumeId: number, data?: { prompt?: string }) =>
+    client.post<ApiEnvelope<AnalysisResult>>(`/resumes/${resumeId}/analysis`, data || {}, {
+      timeout: 70000,
+    }),
 }

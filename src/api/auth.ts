@@ -1,4 +1,4 @@
-import client from './client'
+import client, { type ApiEnvelope } from './client'
 
 export interface LoginParams {
   email: string
@@ -26,13 +26,13 @@ export interface TokenData {
 
 export const authApi = {
   login: (params: LoginParams) =>
-    client.post<{ data: TokenData }>('/auth/login', params),
+    client.post<ApiEnvelope<TokenData>>('/auth/login', params),
 
   register: (params: RegisterParams) =>
-    client.post<{ data: TokenData }>('/auth/register', params),
+    client.post<ApiEnvelope<TokenData>>('/auth/register', params),
 
   refresh: (refreshToken: string) =>
-    client.post<{ data: TokenData }>('/auth/refresh', { refreshToken }),
+    client.post<ApiEnvelope<TokenData>>('/auth/refresh', { refreshToken }),
 
   logout: () =>
     client.post('/auth/logout'),

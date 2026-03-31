@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import type { EducationContent } from '../../types'
 import { useAutoSave } from '../../hooks/useAutoSave'
+import { normalizeEducationContent } from '../../utils/moduleContent'
 
 interface Props {
   resumeId: number
@@ -9,12 +10,12 @@ interface Props {
 }
 
 export function EducationForm({ resumeId, moduleId, initialContent }: Props) {
-  const [content, setContent] = useState<EducationContent>({
-    school: '', schoolLogo: '', department: '', major: '', degree: '',
-    startDate: '', endDate: '', is985: false, is211: false, isDoubleFirst: false,
-    ...initialContent as Partial<EducationContent>,
-  })
+  const [content, setContent] = useState<EducationContent>(() => normalizeEducationContent(initialContent))
   const { save } = useAutoSave(resumeId, moduleId)
+
+  useEffect(() => {
+    setContent(normalizeEducationContent(initialContent))
+  }, [initialContent])
 
   useEffect(() => {
     save(content as unknown as Record<string, unknown>)

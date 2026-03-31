@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import type { ProjectContent } from '../../types'
 import { useAutoSave } from '../../hooks/useAutoSave'
+import { normalizeProjectContent } from '../../utils/moduleContent'
+import { AutoResizeTextarea } from '../ui/AutoResizeTextarea'
 
 interface Props {
   resumeId: number
@@ -9,12 +11,12 @@ interface Props {
 }
 
 export function ProjectForm({ resumeId, moduleId, initialContent }: Props) {
-  const [content, setContent] = useState<ProjectContent>({
-    projectName: '', role: '', startDate: '', endDate: '', techStack: '',
-    description: '', achievements: [],
-    ...initialContent as Partial<ProjectContent>,
-  })
+  const [content, setContent] = useState<ProjectContent>(() => normalizeProjectContent(initialContent))
   const { save } = useAutoSave(resumeId, moduleId)
+
+  useEffect(() => {
+    setContent(normalizeProjectContent(initialContent))
+  }, [initialContent])
 
   useEffect(() => {
     save(content as unknown as Record<string, unknown>)
@@ -24,13 +26,13 @@ export function ProjectForm({ resumeId, moduleId, initialContent }: Props) {
     setContent((prev) => ({ ...prev, [field]: value }))
   }
 
-  const addAchievement = () => update('achievements', [...content.achievements, ''])
-  const updateAchievement = (i: number, v: string) => {
+  const addResponsibility = () => update('achievements', [...content.achievements, ''])
+  const updateResponsibility = (i: number, v: string) => {
     const next = [...content.achievements]
     next[i] = v
     update('achievements', next)
   }
-  const removeAchievement = (i: number) => {
+  const removeResponsibility = (i: number) => {
     update('achievements', content.achievements.filter((_, idx) => idx !== i))
   }
 
@@ -60,27 +62,39 @@ export function ProjectForm({ resumeId, moduleId, initialContent }: Props) {
       </div>
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">技术栈</label>
-        <input type="text" value={content.techStack} onChange={(e) => update('techStack', e.target.value)}
+        <AutoResizeTextarea
+          value={content.techStack}
+          onChange={(e) => update('techStack', e.target.value)}
+          minRows={2}
           placeholder="React, TypeScript, Node.js..."
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none text-sm" />
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none text-sm resize-none leading-6"
+        />
       </div>
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">项目描述</label>
-        <textarea value={content.description} onChange={(e) => update('description', e.target.value)}
-          rows={3}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none text-sm resize-none" />
+        <AutoResizeTextarea
+          value={content.description}
+          onChange={(e) => update('description', e.target.value)}
+          minRows={4}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none text-sm resize-none leading-6"
+        />
       </div>
       <div>
         <div className="flex items-center justify-between mb-2">
-          <label className="text-sm font-medium text-gray-700">主要成果</label>
-          <button type="button" onClick={addAchievement}
+          <label className="text-sm font-medium text-gray-700">核心职责</label>
+          <button type="button" onClick={addResponsibility}
             className="text-sm text-primary-600 hover:text-primary-700">+ 添加</button>
         </div>
         {content.achievements.map((item, index) => (
-          <div key={index} className="flex gap-2 mb-2">
-            <input type="text" value={item} onChange={(e) => updateAchievement(index, e.target.value)}
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none text-sm" />
-            <button type="button" onClick={() => removeAchievement(index)}
+          <div key={index} className="flex gap-2 mb-2 items-start">
+            <AutoResizeTextarea
+              value={item}
+              onChange={(e) => updateResponsibility(index, e.target.value)}
+              minRows={4}
+              placeholder={`职责 ${index + 1}`}
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none text-sm resize-none leading-6"
+            />
+            <button type="button" onClick={() => removeResponsibility(index)}
               className="text-gray-300 hover:text-red-500 px-2">x</button>
           </div>
         ))}

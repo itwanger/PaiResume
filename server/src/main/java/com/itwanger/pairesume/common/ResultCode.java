@@ -31,10 +31,13 @@ public enum ResultCode {
     RESUME_NOT_FOUND(3001, "简历不存在"),
     RESUME_LIMIT_REACHED(3002, "简历数量已达上限"),
     MODULE_NOT_FOUND(3003, "模块不存在"),
+    MODULE_ALREADY_EXISTS(3004, "该模块只能添加一份"),
 
     // AI: 4xxx
+    AI_NOT_CONFIGURED(4000, "AI 服务未配置，请检查服务端 AI 模型参数"),
     AI_SERVICE_BUSY(4001, "AI 服务繁忙，请稍后重试"),
     AI_INPUT_TOO_LONG(4002, "输入内容过长"),
+    AI_RESPONSE_INVALID(4003, "AI 返回内容格式异常"),
 
     // Notification: 5xxx
     NOTIFICATION_NOT_FOUND(5001, "通知不存在或无权限"),

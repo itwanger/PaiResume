@@ -1,7 +1,12 @@
 server:
-  port: 8080
+  port: ${SERVER_PORT:8084}
   servlet:
     context-path: /api
+
+app:
+  environment: ${APP_ENV:development}
+  cors:
+    allowed-origin-patterns: ${APP_CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:5173,http://127.0.0.1:5173,http://[::1]:5173}
 
 spring:
   datasource:
@@ -39,10 +44,11 @@ jwt:
   access-token-expiration: 7200000
   refresh-token-expiration: 604800000
 
-deepseek:
-  api-key: ${DEEPSEEK_API_KEY:}
-  base-url: https://api.deepseek.com/v1
-  model: deepseek-chat
+ai:
+  api-key: ${AI_API_KEY:${DEEPSEEK_API_KEY:}}
+  base-url: ${AI_BASE_URL:${DEEPSEEK_BASE_URL:https://api.deepseek.com/v1}}
+  model: ${AI_MODEL:${DEEPSEEK_MODEL:deepseek-chat}}
+  analysis-model: ${AI_ANALYSIS_MODEL:${DEEPSEEK_ANALYSIS_MODEL:${AI_MODEL:${DEEPSEEK_MODEL:deepseek-chat}}}}
   timeout: 60
 
 springdoc:

@@ -326,7 +326,7 @@ function parseLLMResponse(content: string): AnalysisResult {
           suggestion: '已切换到本地规则分析模式，建议检查 API 配置或重试'
         }
       ],
-      suggestions: ['AI 响应格式异常，建议切换到快速分析模式']
+      suggestions: ['AI 响应格式异常，建议检查配置后重新分析']
     }
   }
 }

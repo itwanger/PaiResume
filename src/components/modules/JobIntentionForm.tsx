@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import type { JobIntentionContent } from '../../types'
 import { useAutoSave } from '../../hooks/useAutoSave'
+import { normalizeJobIntentionContent } from '../../utils/moduleContent'
 
 interface Props {
   resumeId: number
@@ -9,11 +10,12 @@ interface Props {
 }
 
 export function JobIntentionForm({ resumeId, moduleId, initialContent }: Props) {
-  const [content, setContent] = useState<JobIntentionContent>({
-    targetPosition: '', targetCity: '', salaryRange: '', expectedEntryDate: '',
-    ...initialContent as Partial<JobIntentionContent>,
-  })
+  const [content, setContent] = useState<JobIntentionContent>(() => normalizeJobIntentionContent(initialContent))
   const { save } = useAutoSave(resumeId, moduleId)
+
+  useEffect(() => {
+    setContent(normalizeJobIntentionContent(initialContent))
+  }, [initialContent])
 
   useEffect(() => {
     save(content as unknown as Record<string, unknown>)

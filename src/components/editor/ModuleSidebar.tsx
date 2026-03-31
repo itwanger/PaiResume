@@ -6,6 +6,8 @@ interface ModuleSidebarProps {
   activeModuleType: ModuleType | null
   onSelect: (moduleType: ModuleType) => void
   onAddModule: (moduleType: ModuleType) => void
+  analysisActive?: boolean
+  onSelectAnalysis?: () => void
 }
 
 const ALL_MODULE_TYPES: ModuleType[] = [
@@ -17,10 +19,16 @@ const ALL_MODULE_TYPES: ModuleType[] = [
   'paper',
   'research',
   'award',
-  'job_intention',
 ]
 
-export function ModuleSidebar({ modules, activeModuleType, onSelect, onAddModule }: ModuleSidebarProps) {
+export function ModuleSidebar({
+  modules,
+  activeModuleType,
+  onSelect,
+  onAddModule,
+  analysisActive = false,
+  onSelectAnalysis,
+}: ModuleSidebarProps) {
   const existingTypes = new Set(modules.map((m) => m.moduleType as ModuleType))
 
   return (
@@ -31,7 +39,6 @@ export function ModuleSidebar({ modules, activeModuleType, onSelect, onAddModule
           {ALL_MODULE_TYPES.map((type) => {
             const exists = existingTypes.has(type)
             const isActive = activeModuleType === type
-            const module = modules.find((m) => m.moduleType === type)
             const count = modules.filter((m) => m.moduleType === type).length
 
             return (
@@ -66,6 +73,24 @@ export function ModuleSidebar({ modules, activeModuleType, onSelect, onAddModule
             )
           })}
         </nav>
+
+        <div className="mt-6 border-t border-gray-100 pt-4">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-400">分析</h2>
+          <button
+            type="button"
+            onClick={onSelectAnalysis}
+            className={`w-full rounded-lg px-3 py-2 text-left text-sm transition-colors ${
+              analysisActive
+                ? 'bg-primary-50 font-medium text-primary-700'
+                : 'text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            <span className="flex items-center gap-2.5">
+              <span className="text-base">📊</span>
+              <span className="flex-1">简历分析</span>
+            </span>
+          </button>
+        </div>
       </div>
     </aside>
   )

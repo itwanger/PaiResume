@@ -9,16 +9,16 @@ export function analyzeResume(resume: Resume): AnalysisResult {
   let score = 100
 
   // 分析基本信息
-  analyzeBasicInfo(resume.basicInfo, issues, suggestions, score)
+  analyzeBasicInfo(resume.basicInfo, issues, suggestions)
 
   // 分析教育背景
-  analyzeEducations(resume.educations, issues, suggestions, score)
+  analyzeEducations(resume.educations, issues)
 
   // 分析技能
-  analyzeSkills(resume.skills, issues, suggestions, score)
+  analyzeSkills(resume.skills, issues, suggestions)
 
   // 分析工作经历
-  analyzeExperiences(resume.experiences, issues, suggestions, score)
+  analyzeExperiences(resume.experiences, issues, suggestions)
 
   // 计算最终得分
   score = Math.max(0, score - issues.length * 10)
@@ -36,8 +36,7 @@ export function analyzeResume(resume: Resume): AnalysisResult {
 function analyzeBasicInfo(
   basicInfo: Resume['basicInfo'],
   issues: AnalysisIssue[],
-  suggestions: string[],
-  score: number
+  suggestions: string[]
 ) {
   // 必填字段检查
   const requiredFields: (keyof Resume['basicInfo'])[] = ['name', 'email', 'phone']
@@ -94,9 +93,7 @@ function analyzeBasicInfo(
  */
 function analyzeEducations(
   educations: Resume['educations'],
-  issues: AnalysisIssue[],
-  suggestions: string[],
-  score: number
+  issues: AnalysisIssue[]
 ) {
   if (educations.length === 0) {
     issues.push({
@@ -155,15 +152,14 @@ function analyzeEducations(
 function analyzeSkills(
   skills: Resume['skills'],
   issues: AnalysisIssue[],
-  suggestions: string[],
-  score: number
+  suggestions: string[]
 ) {
   if (skills.length === 0) {
     issues.push({
       type: 'missing',
       field: 'skills',
       message: '缺少专业技能',
-      suggestion: '请列出您的专业技能，如编程语言、框架、工具等'
+      suggestion: '请逐条列出您的专业技能和能力点，帮助招聘方快速判断匹配度'
     })
     return
   }
@@ -177,29 +173,9 @@ function analyzeSkills(
     })
   }
 
-  // 检查技能分类
-  const categories = {
-    language: false,
-    framework: false,
-    tool: false
-  }
-
-  for (const skill of skills) {
-    const skillLower = skill.toLowerCase()
-    if (/java|python|javascript|typescript|go|rust|c\+\+|c#/.test(skillLower)) {
-      categories.language = true
-    }
-    if (/react|vue|angular|spring|express|next\.js/.test(skillLower)) {
-      categories.framework = true
-    }
-    if (/docker|kubernetes|git|linux|aws|mysql|redis/.test(skillLower)) {
-      categories.tool = true
-    }
-  }
-
-  const filledCategories = Object.values(categories).filter(Boolean).length
-  if (filledCategories < 2) {
-    suggestions.push('建议展示多类别技能，如编程语言、框架、工具等，让简历更全面')
+  const longFormSkills = skills.filter((skill) => skill.length >= 20)
+  if (longFormSkills.length === 0) {
+    suggestions.push('建议优先用完整句子描述技能能力，而不是只堆砌技术关键词')
   }
 }
 
@@ -209,8 +185,7 @@ function analyzeSkills(
 function analyzeExperiences(
   experiences: Resume['experiences'],
   issues: AnalysisIssue[],
-  suggestions: string[],
-  score: number
+  suggestions: string[]
 ) {
   if (experiences.length === 0) {
     issues.push({

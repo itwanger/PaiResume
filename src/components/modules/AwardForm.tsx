@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import type { AwardContent } from '../../types'
 import { useAutoSave } from '../../hooks/useAutoSave'
+import { normalizeAwardContent } from '../../utils/moduleContent'
 
 interface Props {
   resumeId: number
@@ -9,11 +10,12 @@ interface Props {
 }
 
 export function AwardForm({ resumeId, moduleId, initialContent }: Props) {
-  const [content, setContent] = useState<AwardContent>({
-    awardName: '', awardTime: '',
-    ...initialContent as Partial<AwardContent>,
-  })
+  const [content, setContent] = useState<AwardContent>(() => normalizeAwardContent(initialContent))
   const { save } = useAutoSave(resumeId, moduleId)
+
+  useEffect(() => {
+    setContent(normalizeAwardContent(initialContent))
+  }, [initialContent])
 
   useEffect(() => {
     save(content as unknown as Record<string, unknown>)
