@@ -84,8 +84,13 @@ export function PreviewPanel({ modules, loading }: PreviewPanelProps) {
   const shouldReduceMotion = useReducedMotion() ?? false
   const [previewMode, setPreviewMode] = useState<PreviewMode>('live')
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null)
+  const [stagedPdfPreviewUrl, setStagedPdfPreviewUrl] = useState<string | null>(null)
+  const [pdfRefreshing, setPdfRefreshing] = useState(false)
   const [pdfError, setPdfError] = useState('')
   const pdfUrlRef = useRef<string | null>(null)
+  const stagedPdfUrlRef = useRef<string | null>(null)
+  const pdfRenderRequestRef = useRef(0)
+  const pdfRenderSignatureRef = useRef('')
 
   const sortedModules = [...modules].sort((a, b) => {
     if (a.sortOrder === b.sortOrder) {
@@ -104,37 +109,72 @@ export function PreviewPanel({ modules, loading }: PreviewPanelProps) {
   })
 
   useEffect(() => {
-    if (previewMode !== 'pdf' || modules.length === 0) {
+    if (modules.length === 0) {
+      pdfRenderSignatureRef.current = ''
+      pdfRenderRequestRef.current += 1
+      setPdfRefreshing(false)
+      setPdfError('')
+      setPdfPreviewUrl(null)
+      setStagedPdfPreviewUrl(null)
+      if (pdfUrlRef.current) {
+        URL.revokeObjectURL(pdfUrlRef.current)
+        pdfUrlRef.current = null
+      }
+      if (stagedPdfUrlRef.current) {
+        URL.revokeObjectURL(stagedPdfUrlRef.current)
+        stagedPdfUrlRef.current = null
+      }
+      return
+    }
+
+    const nextSignature = JSON.stringify(modules)
+    if (nextSignature === pdfRenderSignatureRef.current && pdfUrlRef.current) {
+      if (previewMode !== 'pdf') {
+        setPdfRefreshing(false)
+      }
       setPdfError('')
       return
     }
 
     let cancelled = false
+    const requestId = pdfRenderRequestRef.current + 1
+    pdfRenderRequestRef.current = requestId
+    const renderDelay = previewMode === 'pdf' ? 0 : 320
+    setPdfRefreshing(previewMode === 'pdf' || !!pdfUrlRef.current)
     setPdfError('')
 
     const timer = window.setTimeout(() => {
       void generateResumePdfBlob(modules)
         .then((blob) => {
-          if (cancelled) {
+          if (cancelled || requestId !== pdfRenderRequestRef.current) {
             return
           }
 
           const nextUrl = URL.createObjectURL(blob)
-          if (pdfUrlRef.current) {
-            URL.revokeObjectURL(pdfUrlRef.current)
-          }
-          pdfUrlRef.current = nextUrl
-          setPdfPreviewUrl(nextUrl)
-        })
-        .catch((error: unknown) => {
-          if (cancelled) {
+          pdfRenderSignatureRef.current = nextSignature
+
+          if (!pdfUrlRef.current) {
+            pdfUrlRef.current = nextUrl
+            setPdfPreviewUrl(nextUrl)
             return
           }
 
+          if (stagedPdfUrlRef.current) {
+            URL.revokeObjectURL(stagedPdfUrlRef.current)
+          }
+          stagedPdfUrlRef.current = nextUrl
+          setStagedPdfPreviewUrl(nextUrl)
+        })
+        .catch((error: unknown) => {
+          if (cancelled || requestId !== pdfRenderRequestRef.current) {
+            return
+          }
+
+          setPdfRefreshing(false)
           const message = error instanceof Error ? error.message : 'PDF 预览生成失败，请稍后重试'
           setPdfError(message)
         })
-    }, 280)
+    }, renderDelay)
 
     return () => {
       cancelled = true
@@ -146,7 +186,37 @@ export function PreviewPanel({ modules, loading }: PreviewPanelProps) {
     if (pdfUrlRef.current) {
       URL.revokeObjectURL(pdfUrlRef.current)
     }
+    if (stagedPdfUrlRef.current) {
+      URL.revokeObjectURL(stagedPdfUrlRef.current)
+    }
   }, [])
+
+  const commitStagedPdfPreview = () => {
+    if (!stagedPdfUrlRef.current) {
+      setPdfRefreshing(false)
+      return
+    }
+
+    const previousActiveUrl = pdfUrlRef.current
+    const nextActiveUrl = stagedPdfUrlRef.current
+
+    pdfUrlRef.current = nextActiveUrl
+    stagedPdfUrlRef.current = null
+
+    setPdfPreviewUrl(nextActiveUrl)
+    setStagedPdfPreviewUrl(null)
+    setPdfRefreshing(false)
+
+    if (previousActiveUrl && previousActiveUrl !== nextActiveUrl) {
+      URL.revokeObjectURL(previousActiveUrl)
+    }
+  }
+
+  const handleVisiblePdfLoad = () => {
+    if (!stagedPdfUrlRef.current) {
+      setPdfRefreshing(false)
+    }
+  }
 
   if (loading && modules.length === 0) {
     return (
@@ -212,12 +282,29 @@ export function PreviewPanel({ modules, loading }: PreviewPanelProps) {
                 {pdfError}
               </div>
             ) : pdfPreviewUrl ? (
-              <iframe
-                key={pdfPreviewUrl}
-                title="Resume PDF Preview"
-                src={`${pdfPreviewUrl}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`}
-                className="h-[calc(100vh-220px)] min-h-[720px] w-full bg-white"
-              />
+              <div className="relative">
+                <iframe
+                  title="Resume PDF Preview"
+                  src={`${pdfPreviewUrl}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`}
+                  className="h-[calc(100vh-220px)] min-h-[720px] w-full bg-white"
+                  onLoad={handleVisiblePdfLoad}
+                />
+                {stagedPdfPreviewUrl ? (
+                  <iframe
+                    title="Resume PDF Preview Staged"
+                    src={`${stagedPdfPreviewUrl}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`}
+                    className="pointer-events-none absolute inset-0 h-[calc(100vh-220px)] min-h-[720px] w-full opacity-0"
+                    aria-hidden="true"
+                    tabIndex={-1}
+                    onLoad={commitStagedPdfPreview}
+                  />
+                ) : null}
+                {pdfRefreshing ? (
+                  <div className="pointer-events-none absolute right-3 top-3 rounded-full bg-white/92 px-3 py-1 text-[11px] font-medium text-gray-500 shadow-sm ring-1 ring-gray-200">
+                    更新中...
+                  </div>
+                ) : null}
+              </div>
             ) : (
               <div className="flex min-h-[297mm] items-center justify-center text-sm text-gray-400">
                 正在准备 PDF 预览...
