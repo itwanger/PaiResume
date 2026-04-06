@@ -1,6 +1,5 @@
-import { useState, useEffect } from 'react'
 import type { InternshipContent } from '../../types'
-import { useAutoSave } from '../../hooks/useAutoSave'
+import { useModuleContentState } from '../../hooks/useModuleContentState'
 import { normalizeInternshipContent } from '../../utils/moduleContent'
 import { AutoResizeTextarea } from '../ui/AutoResizeTextarea'
 
@@ -11,16 +10,12 @@ interface Props {
 }
 
 export function InternshipForm({ resumeId, moduleId, initialContent }: Props) {
-  const [content, setContent] = useState<InternshipContent>(() => normalizeInternshipContent(initialContent))
-  const { save } = useAutoSave(resumeId, moduleId)
-
-  useEffect(() => {
-    setContent(normalizeInternshipContent(initialContent))
-  }, [initialContent])
-
-  useEffect(() => {
-    save(content as unknown as Record<string, unknown>)
-  }, [content, save])
+  const [content, setContent] = useModuleContentState<InternshipContent>({
+    resumeId,
+    moduleId,
+    initialContent,
+    normalize: normalizeInternshipContent,
+  })
 
   const update = (field: keyof InternshipContent, value: string | string[]) => {
     setContent((prev) => ({ ...prev, [field]: value }))

@@ -1,6 +1,5 @@
-import { useState, useEffect } from 'react'
 import type { ProjectContent } from '../../types'
-import { useAutoSave } from '../../hooks/useAutoSave'
+import { useModuleContentState } from '../../hooks/useModuleContentState'
 import { normalizeProjectContent } from '../../utils/moduleContent'
 import { AutoResizeTextarea } from '../ui/AutoResizeTextarea'
 
@@ -11,16 +10,12 @@ interface Props {
 }
 
 export function ProjectForm({ resumeId, moduleId, initialContent }: Props) {
-  const [content, setContent] = useState<ProjectContent>(() => normalizeProjectContent(initialContent))
-  const { save } = useAutoSave(resumeId, moduleId)
-
-  useEffect(() => {
-    setContent(normalizeProjectContent(initialContent))
-  }, [initialContent])
-
-  useEffect(() => {
-    save(content as unknown as Record<string, unknown>)
-  }, [content, save])
+  const [content, setContent] = useModuleContentState<ProjectContent>({
+    resumeId,
+    moduleId,
+    initialContent,
+    normalize: normalizeProjectContent,
+  })
 
   const update = (field: keyof ProjectContent, value: string | string[]) => {
     setContent((prev) => ({ ...prev, [field]: value }))

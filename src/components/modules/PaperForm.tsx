@@ -1,6 +1,5 @@
-import { useState, useEffect } from 'react'
 import type { PaperContent } from '../../types'
-import { useAutoSave } from '../../hooks/useAutoSave'
+import { useModuleContentState } from '../../hooks/useModuleContentState'
 import { normalizePaperContent } from '../../utils/moduleContent'
 
 interface Props {
@@ -10,16 +9,12 @@ interface Props {
 }
 
 export function PaperForm({ resumeId, moduleId, initialContent }: Props) {
-  const [content, setContent] = useState<PaperContent>(() => normalizePaperContent(initialContent))
-  const { save } = useAutoSave(resumeId, moduleId)
-
-  useEffect(() => {
-    setContent(normalizePaperContent(initialContent))
-  }, [initialContent])
-
-  useEffect(() => {
-    save(content as unknown as Record<string, unknown>)
-  }, [content, save])
+  const [content, setContent] = useModuleContentState<PaperContent>({
+    resumeId,
+    moduleId,
+    initialContent,
+    normalize: normalizePaperContent,
+  })
 
   const update = (field: keyof PaperContent, value: string) => {
     setContent((prev) => ({ ...prev, [field]: value }))

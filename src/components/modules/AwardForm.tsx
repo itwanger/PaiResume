@@ -1,6 +1,5 @@
-import { useState, useEffect } from 'react'
 import type { AwardContent } from '../../types'
-import { useAutoSave } from '../../hooks/useAutoSave'
+import { useModuleContentState } from '../../hooks/useModuleContentState'
 import { normalizeAwardContent } from '../../utils/moduleContent'
 
 interface Props {
@@ -10,16 +9,12 @@ interface Props {
 }
 
 export function AwardForm({ resumeId, moduleId, initialContent }: Props) {
-  const [content, setContent] = useState<AwardContent>(() => normalizeAwardContent(initialContent))
-  const { save } = useAutoSave(resumeId, moduleId)
-
-  useEffect(() => {
-    setContent(normalizeAwardContent(initialContent))
-  }, [initialContent])
-
-  useEffect(() => {
-    save(content as unknown as Record<string, unknown>)
-  }, [content, save])
+  const [content, setContent] = useModuleContentState<AwardContent>({
+    resumeId,
+    moduleId,
+    initialContent,
+    normalize: normalizeAwardContent,
+  })
 
   return (
     <div className="grid grid-cols-2 gap-4">

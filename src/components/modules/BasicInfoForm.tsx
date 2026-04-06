@@ -1,6 +1,5 @@
-import { useState, useEffect } from 'react'
 import type { BasicInfoContent } from '../../types'
-import { useAutoSave } from '../../hooks/useAutoSave'
+import { useModuleContentState } from '../../hooks/useModuleContentState'
 import { normalizeBasicInfoContent } from '../../utils/moduleContent'
 
 interface Props {
@@ -10,16 +9,12 @@ interface Props {
 }
 
 export function BasicInfoForm({ resumeId, moduleId, initialContent }: Props) {
-  const [content, setContent] = useState<BasicInfoContent>(() => normalizeBasicInfoContent(initialContent))
-  const { save } = useAutoSave(resumeId, moduleId)
-
-  useEffect(() => {
-    setContent(normalizeBasicInfoContent(initialContent))
-  }, [initialContent])
-
-  useEffect(() => {
-    save(content as unknown as Record<string, unknown>)
-  }, [content, save])
+  const [content, setContent] = useModuleContentState<BasicInfoContent>({
+    resumeId,
+    moduleId,
+    initialContent,
+    normalize: normalizeBasicInfoContent,
+  })
 
   const update = (field: keyof BasicInfoContent, value: string | boolean) => {
     setContent((prev) => ({ ...prev, [field]: value }))

@@ -5,6 +5,9 @@ server:
 
 app:
   environment: ${APP_ENV:development}
+  dev-account:
+    email: ${DEV_ACCOUNT_EMAIL:test@example.com}
+    password: ${DEV_ACCOUNT_PASSWORD:Test123456}
   cors:
     allowed-origin-patterns: ${APP_CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:5173,http://127.0.0.1:5173,http://[::1]:5173}
 

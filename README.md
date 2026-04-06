@@ -110,6 +110,7 @@ mvn spring-boot:run
 说明：
 
 - 后端启动时会自动执行 `server/src/main/resources/schema.sql` 建表。
+- 当 `APP_ENV=development` 时，后端启动后会自动确保存在一个测试账号，默认是 `test@example.com / Test123456`，可通过 `DEV_ACCOUNT_EMAIL` 和 `DEV_ACCOUNT_PASSWORD` 覆盖。
 - 当前项目没有显式依赖 Flyway 运行迁移，数据库初始化以 `schema.sql` 为准。
 - 在 `APP_ENV` 不是 `development` 时，必须显式覆盖 `JWT_SECRET`，否则服务会拒绝启动。
 

@@ -1,6 +1,5 @@
-import { useState, useEffect } from 'react'
 import type { SkillContent } from '../../types'
-import { useAutoSave } from '../../hooks/useAutoSave'
+import { useModuleContentState } from '../../hooks/useModuleContentState'
 import { normalizeSkillContent } from '../../utils/moduleContent'
 import { AutoResizeTextarea } from '../ui/AutoResizeTextarea'
 
@@ -18,16 +17,12 @@ function toFlatSkillContent(content: SkillContent): SkillContent {
 }
 
 export function SkillForm({ resumeId, moduleId, initialContent }: Props) {
-  const [content, setContent] = useState<SkillContent>(() => toFlatSkillContent(normalizeSkillContent(initialContent)))
-  const { save } = useAutoSave(resumeId, moduleId)
-
-  useEffect(() => {
-    setContent(toFlatSkillContent(normalizeSkillContent(initialContent)))
-  }, [initialContent])
-
-  useEffect(() => {
-    save(content as unknown as Record<string, unknown>)
-  }, [content, save])
+  const [content, setContent] = useModuleContentState<SkillContent>({
+    resumeId,
+    moduleId,
+    initialContent,
+    normalize: (content) => toFlatSkillContent(normalizeSkillContent(content)),
+  })
 
   const skillItems = content.categories[0]?.items ?? []
 

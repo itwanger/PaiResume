@@ -16,6 +16,10 @@ function asRecord(content: Record<string, unknown>): UnknownRecord {
   return content as UnknownRecord
 }
 
+export function areModuleContentsEqual(left: unknown, right: unknown): boolean {
+  return JSON.stringify(left) === JSON.stringify(right)
+}
+
 export function toStringValue(value: unknown): string {
   return typeof value === 'string' ? value : ''
 }
