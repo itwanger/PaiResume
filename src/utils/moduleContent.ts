@@ -183,6 +183,15 @@ export function normalizePaperContent(content: Record<string, unknown>): PaperCo
   }
 }
 
+export function hasPaperContent(content: PaperContent): boolean {
+  return [
+    content.journalType,
+    content.journalName,
+    content.publishTime,
+    content.content,
+  ].some((value) => value.trim())
+}
+
 export function normalizeResearchContent(content: Record<string, unknown>): ResearchContent {
   const record = asRecord(content)
 
@@ -193,6 +202,16 @@ export function normalizeResearchContent(content: Record<string, unknown>): Rese
     workContent: toStringValue(record.workContent),
     achievements: toStringValue(record.achievements),
   }
+}
+
+export function hasResearchContent(content: ResearchContent): boolean {
+  return [
+    content.projectName,
+    content.projectCycle,
+    content.background,
+    content.workContent,
+    content.achievements,
+  ].some((value) => value.trim())
 }
 
 export function normalizeAwardContent(content: Record<string, unknown>): AwardContent {

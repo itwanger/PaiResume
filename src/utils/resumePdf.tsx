@@ -10,6 +10,8 @@ import {
 } from '@react-pdf/renderer'
 import type { ResumeModule } from '../api/resume'
 import {
+  hasPaperContent,
+  hasResearchContent,
   normalizeAwardContent,
   normalizeBasicInfoContent,
   normalizeEducationContent,
@@ -490,6 +492,9 @@ function ResumePdfDocument({ modules }: { modules: ResumeModule[] }) {
             }
             case 'paper': {
               const content = normalizePaperContent(module.content)
+              if (!hasPaperContent(content)) {
+                return null
+              }
               return (
                 <View key={module.id} style={styles.section}>
                   <Text style={styles.sectionTitle}>论文发表</Text>
@@ -501,6 +506,9 @@ function ResumePdfDocument({ modules }: { modules: ResumeModule[] }) {
             }
             case 'research': {
               const content = normalizeResearchContent(module.content)
+              if (!hasResearchContent(content)) {
+                return null
+              }
               return (
                 <View key={module.id} style={styles.section}>
                   <Text style={styles.sectionTitle}>科研经历</Text>

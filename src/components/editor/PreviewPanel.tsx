@@ -3,6 +3,8 @@ import { AnimatePresence, motion, useReducedMotion, type Variants } from 'framer
 import type { ResumeModule } from '../../api/resume'
 import { MODULE_LABELS, type ModuleType } from '../../types'
 import {
+  hasPaperContent,
+  hasResearchContent,
   normalizeAwardContent,
   normalizeBasicInfoContent,
   normalizeEducationContent,
@@ -103,6 +105,14 @@ export function PreviewPanel({ modules, loading }: PreviewPanelProps) {
   const visibleModules = sortedModules.filter((module) => {
     if (module.moduleType === 'job_intention') {
       return false
+    }
+
+    if (module.moduleType === 'paper') {
+      return hasPaperContent(normalizePaperContent(module.content))
+    }
+
+    if (module.moduleType === 'research') {
+      return hasResearchContent(normalizeResearchContent(module.content))
     }
 
     return !(module.moduleType === 'award' && hasEducationModule)
@@ -243,10 +253,10 @@ export function PreviewPanel({ modules, loading }: PreviewPanelProps) {
         <div className="mb-4 flex items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">
-              {previewMode === 'pdf' ? 'PDF 预览' : '实时预览'}
+              {previewMode === 'pdf' ? 'PDF 预览' : '文本预览'}
             </h2>
             <p className="mt-1 text-xs text-gray-500">
-              {previewMode === 'pdf' ? '当前展示的是与导出完全同源的 PDF 效果。' : '当前展示的是编辑态的快速预览效果。'}
+              {previewMode === 'pdf' ? '当前展示的是与导出完全同源的 PDF 效果。' : '当前展示的是编辑内容的文本预览效果。'}
             </p>
           </div>
           <div className="inline-flex rounded-full border border-gray-200 bg-white p-1 shadow-sm">
@@ -259,7 +269,7 @@ export function PreviewPanel({ modules, loading }: PreviewPanelProps) {
                   : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              实时预览
+              文本预览
             </button>
             <button
               type="button"
