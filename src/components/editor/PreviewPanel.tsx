@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion, type Variants } from 'framer-motion'
 import type { ResumeModule } from '../../api/resume'
 import { MODULE_LABELS, type ModuleType } from '../../types'
@@ -11,11 +12,14 @@ import {
   normalizeResearchContent,
   normalizeSkillContent,
 } from '../../utils/moduleContent'
+import { generateResumePdfBlob } from '../../utils/resumePdf'
 
 interface PreviewPanelProps {
   modules: ResumeModule[]
   loading: boolean
 }
+
+type PreviewMode = 'live' | 'pdf'
 
 const pageMotion: Variants = {
   hidden: {
@@ -78,6 +82,79 @@ const moduleCardMotion: Variants = {
 
 export function PreviewPanel({ modules, loading }: PreviewPanelProps) {
   const shouldReduceMotion = useReducedMotion() ?? false
+  const [previewMode, setPreviewMode] = useState<PreviewMode>('live')
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null)
+  const [pdfLoading, setPdfLoading] = useState(false)
+  const [pdfError, setPdfError] = useState('')
+  const pdfUrlRef = useRef<string | null>(null)
+
+  const sortedModules = [...modules].sort((a, b) => {
+    if (a.sortOrder === b.sortOrder) {
+      return a.id - b.id
+    }
+
+    return a.sortOrder - b.sortOrder
+  })
+  const hasEducationModule = sortedModules.some((module) => module.moduleType === 'education')
+  const visibleModules = sortedModules.filter((module) => {
+    if (module.moduleType === 'job_intention') {
+      return false
+    }
+
+    return !(module.moduleType === 'award' && hasEducationModule)
+  })
+
+  useEffect(() => {
+    if (previewMode !== 'pdf' || modules.length === 0) {
+      setPdfLoading(false)
+      setPdfError('')
+      return
+    }
+
+    let cancelled = false
+    setPdfLoading(true)
+    setPdfError('')
+
+    const timer = window.setTimeout(() => {
+      void generateResumePdfBlob(modules)
+        .then((blob) => {
+          if (cancelled) {
+            return
+          }
+
+          const nextUrl = URL.createObjectURL(blob)
+          if (pdfUrlRef.current) {
+            URL.revokeObjectURL(pdfUrlRef.current)
+          }
+          pdfUrlRef.current = nextUrl
+          setPdfPreviewUrl(nextUrl)
+        })
+        .catch((error: unknown) => {
+          if (cancelled) {
+            return
+          }
+
+          const message = error instanceof Error ? error.message : 'PDF 预览生成失败，请稍后重试'
+          setPdfError(message)
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setPdfLoading(false)
+          }
+        })
+    }, 280)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [modules, previewMode])
+
+  useEffect(() => () => {
+    if (pdfUrlRef.current) {
+      URL.revokeObjectURL(pdfUrlRef.current)
+    }
+  }, [])
 
   if (loading && modules.length === 0) {
     return (
@@ -98,54 +175,94 @@ export function PreviewPanel({ modules, loading }: PreviewPanelProps) {
     )
   }
 
-  const sortedModules = [...modules].sort((a, b) => {
-    if (a.sortOrder === b.sortOrder) {
-      return a.id - b.id
-    }
-
-    return a.sortOrder - b.sortOrder
-  })
-  const hasEducationModule = sortedModules.some((module) => module.moduleType === 'education')
-  const visibleModules = sortedModules.filter((module) => {
-    if (module.moduleType === 'job_intention') {
-      return false
-    }
-
-    return !(module.moduleType === 'award' && hasEducationModule)
-  })
-
   return (
-    <div className="h-full bg-gray-50">
+    <div className="flex h-full flex-col bg-gray-50">
       <div className="mx-auto max-w-[240mm]">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">实时预览</h2>
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">
+              {previewMode === 'pdf' ? 'PDF 预览' : '实时预览'}
+            </h2>
+            <p className="mt-1 text-xs text-gray-500">
+              {previewMode === 'pdf' ? '当前展示的是与导出完全同源的 PDF 效果。' : '当前展示的是编辑态的快速预览效果。'}
+            </p>
+          </div>
+          <div className="inline-flex rounded-full border border-gray-200 bg-white p-1 shadow-sm">
+            <button
+              type="button"
+              onClick={() => setPreviewMode('live')}
+              className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                previewMode === 'live'
+                  ? 'bg-gray-900 text-white'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              实时预览
+            </button>
+            <button
+              type="button"
+              onClick={() => setPreviewMode('pdf')}
+              className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                previewMode === 'pdf'
+                  ? 'bg-primary-700 text-white'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              PDF 预览
+            </button>
+          </div>
         </div>
 
-        <motion.div
-          initial={shouldReduceMotion ? false : 'hidden'}
-          animate="visible"
-          variants={pageMotion}
-          className="relative"
-        >
+        {previewMode === 'pdf' ? (
+          <div className="relative overflow-hidden rounded-[28px] border border-gray-200 bg-white shadow-[0_28px_70px_-42px_rgba(15,23,42,0.38)]">
+            <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50/70 px-4 py-2 text-xs text-gray-500">
+              <span>导出同源 PDF 画面</span>
+              {pdfLoading ? <span>生成中...</span> : <span>可直接用来核对版式</span>}
+            </div>
+            {pdfError ? (
+              <div className="flex min-h-[297mm] items-center justify-center px-6 text-sm text-red-500">
+                {pdfError}
+              </div>
+            ) : pdfPreviewUrl ? (
+              <iframe
+                key={pdfPreviewUrl}
+                title="Resume PDF Preview"
+                src={`${pdfPreviewUrl}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`}
+                className="h-[calc(100vh-220px)] min-h-[720px] w-full bg-white"
+              />
+            ) : (
+              <div className="flex min-h-[297mm] items-center justify-center text-sm text-gray-400">
+                正在准备 PDF 预览...
+              </div>
+            )}
+          </div>
+        ) : (
           <motion.div
-            className="min-h-[297mm] space-y-4"
-            variants={shouldReduceMotion ? undefined : moduleListMotion}
             initial={shouldReduceMotion ? false : 'hidden'}
             animate="visible"
+            variants={pageMotion}
+            className="relative"
           >
-            <AnimatePresence initial={false}>
-              {visibleModules.map((module, index) => (
-                <ModulePreviewSection
-                  key={module.id}
-                  module={module}
-                  modules={sortedModules}
-                  index={index}
-                  shouldReduceMotion={shouldReduceMotion}
-                />
-              ))}
-            </AnimatePresence>
+            <motion.div
+              className="min-h-[297mm] space-y-4"
+              variants={shouldReduceMotion ? undefined : moduleListMotion}
+              initial={shouldReduceMotion ? false : 'hidden'}
+              animate="visible"
+            >
+              <AnimatePresence initial={false}>
+                {visibleModules.map((module, index) => (
+                  <ModulePreviewSection
+                    key={module.id}
+                    module={module}
+                    modules={sortedModules}
+                    index={index}
+                    shouldReduceMotion={shouldReduceMotion}
+                  />
+                ))}
+              </AnimatePresence>
+            </motion.div>
           </motion.div>
-        </motion.div>
+        )}
       </div>
     </div>
   )

@@ -539,7 +539,7 @@ function ResumePdfDocument({ modules }: { modules: ResumeModule[] }) {
 }
 
 export async function downloadResumePdf(modules: ResumeModule[], resumeId: number) {
-  const blob = await pdf(<ResumePdfDocument modules={modules} />).toBlob()
+  const blob = await generateResumePdfBlob(modules)
   const objectUrl = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = objectUrl
@@ -548,4 +548,8 @@ export async function downloadResumePdf(modules: ResumeModule[], resumeId: numbe
   link.click()
   document.body.removeChild(link)
   URL.revokeObjectURL(objectUrl)
+}
+
+export async function generateResumePdfBlob(modules: ResumeModule[]) {
+  return pdf(<ResumePdfDocument modules={modules} />).toBlob()
 }
