@@ -84,7 +84,6 @@ export function PreviewPanel({ modules, loading }: PreviewPanelProps) {
   const shouldReduceMotion = useReducedMotion() ?? false
   const [previewMode, setPreviewMode] = useState<PreviewMode>('live')
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null)
-  const [pdfLoading, setPdfLoading] = useState(false)
   const [pdfError, setPdfError] = useState('')
   const pdfUrlRef = useRef<string | null>(null)
 
@@ -106,13 +105,11 @@ export function PreviewPanel({ modules, loading }: PreviewPanelProps) {
 
   useEffect(() => {
     if (previewMode !== 'pdf' || modules.length === 0) {
-      setPdfLoading(false)
       setPdfError('')
       return
     }
 
     let cancelled = false
-    setPdfLoading(true)
     setPdfError('')
 
     const timer = window.setTimeout(() => {
@@ -136,11 +133,6 @@ export function PreviewPanel({ modules, loading }: PreviewPanelProps) {
 
           const message = error instanceof Error ? error.message : 'PDF 预览生成失败，请稍后重试'
           setPdfError(message)
-        })
-        .finally(() => {
-          if (!cancelled) {
-            setPdfLoading(false)
-          }
         })
     }, 280)
 
@@ -177,7 +169,7 @@ export function PreviewPanel({ modules, loading }: PreviewPanelProps) {
 
   return (
     <div className="flex h-full flex-col bg-gray-50">
-      <div className="mx-auto max-w-[240mm]">
+      <div className="w-full">
         <div className="mb-4 flex items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">
@@ -214,11 +206,7 @@ export function PreviewPanel({ modules, loading }: PreviewPanelProps) {
         </div>
 
         {previewMode === 'pdf' ? (
-          <div className="relative overflow-hidden rounded-[28px] border border-gray-200 bg-white shadow-[0_28px_70px_-42px_rgba(15,23,42,0.38)]">
-            <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50/70 px-4 py-2 text-xs text-gray-500">
-              <span>导出同源 PDF 画面</span>
-              {pdfLoading ? <span>生成中...</span> : <span>可直接用来核对版式</span>}
-            </div>
+          <div className="relative overflow-hidden border border-gray-200 bg-white shadow-[0_28px_70px_-42px_rgba(15,23,42,0.38)]">
             {pdfError ? (
               <div className="flex min-h-[297mm] items-center justify-center px-6 text-sm text-red-500">
                 {pdfError}
