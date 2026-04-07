@@ -1,6 +1,7 @@
 import type { ResearchContent } from '../../types'
 import { useModuleContentState } from '../../hooks/useModuleContentState'
 import { normalizeResearchContent } from '../../utils/moduleContent'
+import { ModuleSaveBar } from './ModuleSaveBar'
 
 interface Props {
   resumeId: number
@@ -9,7 +10,7 @@ interface Props {
 }
 
 export function ResearchForm({ resumeId, moduleId, initialContent }: Props) {
-  const [content, setContent] = useModuleContentState<ResearchContent>({
+  const [content, setContent, { saveNow, saveState, errorMessage, hasUnsavedChanges }] = useModuleContentState<ResearchContent>({
     resumeId,
     moduleId,
     initialContent,
@@ -22,6 +23,13 @@ export function ResearchForm({ resumeId, moduleId, initialContent }: Props) {
 
   return (
     <div className="space-y-4">
+      <ModuleSaveBar
+        saveState={saveState}
+        errorMessage={errorMessage}
+        hasUnsavedChanges={hasUnsavedChanges}
+        onSave={saveNow}
+      />
+
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">项目名称</label>

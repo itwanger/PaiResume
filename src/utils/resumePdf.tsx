@@ -134,6 +134,14 @@ const styles = StyleSheet.create({
   },
 })
 
+export interface ResumePdfOptions {
+  pageMode?: 'standard' | 'continuous'
+  fileNameSuffix?: string
+}
+
+const A4_WIDTH = 595.28
+const A4_HEIGHT = 841.89
+
 function sortModules(modules: ResumeModule[]) {
   return [...modules].sort((a, b) => {
     if (a.sortOrder === b.sortOrder) {
@@ -141,6 +149,80 @@ function sortModules(modules: ResumeModule[]) {
     }
     return a.sortOrder - b.sortOrder
   })
+}
+
+function normalizeWhitespace(value: string) {
+  return value
+    .replace(/\r\n/g, '\n')
+    .replace(/[ \t]+/g, ' ')
+    .trim()
+}
+
+function estimateContinuousPageHeight(modules: ResumeModule[]) {
+  const sortedModules = sortModules(modules)
+  let textVolume = 0
+  let bulletCount = 0
+  let moduleCount = 0
+
+  for (const module of sortedModules) {
+    moduleCount += 1
+
+    if (module.moduleType === 'basic_info') {
+      const content = normalizeBasicInfoContent(module.content)
+      textVolume += textLengthForPage([content.name, content.jobIntention, content.summary, content.email, content.phone, content.wechat, content.github, content.blog])
+      continue
+    }
+
+    if (module.moduleType === 'education') {
+      const content = normalizeEducationContent(module.content)
+      textVolume += textLengthForPage([content.school, content.department, content.major, content.degree])
+      continue
+    }
+
+    if (module.moduleType === 'internship') {
+      const content = normalizeInternshipContent(module.content)
+      textVolume += textLengthForPage([content.company, content.projectName, content.position, content.projectDescription, content.techStack, ...content.responsibilities])
+      bulletCount += content.responsibilities.length
+      continue
+    }
+
+    if (module.moduleType === 'project') {
+      const content = normalizeProjectContent(module.content)
+      textVolume += textLengthForPage([content.projectName, content.role, content.description, content.techStack, ...content.achievements])
+      bulletCount += content.achievements.length
+      continue
+    }
+
+    if (module.moduleType === 'skill') {
+      const content = normalizeSkillContent(module.content)
+      textVolume += textLengthForPage(content.categories.flatMap((category) => [category.name, ...category.items]))
+      continue
+    }
+
+    if (module.moduleType === 'research') {
+      const content = normalizeResearchContent(module.content)
+      textVolume += textLengthForPage([content.projectName, content.projectCycle, content.background, content.workContent, content.achievements])
+      continue
+    }
+
+    if (module.moduleType === 'paper') {
+      const content = normalizePaperContent(module.content)
+      textVolume += textLengthForPage([content.journalName, content.journalType, content.publishTime, content.content])
+      continue
+    }
+
+    if (module.moduleType === 'award') {
+      const content = normalizeAwardContent(module.content)
+      textVolume += textLengthForPage([content.awardName, content.awardTime])
+    }
+  }
+
+  const estimated = 220 + moduleCount * 46 + bulletCount * 18 + textVolume * 0.34
+  return Math.max(A4_HEIGHT * 1.15, Math.min(A4_HEIGHT * 4.2, estimated))
+}
+
+function textLengthForPage(values: string[]) {
+  return values.reduce((sum, value) => sum + normalizeWhitespace(value).length, 0)
 }
 
 function formatMonth(value: string) {
@@ -252,7 +334,7 @@ function normalizeExternalUrl(value: string) {
   return /^https?:\/\//i.test(value) ? value : `https://${value}`
 }
 
-function buildFileName(modules: ResumeModule[], resumeId: number) {
+function buildFileName(modules: ResumeModule[], resumeId: number, options?: ResumePdfOptions) {
   const basicInfoModule = modules.find((module) => module.moduleType === 'basic_info')
   const educationModule = modules.find((module) => module.moduleType === 'education')
   const jobIntentionModule = modules.find((module) => module.moduleType === 'job_intention')
@@ -269,10 +351,17 @@ function buildFileName(modules: ResumeModule[], resumeId: number) {
     .map((part) => part.replace(/[\\/:*?"<>|]/g, '-').trim())
 
   const baseName = segments.join('-') || `resume-${resumeId}`
-  return `${baseName}.pdf`
+  const suffix = options?.fileNameSuffix ? `-${options.fileNameSuffix}` : ''
+  return `${baseName}${suffix}.pdf`
 }
 
-function ResumePdfDocument({ modules }: { modules: ResumeModule[] }) {
+function ResumePdfDocument({
+  modules,
+  pageSize = 'A4',
+}: {
+  modules: ResumeModule[]
+  pageSize?: 'A4' | [number, number]
+}) {
   const sortedModules = sortModules(modules)
   const basicInfoModule = sortedModules.find((module) => module.moduleType === 'basic_info')
   const basicInfo = basicInfoModule ? normalizeBasicInfoContent(basicInfoModule.content) : null
@@ -287,7 +376,7 @@ function ResumePdfDocument({ modules }: { modules: ResumeModule[] }) {
 
   return (
     <Document>
-      <Page size="A4" style={styles.page}>
+      <Page size={pageSize} style={styles.page}>
         {basicInfo && (
           <View style={styles.header}>
             <View style={styles.headerRow}>
@@ -546,18 +635,23 @@ function ResumePdfDocument({ modules }: { modules: ResumeModule[] }) {
   )
 }
 
-export async function downloadResumePdf(modules: ResumeModule[], resumeId: number) {
-  const blob = await generateResumePdfBlob(modules)
+export async function downloadResumePdf(modules: ResumeModule[], resumeId: number, options?: ResumePdfOptions) {
+  const blob = await generateResumePdfBlob(modules, options)
   const objectUrl = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = objectUrl
-  link.download = buildFileName(modules, resumeId)
+  link.download = buildFileName(modules, resumeId, options)
   document.body.appendChild(link)
   link.click()
   document.body.removeChild(link)
   URL.revokeObjectURL(objectUrl)
 }
 
-export async function generateResumePdfBlob(modules: ResumeModule[]) {
-  return pdf(<ResumePdfDocument modules={modules} />).toBlob()
+export async function generateResumePdfBlob(modules: ResumeModule[], options?: ResumePdfOptions) {
+  const pageSize = options?.pageMode === 'continuous'
+    ? [A4_WIDTH, estimateContinuousPageHeight(modules)] as [number, number]
+    : 'A4'
+  const document = <ResumePdfDocument modules={modules} pageSize={pageSize} />
+
+  return pdf(document).toBlob()
 }

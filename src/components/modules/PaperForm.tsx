@@ -1,6 +1,7 @@
 import type { PaperContent } from '../../types'
 import { useModuleContentState } from '../../hooks/useModuleContentState'
 import { normalizePaperContent } from '../../utils/moduleContent'
+import { ModuleSaveBar } from './ModuleSaveBar'
 
 interface Props {
   resumeId: number
@@ -9,7 +10,7 @@ interface Props {
 }
 
 export function PaperForm({ resumeId, moduleId, initialContent }: Props) {
-  const [content, setContent] = useModuleContentState<PaperContent>({
+  const [content, setContent, { saveNow, saveState, errorMessage, hasUnsavedChanges }] = useModuleContentState<PaperContent>({
     resumeId,
     moduleId,
     initialContent,
@@ -22,6 +23,13 @@ export function PaperForm({ resumeId, moduleId, initialContent }: Props) {
 
   return (
     <div className="space-y-4">
+      <ModuleSaveBar
+        saveState={saveState}
+        errorMessage={errorMessage}
+        hasUnsavedChanges={hasUnsavedChanges}
+        onSave={saveNow}
+      />
+
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">期刊类型</label>

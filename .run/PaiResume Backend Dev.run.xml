@@ -1,0 +1,13 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="PaiResume Backend Dev" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot">
+    <option name="SPRING_BOOT_MAIN_CLASS" value="com.itwanger.pairesume.PaiResumeApplication" />
+    <module name="pai-resume-server" />
+    <envs>
+      <env name="APP_ENV" value="development" />
+      <env name="SERVER_PORT" value="8084" />
+    </envs>
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

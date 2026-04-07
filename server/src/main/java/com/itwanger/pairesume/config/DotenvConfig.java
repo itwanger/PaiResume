@@ -11,21 +11,21 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 启动时加载 server/.env 文件到 Spring Environment，
+ * 启动时加载项目根目录 .env 到 Spring Environment，
  * 这样 application.yml 中的 ${VAR:default} 占位符就能读到值。
  */
 public class DotenvConfig implements ApplicationContextInitializer<ConfigurableApplicationContext> {
 
     @Override
     public void initialize(ConfigurableApplicationContext context) {
-        // 只在 server/.env 文件存在时加载
-        File envFile = new File(".env");
-        if (!envFile.exists()) {
+        File envFile = resolveEnvFile();
+        if (envFile == null) {
             return;
         }
 
         Dotenv dotenv = Dotenv.configure()
-                .directory(".")
+                .directory(envFile.getParent() == null ? "." : envFile.getParent())
+                .filename(envFile.getName())
                 .ignoreIfMissing()
                 .load();
 
@@ -44,5 +44,23 @@ public class DotenvConfig implements ApplicationContextInitializer<ConfigurableA
             env.getPropertySources()
                     .addFirst(new MapPropertySource("dotenvProperties", dotenvMap));
         }
+    }
+
+    private File resolveEnvFile() {
+        File userDir = new File(System.getProperty("user.dir"));
+        File parentDir = userDir.getParentFile();
+        File[] candidates = new File[] {
+                new File(".env"),
+                new File(userDir, ".env"),
+                parentDir == null ? null : new File(parentDir, ".env"),
+        };
+
+        for (File candidate : candidates) {
+            if (candidate != null && candidate.exists() && candidate.isFile()) {
+                return candidate;
+            }
+        }
+
+        return null;
     }
 }

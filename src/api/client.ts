@@ -20,8 +20,21 @@ const client = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
+function isPublicAuthRequest(url?: string) {
+  return Boolean(url && (
+    url.includes('/auth/login') ||
+    url.includes('/auth/register') ||
+    url.includes('/auth/send-code') ||
+    url.includes('/auth/refresh')
+  ))
+}
+
 // 请求拦截：自动附加 Token
 client.interceptors.request.use((config) => {
+  if (isPublicAuthRequest(config.url)) {
+    return config
+  }
+
   const token = localStorage.getItem('accessToken')
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
@@ -70,7 +83,7 @@ function shouldRefreshToken(error: unknown) {
   const payload = error.response?.data as { code?: number } | undefined
   const originalRequest = error.config as RetryableRequestConfig | undefined
 
-  if (!originalRequest || originalRequest._retry || originalRequest.url?.includes('/auth/refresh')) {
+  if (!originalRequest || originalRequest._retry || isPublicAuthRequest(originalRequest.url)) {
     return false
   }
 

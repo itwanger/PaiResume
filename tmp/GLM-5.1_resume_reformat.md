@@ -53,6 +53,6 @@ GitHub：https://github.com/itwanger/
 - 了解 RAG 流程，能完成文档解析、分段切块、向量化、混合检索和上下文拼接，并处理相似度阈值与召回数量等参数调优。
 - 掌握 Embedding 向量化与向量检索，使用 ElasticSearch dense_vector 或其他向量库进行相似度检索，并结合 BM25 实现混合搜索提升召回质量。
 - 深入理解 Agent / Function Calling 等机制，能通过工具调用把模型能力接入业务系统，比如查询数据库、检索知识库、调用内部接口，并处理工具返回的结构化结果。
-- 熟悉Linux系统（SUSE、Euler、CentOS等）及Windows Server的安装部署、运维管理和性能优化，具备生产环境系统调优经验；熟练使用Linux文本处理工具（awk、sed、grep），能够快速分析系统及业务日志
-- 掌握Java基础知识，如集合框架、VO流、Stream流、反射机制等，阅读过HashMap源码，了解其扩容机制;熟悉Java开发中常见的设计模式，如工厂模式、代理模式、单例模式等。
-- 熟悉计算机网络常见协议，例如HTTP、HTTPS、TCP、UDP、IP、DNS等网络协议;熟悉TCP三次握手、四次挥手以及TLS的四次握手的过程。
+- 熟悉Linux系统（SUSE、Euler、CentOS等）及Windows Server的安装部署、运维管理和性能优化，具备生产环境系统调优经验；熟练使用Linux文本处理工具（awk、sed、grep），能够快速分析系统及业务日志。
+- 掌握Java基础知识，如集合框架、VO流、Stream流、反射机制等，阅读过HashMap源码，了解其扩容机制；熟悉Java开发中常见的设计模式，如工厂模式、代理模式、单例模式等。
+- 熟悉计算机网络常见协议，例如HTTP、HTTPS、TCP、UDP、IP、DNS等网络协议；熟悉TCP三次握手、四次挥手以及TLS的四次握手的过程。

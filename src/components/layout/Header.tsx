@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ChangeEvent, type MouseEvent as ReactMouseEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type MouseEvent as ReactMouseEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 import { useResumeStore } from '../../store/resumeStore'
@@ -8,6 +8,7 @@ import { LogoMark } from '../branding/LogoMark'
 interface HeaderProps {
   onExportPdf?: () => void
   exporting?: boolean
+  smartOnePageHref?: string
 }
 
 const IMPORT_LOG_PREFIX = '[resume-import]'
@@ -42,6 +43,7 @@ function getImportTypeFromFile(file: File): ResumeImportType | null {
 export function Header({
   onExportPdf,
   exporting = false,
+  smartOnePageHref,
 }: HeaderProps) {
   const navigate = useNavigate()
   const { user, isAuthenticated, logout } = useAuthStore()
@@ -53,6 +55,56 @@ export function Header({
   const menuRef = useRef<HTMLDivElement | null>(null)
   const fileInputRefs = useRef<Partial<Record<ResumeImportType, HTMLInputElement | null>>>({})
   const dragDepthRef = useRef(0)
+
+  const handleImportFile = useCallback(async (file: File, currentType: ResumeImportType) => {
+    const importer = getResumeImporter(currentType)
+    logImportStep('handleImportFile:start', {
+      type: currentType,
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type,
+      importerEnabled: importer?.enabled ?? false,
+      hasParser: typeof importer?.parse === 'function',
+    })
+
+    if (!importer?.enabled || !importer.parse) {
+      logImportStep('handleImportFile:importer-unavailable', {
+        type: currentType,
+      })
+      setImportingType(null)
+      setImportError('当前导入方式暂不可用')
+      return
+    }
+
+    try {
+      setImportingType(currentType)
+      const payload = await importer.parse(file)
+      logImportStep('handleImportFile:parse-success', {
+        type: currentType,
+        title: payload.title,
+        moduleCount: payload.modules.length,
+      })
+      const resume = await importResume(payload)
+      logImportStep('handleImportFile:store-import-success', {
+        type: currentType,
+        resumeId: resume.id,
+      })
+      navigate(`/editor/${resume.id}`)
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '导入失败，请稍后再试'
+      logImportStep('handleImportFile:error', {
+        type: currentType,
+        message,
+        error,
+      })
+      setImportError(message)
+    } finally {
+      logImportStep('handleImportFile:finish', {
+        type: currentType,
+      })
+      setImportingType(null)
+    }
+  }, [importResume, navigate])
 
   useEffect(() => {
     if (!importMenuOpen) {
@@ -178,56 +230,6 @@ export function Header({
     navigate('/login')
   }
 
-  async function handleImportFile(file: File, currentType: ResumeImportType) {
-    const importer = getResumeImporter(currentType)
-    logImportStep('handleImportFile:start', {
-      type: currentType,
-      fileName: file.name,
-      fileSize: file.size,
-      fileType: file.type,
-      importerEnabled: importer?.enabled ?? false,
-      hasParser: typeof importer?.parse === 'function',
-    })
-
-    if (!importer?.enabled || !importer.parse) {
-      logImportStep('handleImportFile:importer-unavailable', {
-        type: currentType,
-      })
-      setImportingType(null)
-      setImportError('当前导入方式暂不可用')
-      return
-    }
-
-    try {
-      setImportingType(currentType)
-      const payload = await importer.parse(file)
-      logImportStep('handleImportFile:parse-success', {
-        type: currentType,
-        title: payload.title,
-        moduleCount: payload.modules.length,
-      })
-      const resume = await importResume(payload)
-      logImportStep('handleImportFile:store-import-success', {
-        type: currentType,
-        resumeId: resume.id,
-      })
-      navigate(`/editor/${resume.id}`)
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : '导入失败，请稍后再试'
-      logImportStep('handleImportFile:error', {
-        type: currentType,
-        message,
-        error,
-      })
-      setImportError(message)
-    } finally {
-      logImportStep('handleImportFile:finish', {
-        type: currentType,
-      })
-      setImportingType(null)
-    }
-  }
-
   const handleImportChange = (type: ResumeImportType) => async (event: ChangeEvent<HTMLInputElement>) => {
     logImportStep('handleImportChange:fired', {
       type,
@@ -303,6 +305,17 @@ export function Header({
                     </svg>
                     {exporting ? '导出中...' : '导出 PDF'}
                   </button>
+                )}
+                {smartOnePageHref && (
+                  <Link
+                    to={smartOnePageHref}
+                    className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 transition-colors hover:border-primary-200 hover:text-primary-700"
+                  >
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h10" />
+                    </svg>
+                    智能一页
+                  </Link>
                 )}
                 <div className="relative" ref={menuRef}>
                   <button

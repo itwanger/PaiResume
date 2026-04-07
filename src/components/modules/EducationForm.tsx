@@ -1,6 +1,7 @@
 import type { EducationContent } from '../../types'
 import { useModuleContentState } from '../../hooks/useModuleContentState'
 import { normalizeEducationContent } from '../../utils/moduleContent'
+import { ModuleSaveBar } from './ModuleSaveBar'
 
 interface Props {
   resumeId: number
@@ -9,7 +10,7 @@ interface Props {
 }
 
 export function EducationForm({ resumeId, moduleId, initialContent }: Props) {
-  const [content, setContent] = useModuleContentState<EducationContent>({
+  const [content, setContent, { saveNow, saveState, errorMessage, hasUnsavedChanges }] = useModuleContentState<EducationContent>({
     resumeId,
     moduleId,
     initialContent,
@@ -22,6 +23,13 @@ export function EducationForm({ resumeId, moduleId, initialContent }: Props) {
 
   return (
     <div className="space-y-4">
+      <ModuleSaveBar
+        saveState={saveState}
+        errorMessage={errorMessage}
+        hasUnsavedChanges={hasUnsavedChanges}
+        onSave={saveNow}
+      />
+
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">学校</label>

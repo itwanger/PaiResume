@@ -3,11 +3,41 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { LogoMark } from '../components/branding/LogoMark'
 
+const REMEMBERED_EMAIL_KEY = 'rememberedEmail'
+const REMEMBERED_PASSWORD_KEY = 'rememberedPassword'
+
+function getRememberedCredentials() {
+  if (typeof window === 'undefined') {
+    return { email: '', password: '', remembered: false }
+  }
+
+  const rememberedEmail = window.localStorage.getItem(REMEMBERED_EMAIL_KEY) ?? ''
+  const rememberedPassword = window.localStorage.getItem(REMEMBERED_PASSWORD_KEY) ?? ''
+  const remembered = Boolean(rememberedEmail && rememberedPassword)
+
+  return {
+    email: rememberedEmail,
+    password: rememberedPassword,
+    remembered,
+  }
+}
+
+function clearRememberedCredentials() {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  window.localStorage.removeItem(REMEMBERED_EMAIL_KEY)
+  window.localStorage.removeItem(REMEMBERED_PASSWORD_KEY)
+}
+
 export default function LoginPage() {
+  const rememberedCredentials = getRememberedCredentials()
   const navigate = useNavigate()
   const { login } = useAuthStore()
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+  const [email, setEmail] = useState(rememberedCredentials.email)
+  const [password, setPassword] = useState(rememberedCredentials.password)
+  const [rememberCredentials, setRememberCredentials] = useState(rememberedCredentials.remembered)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -23,6 +53,12 @@ export default function LoginPage() {
     setLoading(true)
     try {
       await login(email, password)
+      if (rememberCredentials) {
+        localStorage.setItem(REMEMBERED_EMAIL_KEY, email.trim())
+        localStorage.setItem(REMEMBERED_PASSWORD_KEY, password)
+      } else {
+        clearRememberedCredentials()
+      }
       navigate('/dashboard')
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : '登录失败，请检查邮箱和密码'
@@ -35,10 +71,9 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <LogoMark className="mx-auto mb-4 h-14 w-14" />
-          <h1 className="text-2xl font-bold text-gray-900">派简历</h1>
-          <p className="text-gray-500 mt-1">登录你的账号</p>
+        <div className="mb-8 flex items-center justify-center gap-3">
+          <LogoMark className="h-12 w-12 shrink-0" />
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">派简历</h1>
         </div>
 
         <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-5">
@@ -71,6 +106,22 @@ export default function LoginPage() {
               autoComplete="current-password"
             />
           </div>
+
+          <label className="flex items-center gap-2 text-sm text-gray-600 select-none">
+            <input
+              type="checkbox"
+              checked={rememberCredentials}
+              onChange={(e) => {
+                const checked = e.target.checked
+                setRememberCredentials(checked)
+                if (!checked) {
+                  clearRememberedCredentials()
+                }
+              }}
+              className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+            />
+            记住邮箱和密码
+          </label>
 
           <button
             type="submit"

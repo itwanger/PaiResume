@@ -15,6 +15,21 @@ body {
   min-height: 100vh;
 }
 
+/* 统一圆角语言：大面板保持硬朗，小控件保留轻微圆角 */
+.rounded,
+.rounded-md,
+.rounded-lg,
+.rounded-xl {
+  border-radius: 4px !important;
+}
+
+.rounded-2xl,
+.rounded-3xl,
+.rounded-\[24px\],
+.rounded-\[32px\] {
+  border-radius: 0 !important;
+}
+
 /* 打印样式 */
 @media print {
   body {
@@ -49,6 +64,8 @@ body {
     box-shadow: none !important;
   }
 
+  .rounded-3xl,
+  .rounded-2xl,
   .rounded-xl,
   .rounded-lg,
   .rounded {

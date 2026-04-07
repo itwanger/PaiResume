@@ -2,8 +2,13 @@ package com.itwanger.pairesume.service.impl;
 
 import com.itwanger.pairesume.common.BusinessException;
 import com.itwanger.pairesume.common.ResultCode;
+import com.itwanger.pairesume.dto.AiFieldOptimizeRequestDTO;
 import com.itwanger.pairesume.dto.ResumeAnalysisIssueDTO;
 import com.itwanger.pairesume.dto.ResumeAnalysisResultDTO;
+import com.itwanger.pairesume.dto.SmartOnePageModuleDecisionDTO;
+import com.itwanger.pairesume.dto.SmartOnePagePreviewMetaDTO;
+import com.itwanger.pairesume.dto.SmartOnePagePreviewRequestDTO;
+import com.itwanger.pairesume.dto.SmartOnePagePreviewResponseDTO;
 import com.itwanger.pairesume.entity.ResumeModule;
 import com.itwanger.pairesume.service.AiService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -13,20 +18,37 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.StringJoiner;
+import java.util.function.Consumer;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Slf4j
 @Service
 public class AiServiceImpl implements AiService {
+    private static final double A4_HEIGHT = 841.89d;
+    private static final Pattern ENGLISH_KEYWORD_PATTERN = Pattern.compile("[A-Za-z][A-Za-z0-9.+#/_-]{1,}");
+    private static final Pattern PLACEHOLDER_CANDIDATE_PATTERN = Pattern.compile("^(版本|方向|候选)\\s*[0-9一二三四五六七八九十]+\\s*[:：]?$");
     private static final Set<String> ALLOWED_ISSUE_TYPES = Set.of("missing", "weak", "format", "content");
     private static final Set<String> IGNORED_ANALYSIS_FIELDS = Set.of("basic_info.summary", "professional_summary", "skill", "专业技能");
+    private static final Set<String> OPTIMIZABLE_MODULE_TYPES = Set.of("internship", "project", "research", "skill");
     private static final String DEFAULT_ANALYSIS_INSTRUCTIONS = """
             请站在校招技术简历评审视角分析这份简历。
             重点要求：
@@ -55,6 +77,7 @@ public class AiServiceImpl implements AiService {
     );
 
     private final WebClient webClient;
+    private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
 
     @Value("${ai.api-key}")
@@ -90,10 +113,129 @@ public class AiServiceImpl implements AiService {
             %s
             ---
             """;
+    private static final String INTERNSHIP_PROJECT_DESCRIPTION_PROMPT = """
+            你是一位技术简历专家，请只优化“项目简介”这一段原文，不要参考或扩写其他字段。
+
+            优化要求：
+            1. 只围绕原始项目简介改写，不补充公司、岗位、项目名、技术栈、职责等额外上下文。
+            2. 每个版本都控制在 1-2 句话，突出“这是一个什么系统/平台、解决什么问题、核心价值是什么”。
+            3. 不要展开到职责细节，不要堆技术栈，不要编造事实、数据、业务规模。
+            4. 输出 3 个版本，分别偏保守、偏标准、偏有张力，但都必须适合直接放进简历。
+
+            原始项目简介：
+            %s
+
+            输出要求：
+            - 只返回 JSON
+            - JSON 结构必须是 {"candidates":["完整版本A","完整版本B","完整版本C"]}
+            - 不要输出解释、标题、编号、Markdown 代码块
+            - candidates 中的每一项都必须是完整可用的简历文案，严禁返回“版本1”“版本2”这类占位词
+            """;
+    private static final String INTERNSHIP_RESPONSIBILITY_PROMPT = """
+            你是一位技术简历专家，请只优化“实习经历”中的一条核心职责。
+
+            改写要求：
+            1. 明确写出用了什么技术栈。
+            2. 明确写出解决了什么问题。
+            3. 明确写出实现了什么业务或能力。
+            4. 如果原文中存在量化数据或效果，必须保留；如果没有，就不要编造。
+            5. 保持为一条适合放在简历里的高密度 bullet，语言专业、克制、结果导向。
+            6. 严禁编造事实。
+
+            当前上下文：
+            - 公司：%s
+            - 岗位：%s
+            - 项目名：%s
+            - 技术栈：%s
+            - 项目简介：%s
+
+            原始职责：
+            %s
+
+            输出要求：
+            - 只输出优化后的纯文本
+            - 不要加标题、编号、引号或解释
+            """;
+    private static final String PROJECT_DESCRIPTION_PROMPT = """
+            你是一位技术简历专家，请只优化“项目简介”这一段原文，不要参考或扩写其他字段。
+
+            优化要求：
+            1. 只围绕原始项目简介改写，不补充项目名、角色、技术栈、职责等额外上下文。
+            2. 每个版本都控制在 1-2 句话，突出“这是一个什么系统/平台、解决什么问题、核心价值是什么”。
+            3. 不要展开到职责细节，不要堆技术栈，不要编造事实、数据、业务规模。
+            4. 输出 3 个版本，分别偏保守、偏标准、偏有张力，但都必须适合直接放进简历。
+
+            原始项目简介：
+            %s
+
+            输出要求：
+            - 只返回 JSON
+            - JSON 结构必须是 {"candidates":["完整版本A","完整版本B","完整版本C"]}
+            - 不要输出解释、标题、编号、Markdown 代码块
+            - candidates 中的每一项都必须是完整可用的简历文案，严禁返回“版本1”“版本2”这类占位词
+            """;
+    private static final String PROJECT_DESCRIPTION_RETRY_PROMPT = """
+            基于下面这段项目简介，直接输出 3 个可放进简历的候选版本。
+
+            要求：
+            1. 只围绕原文改写，不补充任何额外背景。
+            2. 每个版本 1-2 句话，至少 20 个字。
+            3. 不要写“版本1”“方向1”这类占位词。
+            4. 只返回 JSON，格式必须是 {"candidates":["完整版本A","完整版本B","完整版本C"]}。
+
+            原始项目简介：
+            %s
+            """;
+    private static final String PROJECT_RESPONSIBILITY_PROMPT = """
+            你是一位技术简历专家，请只优化“项目经历”中的一条核心职责。
+
+            改写要求：
+            1. 明确写出用了什么技术栈。
+            2. 明确写出解决了什么问题。
+            3. 明确写出实现了什么业务、能力或结果。
+            4. 如果原文中存在量化数据或效果，必须保留；如果没有，就不要编造。
+            5. 保持为一条适合放在简历里的高密度 bullet，语言专业、克制、结果导向。
+            6. 严禁编造事实。
+
+            当前上下文：
+            - 项目名：%s
+            - 角色：%s
+            - 技术栈：%s
+            - 项目描述：%s
+
+            原始职责：
+            %s
+
+            输出要求：
+            - 只输出优化后的纯文本
+            - 不要加标题、编号、引号或解释
+            """;
 
     public AiServiceImpl(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
         this.webClient = WebClient.builder().build();
+        this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(30))
+                .build();
+    }
+
+    private record FieldOptimizePlan(
+            String moduleType,
+            String fieldType,
+            String originalText,
+            String prompt,
+            boolean projectDescriptionField
+    ) {
+    }
+
+    private record StreamChatResult(String content, String reasoning) {
+    }
+
+    private static final class StreamLogState {
+        private int reasoningLoggedLength;
+        private int contentLoggedLength;
+        private boolean reasoningStarted;
+        private boolean contentStarted;
     }
 
     @Override
@@ -122,6 +264,288 @@ public class AiServiceImpl implements AiService {
             log.error("AI optimization failed", e);
             throw new BusinessException(ResultCode.AI_SERVICE_BUSY);
         }
+    }
+
+    @Override
+    public Map<String, Object> optimizeModuleField(String moduleType, Map<String, Object> content, AiFieldOptimizeRequestDTO request) {
+        validateConfiguration();
+        var plan = prepareFieldOptimizePlan(moduleType, content, request);
+
+        log.info("[AI Optimize][Service] preparing field optimize: moduleType={}, fieldType={}, index={}, original={}",
+                plan.moduleType(),
+                plan.fieldType(),
+                request.getIndex(),
+                truncateText(plan.originalText(), 240));
+
+        try {
+            var projectDescriptionField = plan.projectDescriptionField();
+            var targetModel = projectDescriptionField ? analysisModel : model;
+            var systemPrompt = resolveFieldSystemPrompt(request);
+            var response = invokeChatCompletion(
+                    targetModel,
+                    systemPrompt,
+                    plan.prompt(),
+                    0.35,
+                    projectDescriptionField ? 1200 : 800,
+                    projectDescriptionField
+            );
+
+            if (response == null) {
+                throw new BusinessException(ResultCode.AI_SERVICE_BUSY);
+            }
+
+            log.info("[AI Optimize][Service] upstream raw response: moduleType={}, fieldType={}, body={}",
+                    plan.moduleType(), plan.fieldType(), truncateText(response, 1200));
+
+            if (projectDescriptionField) {
+                var candidates = parseTextCandidatesResponse(response);
+                log.info("[AI Optimize][Service] parsed project description candidates: moduleType={}, count={}, candidates={}",
+                        plan.moduleType(), candidates.size(), candidates.stream().map(item -> truncateText(item, 160)).toList());
+                if (!areTextCandidatesUsable(candidates)) {
+                    log.warn("[AI Optimize][Service] unusable project description candidates detected, retrying: moduleType={}, candidates={}",
+                            plan.moduleType(), candidates.stream().map(item -> truncateText(item, 80)).toList());
+                    var retryResponse = invokeChatCompletion(
+                            analysisModel,
+                            systemPrompt,
+                            PROJECT_DESCRIPTION_RETRY_PROMPT.formatted(plan.originalText()),
+                            0.35,
+                            1000,
+                            true
+                    );
+
+                    if (retryResponse == null) {
+                        throw new BusinessException(ResultCode.AI_SERVICE_BUSY);
+                    }
+
+                    log.info("[AI Optimize][Service] upstream retry raw response: moduleType={}, fieldType={}, body={}",
+                            plan.moduleType(), plan.fieldType(), truncateText(retryResponse, 1200));
+                    candidates = parseTextCandidatesResponse(retryResponse);
+                    log.info("[AI Optimize][Service] parsed retry candidates: moduleType={}, count={}, candidates={}",
+                            plan.moduleType(), candidates.size(), candidates.stream().map(item -> truncateText(item, 160)).toList());
+                }
+
+                if (!areTextCandidatesUsable(candidates)) {
+                    throw new BusinessException(ResultCode.AI_RESPONSE_INVALID.getCode(), "AI 返回了占位候选结果，请重试");
+                }
+
+                return Map.of(
+                        "original", plan.originalText(),
+                        "optimized", candidates.get(0),
+                        "candidates", candidates
+                );
+            }
+
+            var optimizedText = cleanTextResponse(response);
+            if (optimizedText.isBlank()) {
+                throw new BusinessException(ResultCode.AI_RESPONSE_INVALID);
+            }
+
+            log.info("[AI Optimize][Service] parsed field optimize result: moduleType={}, fieldType={}, optimized={}",
+                    plan.moduleType(), plan.fieldType(), truncateText(optimizedText, 240));
+
+            return Map.of(
+                    "original", plan.originalText(),
+                    "optimized", optimizedText
+            );
+        } catch (BusinessException e) {
+            throw e;
+        } catch (WebClientResponseException e) {
+            log.error("AI field optimization upstream failed with status {}", e.getStatusCode(), e);
+            throw new BusinessException(ResultCode.AI_SERVICE_BUSY.getCode(), buildUpstreamErrorMessage(e));
+        } catch (Exception e) {
+            log.error("AI field optimization failed", e);
+            throw new BusinessException(ResultCode.AI_SERVICE_BUSY);
+        }
+    }
+
+    @Override
+    public Map<String, Object> streamOptimizeModuleField(
+            String moduleType,
+            Map<String, Object> content,
+            AiFieldOptimizeRequestDTO request,
+            Consumer<Map<String, Object>> eventConsumer
+    ) {
+        validateConfiguration();
+        var plan = prepareFieldOptimizePlan(moduleType, content, request);
+        emitStreamEvent(eventConsumer, "meta", Map.of(
+                "moduleType", plan.moduleType(),
+                "fieldType", plan.fieldType(),
+                "original", plan.originalText()
+        ));
+        emitStreamEvent(eventConsumer, "status", Map.of("message", "AI 已连接，正在生成结果。"));
+
+        try {
+            var targetModel = plan.projectDescriptionField() ? analysisModel : model;
+            var systemPrompt = resolveFieldSystemPrompt(request);
+            var streamResult = streamChatCompletion(
+                    targetModel,
+                    systemPrompt,
+                    plan.prompt(),
+                    0.35,
+                    plan.projectDescriptionField() ? 1800 : 1000,
+                    plan.projectDescriptionField(),
+                    eventConsumer
+            );
+
+            if (plan.projectDescriptionField()) {
+                var candidates = parseTextCandidatesContent(streamResult.content());
+                log.info("[AI Optimize][Service] stream project description result ready: moduleType={}, count={}, candidates={}",
+                        plan.moduleType(), candidates.size(), candidates.stream().map(candidate -> truncateText(candidate, 80)).toList());
+                if (!areTextCandidatesUsable(candidates)) {
+                    throw new BusinessException(ResultCode.AI_RESPONSE_INVALID.getCode(), "AI 返回了不可采纳的候选结果，请重试");
+                }
+                return Map.of(
+                        "original", plan.originalText(),
+                        "optimized", candidates.get(0),
+                        "candidates", candidates
+                );
+            }
+
+            var optimizedText = cleanTextContent(streamResult.content());
+            if (optimizedText.isBlank()) {
+                throw new BusinessException(ResultCode.AI_RESPONSE_INVALID.getCode(), "AI 思考已结束，但未返回最终结果，请重试");
+            }
+            log.info("[AI Optimize][Service] stream field optimize result ready: moduleType={}, fieldType={}, optimized={}",
+                    plan.moduleType(), plan.fieldType(), truncateText(optimizedText, 120));
+
+            return Map.of(
+                    "original", plan.originalText(),
+                    "optimized", optimizedText
+            );
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("AI field streaming optimization failed", e);
+            throw new BusinessException(ResultCode.AI_SERVICE_BUSY);
+        }
+    }
+
+    private FieldOptimizePlan prepareFieldOptimizePlan(String moduleType, Map<String, Object> content, AiFieldOptimizeRequestDTO request) {
+        if (request == null || request.getFieldType() == null || request.getFieldType().isBlank()) {
+            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "缺少字段级优化参数");
+        }
+
+        return switch (moduleType) {
+            case "internship" -> buildInternshipFieldOptimizePlan(content, request);
+            case "project" -> buildProjectFieldOptimizePlan(content, request);
+            default -> throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "当前模块暂不支持字段级 AI 优化");
+        };
+    }
+
+    private FieldOptimizePlan buildInternshipFieldOptimizePlan(Map<String, Object> content, AiFieldOptimizeRequestDTO request) {
+        var company = getStringValue(content.get("company"));
+        var position = getStringValue(content.get("position"));
+        var projectName = getStringValue(content.get("projectName"));
+        var techStack = getStringValue(content.get("techStack"));
+        var projectDescription = getStringValue(content.get("projectDescription"));
+        var responsibilities = getStringListValue(content.get("responsibilities"));
+
+        return switch (request.getFieldType()) {
+            case "project_description" -> {
+                if (projectDescription.isBlank()) {
+                    throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "项目简介为空，暂时无法优化");
+                }
+                yield new FieldOptimizePlan(
+                        "internship",
+                        "project_description",
+                        projectDescription,
+                        resolveFieldPrompt(request, INTERNSHIP_PROJECT_DESCRIPTION_PROMPT.formatted(projectDescription)),
+                        true
+                );
+            }
+            case "responsibility" -> {
+                var index = request.getIndex();
+                if (index == null || index < 0 || index >= responsibilities.size()) {
+                    throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "核心职责索引无效");
+                }
+                var originalText = responsibilities.get(index);
+                if (originalText == null || originalText.isBlank()) {
+                    throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "当前这条核心职责为空，暂时无法优化");
+                }
+                yield new FieldOptimizePlan(
+                        "internship",
+                        "responsibility",
+                        originalText,
+                        resolveFieldPrompt(
+                                request,
+                                INTERNSHIP_RESPONSIBILITY_PROMPT.formatted(
+                                        company,
+                                        position,
+                                        projectName,
+                                        techStack,
+                                        projectDescription,
+                                        originalText
+                                )
+                        ),
+                        false
+                );
+            }
+            default -> throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "不支持的字段级优化类型");
+        };
+    }
+
+    private FieldOptimizePlan buildProjectFieldOptimizePlan(Map<String, Object> content, AiFieldOptimizeRequestDTO request) {
+        var projectName = getStringValue(content.get("projectName"));
+        var role = getStringValue(content.get("role"));
+        var techStack = getStringValue(content.get("techStack"));
+        var description = getStringValue(content.get("description"));
+        var achievements = getStringListValue(content.get("achievements"));
+
+        return switch (request.getFieldType()) {
+            case "project_description" -> {
+                if (description.isBlank()) {
+                    throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "项目描述为空，暂时无法优化");
+                }
+                yield new FieldOptimizePlan(
+                        "project",
+                        "project_description",
+                        description,
+                        resolveFieldPrompt(request, PROJECT_DESCRIPTION_PROMPT.formatted(description)),
+                        true
+                );
+            }
+            case "responsibility" -> {
+                var index = request.getIndex();
+                if (index == null || index < 0 || index >= achievements.size()) {
+                    throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "核心职责索引无效");
+                }
+                var originalText = achievements.get(index);
+                if (originalText == null || originalText.isBlank()) {
+                    throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "当前这条核心职责为空，暂时无法优化");
+                }
+                yield new FieldOptimizePlan(
+                        "project",
+                        "responsibility",
+                        originalText,
+                        resolveFieldPrompt(
+                                request,
+                                PROJECT_RESPONSIBILITY_PROMPT.formatted(
+                                        projectName,
+                                        role,
+                                        techStack,
+                                        description,
+                                        originalText
+                                )
+                        ),
+                        false
+                );
+            }
+            default -> throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "不支持的字段级优化类型");
+        };
+    }
+
+    private String resolveFieldPrompt(AiFieldOptimizeRequestDTO request, String defaultPrompt) {
+        if (request != null && request.getPrompt() != null && !request.getPrompt().isBlank()) {
+            return request.getPrompt().trim();
+        }
+        return defaultPrompt;
+    }
+
+    private String resolveFieldSystemPrompt(AiFieldOptimizeRequestDTO request) {
+        if (request != null && request.getSystemPrompt() != null && !request.getSystemPrompt().isBlank()) {
+            return request.getSystemPrompt().trim();
+        }
+        return "你是一位严格、克制、结果导向的中文技术简历优化专家。";
     }
 
     @Override
@@ -156,9 +580,489 @@ public class AiServiceImpl implements AiService {
         }
     }
 
+    @Override
+    public SmartOnePagePreviewResponseDTO previewSmartOnePage(
+            String resumeTitle,
+            List<ResumeModule> modules,
+            SmartOnePagePreviewRequestDTO request
+    ) {
+        var originalModules = sortResumeModules(modules).stream()
+                .map(this::cloneModule)
+                .toList();
+
+        validateSmartOnePageRequest(request);
+        if ("layout_only".equals(request.getMode())) {
+            return buildLayoutOnlyPreview(originalModules);
+        }
+
+        validateConfiguration();
+
+        var skillPreset = resolveSkillPreset(request);
+        var templatePreset = resolveTemplatePreset(request);
+        var promptInstruction = resolvePromptInstruction(request, skillPreset);
+        var optimizedModules = new ArrayList<ResumeModule>();
+        var effectiveModules = new ArrayList<ResumeModule>();
+        var decisions = new ArrayList<SmartOnePageModuleDecisionDTO>();
+        var resumeContext = buildSmartOnePageContext(resumeTitle, originalModules);
+
+        for (var module : originalModules) {
+            if (!shouldOptimizeModule(module)) {
+                var reason = nonOptimizedReasonForModule(module.getModuleType());
+                optimizedModules.add(cloneModule(module));
+                effectiveModules.add(cloneModule(module));
+                decisions.add(buildDecision(module.getId(), "keep_original", reason));
+                continue;
+            }
+
+            if (!isMeaningfulValue(module.getContent())) {
+                optimizedModules.add(cloneModule(module));
+                effectiveModules.add(cloneModule(module));
+                decisions.add(buildDecision(module.getId(), "keep_original", "当前模块内容较少，直接保留原文。"));
+                continue;
+            }
+
+            try {
+                var optimizedContent = optimizeModuleForSmartOnePage(
+                        resumeTitle,
+                        module,
+                        resumeContext,
+                        promptInstruction,
+                        templatePreset.getMarkdownBody(),
+                        skillPreset
+                );
+                var optimizedModule = cloneModuleWithContent(module, optimizedContent);
+                optimizedModules.add(optimizedModule);
+
+                if (shouldAdoptSmartOptimization(module.getContent(), optimizedContent)) {
+                    effectiveModules.add(cloneModule(optimizedModule));
+                    decisions.add(buildDecision(module.getId(), "suggest_optimized", "AI 判断这一段还能明显压缩，已生成候选内容供你选择。"));
+                } else {
+                    effectiveModules.add(cloneModule(module));
+                    decisions.add(buildDecision(module.getId(), "keep_original", "原文已经比较成熟或压缩收益有限，默认保持原样。"));
+                }
+            } catch (BusinessException e) {
+                if (e.getCode() == ResultCode.AI_RESPONSE_INVALID.getCode()) {
+                    optimizedModules.add(cloneModule(module));
+                    effectiveModules.add(cloneModule(module));
+                    decisions.add(buildDecision(module.getId(), "keep_original", "AI 返回结果不可采纳，已自动保留原文。"));
+                    continue;
+                }
+                throw e;
+            } catch (Exception e) {
+                log.warn("Smart one-page optimization fallback for module {}", module.getId(), e);
+                optimizedModules.add(cloneModule(module));
+                effectiveModules.add(cloneModule(module));
+                decisions.add(buildDecision(module.getId(), "keep_original", "当前模块优化失败，已自动保留原文。"));
+            }
+        }
+
+        var result = new SmartOnePagePreviewResponseDTO();
+        result.setOriginalModules(originalModules.stream().map(this::cloneModule).toList());
+        result.setOptimizedModules(optimizedModules.stream().map(this::cloneModule).toList());
+        result.setEffectiveModules(effectiveModules.stream().map(this::cloneModule).toList());
+        result.setModuleDecisions(decisions);
+        result.setPreviewMeta(buildPreviewMeta(originalModules, effectiveModules));
+        result.setSummary(buildSmartOnePageSummary(decisions));
+        return result;
+    }
+
+    private void validateSmartOnePageRequest(SmartOnePagePreviewRequestDTO request) {
+        if (request == null) {
+            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "缺少智能一页请求参数");
+        }
+        if (!"layout_only".equals(request.getMode()) && !"optimize_and_layout".equals(request.getMode())) {
+            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "不支持的智能一页模式");
+        }
+        if (request.getTemplateId() == null || request.getTemplateId().isBlank()) {
+            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "请选择参考模板");
+        }
+        if (!"only_if_better".equals(request.getAdoptionPolicy())) {
+            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "当前仅支持 only_if_better 采纳策略");
+        }
+        if (!"continuous_pdf".equals(request.getOutputFormat())) {
+            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "当前仅支持连续长页 PDF 输出");
+        }
+        if ("optimize_and_layout".equals(request.getMode())) {
+            if (!"skill".equals(request.getPromptMode()) && !"custom".equals(request.getPromptMode())) {
+                throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "请选择优化策略");
+            }
+            if ("skill".equals(request.getPromptMode()) && (request.getSkillId() == null || request.getSkillId().isBlank())) {
+                throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "请选择内置 Skill");
+            }
+            if ("custom".equals(request.getPromptMode()) && (request.getCustomPrompt() == null || request.getCustomPrompt().isBlank())) {
+                throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "请输入自定义提示词");
+            }
+        }
+    }
+
+    private SmartOnePagePresetRegistry.SkillPreset resolveSkillPreset(SmartOnePagePreviewRequestDTO request) {
+        if (!"skill".equals(request.getPromptMode())) {
+            return null;
+        }
+
+        var preset = SmartOnePagePresetRegistry.getSkill(request.getSkillId());
+        if (preset == null) {
+            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "选择的 Skill 不存在");
+        }
+        return preset;
+    }
+
+    private SmartOnePagePresetRegistry.TemplatePreset resolveTemplatePreset(SmartOnePagePreviewRequestDTO request) {
+        var preset = SmartOnePagePresetRegistry.getTemplate(request.getTemplateId());
+        if (preset == null) {
+            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "选择的参考模板不存在");
+        }
+        return preset;
+    }
+
+    private String resolvePromptInstruction(
+            SmartOnePagePreviewRequestDTO request,
+            SmartOnePagePresetRegistry.SkillPreset skillPreset
+    ) {
+        if ("skill".equals(request.getPromptMode()) && skillPreset != null) {
+            return skillPreset.getSystemPrompt();
+        }
+        return request.getCustomPrompt() == null ? "" : request.getCustomPrompt().trim();
+    }
+
+    private SmartOnePagePreviewResponseDTO buildLayoutOnlyPreview(List<ResumeModule> originalModules) {
+        var result = new SmartOnePagePreviewResponseDTO();
+        var decisions = originalModules.stream()
+                .map(module -> buildDecision(module.getId(), "keep_original", "当前模式仅生成连续长页 PDF，不对内容做 AI 压缩。"))
+                .toList();
+
+        result.setOriginalModules(originalModules.stream().map(this::cloneModule).toList());
+        result.setOptimizedModules(originalModules.stream().map(this::cloneModule).toList());
+        result.setEffectiveModules(originalModules.stream().map(this::cloneModule).toList());
+        result.setModuleDecisions(decisions);
+        result.setPreviewMeta(buildPreviewMeta(originalModules, originalModules));
+        result.setSummary("已保持当前 PDF 模板和模块内容不变，仅把导出改为单张连续长页。");
+        return result;
+    }
+
+    private List<ResumeModule> sortResumeModules(List<ResumeModule> modules) {
+        return modules.stream()
+                .sorted(Comparator.comparing((ResumeModule module) -> module.getSortOrder() == null ? Integer.MAX_VALUE : module.getSortOrder())
+                        .thenComparing(ResumeModule::getId))
+                .toList();
+    }
+
+    private ResumeModule cloneModule(ResumeModule source) {
+        return cloneModuleWithContent(source, deepCopyMap(source.getContent()));
+    }
+
+    private ResumeModule cloneModuleWithContent(ResumeModule source, Map<String, Object> content) {
+        var clone = new ResumeModule();
+        clone.setId(source.getId());
+        clone.setResumeId(source.getResumeId());
+        clone.setModuleType(source.getModuleType());
+        clone.setContent(content);
+        clone.setSortOrder(source.getSortOrder());
+        clone.setCreatedAt(source.getCreatedAt());
+        clone.setUpdatedAt(source.getUpdatedAt());
+        return clone;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> deepCopyMap(Map<String, Object> source) {
+        if (source == null) {
+            return new LinkedHashMap<>();
+        }
+
+        return objectMapper.convertValue(source, LinkedHashMap.class);
+    }
+
+    private boolean shouldOptimizeModule(ResumeModule module) {
+        return OPTIMIZABLE_MODULE_TYPES.contains(module.getModuleType());
+    }
+
+    private String nonOptimizedReasonForModule(String moduleType) {
+        return switch (moduleType) {
+            case "basic_info" -> "基本信息以事实为主，默认保持原文。";
+            case "education" -> "教育背景通常较稳定，默认保留原文。";
+            case "paper" -> "论文内容以事实陈述为主，默认保留原文。";
+            case "award" -> "奖项信息以事实为主，默认保留原文。";
+            case "job_intention" -> "求职意向信息较短，默认保留原文。";
+            default -> "当前模块默认保持原文。";
+        };
+    }
+
+    private Map<String, Object> optimizeModuleForSmartOnePage(
+            String resumeTitle,
+            ResumeModule module,
+            String resumeContext,
+            String promptInstruction,
+            String templateMarkdown,
+            SmartOnePagePresetRegistry.SkillPreset skillPreset
+    ) {
+        validateContentLength(module.getContent());
+
+        var response = invokeChatCompletion(
+                model,
+                """
+                你是一位中文技术简历优化专家。
+                你的任务是把单个简历模块压缩为更适合一页/两页投递的表达。
+                必须遵守：
+                1. 严禁编造事实。
+                2. 输出必须且只能是与输入结构完全一致的 JSON。
+                3. 如果原文已经足够成熟，也可以只做极少修改。
+                """,
+                buildSmartOnePageModulePrompt(resumeTitle, module, resumeContext, promptInstruction, templateMarkdown, skillPreset),
+                0.35,
+                3200,
+                false
+        );
+
+        if (response == null) {
+            throw new BusinessException(ResultCode.AI_SERVICE_BUSY);
+        }
+
+        return parseAiResponse(response, module.getContent());
+    }
+
+    private String buildSmartOnePageModulePrompt(
+            String resumeTitle,
+            ResumeModule module,
+            String resumeContext,
+            String promptInstruction,
+            String templateMarkdown,
+            SmartOnePagePresetRegistry.SkillPreset skillPreset
+    ) {
+        var moduleRule = defaultModuleRule(module.getModuleType());
+        var presetRules = skillPreset == null ? "" : String.join("\n", skillPreset.getModuleRules());
+
+        return """
+                请基于整份简历上下文，对其中一个模块进行“智能一页”压缩预处理。
+
+                ## 简历标题
+                %s
+
+                ## 整份简历摘要
+                %s
+
+                ## 参考模板（Markdown）
+                %s
+
+                ## 本次优化策略
+                %s
+
+                ## Skill 规则
+                %s
+
+                ## 当前模块类型
+                %s
+
+                ## 当前模块专属规则
+                %s
+
+                ## 输出要求
+                1. 只优化当前这个模块，不要生成整份简历。
+                2. 如果原文已经足够精简，不需要为了改而改。
+                3. 优先压缩项目简介、技术栈、职责描述中的冗长表达。
+                4. 保留关键技术词、量化结果、角色和最终成果。
+                5. 不能新增事实，不能改动 JSON 结构。
+
+                ## 当前模块 JSON
+                %s
+                """.formatted(
+                resumeTitle == null || resumeTitle.isBlank() ? "未命名简历" : resumeTitle,
+                resumeContext,
+                templateMarkdown,
+                promptInstruction,
+                presetRules,
+                MODULE_LABELS.getOrDefault(module.getModuleType(), module.getModuleType()),
+                moduleRule,
+                toPrettyJsonString(module.getContent())
+        );
+    }
+
+    private String defaultModuleRule(String moduleType) {
+        return switch (moduleType) {
+            case "internship" -> "把项目简介压缩到 1 句，技术栈保留核心词，职责优先保留 2-3 条最能体现动作和结果的表达。";
+            case "project" -> "把项目背景压到 1 句，职责优先保留最强的 2-3 条，突出结果导向和关键技术。";
+            case "research" -> "压缩背景铺垫，保留研究主题、个人工作和最终成果。";
+            case "skill" -> "优先去重和归并重复技能表达，避免堆砌关键词。";
+            default -> "保持事实准确，只做轻微压缩。";
+        };
+    }
+
+    private String buildSmartOnePageContext(String resumeTitle, List<ResumeModule> modules) {
+        var moduleSummaries = modules.stream()
+                .map(this::buildModuleSummary)
+                .collect(Collectors.joining("\n\n"));
+
+        return """
+                标题：%s
+
+                %s
+                """.formatted(
+                resumeTitle == null || resumeTitle.isBlank() ? "未命名简历" : resumeTitle,
+                moduleSummaries
+        ).trim();
+    }
+
+    private boolean shouldAdoptSmartOptimization(Map<String, Object> originalContent, Map<String, Object> optimizedContent) {
+        var originalJson = toJsonString(originalContent);
+        var optimizedJson = toJsonString(optimizedContent);
+
+        if (Objects.equals(originalJson, optimizedJson)) {
+            return false;
+        }
+        if (optimizedJson.length() >= originalJson.length() * 0.96) {
+            return false;
+        }
+        if (optimizedJson.length() < Math.max(60, originalJson.length() * 0.38)) {
+            return false;
+        }
+        return preservesCriticalInformation(originalContent, optimizedContent);
+    }
+
+    @SuppressWarnings("unchecked")
+    private boolean preservesCriticalInformation(Object original, Object optimized) {
+        if (original instanceof Map<?, ?> originalMap && optimized instanceof Map<?, ?> optimizedMap) {
+            for (var key : originalMap.keySet()) {
+                if (!optimizedMap.containsKey(key)) {
+                    return false;
+                }
+                if (!preservesCriticalInformation(originalMap.get(key), optimizedMap.get(key))) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        if (original instanceof List<?> originalList && optimized instanceof List<?> optimizedList) {
+            var originalMeaningful = originalList.stream().filter(this::isMeaningfulValue).toList();
+            var optimizedMeaningful = optimizedList.stream().filter(this::isMeaningfulValue).toList();
+            if (originalMeaningful.isEmpty()) {
+                return true;
+            }
+
+            var minAllowed = originalMeaningful.size() == 1
+                    ? 1
+                    : Math.max(1, (int) Math.ceil(originalMeaningful.size() * 0.5));
+            if (optimizedMeaningful.size() < minAllowed) {
+                return false;
+            }
+
+            for (int index = 0; index < Math.min(originalMeaningful.size(), optimizedMeaningful.size()); index++) {
+                if (!preservesCriticalInformation(originalMeaningful.get(index), optimizedMeaningful.get(index))) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        if (original instanceof String originalString && optimized instanceof String optimizedString) {
+            return retainsImportantTokens(originalString, optimizedString);
+        }
+
+        return true;
+    }
+
+    private boolean retainsImportantTokens(String original, String optimized) {
+        var normalizedOriginal = original == null ? "" : original.trim();
+        var normalizedOptimized = optimized == null ? "" : optimized.trim();
+        if (normalizedOriginal.isBlank()) {
+            return true;
+        }
+        if (normalizedOptimized.isBlank()) {
+            return false;
+        }
+
+        var keywords = extractEnglishKeywords(normalizedOriginal);
+        if (keywords.isEmpty()) {
+            return true;
+        }
+
+        long matchedCount = keywords.stream()
+                .filter(keyword -> normalizedOptimized.toLowerCase(Locale.ROOT).contains(keyword.toLowerCase(Locale.ROOT)))
+                .count();
+        return matchedCount >= Math.max(1, Math.min(keywords.size(), 4) / 2);
+    }
+
+    private Set<String> extractEnglishKeywords(String value) {
+        var matcher = ENGLISH_KEYWORD_PATTERN.matcher(value);
+        var result = new LinkedHashSet<String>();
+        while (matcher.find()) {
+            result.add(matcher.group());
+        }
+        return result;
+    }
+
+    private SmartOnePageModuleDecisionDTO buildDecision(Long moduleId, String action, String reason) {
+        var dto = new SmartOnePageModuleDecisionDTO();
+        dto.setModuleId(moduleId);
+        dto.setAction(action);
+        dto.setReason(reason);
+        return dto;
+    }
+
+    private SmartOnePagePreviewMetaDTO buildPreviewMeta(List<ResumeModule> originalModules, List<ResumeModule> effectiveModules) {
+        var dto = new SmartOnePagePreviewMetaDTO();
+        dto.setEstimatedOriginalPages(estimateResumePages(originalModules));
+        dto.setEstimatedContinuousHeight(estimateContinuousHeight(effectiveModules));
+        dto.setEstimatedCompressedPages(estimateResumePages(effectiveModules));
+        return dto;
+    }
+
+    private int estimateResumePages(List<ResumeModule> modules) {
+        return Math.max(1, (int) Math.ceil(estimateContinuousHeight(modules) / A4_HEIGHT));
+    }
+
+    private int estimateContinuousHeight(List<ResumeModule> modules) {
+        var textWeight = modules.stream()
+                .map(ResumeModule::getContent)
+                .mapToInt(this::estimateTextWeight)
+                .sum();
+        var moduleWeight = modules.size() * 52;
+        var estimated = 240 + moduleWeight + textWeight * 0.42;
+        return (int) Math.max(900, Math.min(3200, estimated));
+    }
+
+    private int estimateTextWeight(Object value) {
+        if (value instanceof String stringValue) {
+            return stringValue.trim().length();
+        }
+        if (value instanceof List<?> listValue) {
+            return listValue.stream().mapToInt(this::estimateTextWeight).sum();
+        }
+        if (value instanceof Map<?, ?> mapValue) {
+            return mapValue.values().stream().mapToInt(this::estimateTextWeight).sum();
+        }
+        return 0;
+    }
+
+    private String buildSmartOnePageSummary(List<SmartOnePageModuleDecisionDTO> decisions) {
+        long optimizedCount = decisions.stream()
+                .filter(decision -> "suggest_optimized".equals(decision.getAction()))
+                .count();
+        long keptCount = decisions.size() - optimizedCount;
+
+        if (optimizedCount == 0) {
+            return "AI 已检查整份简历，当前内容整体已经比较成熟，本次默认全部保留原文。";
+        }
+
+        return "AI 已生成智能一页候选方案：建议替换 %d 个模块，保留原文 %d 个模块。你可以继续逐模块覆盖默认决策。"
+                .formatted(optimizedCount, keptCount);
+    }
+
     private void validateConfiguration() {
-        if (apiKey == null || apiKey.isBlank() || baseUrl == null || baseUrl.isBlank() || model == null || model.isBlank()) {
-            throw new BusinessException(ResultCode.AI_NOT_CONFIGURED);
+        var missing = new ArrayList<String>();
+        if (apiKey == null || apiKey.isBlank()) {
+            missing.add("AI_API_KEY");
+        }
+        if (baseUrl == null || baseUrl.isBlank()) {
+            missing.add("AI_BASE_URL");
+        }
+        if (model == null || model.isBlank()) {
+            missing.add("AI_MODEL");
+        }
+        if (!missing.isEmpty()) {
+            throw new BusinessException(
+                    ResultCode.AI_NOT_CONFIGURED.getCode(),
+                    "AI 服务未配置，缺少参数：" + String.join(", ", missing)
+            );
         }
     }
 
@@ -177,6 +1081,21 @@ public class AiServiceImpl implements AiService {
         }
     }
 
+    private String getStringValue(Object value) {
+        return value instanceof String stringValue ? stringValue.trim() : "";
+    }
+
+    private List<String> getStringListValue(Object value) {
+        if (!(value instanceof List<?> listValue)) {
+            return List.of();
+        }
+
+        return listValue.stream()
+                .filter(String.class::isInstance)
+                .map(String.class::cast)
+                .toList();
+    }
+
     private String toPrettyJsonString(Object obj) {
         try {
             return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(obj);
@@ -193,14 +1112,90 @@ public class AiServiceImpl implements AiService {
             int maxTokens,
             boolean jsonMode
     ) {
+        var requestBody = buildRequestBody(targetModel, systemPrompt, userPrompt, temperature, maxTokens, jsonMode);
+        log.info("[AI Optimize][Upstream] request: url={}, model={}, jsonMode={}, temperature={}, maxTokens={}, systemPrompt={}, userPrompt={}",
+                buildChatCompletionUrl(),
+                targetModel,
+                jsonMode,
+                temperature,
+                maxTokens,
+                truncateText(systemPrompt, 200),
+                truncateText(userPrompt, 600));
+
         return webClient.post()
                 .uri(buildChatCompletionUrl())
                 .header("Authorization", "Bearer " + apiKey)
                 .header("Content-Type", "application/json")
-                .bodyValue(buildRequestBody(targetModel, systemPrompt, userPrompt, temperature, maxTokens, jsonMode))
+                .bodyValue(requestBody)
                 .retrieve()
                 .bodyToMono(String.class)
                 .block(java.time.Duration.ofSeconds(timeout));
+    }
+
+    private StreamChatResult streamChatCompletion(
+            String targetModel,
+            String systemPrompt,
+            String userPrompt,
+            double temperature,
+            int maxTokens,
+            boolean jsonMode,
+            Consumer<Map<String, Object>> eventConsumer
+    ) throws Exception {
+        var requestBody = buildRequestBody(targetModel, systemPrompt, userPrompt, temperature, maxTokens, jsonMode);
+        requestBody.put("stream", true);
+        log.info("[AI Optimize][Upstream] stream request: url={}, model={}, jsonMode={}, temperature={}, maxTokens={}, systemPrompt={}, userPrompt={}",
+                buildChatCompletionUrl(),
+                targetModel,
+                jsonMode,
+                temperature,
+                maxTokens,
+                truncateText(systemPrompt, 200),
+                truncateText(userPrompt, 600));
+
+        var requestJson = objectMapper.writeValueAsString(requestBody);
+        var request = HttpRequest.newBuilder()
+                .uri(URI.create(buildChatCompletionUrl()))
+                .timeout(Duration.ofSeconds(Math.max(timeout, 180)))
+                .header("Authorization", "Bearer " + apiKey)
+                .header("Content-Type", "application/json")
+                .header("Accept", "text/event-stream")
+                .POST(HttpRequest.BodyPublishers.ofString(requestJson, StandardCharsets.UTF_8))
+                .build();
+
+        var response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
+        if (response.statusCode() >= 400) {
+            var body = new String(response.body().readAllBytes(), StandardCharsets.UTF_8);
+            throw new BusinessException(ResultCode.AI_SERVICE_BUSY.getCode(), buildUpstreamErrorMessage(response.statusCode(), body));
+        }
+
+        var reasoningBuilder = new StringBuilder();
+        var contentBuilder = new StringBuilder();
+        var dataBuilder = new StringBuilder();
+        var streamLogState = new StreamLogState();
+
+        try (var reader = new BufferedReader(new InputStreamReader(response.body(), StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (line.isBlank()) {
+                    if (handleUpstreamSseEvent(dataBuilder.toString(), reasoningBuilder, contentBuilder, eventConsumer, streamLogState)) {
+                        break;
+                    }
+                    dataBuilder.setLength(0);
+                    continue;
+                }
+                if (line.startsWith("data:")) {
+                    if (dataBuilder.length() > 0) {
+                        dataBuilder.append('\n');
+                    }
+                    dataBuilder.append(line.substring(5).trim());
+                }
+            }
+        }
+
+        log.info("[AI Optimize][Upstream] stream completed: reasoningLength={}, contentLength={}",
+                reasoningBuilder.length(), contentBuilder.length());
+        emitStreamEvent(eventConsumer, "status", Map.of("message", "AI 推理结束，正在整理最终结果。"));
+        return new StreamChatResult(contentBuilder.toString(), reasoningBuilder.toString());
     }
 
     private String buildChatCompletionUrl() {
@@ -211,17 +1206,59 @@ public class AiServiceImpl implements AiService {
     }
 
     private String buildUpstreamErrorMessage(WebClientResponseException e) {
-        var status = e.getStatusCode().value();
+        return buildUpstreamErrorMessage(e.getStatusCode().value(), e.getResponseBodyAsString());
+    }
+
+    private String buildUpstreamErrorMessage(int status, String responseBody) {
+        var detail = extractUpstreamErrorDetail(responseBody);
         if (status == 401 || status == 403) {
-            return "AI 服务认证失败，请检查服务端 AI 配置";
+            return detail == null
+                    ? "AI 服务认证失败（HTTP " + status + "），请检查服务端 AI 配置"
+                    : "AI 服务认证失败（HTTP " + status + "）：" + detail;
         }
         if (status == 429) {
-            return "AI 服务请求过于频繁，请稍后再试";
+            return detail == null
+                    ? "AI 服务请求过于频繁，请稍后再试"
+                    : "AI 服务请求过于频繁：" + detail;
         }
         if (status >= 500) {
-            return "AI 服务暂时不可用，请稍后重试";
+            return detail == null
+                    ? "AI 服务暂时不可用，请稍后重试"
+                    : "AI 服务暂时不可用（HTTP " + status + "）：" + detail;
         }
-        return "AI 优化请求失败（HTTP " + status + "）";
+        return detail == null
+                ? "AI 优化请求失败（HTTP " + status + "）"
+                : "AI 优化请求失败（HTTP " + status + "）：" + detail;
+    }
+
+    private String extractUpstreamErrorDetail(WebClientResponseException e) {
+        return extractUpstreamErrorDetail(e.getResponseBodyAsString());
+    }
+
+    private String extractUpstreamErrorDetail(String body) {
+        try {
+            if (body == null || body.isBlank()) {
+                return null;
+            }
+
+            var root = objectMapper.readTree(body);
+            var directMessage = root.path("message").asText("");
+            var directCode = root.path("code").asText("");
+            if (!directMessage.isBlank()) {
+                return directCode.isBlank() ? directMessage : directMessage + "（上游 code: " + directCode + "）";
+            }
+
+            var errorNode = root.path("error");
+            var nestedMessage = errorNode.path("message").asText("");
+            var nestedCode = errorNode.path("code").asText("");
+            if (!nestedMessage.isBlank()) {
+                return nestedCode.isBlank() ? nestedMessage : nestedMessage + "（上游 code: " + nestedCode + "）";
+            }
+
+            return truncateText(body, 300);
+        } catch (Exception parseError) {
+            return truncateText(body, 300);
+        }
     }
 
     private Map<String, Object> buildRequestBody(
@@ -250,7 +1287,7 @@ public class AiServiceImpl implements AiService {
     private Map<String, Object> parseAiResponse(String response, Map<String, Object> originalContent) {
         try {
             var root = objectMapper.readTree(response);
-            var content = cleanJsonPayload(extractAssistantContent(root));
+            var content = cleanJsonPayload(extractAssistantContent(root, false));
 
             var optimized = objectMapper.readValue(content, Map.class);
             if (!matchesShape(originalContent, optimized)) {
@@ -269,7 +1306,7 @@ public class AiServiceImpl implements AiService {
     private ResumeAnalysisResultDTO parseAnalysisResponse(String response) {
         try {
             var root = objectMapper.readTree(response);
-            var content = cleanJsonPayload(extractAssistantContent(root));
+            var content = cleanJsonPayload(extractAssistantContent(root, false));
             var result = objectMapper.readValue(content, ResumeAnalysisResultDTO.class);
             normalizeAnalysisResult(result);
             return result;
@@ -281,13 +1318,20 @@ public class AiServiceImpl implements AiService {
         }
     }
 
-    private String extractAssistantContent(com.fasterxml.jackson.databind.JsonNode root) {
+    private String extractAssistantContent(com.fasterxml.jackson.databind.JsonNode root, boolean allowReasoningFallback) {
         var message = root.path("choices").path(0).path("message");
         var content = message.path("content").asText("");
         if (content != null && !content.isBlank()) {
             return content;
         }
-        return message.path("reasoning_content").asText("");
+        if (allowReasoningFallback) {
+            return message.path("reasoning_content").asText("");
+        }
+        return "";
+    }
+
+    private String extractAssistantContent(com.fasterxml.jackson.databind.JsonNode root) {
+        return extractAssistantContent(root, false);
     }
 
     private String cleanJsonPayload(String content) {
@@ -310,6 +1354,220 @@ public class AiServiceImpl implements AiService {
         }
 
         return cleaned.trim();
+    }
+
+    private String cleanTextResponse(String response) {
+        try {
+            var root = objectMapper.readTree(response);
+            return cleanTextContent(extractAssistantContent(root, false));
+        } catch (Exception e) {
+            log.error("Failed to parse AI text response: {}", e.getMessage());
+            throw new BusinessException(ResultCode.AI_RESPONSE_INVALID);
+        }
+    }
+
+    private List<String> parseTextCandidatesResponse(String response) {
+        try {
+            var root = objectMapper.readTree(response);
+            var content = extractAssistantContent(root, false).trim();
+            if (content.isBlank()) {
+                var finishReason = root.path("choices").path(0).path("finish_reason").asText("");
+                var reasoningPreview = truncateText(root.path("choices").path(0).path("message").path("reasoning_content").asText(""), 300);
+                log.warn("[AI Optimize][Service] assistant content is empty for candidate response: finishReason={}, reasoningPreview={}",
+                        finishReason, reasoningPreview);
+                throw new BusinessException(ResultCode.AI_RESPONSE_INVALID.getCode(), "AI 未返回可用候选结果，请重试");
+            }
+            return parseTextCandidatesContent(content);
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Failed to parse AI text candidates response: {}", e.getMessage());
+            throw new BusinessException(ResultCode.AI_RESPONSE_INVALID);
+        }
+    }
+
+    private String cleanTextContent(String content) {
+        var cleaned = content == null ? "" : content.trim();
+        if (cleaned.startsWith("```")) {
+            cleaned = cleaned.replaceFirst("^```[a-zA-Z]*\\s*", "");
+            cleaned = cleaned.replaceFirst("\\s*```$", "");
+        }
+        return cleaned.replaceAll("^\"|\"$", "").trim();
+    }
+
+    private List<String> parseTextCandidatesContent(String content) {
+        var cleanedContent = content == null ? "" : content.trim();
+        if (cleanedContent.startsWith("```")) {
+            cleanedContent = cleanedContent.replaceFirst("^```[a-zA-Z]*\\s*", "");
+            cleanedContent = cleanedContent.replaceFirst("\\s*```$", "");
+        }
+
+        var cleaned = cleanJsonPayload(cleanedContent);
+        if (cleaned.isBlank()) {
+            throw new BusinessException(ResultCode.AI_RESPONSE_INVALID.getCode(), "AI 思考已结束，但未返回最终结果，请重试");
+        }
+
+        try {
+            var payload = objectMapper.readTree(cleaned);
+            var candidatesNode = payload.get("candidates");
+            if (candidatesNode == null || !candidatesNode.isArray()) {
+                throw new BusinessException(ResultCode.AI_RESPONSE_INVALID);
+            }
+
+            var candidates = new ArrayList<String>();
+            candidatesNode.forEach(node -> {
+                var value = node.asText("").trim();
+                if (!value.isBlank()) {
+                    candidates.add(value);
+                }
+            });
+
+            var uniqueCandidates = candidates.stream()
+                    .distinct()
+                    .limit(3)
+                    .toList();
+
+            if (uniqueCandidates.isEmpty()) {
+                throw new BusinessException(ResultCode.AI_RESPONSE_INVALID);
+            }
+
+            return uniqueCandidates;
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Failed to parse AI text candidates content: {}", e.getMessage());
+            throw new BusinessException(ResultCode.AI_RESPONSE_INVALID);
+        }
+    }
+
+    private boolean handleUpstreamSseEvent(
+            String rawData,
+            StringBuilder reasoningBuilder,
+            StringBuilder contentBuilder,
+            Consumer<Map<String, Object>> eventConsumer,
+            StreamLogState streamLogState
+    ) {
+        var eventData = rawData == null ? "" : rawData.trim();
+        if (eventData.isBlank()) {
+            return false;
+        }
+        if ("[DONE]".equals(eventData)) {
+            log.info("[AI Optimize][Upstream] received stream sentinel: [DONE]");
+            return true;
+        }
+
+        try {
+            var root = objectMapper.readTree(eventData);
+            var choice = root.path("choices").path(0);
+            var delta = choice.path("delta");
+            var reasoningDelta = delta.path("reasoning_content").asText("");
+            if (!reasoningDelta.isBlank()) {
+                reasoningBuilder.append(reasoningDelta);
+                logReasoningProgress(streamLogState, reasoningDelta, reasoningBuilder);
+                emitStreamEvent(eventConsumer, "reasoning_delta", Map.of(
+                        "delta", reasoningDelta,
+                        "text", reasoningBuilder.toString()
+                ));
+            }
+
+            var contentDelta = delta.path("content").asText("");
+            if (!contentDelta.isBlank()) {
+                contentBuilder.append(contentDelta);
+                logContentProgress(streamLogState, contentDelta, contentBuilder);
+                emitStreamEvent(eventConsumer, "content_delta", Map.of(
+                        "delta", contentDelta,
+                        "text", contentBuilder.toString()
+                ));
+            }
+
+            var finishReason = choice.path("finish_reason").asText("");
+            if (!finishReason.isBlank()) {
+                log.info("[AI Optimize][Upstream] finish reason received: finishReason={}, reasoningLength={}, contentLength={}",
+                        finishReason, reasoningBuilder.length(), contentBuilder.length());
+                emitStreamEvent(eventConsumer, "status", Map.of(
+                        "message", "上游已结束输出，等待最终整理。",
+                        "finishReason", finishReason
+                ));
+            }
+        } catch (Exception e) {
+            log.warn("[AI Optimize][Service] failed to parse upstream stream chunk: {}", truncateText(eventData, 400), e);
+        }
+        return false;
+    }
+
+    private void logReasoningProgress(StreamLogState state, String delta, StringBuilder reasoningBuilder) {
+        if (state == null) {
+            return;
+        }
+        if (!state.reasoningStarted) {
+            state.reasoningStarted = true;
+            state.reasoningLoggedLength = reasoningBuilder.length();
+            log.info("[AI Optimize][Upstream] reasoning stream started: delta={}, totalLength={}",
+                    truncateText(delta, 80), reasoningBuilder.length());
+            return;
+        }
+        if (reasoningBuilder.length() - state.reasoningLoggedLength >= 240) {
+            state.reasoningLoggedLength = reasoningBuilder.length();
+            log.info("[AI Optimize][Upstream] reasoning stream progress: totalLength={}, preview={}",
+                    reasoningBuilder.length(), truncateText(reasoningBuilder.toString(), 120));
+        }
+    }
+
+    private void logContentProgress(StreamLogState state, String delta, StringBuilder contentBuilder) {
+        if (state == null) {
+            return;
+        }
+        if (!state.contentStarted) {
+            state.contentStarted = true;
+            state.contentLoggedLength = contentBuilder.length();
+            log.info("[AI Optimize][Upstream] final content stream started: delta={}, totalLength={}",
+                    truncateText(delta, 80), contentBuilder.length());
+            return;
+        }
+        if (contentBuilder.length() - state.contentLoggedLength >= 120) {
+            state.contentLoggedLength = contentBuilder.length();
+            log.info("[AI Optimize][Upstream] final content stream progress: totalLength={}, preview={}",
+                    contentBuilder.length(), truncateText(contentBuilder.toString(), 160));
+        }
+    }
+
+    private void emitStreamEvent(Consumer<Map<String, Object>> eventConsumer, String type, Map<String, Object> payload) {
+        if (eventConsumer == null) {
+            return;
+        }
+        var event = new LinkedHashMap<String, Object>();
+        event.put("type", type);
+        payload.forEach((key, value) -> {
+            if (value != null) {
+                event.put(key, value);
+            }
+        });
+        eventConsumer.accept(event);
+    }
+
+    private boolean areTextCandidatesUsable(List<String> candidates) {
+        if (candidates == null || candidates.isEmpty()) {
+            return false;
+        }
+
+        return candidates.stream().allMatch(this::isUsableTextCandidate);
+    }
+
+    private boolean isUsableTextCandidate(String candidate) {
+        if (candidate == null) {
+            return false;
+        }
+
+        var normalized = candidate.trim();
+        if (normalized.isBlank()) {
+            return false;
+        }
+
+        if (PLACEHOLDER_CANDIDATE_PATTERN.matcher(normalized).matches()) {
+            return false;
+        }
+
+        return normalized.length() >= 20;
     }
 
     private void normalizeAnalysisResult(ResumeAnalysisResultDTO result) {

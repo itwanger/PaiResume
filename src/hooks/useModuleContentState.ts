@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
-import { useAutoSave } from './useAutoSave'
+import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
+import { useAutoSave, type ModuleSaveState } from './useAutoSave'
 import { areModuleContentsEqual } from '../utils/moduleContent'
 
 interface Options<T extends object> {
@@ -9,15 +9,22 @@ interface Options<T extends object> {
   normalize: (content: Record<string, unknown>) => T
 }
 
+interface ModuleContentStateControls {
+  saveNow: () => Promise<void>
+  saveState: ModuleSaveState
+  errorMessage: string
+  hasUnsavedChanges: boolean
+}
+
 export function useModuleContentState<T extends object>({
   resumeId,
   moduleId,
   initialContent,
   normalize,
-}: Options<T>): [T, Dispatch<SetStateAction<T>>] {
+}: Options<T>): [T, Dispatch<SetStateAction<T>>, ModuleContentStateControls] {
   const [content, setContent] = useState<T>(() => normalize(initialContent))
   const skipNextSaveRef = useRef(true)
-  const { save, markSaved } = useAutoSave(resumeId, moduleId)
+  const { save, saveNow: persistNow, markSaved, saveState, errorMessage, hasUnsavedChanges } = useAutoSave(resumeId, moduleId)
 
   useEffect(() => {
     const nextContent = normalize(initialContent)
@@ -42,5 +49,7 @@ export function useModuleContentState<T extends object>({
     save(content as Record<string, unknown>)
   }, [content, save])
 
-  return [content, setContent]
+  const saveNow = useCallback(() => persistNow(content as Record<string, unknown>), [content, persistNow])
+
+  return [content, setContent, { saveNow, saveState, errorMessage, hasUnsavedChanges }]
 }

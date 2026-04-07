@@ -2,6 +2,7 @@ import type { SkillContent } from '../../types'
 import { useModuleContentState } from '../../hooks/useModuleContentState'
 import { normalizeSkillContent } from '../../utils/moduleContent'
 import { AutoResizeTextarea } from '../ui/AutoResizeTextarea'
+import { ModuleSaveBar } from './ModuleSaveBar'
 
 interface Props {
   resumeId: number
@@ -17,7 +18,7 @@ function toFlatSkillContent(content: SkillContent): SkillContent {
 }
 
 export function SkillForm({ resumeId, moduleId, initialContent }: Props) {
-  const [content, setContent] = useModuleContentState<SkillContent>({
+  const [content, setContent, { saveNow, saveState, errorMessage, hasUnsavedChanges }] = useModuleContentState<SkillContent>({
     resumeId,
     moduleId,
     initialContent,
@@ -51,7 +52,14 @@ export function SkillForm({ resumeId, moduleId, initialContent }: Props) {
   }
 
   return (
-      <div className="space-y-4">
+    <div className="space-y-4">
+      <ModuleSaveBar
+        saveState={saveState}
+        errorMessage={errorMessage}
+        hasUnsavedChanges={hasUnsavedChanges}
+        onSave={saveNow}
+      />
+
       {skillItems.map((item, index) => (
         <div key={index} className="flex items-start gap-2">
           <AutoResizeTextarea

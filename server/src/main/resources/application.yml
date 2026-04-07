@@ -9,9 +9,17 @@ app:
     email: ${DEV_ACCOUNT_EMAIL:test@example.com}
     password: ${DEV_ACCOUNT_PASSWORD:Test123456}
   cors:
-    allowed-origin-patterns: ${APP_CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:5173,http://127.0.0.1:5173,http://[::1]:5173}
+    allowed-origin-patterns: ${APP_CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:5173,http://127.0.0.1:5173,http://localhost:5175,http://127.0.0.1:5175,http://localhost:4173,http://127.0.0.1:4173,http://localhost:63342,http://127.0.0.1:63342,http://[::1]:5173,http://[::1]:5175,http://[::1]:4173}
 
 spring:
+  devtools:
+    restart:
+      enabled: true
+      additional-paths: src/main/java,src/main/resources
+      poll-interval: 1s
+      quiet-period: 400ms
+    livereload:
+      enabled: false
   datasource:
     url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:pai_resume}?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
     username: ${MYSQL_USERNAME:root}

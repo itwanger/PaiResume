@@ -55,8 +55,7 @@ PaiResume
 │   ├── src/main/java/...         # Controller / Service / Config / Security
 │   └── src/main/resources/       # application.yml / schema.sql
 ├── public/fonts/                 # PDF 导出使用的中文字体
-├── .env.example                  # 前端环境变量示例
-└── server/.env.example           # 后端环境变量示例
+└── .env.example                  # 前后端共用环境变量示例
 ```
 
 ## 本地启动
@@ -72,14 +71,13 @@ PaiResume
 
 ### 2. 启动后端
 
-进入后端目录：
+在项目根目录准备环境变量：
 
 ```bash
-cd server
 cp .env.example .env
 ```
 
-按实际情况修改 `server/.env`，至少确认以下配置：
+按实际情况修改根目录 `.env`，至少确认以下配置：
 
 - `SERVER_PORT`
 - `MYSQL_HOST`
@@ -97,6 +95,7 @@ cp .env.example .env
 启动服务：
 
 ```bash
+cd server
 mvn spring-boot:run
 ```
 
@@ -119,7 +118,6 @@ mvn spring-boot:run
 在项目根目录执行：
 
 ```bash
-cp .env.example .env
 npm install
 npm run dev
 ```
@@ -131,27 +129,12 @@ npm run dev
 
 ## 环境变量
 
-### 前端 `.env`
-
-| 变量名 | 说明 | 默认/示例 |
-| --- | --- | --- |
-| `VITE_REACT_APP_TITLE` | 页面标题 | `派简历` |
-| `VITE_PORT` | 前端端口 | `5173` |
-| `VITE_API_BASE_URL` | 前端请求基础路径 | `/api` |
-| `VITE_API_PROXY_TARGET` | 本地代理目标地址 | `http://localhost:8084` |
-| `VITE_AI_API_KEY` | 预留的前端 AI Key | 可选 |
-| `VITE_AI_BASE_URL` | 预留的前端 AI Base URL | 可选 |
-| `VITE_AI_MODEL` | 预留的前端 AI 模型名 | 可选 |
-
-说明：
-
-- 当前简历分析与模块优化的主流程由后端 AI 接口提供。
-- 前端中的 AI 环境变量更多是兼容性保留配置，联调时优先保证后端 AI 配置正确。
-
-### 后端 `server/.env`
+### 根目录 `.env`
 
 | 变量名 | 说明 |
 | --- | --- |
+| `VITE_REACT_APP_TITLE` / `VITE_PORT` / `VITE_API_BASE_URL` / `VITE_API_PROXY_TARGET` | 前端标题、端口与本地代理配置 |
+| `VITE_AI_API_KEY` / `VITE_AI_BASE_URL` / `VITE_AI_MODEL` | 前端预留 AI 配置，可选 |
 | `APP_ENV` | 运行环境，默认 `development` |
 | `APP_CORS_ALLOWED_ORIGIN_PATTERNS` | 允许跨域来源 |
 | `SERVER_PORT` | 后端端口，默认 `8084` |
@@ -160,6 +143,12 @@ npm run dev
 | `JWT_SECRET` | JWT 密钥，生产环境必须替换 |
 | `AI_API_KEY` / `AI_BASE_URL` / `AI_MODEL` / `AI_ANALYSIS_MODEL` | AI 服务配置 |
 | `MAIL_USERNAME` / `MAIL_PASSWORD` | 邮件配置 |
+
+说明：
+
+- 当前简历分析与模块优化的主流程由后端 AI 接口提供。
+- 前端中的 `VITE_AI_*` 变量更多是兼容性保留配置，联调时优先保证后端 AI 配置正确。
+- 前端和后端现在统一从项目根目录 `.env` 读取配置，不再维护 `server/.env`。
 
 ## 当前功能说明
 
@@ -211,7 +200,9 @@ npm run dev
 ### AI 接口
 
 - `POST /api/resumes/{resumeId}/modules/{moduleId}/ai-optimize`
+- `POST /api/resumes/{resumeId}/modules/{moduleId}/ai-optimize-field`
 - `POST /api/resumes/{resumeId}/analysis`
+- `POST /api/resumes/{resumeId}/smart-onepage/preview`
 
 ## 开发建议
 

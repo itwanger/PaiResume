@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { BasicInfoContent } from '../../types'
 import { useModuleContentState } from '../../hooks/useModuleContentState'
 import { normalizeBasicInfoContent } from '../../utils/moduleContent'
+import { ModuleSaveBar } from './ModuleSaveBar'
 
 interface Props {
   resumeId: number
@@ -10,7 +11,7 @@ interface Props {
 }
 
 export function BasicInfoForm({ resumeId, moduleId, initialContent }: Props) {
-  const [content, setContent] = useModuleContentState<BasicInfoContent>({
+  const [content, setContent, { saveNow, saveState, errorMessage, hasUnsavedChanges }] = useModuleContentState<BasicInfoContent>({
     resumeId,
     moduleId,
     initialContent,
@@ -26,6 +27,13 @@ export function BasicInfoForm({ resumeId, moduleId, initialContent }: Props) {
 
   return (
     <div className="space-y-4">
+      <ModuleSaveBar
+        saveState={saveState}
+        errorMessage={errorMessage}
+        hasUnsavedChanges={hasUnsavedChanges}
+        onSave={saveNow}
+      />
+
       <div className="grid grid-cols-2 gap-4">
         <Field label="姓名" value={content.name} onChange={(v) => update('name', v)} />
         <Field label="邮箱" value={content.email} onChange={(v) => update('email', v)} />

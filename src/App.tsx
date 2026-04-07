@@ -4,6 +4,8 @@ import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import DashboardPage from './pages/DashboardPage'
 import EditorPage from './pages/EditorPage'
+import SmartOnePagePage from './pages/SmartOnePagePage'
+import FieldOptimizePage from './pages/FieldOptimizePage'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore()
@@ -30,6 +32,22 @@ function App() {
           element={
             <ProtectedRoute>
               <EditorPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/editor/:id/smart-onepage"
+          element={
+            <ProtectedRoute>
+              <SmartOnePagePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/editor/:id/modules/:moduleId/field-optimize"
+          element={
+            <ProtectedRoute>
+              <FieldOptimizePage />
             </ProtectedRoute>
           }
         />
