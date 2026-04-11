@@ -359,7 +359,7 @@ export default function EditorPage() {
           onSelectTemplateSelection={openTemplateSelectionView}
         />
 
-        <main className="min-w-0 flex-1 p-6 xl:px-8">
+        <main className="min-w-0 flex-1 px-6 py-6 xl:px-8">
           {editorView === 'analysis' ? (
             <div className={analysisContainerClassName}>
               {exportError && (

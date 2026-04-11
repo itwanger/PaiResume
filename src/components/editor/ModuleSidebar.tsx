@@ -109,8 +109,8 @@ export function ModuleSidebar({
             }`}
           >
             <span className="flex items-center gap-2.5">
-              <span className="text-base">🌐</span>
-              <span className="flex-1">模板选择</span>
+              <span className="text-base">🖨️</span>
+              <span className="flex-1">预览与导出</span>
             </span>
           </button>
         </div>
