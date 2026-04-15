@@ -21,6 +21,9 @@ export interface TokenData {
     nickname: string
     avatar: string
     role: string
+    membershipStatus: 'FREE' | 'ACTIVE'
+    membershipGrantedAt: string | null
+    admin: boolean
   }
 }
 
@@ -39,4 +42,7 @@ export const authApi = {
 
   sendCode: (email: string) =>
     client.post('/auth/send-code', { email }),
+
+  me: () =>
+    client.get<ApiEnvelope<TokenData['userInfo']>>('/auth/me'),
 }

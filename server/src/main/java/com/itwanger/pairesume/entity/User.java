@@ -24,6 +24,18 @@ public class User {
     /** 状态: 0=禁用, 1=正常 */
     private Integer status;
 
+    /** 会员状态: FREE/ACTIVE */
+    private String membershipStatus;
+
+    /** 会员开通时间 */
+    private LocalDateTime membershipGrantedAt;
+
+    /** 会员来源: ADMIN_GRANTED/PAYMENT */
+    private String membershipSource;
+
+    /** 会员到期时间，永久会员为空 */
+    private LocalDateTime membershipExpiresAt;
+
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
 

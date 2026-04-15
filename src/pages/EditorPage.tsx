@@ -1,5 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
+import { resumeApi } from '../api/resume'
+import { useAuthStore } from '../store/authStore'
 import { useResumeStore } from '../store/resumeStore'
 import { Header } from '../components/layout/Header'
 import { ModuleSidebar } from '../components/editor/ModuleSidebar'
@@ -15,12 +17,12 @@ import { SkillForm } from '../components/modules/SkillForm'
 import { PaperForm } from '../components/modules/PaperForm'
 import { ResearchForm } from '../components/modules/ResearchForm'
 import { AwardForm } from '../components/modules/AwardForm'
+import { MembershipUpgradeModal } from '../components/membership/MembershipUpgradeModal'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { MODULE_LABELS, SINGLETON_MODULES, type ModuleType } from '../types'
 import { normalizeJobIntentionContent } from '../utils/moduleContent'
 import {
   DEFAULT_RESUME_PDF_PREVIEW_CONFIG,
-  downloadResumePdf,
   resolveResumePdfAccentPreset,
   resolveResumePdfDensity,
   resolveResumePdfHeadingStyle,
@@ -43,12 +45,14 @@ interface DeleteDialogState {
 export default function EditorPage() {
   const { id } = useParams<{ id: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
+  const user = useAuthStore((state) => state.user)
   const { modules, loading, fetchModules, addModule, deleteModule } = useResumeStore()
   const [activeModuleType, setActiveModuleType] = useState<ModuleType | null>(null)
   const [aiModuleId, setAiModuleId] = useState<number | null>(null)
   const [editorView, setEditorView] = useState<EditorView>('module')
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState('')
+  const [membershipModalOpen, setMembershipModalOpen] = useState(false)
   const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState | null>(null)
   const [deletingModuleId, setDeletingModuleId] = useState<number | null>(null)
   const [previewCollapsed, setPreviewCollapsed] = useState(false)
@@ -64,7 +68,9 @@ export default function EditorPage() {
       : 'module'
   const initialModuleType = requestedModuleType && requestedModuleType in getDefaultContentMap()
     ? requestedModuleType as ModuleType
-    : null
+    : requestedView === 'module'
+      ? 'basic_info'
+      : null
 
   useEffect(() => {
     if (resumeId) {
@@ -142,6 +148,14 @@ export default function EditorPage() {
     }
     setSearchParams(nextParams, { replace: true })
   }, [activeModuleType, setSearchParams])
+
+  useEffect(() => {
+    if (!resumeId || requestedView !== 'module' || requestedModuleType || !initialModuleType) {
+      return
+    }
+
+    updateEditorLocation('module', initialModuleType)
+  }, [resumeId, requestedView, requestedModuleType, initialModuleType, updateEditorLocation])
 
   useEffect(() => {
     if (modules.length === 0) {
@@ -260,24 +274,39 @@ export default function EditorPage() {
       return
     }
 
+    if (user?.membershipStatus !== 'ACTIVE') {
+      setMembershipModalOpen(true)
+      return
+    }
+
     setExporting(true)
     setExportError('')
     try {
-      await downloadResumePdf(modules, resumeId, {
+      const { blob, fileName } = await resumeApi.exportPdf(resumeId, {
         pageMode,
         templateId: pdfPreviewConfig.templateId,
         density: pdfPreviewConfig.density,
         accentPreset: pdfPreviewConfig.accentPreset,
         headingStyle: pdfPreviewConfig.headingStyle,
-        ...(pageMode === 'continuous' ? { fileNameSuffix: 'continuous' } : {}),
       })
+      const objectUrl = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = objectUrl
+      link.download = fileName
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(objectUrl)
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : '导出 PDF 失败，请稍后重试'
+      if (message.includes('会员')) {
+        setMembershipModalOpen(true)
+      }
       setExportError(message)
     } finally {
       setExporting(false)
     }
-  }, [modules, pdfPreviewConfig.accentPreset, pdfPreviewConfig.density, pdfPreviewConfig.headingStyle, pdfPreviewConfig.templateId, resumeId])
+  }, [modules.length, pdfPreviewConfig.accentPreset, pdfPreviewConfig.density, pdfPreviewConfig.headingStyle, pdfPreviewConfig.templateId, resumeId, user?.membershipStatus])
 
   const renderModuleForm = (moduleId: number, content: Record<string, unknown>) => {
     if (!activeModuleType) return null
@@ -508,6 +537,11 @@ export default function EditorPage() {
           }
           setDeleteDialog(null)
         }}
+      />
+
+      <MembershipUpgradeModal
+        open={membershipModalOpen}
+        onClose={() => setMembershipModalOpen(false)}
       />
     </div>
   )

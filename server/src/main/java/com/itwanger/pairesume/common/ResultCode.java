@@ -26,12 +26,17 @@ public enum ResultCode {
     RESET_PASSWORD_RULE(4003, "密码不符合规则"),
     REFRESH_TOKEN_INVALID(6001, "Refresh Token 无效"),
     REFRESH_TOKEN_EXPIRED(6002, "Refresh Token 过期"),
+    USER_NOT_FOUND(6003, "用户不存在"),
+    MAIL_NOT_CONFIGURED(6004, "邮件服务未配置"),
+    MAIL_SEND_FAILED(6005, "邮件发送失败"),
 
     // Resume: 3xxx
     RESUME_NOT_FOUND(3001, "简历不存在"),
     RESUME_LIMIT_REACHED(3002, "简历数量已达上限"),
     MODULE_NOT_FOUND(3003, "模块不存在"),
     MODULE_ALREADY_EXISTS(3004, "该模块只能添加一份"),
+    MEMBERSHIP_REQUIRED(3005, "开通会员后才可导出简历"),
+    EXPORT_FAILED(3006, "导出失败，请稍后重试"),
 
     // AI: 4xxx
     AI_NOT_CONFIGURED(4000, "AI 服务未配置，请检查服务端 AI 模型参数"),
@@ -43,6 +48,15 @@ public enum ResultCode {
     NOTIFICATION_NOT_FOUND(5001, "通知不存在或无权限"),
     NOTIFICATION_SETTINGS_ERROR(5002, "参数错误"),
     NOTIFICATION_SEND_ERROR(5003, "参数错误"),
+
+    // Coupon / Platform: 7xxx
+    COUPON_NOT_FOUND(7001, "优惠码不存在"),
+    COUPON_INVALID(7002, "优惠码无效"),
+    COUPON_ALREADY_USED(7003, "优惠码已使用"),
+    SHOWCASE_NOT_FOUND(7004, "样例不存在"),
+    FEEDBACK_NOT_FOUND(7005, "问卷记录不存在"),
+    FEEDBACK_RATE_LIMITED(7006, "提交过于频繁，请稍后再试"),
+    FEEDBACK_PUBLISH_NOT_ALLOWED(7007, "当前问卷不满足发布条件"),
 
     // Admin: 1xxx
     ADMIN_REQUIRED(1002, "没有管理员权限");

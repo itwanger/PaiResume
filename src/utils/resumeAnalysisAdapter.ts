@@ -64,6 +64,7 @@ export function buildAnalysisResume(modules: ResumeModule[]): Resume {
   const skills = modules
     .filter((module) => module.moduleType === 'skill')
     .flatMap((module) => normalizeSkillContent(module.content).categories.flatMap((category) => category.items))
+    .filter((item) => item.trim().length > 0)
 
   const experiences = modules.flatMap((module) => {
     if (module.moduleType === 'internship') {

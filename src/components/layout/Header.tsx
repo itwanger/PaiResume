@@ -280,11 +280,25 @@ export function Header() {
             {isAuthenticated && (
               <div className="flex items-center gap-4">
                 <Link
+                  to="/"
+                  className="text-sm font-medium text-gray-600 transition-colors hover:text-primary-700"
+                >
+                  首页
+                </Link>
+                <Link
                   to="/dashboard"
                   className="text-sm font-medium text-gray-600 transition-colors hover:text-primary-700"
                 >
                   我的简历
                 </Link>
+                {user?.admin ? (
+                  <Link
+                    to="/admin"
+                    className="text-sm font-medium text-gray-600 transition-colors hover:text-primary-700"
+                  >
+                    管理后台
+                  </Link>
+                ) : null}
                 <div className="relative" ref={menuRef}>
                   <button
                     type="button"
@@ -346,6 +360,9 @@ export function Header() {
                 {importError && (
                   <span className="max-w-xs text-sm text-red-500">{importError}</span>
                 )}
+                <span className="rounded-full border border-gray-200 px-3 py-1 text-xs text-gray-600">
+                  {user?.membershipStatus === 'ACTIVE' ? '会员已开通' : '免费用户'}
+                </span>
                 <span className="text-sm text-gray-600">{user?.email || '用户'}</span>
                 <button
                   onClick={handleLogout}

@@ -4,16 +4,21 @@ import com.itwanger.pairesume.common.Result;
 import com.itwanger.pairesume.dto.ModuleCreateDTO;
 import com.itwanger.pairesume.dto.ModuleUpdateDTO;
 import com.itwanger.pairesume.dto.ResumeCreateDTO;
+import com.itwanger.pairesume.dto.ResumeExportRequestDTO;
 import com.itwanger.pairesume.dto.ResumeUpdateDTO;
 import com.itwanger.pairesume.entity.ResumeModule;
 import com.itwanger.pairesume.service.ResumeModuleService;
+import com.itwanger.pairesume.service.ResumeExportService;
 import com.itwanger.pairesume.service.ResumeService;
+import com.itwanger.pairesume.util.SecurityUtils;
 import com.itwanger.pairesume.vo.ResumeListVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -25,10 +30,13 @@ public class ResumeController {
 
     private final ResumeService resumeService;
     private final ResumeModuleService moduleService;
+    private final ResumeExportService resumeExportService;
 
-    public ResumeController(ResumeService resumeService, ResumeModuleService moduleService) {
+    public ResumeController(ResumeService resumeService, ResumeModuleService moduleService,
+                            ResumeExportService resumeExportService) {
         this.resumeService = resumeService;
         this.moduleService = moduleService;
+        this.resumeExportService = resumeExportService;
     }
 
     @Operation(summary = "获取简历列表")
@@ -82,7 +90,18 @@ public class ResumeController {
         return Result.success();
     }
 
+    @Operation(summary = "导出简历 PDF")
+    @PostMapping("/{id}/export-pdf")
+    public ResponseEntity<ByteArrayResource> exportPdf(@PathVariable Long id,
+                                                       @RequestBody(required = false) ResumeExportRequestDTO dto) {
+        var exportedFile = resumeExportService.exportPdf(id, getCurrentUserId(), dto);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + exportedFile.fileName() + "\"")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(new ByteArrayResource(exportedFile.content()));
+    }
+
     private Long getCurrentUserId() {
-        return (Long) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        return SecurityUtils.getCurrentUserId();
     }
 }

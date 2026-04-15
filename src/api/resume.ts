@@ -143,6 +143,11 @@ export interface SmartOnePagePreviewResponse {
 
 export type ModuleOverrideState = Record<number, 'original' | 'optimized'>
 
+export interface ResumeExportResponse {
+  blob: Blob
+  fileName: string
+}
+
 const AI_LOG_PREFIX = '[PaiResume AI]'
 const STREAM_API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
 
@@ -260,6 +265,24 @@ async function withAiLogging<T>(
   }
 }
 
+function parseFileName(disposition: string | undefined) {
+  if (!disposition) {
+    return 'resume.pdf'
+  }
+
+  const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i)
+  if (utf8Match?.[1]) {
+    return decodeURIComponent(utf8Match[1])
+  }
+
+  const standardMatch = disposition.match(/filename="([^"]+)"/i)
+  if (standardMatch?.[1]) {
+    return standardMatch[1]
+  }
+
+  return 'resume.pdf'
+}
+
 export const resumeApi = {
   list: () =>
     client.get<ApiEnvelope<ResumeListItem[]>>('/resumes'),
@@ -284,6 +307,34 @@ export const resumeApi = {
 
   deleteModule: (resumeId: number, moduleId: number) =>
     client.delete(`/resumes/${resumeId}/modules/${moduleId}`),
+
+  exportPdf: (
+    resumeId: number,
+    data?: {
+      pageMode?: string
+      templateId?: string
+      density?: string
+      accentPreset?: string
+      headingStyle?: string
+    }
+  ) =>
+    client.post<Blob>(`/resumes/${resumeId}/export-pdf`, data || {}, { responseType: 'blob' }).then(async (response) => {
+      const contentType = String(response.headers['content-type'] ?? '')
+      if (contentType.includes('application/json')) {
+        const text = await response.data.text()
+        try {
+          const payload = JSON.parse(text) as { message?: string }
+          throw new Error(payload.message || '导出 PDF 失败')
+        } catch (error) {
+          throw error instanceof Error ? error : new Error(text || '导出 PDF 失败')
+        }
+      }
+
+      return {
+        blob: response.data,
+        fileName: parseFileName(response.headers['content-disposition']),
+      } satisfies ResumeExportResponse
+    }),
 
   aiOptimize: (resumeId: number, moduleId: number) =>
     withAiLogging(

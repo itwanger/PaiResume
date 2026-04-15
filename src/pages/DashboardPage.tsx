@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import type { ResumeListItem } from '../api/resume'
 import { useResumeStore } from '../store/resumeStore'
 import { Header } from '../components/layout/Header'
 import { ResumeCard } from '../components/dashboard/ResumeCard'
 
 export default function DashboardPage() {
+  const navigate = useNavigate()
   const { resumeList, loading, fetchResumeList, createResume, renameResume, deleteResume } = useResumeStore()
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
@@ -21,14 +23,19 @@ export default function DashboardPage() {
     setCreating(true)
     try {
       const title = resumeTitle.trim()
+      let nextResumeId: number | null = null
       if (dialogMode === 'rename' && editingResume) {
         await renameResume(editingResume.id, title)
       } else {
-        await createResume(title || undefined)
+        const resume = await createResume(title || undefined)
+        nextResumeId = resume.id
       }
       setResumeTitle('')
       setEditingResume(null)
       setDialogMode(null)
+      if (nextResumeId) {
+        navigate(`/editor/${nextResumeId}?moduleType=basic_info`)
+      }
     } catch (err: unknown) {
       const message = err instanceof Error
         ? err.message

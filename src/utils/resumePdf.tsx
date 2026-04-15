@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import {
   Document,
   Font,
@@ -23,12 +24,19 @@ import {
   normalizeSkillContent,
 } from './moduleContent'
 
+function resolveFontSource(fileName: string) {
+  if (typeof window === 'undefined') {
+    return decodeURIComponent(new URL(`../../public/fonts/${fileName}`, import.meta.url).pathname)
+  }
+  return `/fonts/${fileName}`
+}
+
 Font.registerHyphenationCallback((word) => [word])
 Font.register({
   family: 'ResumePdfSans',
   fonts: [
-    { src: '/fonts/noto-sans-sc-regular.otf', fontWeight: 400 },
-    { src: '/fonts/noto-sans-sc-bold.otf', fontWeight: 700 },
+    { src: resolveFontSource('noto-sans-sc-regular.otf'), fontWeight: 400 },
+    { src: resolveFontSource('noto-sans-sc-bold.otf'), fontWeight: 700 },
   ],
 })
 
@@ -819,7 +827,12 @@ function estimateContinuousPageHeight(modules: ResumeModule[]) {
 
     if (module.moduleType === 'skill') {
       const content = normalizeSkillContent(module.content)
-      textVolume += textLengthForPage(content.categories.flatMap((category) => [category.name, ...category.items]))
+      textVolume += textLengthForPage(
+        content.categories.flatMap((category) => [
+          category.name,
+          ...category.items.filter((item) => item.trim().length > 0),
+        ])
+      )
       continue
     }
 
@@ -1323,6 +1336,10 @@ function ResumePdfDocument({
                 <View key={module.id} style={sectionStyle}>
                   <Text style={sectionTitleStyle}>专业技能</Text>
                   {content.categories
+                    .map((category) => ({
+                      ...category,
+                      items: category.items.filter((item) => item.trim().length > 0),
+                    }))
                     .filter((category) => category.items.length > 0)
                     .map((category, index) => {
                       const hasTitle = Boolean(category.name.trim())

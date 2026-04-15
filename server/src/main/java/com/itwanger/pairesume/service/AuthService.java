@@ -12,6 +12,9 @@ public interface AuthService {
     /** 刷新 Token */
     TokenDTO refreshToken(String refreshToken);
 
+    /** 获取当前用户信息 */
+    UserInfoDTO getCurrentUserInfo(Long userId);
+
     /** 登出 */
     void logout(Long userId, String accessToken);
 

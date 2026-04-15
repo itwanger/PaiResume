@@ -808,6 +808,10 @@ function ModulePreviewSection({
         return (
           <div className="mb-4">
             {content.categories
+              .map((cat) => ({
+                ...cat,
+                items: cat.items.filter((item) => item.trim().length > 0),
+              }))
               .filter((cat) => cat.items.length > 0)
               .map((cat, i) => {
                 const hasTitle = Boolean(cat.name.trim())

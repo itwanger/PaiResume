@@ -56,7 +56,12 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll()
                 .requestMatchers(
-                    "/auth/**",
+                    "/auth/login",
+                    "/auth/register",
+                    "/auth/refresh",
+                    "/auth/send-code",
+                    "/public/**",
+                    "/membership/quote",
                     "/health",
                     "/ready",
                     "/v3/api-docs/**",
@@ -65,6 +70,7 @@ public class SecurityConfig {
                     "/doc.html",
                     "/webjars/**"
                 ).permitAll()
+                .requestMatchers("/admin/**").hasRole("ADMIN")
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

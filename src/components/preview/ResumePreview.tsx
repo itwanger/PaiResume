@@ -1,7 +1,10 @@
-import { useResume } from '../../hooks/useResume'
+import type { Resume } from '../../types'
 
-export function ResumePreview() {
-  const { resume } = useResume()
+interface ResumePreviewProps {
+  resume: Resume
+}
+
+export function ResumePreview({ resume }: ResumePreviewProps) {
   const { basicInfo, educations, skills, experiences } = resume
 
   return (

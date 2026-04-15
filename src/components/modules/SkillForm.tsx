@@ -11,10 +11,14 @@ interface Props {
 }
 
 function toFlatSkillContent(content: SkillContent): SkillContent {
-  const items = content.categories.flatMap((category) => category.items).filter(Boolean)
+  const items = content.categories.flatMap((category) => category.items)
   return {
     categories: [{ name: '', items }],
   }
+}
+
+function normalizeFlatSkillContent(content: Record<string, unknown>): SkillContent {
+  return toFlatSkillContent(normalizeSkillContent(content))
 }
 
 export function SkillForm({ resumeId, moduleId, initialContent }: Props) {
@@ -22,7 +26,7 @@ export function SkillForm({ resumeId, moduleId, initialContent }: Props) {
     resumeId,
     moduleId,
     initialContent,
-    normalize: (content) => toFlatSkillContent(normalizeSkillContent(content)),
+    normalize: normalizeFlatSkillContent,
   })
 
   const skillItems = content.categories[0]?.items ?? []
