@@ -150,6 +150,7 @@ export interface BasicInfo {
   github: string
   website: string
   location: string
+  photo?: string
   summary: string
 }
 

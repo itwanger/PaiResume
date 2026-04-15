@@ -116,6 +116,7 @@ export function buildAnalysisResume(modules: ResumeModule[]): Resume {
       github: basicInfoContent.github,
       website: basicInfoContent.blog,
       location: basicInfoContent.hometown,
+      photo: basicInfoContent.photo,
       summary: basicInfoContent.summary,
     },
     educations,

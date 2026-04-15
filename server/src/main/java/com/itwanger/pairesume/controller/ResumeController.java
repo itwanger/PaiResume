@@ -16,11 +16,13 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @Tag(name = "简历接口")
@@ -95,8 +97,12 @@ public class ResumeController {
     public ResponseEntity<ByteArrayResource> exportPdf(@PathVariable Long id,
                                                        @RequestBody(required = false) ResumeExportRequestDTO dto) {
         var exportedFile = resumeExportService.exportPdf(id, getCurrentUserId(), dto);
+        String contentDisposition = ContentDisposition.attachment()
+                .filename(exportedFile.fileName(), StandardCharsets.UTF_8)
+                .build()
+                .toString();
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + exportedFile.fileName() + "\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition)
                 .contentType(MediaType.APPLICATION_PDF)
                 .body(new ByteArrayResource(exportedFile.content()));
     }

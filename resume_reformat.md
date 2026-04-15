@@ -51,6 +51,29 @@ GitHub：https://github.com/itwanger/
 14. 开发 VariablePool (变量池) 组件，通过引入 FastJSON2 进行对象的序列化与深拷贝，彻底解决多节点并发执行时的数据污染与类型转换问题， 支持复杂对象（JSON/List/Map）在节点间的精准传递与引用。
 15. 在 PluginNode 中实现了基于 ReAct 范式的工具调用逻辑，支持大模型根据上下文自动决策、参数提取与 Link 插件系统的 API 调用。
 
+## 工作经历
+
+### 蚂蚁集团｜后端开发｜PmHub 2024-03 ～ 至今
+
+项目简介：开发基于 SpringCloud、SpringCloud Alibaba、Flowable 和 Vue 的智能项目管理系统。系统支持用户创建项目、指派任务、workflow 流程流转，以及分配角色进行权限管控，关联审批流，实现了项目的流程化和智能化管理。
+
+技术栈：Spring Cloud、Spring Cloud Alibaba、Flowable、Redis、RocketMQ、TTL、Docker、SkyWalking、Seata、Sentinel、Gateway
+
+1. 基于 Spring Cloud Gateway 实现统一鉴权逻辑与全局接口拦截，并统计接口响应耗时；本地压测峰值 QPS 达 1500+，平均接口耗时控制在 30ms 以内。
+2. 自定义 Gateway 全局过滤器，实现了 Spring Cloud 微服务网关的统一鉴权（JWT 令牌校验、登录状态校验）、黑白名单过滤，并统计接口调用耗时
+3. 设计实现基于 TTL 的请求头拦截器，封装用户上下文至 TransmittableThreadLocal，实现用户信息透明传递与会话续期，减少数据库查询。
+4. 基于 TransmittableThreadLocal (TTL) 实现自定义请求头拦截器，将 Header 中用户数据封装到线程变量中方便获取，减少用户信息数据库查询次数，同时支持用户有效期验证与自动刷新。
+5. 引入 Redis 分布式锁机制，保障任务审批流程中状态修改的原子性与顺序性，解决并发更新引起的状态错乱问题。
+6. 基于 Redis 的 Redisson 分布式锁，结合自定义注解和 AOP，精准控制并发，确保流程状态按序更新，审批设置全局唯一锁定。
+7. 采用 Seata 分布式事务 AT 模式，确保新建任务与审批流程操作在分布式环境下的事务一致性。
+8. 接入 Redis 分布式锁控制任务审批流程状态更新，避免并发修改带来的顺序错乱。
+9. 通过 OpenFeign+Sentinel 实现自定义的 fallback 服务降级，确保系统在异常情况下仍能稳定运行；结合 Gateway+Sentinel 进行网关级限流，有效缓解峰值流量对单点服务的冲击。在 长时间高并发压测（2 小时，1700QPS）下，服务表现稳定，平均响应时间低于 60ms，可用性稳定保持在 99.9% 以上。
+10. 使用 OpenFeign + Sentinel 实现核心服务调用熔断与自动降级，在依赖异常时能够给用户一个友好的反馈机制；
+11. 配置 Nacos 作为服务注册与配置中心，通过 MySQL 持久化 Nacos 配置数据，规避重启造成的配置丢失问题。
+12. 在 Gateway 网关配置路由，并通过自定义过滤器实现 JWT 鉴权，并自定义拦截器在微服务间传递用户令牌信息。
+13. 使用 Flowable 构建项目和任务的审批流程，引入 Redis 分布式锁，确保流程节点状态更新的顺序；将审批事件通过 RocketMQ 异步投递，提高流程处理吞吐量。
+14. 引入 SkyWalking 实现分布式调用链监控；集成校园邮件网关，实现流程审批结果的邮件通知，用户平均响应时间优化至 200ms 以内。
+
 ## 项目经历
 
 ### 派聪明 RAG 知识库 AI应用开发 2026-01 ～ 2026-02
@@ -124,30 +147,6 @@ GitHub 仓库（已有3k+星标）：https://github.com/itwanger/paicoding
 - 在 TransactionManager 中实现基于 XID 文件的事务状态管理，结合 REDO/UNDO 日志机制及 2PC 协议，确保崩溃恢复后未提交事务可自动回滚，保障 ACID 特性；
 - **索引优化**：基于 B+ 树实现非聚簇索引查询，并分别实现 Nested-Loop Join、Hash Join、Sort-Merge Join 三种连接算法。
 - 设计基于 LRU 策略的页面缓存系统，引入读写锁实现线程安全；通过后台线程异步回写脏页，数据库 QPS 提升约 3 倍。
-
-## 工作经历
-
-### 蚂蚁集团｜后端开发｜PmHub 2024-03 ～ 至今
-
-项目简介：开发基于 SpringCloud、SpringCloud Alibaba、Flowable 和 Vue 的智能项目管理系统。系统支持用户创建项目、指派任务、workflow 流程流转，以及分配角色进行权限管控，关联审批流，实现了项目的流程化和智能化管理。
-
-技术栈：Spring Cloud、Spring Cloud Alibaba、Flowable、Redis、RocketMQ、TTL、Docker、SkyWalking、Seata、Sentinel、Gateway
-
-1. 基于 Spring Cloud Gateway 实现统一鉴权逻辑与全局接口拦截，并统计接口响应耗时；本地压测峰值 QPS 达 1500+，平均接口耗时控制在 30ms 以内。
-2. 自定义 Gateway 全局过滤器，实现了 Spring Cloud 微服务网关的统一鉴权（JWT 令牌校验、登录状态校验）、黑白名单过滤，并统计接口调用耗时
-3. 设计实现基于 TTL 的请求头拦截器，封装用户上下文至 TransmittableThreadLocal，实现用户信息透明传递与会话续期，减少数据库查询。
-4. 基于 TransmittableThreadLocal (TTL) 实现自定义请求头拦截器，将 Header 中用户数据封装到线程变量中方便获取，减少用户信息数据库查询次数，同时支持用户有效期验证与自动刷新。
-5. 引入 Redis 分布式锁机制，保障任务审批流程中状态修改的原子性与顺序性，解决并发更新引起的状态错乱问题。
-6. 基于 Redis 的 Redisson 分布式锁，结合自定义注解和 AOP，精准控制并发，确保流程状态按序更新，审批设置全局唯一锁定。
-7. 采用 Seata 分布式事务 AT 模式，确保新建任务与审批流程操作在分布式环境下的事务一致性。
-8. 接入 Redis 分布式锁控制任务审批流程状态更新，避免并发修改带来的顺序错乱。
-9. 通过 OpenFeign+Sentinel 实现自定义的 fallback 服务降级，确保系统在异常情况下仍能稳定运行；结合 Gateway+Sentinel 进行网关级限流，有效缓解峰值流量对单点服务的冲击。在 长时间高并发压测（2 小时，1700QPS）下，服务表现稳定，平均响应时间低于 60ms，可用性稳定保持在 99.9% 以上。
-10. 使用 OpenFeign + Sentinel 实现核心服务调用熔断与自动降级，在依赖异常时能够给用户一个友好的反馈机制；
-11. 配置 Nacos 作为服务注册与配置中心，通过 MySQL 持久化 Nacos 配置数据，规避重启造成的配置丢失问题。
-12. 在 Gateway 网关配置路由，并通过自定义过滤器实现 JWT 鉴权，并自定义拦截器在微服务间传递用户令牌信息。
-13. 使用 Flowable 构建项目和任务的审批流程，引入 Redis 分布式锁，确保流程节点状态更新的顺序；将审批事件通过 RocketMQ 异步投递，提高流程处理吞吐量。
-14. 引入 SkyWalking 实现分布式调用链监控；集成校园邮件网关，实现流程审批结果的邮件通知，用户平均响应时间优化至 200ms 以内。
-
 
 ## 专业技能
 

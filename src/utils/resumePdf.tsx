@@ -2,6 +2,7 @@
 import {
   Document,
   Font,
+  Image,
   Link,
   Page,
   StyleSheet,
@@ -23,6 +24,9 @@ import {
   normalizeResearchContent,
   normalizeSkillContent,
 } from './moduleContent'
+import { parseInlineMarkdownSegments } from './inlineMarkdown'
+import { normalizePhotoSource } from './resumePhoto'
+import { getModuleDisplayLabel } from './resumeDisplay'
 
 function resolveFontSource(fileName: string) {
   if (typeof window === 'undefined') {
@@ -694,6 +698,30 @@ function createResumePdfStyles(theme: ResumePdfTheme) {
       gap: theme.contactGap,
       color: theme.mutedColor,
     },
+    topSectionRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 16,
+    },
+    topSectionMain: {
+      flexGrow: 1,
+      flexShrink: 1,
+      flexBasis: 0,
+    },
+    topSectionPhotoColumn: {
+      flexShrink: 0,
+      alignItems: 'flex-end',
+    },
+    photoFrame: {
+      overflow: 'hidden',
+      borderWidth: 1,
+      backgroundColor: '#f8fafc',
+    },
+    photoImage: {
+      width: '100%',
+      height: '100%',
+      objectFit: 'cover',
+    },
     section: {
       marginBottom: theme.sectionGap,
     },
@@ -795,12 +823,14 @@ function estimateContinuousPageHeight(modules: ResumeModule[]) {
   let textVolume = 0
   let bulletCount = 0
   let moduleCount = 0
+  let hasPhoto = false
 
   for (const module of sortedModules) {
     moduleCount += 1
 
     if (module.moduleType === 'basic_info') {
       const content = normalizeBasicInfoContent(module.content)
+      hasPhoto = Boolean(normalizePhotoSource(content.photo))
       textVolume += textLengthForPage([content.name, content.jobIntention, content.summary, content.email, content.phone, content.wechat, content.github, content.blog])
       continue
     }
@@ -854,7 +884,7 @@ function estimateContinuousPageHeight(modules: ResumeModule[]) {
     }
   }
 
-  const estimated = 220 + moduleCount * 46 + bulletCount * 18 + textVolume * 0.34
+  const estimated = 220 + moduleCount * 46 + bulletCount * 18 + textVolume * 0.34 + (hasPhoto ? 96 : 0)
   return Math.max(A4_HEIGHT * 1.15, Math.min(A4_HEIGHT * 4.2, estimated))
 }
 
@@ -945,6 +975,23 @@ function renderWrappedLabeledText(
   )
 }
 
+function renderInlineMarkdownTokens(
+  styles: ReturnType<typeof createResumePdfStyles>,
+  value: string,
+  keyPrefix: string
+) {
+  return parseInlineMarkdownSegments(value).flatMap((segment, segmentIndex) =>
+    tokenizeMixedText(segment.text).map((token, tokenIndex) => (
+      <Text
+        key={`${keyPrefix}-${segmentIndex}-${tokenIndex}`}
+        style={segment.bold ? styles.strong : undefined}
+      >
+        {token}
+      </Text>
+    ))
+  )
+}
+
 function renderOrderedItem(
   styles: ReturnType<typeof createResumePdfStyles>,
   value: string,
@@ -955,9 +1002,7 @@ function renderOrderedItem(
     <View style={styles.orderedItem}>
       <View style={styles.wrappedTextRow}>
         <Text>{`${index + 1}、`}</Text>
-        {tokenizeMixedText(value).map((token, tokenIndex) => (
-          <Text key={`${keyPrefix}-${tokenIndex}`}>{token}</Text>
-        ))}
+        {renderInlineMarkdownTokens(styles, value, keyPrefix)}
       </View>
     </View>
   )
@@ -972,9 +1017,7 @@ function renderBulletItem(
     <View style={styles.orderedItem}>
       <View style={styles.wrappedTextRow}>
         <Text>• </Text>
-        {tokenizeMixedText(value).map((token, tokenIndex) => (
-          <Text key={`${keyPrefix}-${tokenIndex}`}>{token}</Text>
-        ))}
+        {renderInlineMarkdownTokens(styles, value, keyPrefix)}
       </View>
     </View>
   )
@@ -1060,9 +1103,12 @@ function ResumePdfDocument({
   const sortedModules = sortModules(modules)
   const basicInfoModule = sortedModules.find((module) => module.moduleType === 'basic_info')
   const basicInfo = basicInfoModule ? normalizeBasicInfoContent(basicInfoModule.content) : null
+  const photoSource = normalizePhotoSource(basicInfo?.photo)
+  const hasPhoto = Boolean(photoSource)
   const jobIntentionModule = sortedModules.find((module) => module.moduleType === 'job_intention')
   const jobIntention = jobIntentionModule ? normalizeJobIntentionContent(jobIntentionModule.content) : null
   const displayJobIntention = basicInfo?.jobIntention || jobIntention?.targetPosition || ''
+  const internshipSectionTitle = getModuleDisplayLabel('internship', basicInfo)
   const hasEducationModule = sortedModules.some((module) => module.moduleType === 'education')
   const educationModules = sortedModules.filter((module) => module.moduleType === 'education')
   const awardModules = sortedModules
@@ -1122,146 +1168,184 @@ function ResumePdfDocument({
       ? [{ color: theme.linkColor, borderBottomWidth: 0, paddingBottom: 0, marginBottom: 6 }]
       : []),
   ]
+  const photoFrameWidth = isCompactDensity ? 82 : 96
+  const photoFrameHeight = Math.round(photoFrameWidth * 4 / 3)
+  const topSectionWithPhotoStyle = {
+    marginBottom: educationModules.length > 0 ? theme.sectionGap : Math.max(theme.headerBottom, 10),
+  }
+  const splitPhotoFrameStyle = [
+    styles.photoFrame,
+    {
+      width: photoFrameWidth,
+      height: photoFrameHeight,
+      borderColor: isExecutive ? '#cbd5e1' : '#dbeafe',
+    },
+  ]
+
+  const renderHeaderBlock = (styleOverrides: Array<{ marginBottom?: number }> = []) => (
+    basicInfo ? (
+      <View style={[...headerContainerStyle, ...styleOverrides]}>
+        <View style={styles.headerRow}>
+          <Text style={headerTitleStyle}>
+            <Text style={headerLabelStyle}>姓名：</Text>
+            {basicInfo.name || '未填写'}
+          </Text>
+          {displayJobIntention ? (
+            <Text style={headerSubtitleStyle}>
+              <Text style={headerLabelStyle}>求职意向：</Text>
+              {displayJobIntention}
+            </Text>
+          ) : null}
+        </View>
+        <View style={headerContactStyle}>
+          {basicInfo.email ? <Text><Text style={headerLabelStyle}>邮箱：</Text>{basicInfo.email}</Text> : null}
+          {basicInfo.phone ? <Text><Text style={headerLabelStyle}>手机号：</Text>{basicInfo.phone}</Text> : null}
+          {basicInfo.wechat ? <Text><Text style={headerLabelStyle}>微信：</Text>{basicInfo.wechat}</Text> : null}
+          {basicInfo.targetCity ? <Text><Text style={headerLabelStyle}>意向城市：</Text>{basicInfo.targetCity}</Text> : null}
+          {basicInfo.salaryRange ? <Text><Text style={headerLabelStyle}>期望薪资：</Text>{basicInfo.salaryRange}</Text> : null}
+          {basicInfo.expectedEntryDate ? <Text><Text style={headerLabelStyle}>到岗时间：</Text>{basicInfo.expectedEntryDate}</Text> : null}
+          {basicInfo.github ? (
+            <Text>
+              <Text style={headerLabelStyle}>GitHub：</Text>
+              <Link src={normalizeExternalUrl(basicInfo.github)} style={headerLinkStyle}>{basicInfo.github}</Link>
+            </Text>
+          ) : null}
+          {basicInfo.blog ? (
+            <Text>
+              <Text style={headerLabelStyle}>博客：</Text>
+              <Link src={normalizeExternalUrl(basicInfo.blog)} style={headerLinkStyle}>{basicInfo.blog}</Link>
+            </Text>
+          ) : null}
+          {basicInfo.hometown ? <Text><Text style={headerLabelStyle}>籍贯：</Text>{basicInfo.hometown}</Text> : null}
+          {basicInfo.workYears ? <Text><Text style={headerLabelStyle}>工作年限：</Text>{basicInfo.workYears}</Text> : null}
+          {basicInfo.leetcode ? <Text><Text style={headerLabelStyle}>LeetCode：</Text>{basicInfo.leetcode}</Text> : null}
+        </View>
+        {basicInfo.summary ? (
+          <Text style={[styles.paragraph, ...(isExecutive ? [{ color: '#e2e8f0' }] : [])]}>
+            <Text style={headerLabelStyle}>个人总结：</Text>
+            {basicInfo.summary}
+          </Text>
+        ) : null}
+      </View>
+    ) : null
+  )
+
+  const renderEducationBlock = (styleOverrides: Array<{ marginBottom?: number }> = []) => (
+    educationModules.length > 0 ? (
+      <View style={[...sectionStyle, ...styleOverrides]}>
+        <Text style={sectionTitleStyle}>教育背景</Text>
+        {educationModules.map((educationModule) => {
+          const content = normalizeEducationContent(educationModule.content)
+          const schoolTags = [
+            content.is985 ? '985' : '',
+            content.is211 ? '211' : '',
+            content.isDoubleFirst ? '双一流' : '',
+          ].filter(Boolean)
+          const departmentMajor = [
+            content.department ? `${content.department}` : '',
+            content.major ? `（${content.major}）` : '',
+          ].join('')
+          const firstRowItems = [
+            content.degree || '',
+            formatMonthRange(content.startDate, content.endDate),
+          ].filter(Boolean)
+          const secondRowItems = [
+            content.department ? `院系：${content.department}` : '',
+            content.major ? `专业：${content.major}` : '',
+          ].filter(Boolean)
+
+          return (
+            <View
+              key={educationModule.id}
+              style={[
+                styles.item,
+                ...(educationModule.id !== educationModules[educationModules.length - 1]?.id
+                  ? [{ paddingBottom: 6 }]
+                  : []),
+              ]}
+            >
+              {isCompactDensity ? (
+                <View style={styles.rowBetween}>
+                  <View style={styles.inlineMeta}>
+                    <Text style={styles.inlineMetaItem}>
+                      <Text style={styles.strong}>{content.school || '未填写'}</Text>
+                      {departmentMajor ? <Text style={styles.muted}>{` ${departmentMajor}`}</Text> : null}
+                    </Text>
+                    {!isMinimal && schoolTags.map((tag) => (
+                      <Text key={tag} style={styles.chip}>{tag}</Text>
+                    ))}
+                  </View>
+                  {content.startDate || content.endDate ? (
+                    <View style={styles.inlineMeta}>
+                      <Text style={[styles.inlineMetaItem, styles.muted]}>
+                        {formatMonthRange(content.startDate, content.endDate)}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              ) : (
+                <>
+                  <View style={styles.rowBetween}>
+                    <View style={styles.inlineMeta}>
+                      <Text style={[styles.inlineMetaItem, styles.strong]}>{content.school || '未填写'}</Text>
+                      {!isMinimal && schoolTags.map((tag) => (
+                        <Text key={tag} style={styles.chip}>{tag}</Text>
+                      ))}
+                    </View>
+                    <View style={styles.inlineMeta}>
+                      {firstRowItems.map((item) => (
+                        <Text key={item} style={[styles.inlineMetaItem, styles.muted]}>{item}</Text>
+                      ))}
+                    </View>
+                  </View>
+                  <View style={styles.inlineMeta}>
+                    {secondRowItems.map((item) => (
+                      <Text key={item} style={styles.inlineMetaItem}>{item}</Text>
+                    ))}
+                  </View>
+                </>
+              )}
+            </View>
+          )
+        })}
+        {awardModules.length > 0 ? (
+          <View style={{ marginTop: 4 }}>
+            {awardModules.map((award, index) => (
+              <Text key={`${award.awardName}-${index}`} style={styles.paragraph}>
+                <Text style={styles.label}>奖项：</Text>
+                {award.awardName}
+                {award.awardTime ? `（${formatAwardDisplayTime(award.awardTime)}）` : ''}
+              </Text>
+            ))}
+          </View>
+        ) : null}
+      </View>
+    ) : null
+  )
 
   return (
     <Document onRender={onRender}>
       <Page size={pageSize} style={styles.page}>
-        {basicInfo && (
-          <View style={headerContainerStyle}>
-            <View style={styles.headerRow}>
-              <Text style={headerTitleStyle}>
-                <Text style={headerLabelStyle}>姓名：</Text>
-                {basicInfo.name || '未填写'}
-              </Text>
-              {displayJobIntention ? (
-                <Text style={headerSubtitleStyle}>
-                  <Text style={headerLabelStyle}>求职意向：</Text>
-                  {displayJobIntention}
-                </Text>
-              ) : null}
-            </View>
-            <View style={headerContactStyle}>
-              {basicInfo.email ? <Text><Text style={headerLabelStyle}>邮箱：</Text>{basicInfo.email}</Text> : null}
-              {basicInfo.phone ? <Text><Text style={headerLabelStyle}>手机号：</Text>{basicInfo.phone}</Text> : null}
-              {basicInfo.wechat ? <Text><Text style={headerLabelStyle}>微信：</Text>{basicInfo.wechat}</Text> : null}
-              {basicInfo.targetCity ? <Text><Text style={headerLabelStyle}>意向城市：</Text>{basicInfo.targetCity}</Text> : null}
-              {basicInfo.salaryRange ? <Text><Text style={headerLabelStyle}>期望薪资：</Text>{basicInfo.salaryRange}</Text> : null}
-              {basicInfo.expectedEntryDate ? <Text><Text style={headerLabelStyle}>到岗时间：</Text>{basicInfo.expectedEntryDate}</Text> : null}
-              {basicInfo.github ? (
-                <Text>
-                  <Text style={headerLabelStyle}>GitHub：</Text>
-                  <Link src={normalizeExternalUrl(basicInfo.github)} style={headerLinkStyle}>{basicInfo.github}</Link>
-                </Text>
-              ) : null}
-              {basicInfo.blog ? (
-                <Text>
-                  <Text style={headerLabelStyle}>博客：</Text>
-                  <Link src={normalizeExternalUrl(basicInfo.blog)} style={headerLinkStyle}>{basicInfo.blog}</Link>
-                </Text>
-              ) : null}
-              {basicInfo.hometown ? <Text><Text style={headerLabelStyle}>籍贯：</Text>{basicInfo.hometown}</Text> : null}
-              {basicInfo.workYears ? <Text><Text style={headerLabelStyle}>工作年限：</Text>{basicInfo.workYears}</Text> : null}
-              {basicInfo.leetcode ? <Text><Text style={headerLabelStyle}>LeetCode：</Text>{basicInfo.leetcode}</Text> : null}
-            </View>
-            {basicInfo.summary ? (
-              <Text style={[styles.paragraph, ...(isExecutive ? [{ color: '#e2e8f0' }] : [])]}>
-                <Text style={headerLabelStyle}>个人总结：</Text>
-                {basicInfo.summary}
-              </Text>
-            ) : null}
-          </View>
-        )}
-
-        {educationModules.length > 0 ? (
-          <View style={sectionStyle}>
-            <Text style={sectionTitleStyle}>教育背景</Text>
-            {educationModules.map((educationModule) => {
-              const content = normalizeEducationContent(educationModule.content)
-              const schoolTags = [
-                content.is985 ? '985' : '',
-                content.is211 ? '211' : '',
-                content.isDoubleFirst ? '双一流' : '',
-              ].filter(Boolean)
-              const departmentMajor = [
-                content.department ? `${content.department}` : '',
-                content.major ? `（${content.major}）` : '',
-              ].join('')
-              const firstRowItems = [
-                content.degree || '',
-                formatMonthRange(content.startDate, content.endDate),
-              ].filter(Boolean)
-              const secondRowItems = [
-                content.department ? `院系：${content.department}` : '',
-                content.major ? `专业：${content.major}` : '',
-              ].filter(Boolean)
-
-              return (
-                <View
-                  key={educationModule.id}
-                  style={[
-                    styles.item,
-                    ...(educationModule.id !== educationModules[educationModules.length - 1]?.id
-                      ? [{ paddingBottom: 6 }]
-                      : []),
-                  ]}
-                >
-                  {isCompactDensity ? (
-                    <View style={styles.rowBetween}>
-                      <View style={styles.inlineMeta}>
-                        <Text style={styles.inlineMetaItem}>
-                          <Text style={styles.strong}>{content.school || '未填写'}</Text>
-                          {departmentMajor ? <Text style={styles.muted}>{` ${departmentMajor}`}</Text> : null}
-                        </Text>
-                        {!isMinimal && schoolTags.map((tag) => (
-                          <Text key={tag} style={styles.chip}>{tag}</Text>
-                        ))}
-                      </View>
-                      {content.startDate || content.endDate ? (
-                        <View style={styles.inlineMeta}>
-                          <Text style={[styles.inlineMetaItem, styles.muted]}>
-                            {formatMonthRange(content.startDate, content.endDate)}
-                          </Text>
-                        </View>
-                      ) : null}
-                    </View>
-                  ) : (
-                    <>
-                      <View style={styles.rowBetween}>
-                        <View style={styles.inlineMeta}>
-                          <Text style={[styles.inlineMetaItem, styles.strong]}>{content.school || '未填写'}</Text>
-                          {!isMinimal && schoolTags.map((tag) => (
-                            <Text key={tag} style={styles.chip}>{tag}</Text>
-                          ))}
-                        </View>
-                        <View style={styles.inlineMeta}>
-                          {firstRowItems.map((item) => (
-                            <Text key={item} style={[styles.inlineMetaItem, styles.muted]}>{item}</Text>
-                          ))}
-                        </View>
-                      </View>
-                      <View style={styles.inlineMeta}>
-                        {secondRowItems.map((item) => (
-                          <Text key={item} style={styles.inlineMetaItem}>{item}</Text>
-                        ))}
-                      </View>
-                    </>
-                  )}
-                </View>
-              )
-            })}
-            {awardModules.length > 0 ? (
-              <View style={{ marginTop: 4 }}>
-                {awardModules.map((award, index) => (
-                  <Text key={`${award.awardName}-${index}`} style={styles.paragraph}>
-                    <Text style={styles.label}>奖项：</Text>
-                    {award.awardName}
-                    {award.awardTime ? `（${formatAwardDisplayTime(award.awardTime)}）` : ''}
-                  </Text>
-                ))}
+        {hasPhoto ? (
+          <View style={topSectionWithPhotoStyle}>
+            <View style={styles.topSectionRow}>
+              <View style={styles.topSectionMain}>
+                {renderHeaderBlock(educationModules.length > 0 ? [] : [{ marginBottom: 0 }])}
+                {renderEducationBlock([{ marginBottom: 0 }])}
               </View>
-            ) : null}
+              <View style={[styles.topSectionPhotoColumn, { width: photoFrameWidth }]}>
+                <View style={splitPhotoFrameStyle}>
+                  <Image src={photoSource} style={styles.photoImage} />
+                </View>
+              </View>
+            </View>
           </View>
-        ) : null}
+        ) : (
+          <>
+            {renderHeaderBlock()}
+            {renderEducationBlock()}
+          </>
+        )}
 
         {sortedModules.map((module) => {
           switch (module.moduleType) {
@@ -1273,7 +1357,7 @@ function ResumePdfDocument({
               const titleLine = [content.company, content.position, content.projectName].filter(Boolean).join(' - ')
               return (
                 <View key={module.id} style={sectionStyle}>
-                  <Text style={sectionTitleStyle}>实习经历</Text>
+                  <Text style={sectionTitleStyle}>{internshipSectionTitle}</Text>
                   <View style={styles.item}>
                     <View style={styles.rowBetween}>
                       <Text style={styles.strong}>{titleLine || '公司 - 职位 - 项目名'}</Text>

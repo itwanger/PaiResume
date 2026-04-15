@@ -1,5 +1,6 @@
 import type { ResumeModule } from '../../api/resume'
-import { MODULE_LABELS, MODULE_ICONS, type ModuleType } from '../../types'
+import { MODULE_ICONS, type ModuleType } from '../../types'
+import { findBasicInfoContent, getModuleDisplayLabel } from '../../utils/resumeDisplay'
 
 interface ModuleSidebarProps {
   modules: ResumeModule[]
@@ -35,6 +36,7 @@ export function ModuleSidebar({
 }: ModuleSidebarProps) {
   const existingTypes = new Set(modules.map((m) => m.moduleType as ModuleType))
   const moduleViewActive = !analysisActive && !templateSelectionActive
+  const basicInfoContent = findBasicInfoContent(modules)
 
   return (
     <aside className="sticky top-[65px] min-h-[calc(100vh-65px)] max-h-[calc(100vh-65px)] w-56 self-start overflow-y-auto border-r border-gray-200 bg-white">
@@ -63,7 +65,7 @@ export function ModuleSidebar({
                 }`}
               >
                 <span className="text-base">{MODULE_ICONS[type]}</span>
-                <span className="flex-1">{MODULE_LABELS[type]}</span>
+                <span className="flex-1">{getModuleDisplayLabel(type, basicInfoContent)}</span>
                 {count > 1 && (
                   <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">
                     {count}

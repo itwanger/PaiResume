@@ -3,7 +3,7 @@ import * as PDFJS from 'pdfjs-dist'
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { AnimatePresence, motion, useReducedMotion, type Variants } from 'framer-motion'
 import type { ResumeModule } from '../../api/resume'
-import { MODULE_LABELS, type ModuleType } from '../../types'
+import type { ModuleType } from '../../types'
 import {
   hasPaperContent,
   hasResearchContent,
@@ -16,6 +16,9 @@ import {
   normalizeResearchContent,
   normalizeSkillContent,
 } from '../../utils/moduleContent'
+import { parseInlineMarkdownSegments } from '../../utils/inlineMarkdown'
+import { normalizePhotoSource } from '../../utils/resumePhoto'
+import { findBasicInfoContent, getModuleDisplayLabel } from '../../utils/resumeDisplay'
 import {
   generateResumePdfBlob,
   type ResumePdfAccentPreset,
@@ -206,6 +209,7 @@ export function PreviewPanel({
   const hasEducationModule = sortedModules.some((module) => module.moduleType === 'education')
   const educationModules = sortedModules.filter((module) => module.moduleType === 'education')
   const firstEducationModuleId = educationModules[0]?.id ?? null
+  const basicInfoContent = findBasicInfoContent(sortedModules)
   const visibleModules = sortedModules.filter((module) => {
     if (module.moduleType === 'job_intention') {
       return false
@@ -325,11 +329,12 @@ export function PreviewPanel({
                   <ModulePreviewSection
                     key={module.id}
                     module={module}
-                    modules={sortedModules}
-                    index={index}
-                    compactEducation={isCompactDensity}
-                    shouldReduceMotion={shouldReduceMotion}
-                  />
+                  modules={sortedModules}
+                  index={index}
+                  basicInfoContent={basicInfoContent}
+                  compactEducation={isCompactDensity}
+                  shouldReduceMotion={shouldReduceMotion}
+                />
                 ))}
               </AnimatePresence>
             </motion.div>
@@ -551,6 +556,14 @@ function renderContactItem(label: string, value: string) {
   )
 }
 
+function renderInlineMarkdownText(value: string) {
+  return parseInlineMarkdownSegments(value).map((segment, index) => (
+    segment.bold
+      ? <strong key={`${index}-${segment.text}`} className="font-semibold text-gray-800">{segment.text}</strong>
+      : <span key={`${index}-${segment.text}`}>{segment.text}</span>
+  ))
+}
+
 function getModuleSurfaceTone(moduleType: string, index: number) {
   const alternatingSurface = index % 2 === 0
     ? 'border-primary-100/90 bg-white/96'
@@ -577,16 +590,18 @@ function ModulePreviewSection({
   module,
   modules,
   index,
+  basicInfoContent,
   compactEducation,
   shouldReduceMotion,
 }: {
   module: ResumeModule
   modules: ResumeModule[]
   index: number
+  basicInfoContent: ReturnType<typeof findBasicInfoContent>
   compactEducation: boolean
   shouldReduceMotion: boolean
 }) {
-  const label = MODULE_LABELS[module.moduleType as ModuleType] || module.moduleType
+  const label = getModuleDisplayLabel(module.moduleType as ModuleType, basicInfoContent)
   const awardModules = modules.filter((item) => item.moduleType === 'award')
   const surfaceTone = getModuleSurfaceTone(module.moduleType, index)
 
@@ -594,6 +609,7 @@ function ModulePreviewSection({
     switch (module.moduleType) {
       case 'basic_info': {
         const content = normalizeBasicInfoContent(module.content)
+        const photoSource = normalizePhotoSource(content.photo)
         const contactItems = [
           ['邮箱', content.email as string],
           ['手机号', content.phone as string],
@@ -610,26 +626,32 @@ function ModulePreviewSection({
 
         return (
           <div className="mb-6 space-y-3">
-            <div className="flex items-center gap-4">
-              {content.photo && (
-                <img src={content.photo as string} alt="" className="w-16 h-16 rounded-full object-cover" />
-              )}
-              <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-[15px]">
-                <p>{renderLabeledText('姓名', (content.name as string) || '未填写', true)}</p>
-                {content.jobIntention && <p>{renderLabeledText('求职意向', content.jobIntention as string)}</p>}
+            <div className={photoSource ? 'grid grid-cols-[minmax(0,1fr)_108px] gap-5 items-start' : 'space-y-3'}>
+              <div className="min-w-0 space-y-3">
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-[15px]">
+                  <p>{renderLabeledText('姓名', (content.name as string) || '未填写', true)}</p>
+                  {content.jobIntention && <p>{renderLabeledText('求职意向', content.jobIntention as string)}</p>}
+                </div>
+                <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-gray-600">
+                  {contactItems.map(([itemLabel, itemValue]) => (
+                    renderContactItem(itemLabel as string, itemValue as string)
+                  ))}
+                </div>
+                {content.summary && (
+                  <p className="text-sm text-gray-600 whitespace-pre-wrap">
+                    <span className="text-gray-500">个人总结：</span>
+                    {content.summary}
+                  </p>
+                )}
               </div>
+              {photoSource ? (
+                <div className="flex justify-end">
+                  <div className="aspect-[3/4] w-[108px] overflow-hidden border border-primary-100 bg-slate-50 shadow-[0_10px_25px_-18px_rgba(15,23,42,0.4)]">
+                    <img src={photoSource} alt="简历照片" className="h-full w-full object-cover" />
+                  </div>
+                </div>
+              ) : null}
             </div>
-            <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-gray-600">
-              {contactItems.map(([itemLabel, itemValue]) => (
-                renderContactItem(itemLabel as string, itemValue as string)
-              ))}
-            </div>
-            {content.summary && (
-              <p className="text-sm text-gray-600 whitespace-pre-wrap">
-                <span className="text-gray-500">个人总结：</span>
-                {content.summary}
-              </p>
-            )}
           </div>
         )
       }
@@ -758,7 +780,7 @@ function ModulePreviewSection({
                   {content.responsibilities.map((line, index) => (
                     <div key={`${index}-${line}`} className="flex gap-2">
                       <span className="text-gray-400">•</span>
-                      <p className="flex-1 leading-6 whitespace-pre-wrap">{line}</p>
+                      <p className="flex-1 leading-6 whitespace-pre-wrap">{renderInlineMarkdownText(line)}</p>
                     </div>
                   ))}
                 </div>
@@ -794,7 +816,7 @@ function ModulePreviewSection({
                   {content.achievements.map((a, i) => (
                     <div key={`${i}-${a}`} className="flex gap-2">
                       <span className="text-gray-400">•</span>
-                      <p className="flex-1 leading-6 whitespace-pre-wrap">{a}</p>
+                      <p className="flex-1 leading-6 whitespace-pre-wrap">{renderInlineMarkdownText(a)}</p>
                     </div>
                   ))}
                 </div>

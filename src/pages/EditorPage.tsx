@@ -19,8 +19,9 @@ import { ResearchForm } from '../components/modules/ResearchForm'
 import { AwardForm } from '../components/modules/AwardForm'
 import { MembershipUpgradeModal } from '../components/membership/MembershipUpgradeModal'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
-import { MODULE_LABELS, SINGLETON_MODULES, type ModuleType } from '../types'
+import { SINGLETON_MODULES, type ModuleType } from '../types'
 import { normalizeJobIntentionContent } from '../utils/moduleContent'
+import { getModuleDisplayLabelFromModules } from '../utils/resumeDisplay'
 import {
   DEFAULT_RESUME_PDF_PREVIEW_CONFIG,
   resolveResumePdfAccentPreset,
@@ -451,7 +452,7 @@ export default function EditorPage() {
                             <button
                               onClick={() => setDeleteDialog({
                                 moduleId: mod.id,
-                                moduleLabel: MODULE_LABELS[activeModuleType],
+                                moduleLabel: getModuleDisplayLabelFromModules(activeModuleType, modules),
                                 itemLabel: `第 ${index + 1} 条`,
                               })}
                               className="text-xs text-gray-400 hover:text-red-500"
