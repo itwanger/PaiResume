@@ -15,6 +15,45 @@ body {
   min-height: 100vh;
 }
 
+/* 编辑器表单按真实可用宽度响应，避免三栏布局下仅按视口断点误判。 */
+.editor-form-container {
+  container-type: inline-size;
+}
+
+.editor-responsive-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.editor-responsive-grid > * {
+  min-width: 0;
+}
+
+.editor-save-bar {
+  align-items: stretch;
+  flex-direction: column;
+}
+
+.editor-save-bar__action {
+  width: 100%;
+}
+
+@container (min-width: 480px) {
+  .editor-responsive-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .editor-save-bar {
+    align-items: center;
+    flex-direction: row;
+  }
+
+  .editor-save-bar__action {
+    width: auto;
+  }
+}
+
 /* 统一圆角语言：大面板保持硬朗，小控件保留轻微圆角 */
 .rounded,
 .rounded-md,

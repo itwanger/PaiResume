@@ -29,7 +29,7 @@ export function ModuleSaveBar({ saveState, errorMessage, hasUnsavedChanges, onSa
       : '已保存'
 
   return (
-    <div className={`mb-4 flex items-center justify-between gap-4 rounded-xl border px-4 py-3 ${toneClass}`}>
+    <div className={`editor-save-bar mb-4 flex justify-between gap-3 rounded-xl border px-4 py-3 ${toneClass}`}>
       <div className="min-w-0">
         <p className={`text-sm font-medium ${titleClass}`}>
           {saveState === 'saving' ? '正在保存模块内容...' : '保存状态'}
@@ -43,7 +43,7 @@ export function ModuleSaveBar({ saveState, errorMessage, hasUnsavedChanges, onSa
         onClick={() => void onSave()}
         loading={saveState === 'saving'}
         disabled={saveState !== 'error' && !hasUnsavedChanges}
-        className="shrink-0"
+        className="editor-save-bar__action shrink-0"
       >
         {buttonLabel}
       </Button>

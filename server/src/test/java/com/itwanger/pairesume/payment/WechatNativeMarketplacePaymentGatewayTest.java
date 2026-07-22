@@ -1,0 +1,80 @@
+package com.itwanger.pairesume.payment;
+
+import com.wechat.pay.java.core.exception.ServiceException;
+import com.wechat.pay.java.service.payments.nativepay.NativePayService;
+import com.wechat.pay.java.service.payments.model.Transaction;
+import com.wechat.pay.java.service.payments.model.TransactionAmount;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+class WechatNativeMarketplacePaymentGatewayTest {
+
+    @Test
+    void explicitOrderNotExistBecomesSafeFailedState() {
+        NativePayService nativePayService = mock(NativePayService.class);
+        ServiceException notFound = mock(ServiceException.class);
+        when(notFound.getErrorCode()).thenReturn("ORDER_NOT_EXIST");
+        when(notFound.getHttpStatusCode()).thenReturn(404);
+        when(nativePayService.queryOrderByOutTradeNo(any())).thenThrow(notFound);
+
+        ProviderPaymentResult result = gateway(nativePayService).queryOrder("PR-missing");
+
+        assertEquals(PaymentProviderState.FAILED, result.state());
+        assertEquals("PR-missing", result.orderNo());
+    }
+
+    @Test
+    void ambiguousProviderFailureRemainsUnknownToCaller() {
+        NativePayService nativePayService = mock(NativePayService.class);
+        ServiceException serverError = mock(ServiceException.class);
+        when(serverError.getErrorCode()).thenReturn("SYSTEM_ERROR");
+        when(serverError.getHttpStatusCode()).thenReturn(500);
+        when(nativePayService.queryOrderByOutTradeNo(any())).thenThrow(serverError);
+
+        assertThrows(ServiceException.class, () -> gateway(nativePayService).queryOrder("PR-unknown"));
+    }
+
+    @Test
+    void bareHttp404WithoutWechatOrderNotExistCodeRemainsUnknown() {
+        NativePayService nativePayService = mock(NativePayService.class);
+        ServiceException proxyNotFound = mock(ServiceException.class);
+        when(proxyNotFound.getErrorCode()).thenReturn(null);
+        when(proxyNotFound.getHttpStatusCode()).thenReturn(404);
+        when(nativePayService.queryOrderByOutTradeNo(any())).thenThrow(proxyNotFound);
+
+        assertThrows(ServiceException.class,
+                () -> gateway(nativePayService).queryOrder("PR-proxy-404"));
+    }
+
+    @Test
+    void genericTransactionRefundStateDoesNotPretendFullRefundSucceeded() {
+        NativePayService nativePayService = mock(NativePayService.class);
+        Transaction transaction = mock(Transaction.class);
+        TransactionAmount amount = mock(TransactionAmount.class);
+        when(transaction.getOutTradeNo()).thenReturn("PR-refund");
+        when(transaction.getTradeState()).thenReturn(Transaction.TradeStateEnum.REFUND);
+        when(transaction.getTransactionId()).thenReturn("TX-1");
+        when(transaction.getAppid()).thenReturn("app-id");
+        when(transaction.getMchid()).thenReturn("merchant-id");
+        when(transaction.getAmount()).thenReturn(amount);
+        when(amount.getCurrency()).thenReturn("CNY");
+        when(amount.getTotal()).thenReturn(100);
+        when(nativePayService.queryOrderByOutTradeNo(any())).thenReturn(transaction);
+
+        ProviderPaymentResult result = gateway(nativePayService).queryOrder("PR-refund");
+
+        assertEquals(PaymentProviderState.REFUND_PENDING_VERIFICATION, result.state());
+    }
+
+    private WechatNativeMarketplacePaymentGateway gateway(NativePayService service) {
+        MarketplacePaymentProperties properties = new MarketplacePaymentProperties();
+        properties.getWechat().setAppId("app-id");
+        properties.getWechat().setMerchantId("merchant-id");
+        return new WechatNativeMarketplacePaymentGateway(properties, service, null);
+    }
+}

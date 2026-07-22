@@ -11,10 +11,12 @@ public class UserInfoDTO {
     private String role;
     private String membershipStatus;
     private String membershipGrantedAt;
+    private String membershipExpiresAt;
     private boolean admin;
 
     public UserInfoDTO(Long id, String email, String nickname, String avatar, String role,
-                       String membershipStatus, String membershipGrantedAt, boolean admin) {
+                       String membershipStatus, String membershipGrantedAt,
+                       String membershipExpiresAt, boolean admin) {
         this.id = id;
         this.email = email;
         this.nickname = nickname;
@@ -22,6 +24,7 @@ public class UserInfoDTO {
         this.role = role;
         this.membershipStatus = membershipStatus;
         this.membershipGrantedAt = membershipGrantedAt;
+        this.membershipExpiresAt = membershipExpiresAt;
         this.admin = admin;
     }
 }

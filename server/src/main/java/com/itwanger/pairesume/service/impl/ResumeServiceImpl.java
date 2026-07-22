@@ -7,10 +7,12 @@ import com.itwanger.pairesume.dto.ResumeCreateDTO;
 import com.itwanger.pairesume.dto.ResumeUpdateDTO;
 import com.itwanger.pairesume.entity.Resume;
 import com.itwanger.pairesume.mapper.ResumeMapper;
+import com.itwanger.pairesume.service.ResumeMarketplaceService;
 import com.itwanger.pairesume.service.ResumeService;
 import com.itwanger.pairesume.vo.ResumeListVO;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -18,12 +20,17 @@ import java.util.List;
 public class ResumeServiceImpl implements ResumeService {
 
     private final ResumeMapper resumeMapper;
+    private final ResumeMarketplaceService resumeMarketplaceService;
 
     @Value("${resume.max-count-per-user:20}")
     private int maxResumeCountPerUser;
 
-    public ResumeServiceImpl(ResumeMapper resumeMapper) {
+    public ResumeServiceImpl(
+            ResumeMapper resumeMapper,
+            ResumeMarketplaceService resumeMarketplaceService
+    ) {
         this.resumeMapper = resumeMapper;
+        this.resumeMarketplaceService = resumeMarketplaceService;
     }
 
     @Override
@@ -83,10 +90,12 @@ public class ResumeServiceImpl implements ResumeService {
     }
 
     @Override
+    @Transactional
     public void delete(Long userId, Long resumeId) {
         var resume = getAndVerifyOwnership(resumeId, userId);
         resume.setStatus(0);
         resumeMapper.updateById(resume);
+        resumeMarketplaceService.unpublishDeletedResume(resumeId, userId);
     }
 
     @Override

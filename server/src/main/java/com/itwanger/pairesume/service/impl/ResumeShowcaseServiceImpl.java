@@ -12,6 +12,7 @@ import com.itwanger.pairesume.entity.ResumeShowcase;
 import com.itwanger.pairesume.mapper.ResumeMapper;
 import com.itwanger.pairesume.mapper.ResumeModuleMapper;
 import com.itwanger.pairesume.mapper.ResumeShowcaseMapper;
+import com.itwanger.pairesume.service.MembershipService;
 import com.itwanger.pairesume.service.ResumeShowcaseService;
 import com.itwanger.pairesume.util.DateTimeUtils;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +26,7 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
     private final ResumeShowcaseMapper resumeShowcaseMapper;
     private final ResumeMapper resumeMapper;
     private final ResumeModuleMapper resumeModuleMapper;
+    private final MembershipService membershipService;
 
     @Override
     public List<ShowcaseCardDTO> listPublishedShowcases() {
@@ -37,7 +39,11 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
     }
 
     @Override
-    public ShowcaseDetailDTO getPublishedDetail(String slug) {
+    public ShowcaseDetailDTO getPublishedDetail(String slug, Long userId) {
+        if (!membershipService.isActiveMember(userId)) {
+            throw new BusinessException(ResultCode.SHOWCASE_MEMBERSHIP_REQUIRED);
+        }
+
         ResumeShowcase showcase = resumeShowcaseMapper.selectOne(
                 new LambdaQueryWrapper<ResumeShowcase>()
                         .eq(ResumeShowcase::getSlug, slug)
@@ -132,6 +138,7 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
         dto.setId(showcase.getId());
         dto.setSlug(showcase.getSlug());
         dto.setTitle(resume.getTitle());
+        dto.setTemplateId(resume.getTemplateId());
         dto.setScoreLabel(showcase.getScoreLabel());
         dto.setSummary(showcase.getSummary());
         dto.setTags(showcase.getTags());

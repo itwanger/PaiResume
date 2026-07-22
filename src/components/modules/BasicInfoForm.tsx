@@ -78,7 +78,7 @@ export function BasicInfoForm({ resumeId, moduleId, initialContent }: Props) {
         onSave={saveNow}
       />
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="editor-responsive-grid">
         <Field label="姓名" value={content.name} onChange={(v) => update('name', v)} />
         <Field label="邮箱" value={content.email} onChange={(v) => update('email', v)} />
         <Field label="求职意向" value={content.jobIntention} onChange={(v) => update('jobIntention', v)} />
@@ -99,7 +99,7 @@ export function BasicInfoForm({ resumeId, moduleId, initialContent }: Props) {
         </button>
       ) : (
         <div className="space-y-4 rounded-xl border border-dashed border-gray-200 bg-gray-50/70 p-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="text-sm font-medium text-gray-700">可选信息</p>
               <p className="mt-1 text-xs text-gray-500">填写这些内容可以补充求职偏好、照片和个人标签。</p>
@@ -224,7 +224,7 @@ export function BasicInfoForm({ resumeId, moduleId, initialContent }: Props) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="editor-responsive-grid">
             <Field label="意向城市" value={content.targetCity} onChange={(v) => update('targetCity', v)} />
             <Field label="期望薪资" value={content.salaryRange} onChange={(v) => update('salaryRange', v)} />
             <Field label="到岗时间" value={content.expectedEntryDate} onChange={(v) => update('expectedEntryDate', v)} />

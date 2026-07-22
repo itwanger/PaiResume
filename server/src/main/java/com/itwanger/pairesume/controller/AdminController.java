@@ -23,6 +23,8 @@ public class AdminController {
     private final CouponService couponService;
     private final MembershipService membershipService;
     private final ResumeShowcaseService resumeShowcaseService;
+    private final VipInviteService vipInviteService;
+    private final MembershipAuditService membershipAuditService;
 
     @Operation(summary = "获取平台配置")
     @GetMapping("/platform-config")
@@ -80,6 +82,54 @@ public class AdminController {
         return Result.success(couponService.listCoupons());
     }
 
+    @Operation(summary = "生成 VIP 邀请码")
+    @PostMapping("/vip-invites")
+    public Result<VipInviteAdminDTO> createVipInvite(
+            @Valid @RequestBody(required = false) CreateVipInviteDTO dto
+    ) {
+        return Result.success(vipInviteService.create(SecurityUtils.getCurrentUserId(), dto));
+    }
+
+    @Operation(summary = "获取 VIP 邀请码列表")
+    @GetMapping("/vip-invites")
+    public Result<List<VipInviteAdminDTO>> listVipInvites() {
+        return Result.success(vipInviteService.listInvites());
+    }
+
+    @Operation(summary = "获取 VIP 邀请码兑换记录")
+    @GetMapping("/vip-invites/{id}/redemptions")
+    public Result<List<VipInviteRedemptionAdminDTO>> listVipInviteRedemptions(@PathVariable Long id) {
+        return Result.success(vipInviteService.listRedemptions(id));
+    }
+
+    @Operation(summary = "作废 VIP 邀请码")
+    @PostMapping("/vip-invites/{id}/invalidate")
+    public Result<VipInviteAdminDTO> invalidateVipInvite(
+            @PathVariable Long id,
+            @Valid @RequestBody AdminActionReasonDTO dto
+    ) {
+        return Result.success(vipInviteService.invalidate(
+                id,
+                SecurityUtils.getCurrentUserId(),
+                dto.getReason()
+        ));
+    }
+
+    @Operation(summary = "撤销一条异常 VIP 邀请码兑换")
+    @PostMapping("/vip-invites/{inviteId}/redemptions/{redemptionId}/revoke")
+    public Result<VipInviteRedemptionAdminDTO> revokeVipInviteRedemption(
+            @PathVariable Long inviteId,
+            @PathVariable Long redemptionId,
+            @Valid @RequestBody AdminActionReasonDTO dto
+    ) {
+        return Result.success(vipInviteService.revokeRedemption(
+                inviteId,
+                redemptionId,
+                SecurityUtils.getCurrentUserId(),
+                dto.getReason()
+        ));
+    }
+
     @Operation(summary = "获取用户列表")
     @GetMapping("/users")
     public Result<List<UserAdminDTO>> listUsers() {
@@ -88,14 +138,48 @@ public class AdminController {
 
     @Operation(summary = "手工开通会员")
     @PostMapping("/users/{id}/membership/grant")
-    public Result<UserAdminDTO> grantMembership(@PathVariable Long id) {
-        return Result.success(membershipService.grantMembership(id, SecurityUtils.getCurrentUserId()));
+    public Result<UserAdminDTO> grantMembership(
+            @PathVariable Long id,
+            @Valid @RequestBody AdminActionReasonDTO dto
+    ) {
+        return Result.success(membershipService.grantMembership(
+                id,
+                SecurityUtils.getCurrentUserId(),
+                dto.getReason()
+        ));
+    }
+
+    @Operation(summary = "延长会员有效期")
+    @PostMapping("/users/{id}/membership/extend")
+    public Result<UserAdminDTO> extendMembership(
+            @PathVariable Long id,
+            @Valid @RequestBody ExtendMembershipDTO dto
+    ) {
+        return Result.success(membershipService.extendMembership(
+                id,
+                dto.getDays(),
+                SecurityUtils.getCurrentUserId(),
+                dto.getReason()
+        ));
     }
 
     @Operation(summary = "撤销会员")
     @PostMapping("/users/{id}/membership/revoke")
-    public Result<UserAdminDTO> revokeMembership(@PathVariable Long id) {
-        return Result.success(membershipService.revokeMembership(id, SecurityUtils.getCurrentUserId()));
+    public Result<UserAdminDTO> revokeMembership(
+            @PathVariable Long id,
+            @Valid @RequestBody AdminActionReasonDTO dto
+    ) {
+        return Result.success(membershipService.revokeMembership(
+                id,
+                SecurityUtils.getCurrentUserId(),
+                dto.getReason()
+        ));
+    }
+
+    @Operation(summary = "获取会员与邀请码管理审计日志")
+    @GetMapping("/membership-audit-logs")
+    public Result<List<MembershipAdminAuditLogDTO>> listMembershipAuditLogs() {
+        return Result.success(membershipAuditService.listRecent());
     }
 
     @Operation(summary = "获取样例列表")

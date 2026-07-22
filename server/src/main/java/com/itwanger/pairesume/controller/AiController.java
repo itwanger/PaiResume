@@ -5,6 +5,7 @@ import com.itwanger.pairesume.mapper.ResumeMapper;
 import com.itwanger.pairesume.mapper.ResumeModuleMapper;
 import com.itwanger.pairesume.service.AiService;
 import com.itwanger.pairesume.service.AiOptimizeRecordService;
+import com.itwanger.pairesume.service.MembershipService;
 import com.itwanger.pairesume.common.BusinessException;
 import com.itwanger.pairesume.common.ResultCode;
 import com.itwanger.pairesume.dto.AiFieldOptimizeRecordDTO;
@@ -35,25 +36,29 @@ public class AiController {
     private final ResumeMapper resumeMapper;
     private final ResumeModuleMapper moduleMapper;
     private final ObjectMapper objectMapper;
+    private final MembershipService membershipService;
 
     public AiController(
             AiService aiService,
             AiOptimizeRecordService aiOptimizeRecordService,
             ResumeMapper resumeMapper,
             ResumeModuleMapper moduleMapper,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            MembershipService membershipService
     ) {
         this.aiService = aiService;
         this.aiOptimizeRecordService = aiOptimizeRecordService;
         this.resumeMapper = resumeMapper;
         this.moduleMapper = moduleMapper;
         this.objectMapper = objectMapper;
+        this.membershipService = membershipService;
     }
 
     @Operation(summary = "AI 优化模块内容")
     @PostMapping("/ai-optimize")
     public Result<Map<String, Object>> aiOptimize(@PathVariable Long resumeId, @PathVariable Long moduleId) {
         var userId = getCurrentUserId();
+        membershipService.requireAiAccess(userId);
         validateOwnership(resumeId, userId);
 
         var module = moduleMapper.selectById(moduleId);
@@ -73,6 +78,7 @@ public class AiController {
             @RequestBody AiFieldOptimizeRequestDTO request
     ) {
         var userId = getCurrentUserId();
+        membershipService.requireAiAccess(userId);
         log.info("[AI Optimize][Controller] received field optimize request: resumeId={}, moduleId={}, userId={}, fieldType={}, index={}",
                 resumeId, moduleId, userId, request == null ? null : request.getFieldType(), request == null ? null : request.getIndex());
         validateOwnership(resumeId, userId);
@@ -97,6 +103,7 @@ public class AiController {
             HttpServletResponse response
     ) {
         var userId = getCurrentUserId();
+        membershipService.requireAiAccess(userId);
         log.info("[AI Optimize][Controller] received field optimize stream request: resumeId={}, moduleId={}, userId={}, fieldType={}, index={}",
                 resumeId, moduleId, userId, request == null ? null : request.getFieldType(), request == null ? null : request.getIndex());
         validateOwnership(resumeId, userId);
@@ -186,6 +193,7 @@ public class AiController {
             @RequestParam(required = false) Integer index
     ) {
         var userId = getCurrentUserId();
+        membershipService.requireAiAccess(userId);
         validateOwnership(resumeId, userId);
 
         var module = moduleMapper.selectById(moduleId);

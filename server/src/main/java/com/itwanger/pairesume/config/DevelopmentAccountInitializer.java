@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -19,6 +20,7 @@ import java.time.LocalDateTime;
 
 @Slf4j
 @Component
+@ConditionalOnProperty(name = "app.environment", havingValue = "development")
 @Order(Ordered.LOWEST_PRECEDENCE)
 @RequiredArgsConstructor
 public class DevelopmentAccountInitializer implements ApplicationRunner {
@@ -26,9 +28,6 @@ public class DevelopmentAccountInitializer implements ApplicationRunner {
     private final UserMapper userMapper;
     private final UserAuthIdentityMapper userAuthIdentityMapper;
     private final PasswordEncoder passwordEncoder;
-
-    @Value("${app.environment:development}")
-    private String appEnvironment;
 
     @Value("${app.dev-account.email:test@example.com}")
     private String devAccountEmail;
@@ -44,10 +43,6 @@ public class DevelopmentAccountInitializer implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        if (!"development".equalsIgnoreCase(appEnvironment)) {
-            return;
-        }
-
         ensureAccount(devAccountEmail, devAccountPassword, 0, "Test User");
         ensureAccount(devAdminEmail, devAdminPassword, 1, "Admin User");
     }

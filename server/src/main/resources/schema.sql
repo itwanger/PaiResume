@@ -31,7 +31,9 @@ CREATE TABLE IF NOT EXISTS `user_auth_identity` (
     `updated_at`      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_provider_principal` (`provider`, `principal`),
-    KEY `idx_user_provider` (`user_id`, `provider`)
+    KEY `idx_user_provider` (`user_id`, `provider`),
+    CONSTRAINT `fk_user_auth_identity_user`
+        FOREIGN KEY (`user_id`) REFERENCES `user` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户认证身份表';
 
 -- 简历表

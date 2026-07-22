@@ -1,21 +1,27 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { LogoMark } from '../components/branding/LogoMark'
+import { AUTHENTICATED_HOME_PATH } from '../config/site'
+import { buildLoginPath, getSafeInternalPath } from '../utils/navigation'
 
 export default function RegisterPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { register, sendCode } = useAuthStore()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [verificationCode, setVerificationCode] = useState('')
+  const [inviteCode, setInviteCode] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [codeSent, setCodeSent] = useState(false)
   const [countdown, setCountdown] = useState(0)
+  const returnTo = getSafeInternalPath(searchParams.get('redirect'), AUTHENTICATED_HOME_PATH)
 
   const handleSendCode = async () => {
+    setError('')
     if (!email.trim()) {
       setError('请先填写邮箱')
       return
@@ -61,8 +67,8 @@ export default function RegisterPage() {
 
     setLoading(true)
     try {
-      await register(email, password, verificationCode)
-      navigate('/dashboard')
+      await register(email, password, verificationCode, inviteCode.trim() || undefined)
+      navigate(returnTo, { replace: true })
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : '注册失败，请稍后重试'
       setError(message)
@@ -145,6 +151,25 @@ export default function RegisterPage() {
             />
           </div>
 
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-4">
+            <label className="block text-sm font-medium text-emerald-950 mb-1.5">知识星球 VIP 邀请码（可选）</label>
+            <input
+              type="text"
+              value={inviteCode}
+              onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+              placeholder="星球用户可填写，注册后获得 30 天 VIP"
+              className="w-full px-4 py-2.5 border border-emerald-300 bg-white rounded-lg focus:ring-2 focus:ring-emerald-200 focus:border-emerald-500 outline-none transition-colors"
+              autoComplete="off"
+              maxLength={64}
+            />
+            <div className="mt-2 space-y-1 text-xs leading-5 text-emerald-800">
+              <p>每个账号只能领取一次，不能叠加，也不能换一个邀请码重复续期。</p>
+              <p>邀请码截止时间只限制领取；兑换成功后，从成功时间起获得完整 30 天 VIP，到期不会自动续期。</p>
+              <p>到期后简历数据继续保留，免费编辑、保存和导入不受影响。</p>
+              <p>邀请码仅限星球成员本人使用，请勿截图、转发或发布到公开渠道。</p>
+            </div>
+          </div>
+
           <button
             type="submit"
             disabled={loading}
@@ -155,7 +180,7 @@ export default function RegisterPage() {
 
           <p className="text-center text-sm text-gray-500">
             已有账号？
-            <Link to="/login" className="text-primary-600 hover:text-primary-700 font-medium ml-1">
+            <Link to={buildLoginPath(returnTo)} className="text-primary-600 hover:text-primary-700 font-medium ml-1">
               立即登录
             </Link>
           </p>

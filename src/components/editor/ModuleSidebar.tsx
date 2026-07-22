@@ -3,6 +3,7 @@ import { MODULE_ICONS, type ModuleType } from '../../types'
 import { findBasicInfoContent, getModuleDisplayLabel } from '../../utils/resumeDisplay'
 
 interface ModuleSidebarProps {
+  variant?: 'desktop' | 'drawer'
   modules: ResumeModule[]
   activeModuleType: ModuleType | null
   onSelect: (moduleType: ModuleType) => void
@@ -18,8 +19,8 @@ const ALL_MODULE_TYPES: ModuleType[] = [
   'basic_info',
   'education',
   'internship',
-  'work_experience',
   'project',
+  'work_experience',
   'skill',
   'paper',
   'research',
@@ -28,6 +29,7 @@ const ALL_MODULE_TYPES: ModuleType[] = [
 const NON_REMOVABLE_MODULE_TYPES = new Set<ModuleType>(['basic_info'])
 
 export function ModuleSidebar({
+  variant = 'desktop',
   modules,
   activeModuleType,
   onSelect,
@@ -41,9 +43,15 @@ export function ModuleSidebar({
   const existingTypes = new Set(modules.map((m) => m.moduleType as ModuleType))
   const moduleViewActive = !analysisActive && !templateSelectionActive
   const basicInfoContent = findBasicInfoContent(modules)
+  const asideClassName = variant === 'drawer'
+    ? 'h-full w-full overflow-y-auto bg-white'
+    : 'sticky top-[65px] hidden min-h-[calc(100vh-65px)] max-h-[calc(100vh-65px)] w-56 shrink-0 self-start overflow-y-auto border-r border-gray-200 bg-white md:block'
 
   return (
-    <aside className="sticky top-[65px] min-h-[calc(100vh-65px)] max-h-[calc(100vh-65px)] w-56 self-start overflow-y-auto border-r border-gray-200 bg-white">
+    <aside
+      className={asideClassName}
+      aria-label={variant === 'drawer' ? '移动端模块导航' : '编辑器模块导航'}
+    >
       <div className="p-4">
         <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">模块</h2>
         <nav className="space-y-1">

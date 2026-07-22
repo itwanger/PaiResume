@@ -8,6 +8,7 @@ import com.itwanger.pairesume.dto.SmartOnePagePreviewRequestDTO;
 import com.itwanger.pairesume.mapper.ResumeMapper;
 import com.itwanger.pairesume.mapper.ResumeModuleMapper;
 import com.itwanger.pairesume.service.AiService;
+import com.itwanger.pairesume.service.MembershipService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -25,17 +26,21 @@ public class SmartOnePageController {
     private final AiService aiService;
     private final ResumeMapper resumeMapper;
     private final ResumeModuleMapper moduleMapper;
+    private final MembershipService membershipService;
 
-    public SmartOnePageController(AiService aiService, ResumeMapper resumeMapper, ResumeModuleMapper moduleMapper) {
+    public SmartOnePageController(AiService aiService, ResumeMapper resumeMapper,
+                                  ResumeModuleMapper moduleMapper, MembershipService membershipService) {
         this.aiService = aiService;
         this.resumeMapper = resumeMapper;
         this.moduleMapper = moduleMapper;
+        this.membershipService = membershipService;
     }
 
     @Operation(summary = "生成智能一页预览")
     @PostMapping("/preview")
     public Result<?> preview(@PathVariable Long resumeId, @RequestBody SmartOnePagePreviewRequestDTO request) {
         var userId = getCurrentUserId();
+        membershipService.requireAiAccess(userId);
         var resume = resumeMapper.selectById(resumeId);
         if (resume == null || !resume.getUserId().equals(userId) || resume.getStatus() == 0) {
             throw new BusinessException(ResultCode.RESUME_NOT_FOUND);

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { membershipApi, type MembershipQuote } from '../../api/membership'
+import { useAuthStore } from '../../store/authStore'
 
 interface Props {
   open: boolean
@@ -19,10 +20,14 @@ const EMPTY_QUOTE: MembershipQuote = {
 }
 
 export function MembershipUpgradeModal({ open, onClose }: Props) {
+  const refreshUser = useAuthStore((state) => state.refreshUser)
+  const [inviteCode, setInviteCode] = useState('')
   const [couponCode, setCouponCode] = useState('')
   const [quote, setQuote] = useState<MembershipQuote>(EMPTY_QUOTE)
   const [loading, setLoading] = useState(false)
+  const [redeemingInvite, setRedeemingInvite] = useState(false)
   const [error, setError] = useState('')
+  const [inviteError, setInviteError] = useState('')
 
   const priceRows = useMemo(() => ([
     { label: '会员原价', value: formatCents(quote.listPrice) },
@@ -44,6 +49,24 @@ export function MembershipUpgradeModal({ open, onClose }: Props) {
     }
   }
 
+  const redeemInvite = async () => {
+    if (!inviteCode.trim()) {
+      setInviteError('请输入 VIP 邀请码')
+      return
+    }
+    setRedeemingInvite(true)
+    setInviteError('')
+    try {
+      await membershipApi.redeemInvite(inviteCode.trim())
+      await refreshUser()
+      onClose()
+    } catch (err: unknown) {
+      setInviteError(err instanceof Error ? err.message : '邀请码兑换失败')
+    } finally {
+      setRedeemingInvite(false)
+    }
+  }
+
   useEffect(() => {
     if (!open) {
       return
@@ -57,12 +80,12 @@ export function MembershipUpgradeModal({ open, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4">
-      <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl">
+      <div className="max-h-[calc(100vh-2rem)] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-6 shadow-xl">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-xl font-semibold text-gray-900">开通会员后可导出 PDF</h2>
+            <h2 className="text-xl font-semibold text-gray-900">开通 VIP，解锁完整功能</h2>
             <p className="mt-2 text-sm leading-6 text-gray-500">
-              当前版本还没有接入在线支付。你可以先输入优惠码查看最终价格，再联系管理员人工开通。
+              VIP 可使用 AI 智能优化、简历分析和智能一页，也可查看完整优质简历并导出 PDF。
             </p>
           </div>
           <button
@@ -75,8 +98,31 @@ export function MembershipUpgradeModal({ open, onClose }: Props) {
         </div>
 
         <div className="mt-6 space-y-4">
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-4">
+            <label className="mb-2 block text-sm font-semibold text-emerald-950">VIP 邀请码</label>
+            <p className="mb-3 text-xs leading-5 text-emerald-800">每个账号限领一次，不能叠加或换码续期；邀请码截止时间只限制领取，兑换成功起获得完整 30 天 VIP。</p>
+            <div className="flex gap-3">
+              <input
+                value={inviteCode}
+                onChange={(event) => setInviteCode(event.target.value.toUpperCase())}
+                placeholder="输入后开通 30 天 VIP"
+                className="min-w-0 flex-1 rounded-lg border border-emerald-300 bg-white px-4 py-2.5 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+              />
+              <button
+                type="button"
+                onClick={() => void redeemInvite()}
+                disabled={redeemingInvite}
+                className="rounded-lg bg-emerald-700 px-4 py-2.5 text-white hover:bg-emerald-800 disabled:opacity-50"
+              >
+                {redeemingInvite ? '兑换中...' : '兑换邀请码'}
+              </button>
+            </div>
+            {inviteError ? <p className="mt-2 text-sm text-red-600" role="alert">{inviteError}</p> : null}
+            <p className="mt-2 text-xs leading-5 text-emerald-800">到期不会自动续期，简历数据会保留；邀请码仅限本人使用，请勿截图、转发或公开发布。</p>
+          </div>
+
           <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700">优惠码</label>
+            <label className="mb-2 block text-sm font-medium text-gray-700">支付优惠码</label>
             <div className="flex gap-3">
               <input
                 value={couponCode}
@@ -112,7 +158,8 @@ export function MembershipUpgradeModal({ open, onClose }: Props) {
           <div className="rounded-lg border border-dashed border-primary-200 bg-primary-50 px-4 py-4 text-sm leading-6 text-primary-900">
             <p>优惠码状态：{quote.couponStatus}</p>
             <p>在线支付：{quote.paymentEnabled ? '已开启' : '暂未开启'}</p>
-            <p>开通后你仍然保留现有的简历编辑、保存和 AI 功能。</p>
+            <p>免费账号可编辑、保存和导入简历；AI 功能、智能一页、PDF 导出和优质简历全文仅限 VIP。</p>
+            <p>VIP 到期后简历数据会保留，免费功能仍可继续使用。</p>
           </div>
         </div>
       </div>

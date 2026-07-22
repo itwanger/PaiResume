@@ -3,7 +3,7 @@ package com.itwanger.pairesume.controller;
 import com.itwanger.pairesume.common.Result;
 import com.itwanger.pairesume.dto.FeedbackSubmissionCreateDTO;
 import com.itwanger.pairesume.dto.HomeDTO;
-import com.itwanger.pairesume.dto.ShowcaseDetailDTO;
+import com.itwanger.pairesume.dto.ShowcaseCardDTO;
 import com.itwanger.pairesume.service.FeedbackSubmissionService;
 import com.itwanger.pairesume.service.PublicHomeService;
 import com.itwanger.pairesume.service.ResumeShowcaseService;
@@ -13,6 +13,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @Tag(name = "公开内容接口")
 @RestController
@@ -29,10 +31,10 @@ public class PublicController {
         return Result.success(publicHomeService.getHome());
     }
 
-    @Operation(summary = "公开样例详情")
-    @GetMapping("/showcases/{slug}")
-    public Result<ShowcaseDetailDTO> showcaseDetail(@PathVariable String slug) {
-        return Result.success(resumeShowcaseService.getPublishedDetail(slug));
+    @Operation(summary = "公开优质简历列表")
+    @GetMapping("/showcases")
+    public Result<List<ShowcaseCardDTO>> showcases() {
+        return Result.success(resumeShowcaseService.listPublishedShowcases());
     }
 
     @Operation(summary = "提交公开问卷")

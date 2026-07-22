@@ -10,6 +10,7 @@ public class UserAdminDTO {
     private String role;
     private String membershipStatus;
     private String membershipGrantedAt;
+    private String membershipExpiresAt;
     private String membershipSource;
     private String createdAt;
 }

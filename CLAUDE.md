@@ -41,9 +41,9 @@ Both frontend and backend read a single `.env` at the repo root (copy from `.env
 - `APP_ENV=development` auto-provisions a dev account via `DEV_ACCOUNT_EMAIL` / `DEV_ACCOUNT_PASSWORD` (defaults `test@example.com` / `Test123456`)
 - `FIELD_OPTIMIZE_PROMPTS_FILE` — path to the field-optimize prompt YAML, defaults to `config/field-optimize-prompts.yml`
 
-Database schema is applied from `server/src/main/resources/schema.sql` on startup — there is no Flyway migration pipeline, so schema changes go into that file directly.
+Database changes run through Flyway. Existing V1-V5 SQL migrations are retained, while `schema.sql` is consumed by `V6__ReconcilePaiResumeSchema` to bring legacy installations to the current structure; later schema changes must use a new versioned migration rather than editing V6.
 
-In development the email verification code is not actually sent via SMTP; it is printed to the backend log. The AI flows live behind the backend — `VITE_AI_*` variables are legacy/compat shims and should not be relied on.
+Email verification is sent through SMTP in every environment. Missing credentials and delivery failures fail closed; verification codes must never be written to logs. The AI flows live behind the backend — `VITE_AI_*` variables are legacy/compat shims and should not be relied on.
 
 ## Architecture
 
@@ -91,7 +91,7 @@ Standard Spring Boot layout under `com.itwanger.pairesume`:
 - `security/` — JWT filter, Spring Security config
 - `config/` — app/bean configuration
 - `common/` — shared envelopes and utilities
-- `src/main/resources/schema.sql` — the source of truth for the DB schema (no Flyway)
+- `src/main/resources/schema.sql` — the immutable V6 reconciliation baseline; add new Flyway migrations for later changes
 
 Controllers return the `{ code, message, data }` envelope that the frontend Axios interceptor unwraps.
 

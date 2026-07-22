@@ -1,10 +1,18 @@
 server:
   port: ${SERVER_PORT:8084}
+  forward-headers-strategy: ${FORWARD_HEADERS_STRATEGY:none}
   servlet:
     context-path: /api
 
 app:
-  environment: ${APP_ENV:development}
+  environment: ${APP_ENV:unset}
+  # Business DATETIME values use one fixed wall-clock zone on every node.
+  time-zone: ${APP_TIME_ZONE:Asia/Shanghai}
+  public-url: ${APP_PUBLIC_URL:https://resume.paicoding.com}
+  auth:
+    refresh-cookie-name: ${REFRESH_COOKIE_NAME:pai_refresh}
+    refresh-cookie-secure: ${REFRESH_COOKIE_SECURE:false}
+    refresh-cookie-max-age-seconds: ${REFRESH_COOKIE_MAX_AGE_SECONDS:604800}
   dev-account:
     email: ${DEV_ACCOUNT_EMAIL:test@example.com}
     password: ${DEV_ACCOUNT_PASSWORD:Test123456}
@@ -16,40 +24,97 @@ app:
   prompts:
     field-optimize:
       config-file: ${FIELD_OPTIMIZE_PROMPTS_FILE:config/field-optimize-prompts.yml}
+  mail:
+    from: ${MAIL_FROM:${MAIL_USERNAME:}}
+  verification-code:
+    secret: ${VERIFICATION_CODE_SECRET:development-only-change-me-32-bytes}
+    ttl-seconds: ${VERIFICATION_CODE_TTL_SECONDS:300}
+    resend-cooldown-seconds: ${VERIFICATION_CODE_RESEND_COOLDOWN_SECONDS:60}
+    max-verify-attempts: ${VERIFICATION_CODE_MAX_ATTEMPTS:5}
+    email-hourly-limit: ${VERIFICATION_CODE_EMAIL_HOURLY_LIMIT:5}
+    ip-hourly-limit: ${VERIFICATION_CODE_IP_HOURLY_LIMIT:20}
+  login-rate-limit:
+    window-seconds: ${LOGIN_RATE_LIMIT_WINDOW_SECONDS:900}
+    email-attempt-limit: ${LOGIN_RATE_LIMIT_EMAIL_ATTEMPTS:10}
+    ip-attempt-limit: ${LOGIN_RATE_LIMIT_IP_ATTEMPTS:100}
+  vip-invite-rate-limit:
+    window-seconds: ${VIP_INVITE_RATE_LIMIT_WINDOW_SECONDS:900}
+    account-attempt-limit: ${VIP_INVITE_RATE_LIMIT_ACCOUNT_ATTEMPTS:5}
+    ip-attempt-limit: ${VIP_INVITE_RATE_LIMIT_IP_ATTEMPTS:50}
+  marketplace:
+    min-price-cents: ${MARKETPLACE_MIN_PRICE_CENTS:100}
+    max-price-cents: ${MARKETPLACE_MAX_PRICE_CENTS:99900}
+  payment:
+    provider: ${PAYMENT_PROVIDER:disabled}
+    # Keep false until the merchant configuration is ready. A configured
+    # provider remains alive for callbacks and reconciliation while paused.
+    accept-new-orders: ${PAYMENT_ACCEPT_NEW_ORDERS:false}
+    order-expire-minutes: ${PAYMENT_ORDER_EXPIRE_MINUTES:15}
+    platform-fee-basis-points: ${MARKETPLACE_PLATFORM_FEE_BPS:0}
+    creator-earning-hold-days: ${MARKETPLACE_EARNING_HOLD_DAYS:7}
+    paid-order-reconciliation-interval-minutes: ${MARKETPLACE_PAID_RECONCILIATION_INTERVAL_MINUTES:360}
+    paid-order-due-reconciliation-retry-minutes: ${MARKETPLACE_PAID_DUE_RECONCILIATION_RETRY_MINUTES:5}
+    mock-auto-pay: ${PAYMENT_MOCK_AUTO_PAY:true}
+    wechat:
+      app-id: ${WECHAT_PAY_APP_ID:}
+      merchant-id: ${WECHAT_PAY_MERCHANT_ID:}
+      private-key: ${WECHAT_PAY_PRIVATE_KEY:}
+      merchant-serial-number: ${WECHAT_PAY_MERCHANT_SERIAL_NUMBER:}
+      api-v3-key: ${WECHAT_PAY_API_V3_KEY:}
+      notify-url: ${WECHAT_PAY_NOTIFY_URL:${app.public-url}/api/public/payments/wechat/notify}
 
 spring:
+  jackson:
+    time-zone: ${app.time-zone}
   devtools:
     restart:
-      enabled: true
+      enabled: ${DEVTOOLS_RESTART_ENABLED:false}
       additional-paths: src/main/java,src/main/resources
       poll-interval: 1s
       quiet-period: 400ms
     livereload:
       enabled: false
   datasource:
-    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:pai_resume}?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:pai_resume}?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=${MYSQL_ALLOW_PUBLIC_KEY_RETRIEVAL:true}&useSSL=${MYSQL_USE_SSL:false}&requireSSL=${MYSQL_REQUIRE_SSL:false}&verifyServerCertificate=${MYSQL_VERIFY_SERVER_CERTIFICATE:false}
     username: ${MYSQL_USERNAME:root}
     password: ${MYSQL_PASSWORD:123456}
     driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      connection-init-sql: SET time_zone = '+08:00'
+  flyway:
+    enabled: ${FLYWAY_ENABLED:true}
+    baseline-on-migrate: true
+    baseline-version: 5
+    locations: classpath:db/migration
+    user: ${FLYWAY_USERNAME:${MYSQL_USERNAME:root}}
+    password: ${FLYWAY_PASSWORD:${MYSQL_PASSWORD:123456}}
   data:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:}
   mail:
-    host: smtp.qq.com
-    port: 587
+    host: ${MAIL_HOST:smtp.qq.com}
+    port: ${MAIL_PORT:587}
     username: ${MAIL_USERNAME:}
     password: ${MAIL_PASSWORD:}
+    default-encoding: UTF-8
+    test-connection: ${MAIL_TEST_CONNECTION:false}
     properties:
-      mail.smtp.auth: true
-      mail.smtp.starttls.enable: true
+      mail.smtp.auth: ${MAIL_SMTP_AUTH:true}
+      mail.smtp.starttls.enable: ${MAIL_STARTTLS_ENABLE:true}
+      mail.smtp.starttls.required: ${MAIL_STARTTLS_REQUIRED:true}
+      mail.smtp.ssl.enable: ${MAIL_SSL_ENABLE:false}
+      mail.smtp.ssl.checkserveridentity: ${MAIL_SSL_CHECK_SERVER_IDENTITY:true}
+      mail.smtp.connectiontimeout: ${MAIL_CONNECTION_TIMEOUT_MS:10000}
+      mail.smtp.timeout: ${MAIL_READ_TIMEOUT_MS:10000}
+      mail.smtp.writetimeout: ${MAIL_WRITE_TIMEOUT_MS:10000}
 
 mybatis-plus:
   mapper-locations: classpath:mapper/*.xml
   configuration:
     map-underscore-to-camel-case: true
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    log-impl: ${MYBATIS_LOG_IMPL:org.apache.ibatis.logging.nologging.NoLoggingImpl}
   global-config:
     db-config:
       logic-delete-field: status
@@ -58,7 +123,9 @@ mybatis-plus:
 
 jwt:
   secret: ${JWT_SECRET:dGhpcyBpcyBhIHZlcnkgc2VjdXJlIGtleSBmb3IgcGFpIHJlc3VtZSBqd3QgdG9rZW4gZ2VuZXJhdGlvbiBhbmQgdmFsaWRhdGlvbiBwdXJwb3Nl}
-  access-token-expiration: 7200000
+  issuer: ${JWT_ISSUER:pai-resume}
+  audience: ${JWT_AUDIENCE:pai-resume-web}
+  access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION_MS:900000}
   refresh-token-expiration: 604800000
 
 ai:
@@ -69,10 +136,12 @@ ai:
   timeout: 60
 
 springdoc:
-  swagger-ui:
-    path: /swagger-ui.html
   api-docs:
+    enabled: ${SPRINGDOC_ENABLED:true}
     path: /v3/api-docs
+  swagger-ui:
+    enabled: ${SPRINGDOC_ENABLED:true}
+    path: /swagger-ui.html
 
 knife4j:
-  enable: true
+  enable: ${SPRINGDOC_ENABLED:true}

@@ -30,8 +30,14 @@ public class User {
     /** 会员开通时间 */
     private LocalDateTime membershipGrantedAt;
 
-    /** 会员来源: ADMIN_GRANTED/PAYMENT */
+    /** 会员来源: ADMIN_GRANTED/VIP_INVITE/ADMIN_EXTENDED/PAYMENT */
     private String membershipSource;
+
+    /** 当前权益根来源 */
+    private String membershipOriginType;
+
+    /** 当前权益根来源记录 ID */
+    private Long membershipOriginId;
 
     /** 会员到期时间，永久会员为空 */
     private LocalDateTime membershipExpiresAt;

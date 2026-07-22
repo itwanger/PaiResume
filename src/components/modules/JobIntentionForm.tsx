@@ -30,7 +30,7 @@ export function JobIntentionForm({ resumeId, moduleId, initialContent }: Props) 
         onSave={saveNow}
       />
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="editor-responsive-grid">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">意向岗位</label>
           <input type="text" value={content.targetPosition} onChange={(e) => update('targetPosition', e.target.value)}

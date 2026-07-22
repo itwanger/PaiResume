@@ -16,7 +16,7 @@ import {
 } from '../../utils/moduleContent'
 import { parseInlineMarkdownSegments } from '../../utils/inlineMarkdown'
 import { normalizePhotoSource } from '../../utils/resumePhoto'
-import { findBasicInfoContent, getModuleDisplayLabel } from '../../utils/resumeDisplay'
+import { findBasicInfoContent, getModuleDisplayLabel, sortResumeModulesForDisplay } from '../../utils/resumeDisplay'
 import {
   generateResumePdfBlob,
   type ResumePdfAccentPreset,
@@ -197,13 +197,7 @@ export function PreviewPanel({
   const shouldReduceMotion = useReducedMotion() ?? false
   const [previewMode, setPreviewMode] = useState<PreviewMode>(forcedMode ?? 'live')
   const isCompactDensity = pdfConfig?.density === 'compact'
-  const sortedModules = [...modules].sort((a, b) => {
-    if (a.sortOrder === b.sortOrder) {
-      return a.id - b.id
-    }
-
-    return a.sortOrder - b.sortOrder
-  })
+  const sortedModules = sortResumeModulesForDisplay(modules)
   const hasEducationModule = sortedModules.some((module) => module.moduleType === 'education')
   const educationModules = sortedModules.filter((module) => module.moduleType === 'education')
   const firstEducationModuleId = educationModules[0]?.id ?? null
@@ -260,7 +254,7 @@ export function PreviewPanel({
     <div className={`flex h-full flex-col ${hideHeader ? '' : 'bg-gray-50'}`}>
       <div className="w-full">
         {!hideHeader && (
-          <div className="mb-4 flex items-center justify-between">
+          <div className="mb-4 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-lg font-semibold text-gray-900">
                 {previewMode === 'live' ? '文本预览' : activePdfTitle}
@@ -275,7 +269,7 @@ export function PreviewPanel({
                 </p>
               )}
             </div>
-            <div className="inline-flex rounded-full border border-gray-200 bg-white p-1 shadow-sm">
+            <div className="inline-flex shrink-0 rounded-full border border-gray-200 bg-white p-1 shadow-sm">
               <button
                 type="button"
                 onClick={() => setPreviewMode('live')}
@@ -535,19 +529,19 @@ function renderContactItem(label: string, value: string) {
   const normalizedUrl = isLink ? normalizeExternalUrl(value) : ''
 
   return (
-    <span key={label}>
+    <span key={label} className="min-w-0 break-words">
       <span className="text-gray-500">{label}：</span>
       {isLink ? (
         <a
           href={normalizedUrl}
           target="_blank"
           rel="noreferrer"
-          className="text-primary-700 hover:text-primary-800 hover:underline"
+          className="break-all text-primary-700 hover:text-primary-800 hover:underline"
         >
           {value}
         </a>
       ) : (
-        <span className="text-gray-700">{value}</span>
+        <span className="break-all text-gray-700">{value}</span>
       )}
     </span>
   )
@@ -610,9 +604,9 @@ function ModulePreviewSection({
 
     return (
       <div key={projectModule.id} className="mb-4 space-y-1.5 last:mb-0">
-        <div className="flex justify-between items-start">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
           <div className="font-semibold text-gray-800">{titleLine || '项目 - 角色'}</div>
-          <span className="text-sm text-gray-400">
+          <span className="text-sm text-gray-400 sm:shrink-0">
             {formatMonthRange(content.startDate, content.endDate)}
           </span>
         </div>
@@ -666,7 +660,7 @@ function ModulePreviewSection({
 
         return (
           <div className="mb-6 space-y-3">
-            <div className={photoSource ? 'grid grid-cols-[minmax(0,1fr)_108px] gap-5 items-start' : 'space-y-3'}>
+            <div className={photoSource ? 'grid grid-cols-1 items-start gap-4 sm:grid-cols-[minmax(0,1fr)_108px] sm:gap-5' : 'space-y-3'}>
               <div className="min-w-0 space-y-3">
                 <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-[15px]">
                   <p>{renderLabeledText('姓名', (content.name as string) || '未填写', true)}</p>
@@ -685,7 +679,7 @@ function ModulePreviewSection({
                 )}
               </div>
               {photoSource ? (
-                <div className="flex justify-end">
+                <div className="flex justify-start sm:justify-end">
                   <div className={`aspect-[3/4] w-[108px] overflow-hidden shadow-[0_10px_25px_-18px_rgba(15,23,42,0.4)] ${photoFrameClassName}`}>
                     <img src={photoSource} alt="简历照片" className="h-full w-full object-cover" />
                   </div>
@@ -730,7 +724,7 @@ function ModulePreviewSection({
                     className="space-y-1.5 pb-3 last:pb-0"
                   >
                     {compactEducation ? (
-                      <div className="flex items-start justify-between gap-4 text-sm text-gray-700">
+                      <div className="flex flex-col gap-2 text-sm text-gray-700 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-semibold text-gray-900">
                             {(content.school as string) || '未填写'}
@@ -743,14 +737,14 @@ function ModulePreviewSection({
                           ))}
                         </div>
                         {content.startDate || content.endDate ? (
-                          <div className="shrink-0 text-sm text-gray-500">
+                          <div className="text-sm text-gray-500 sm:shrink-0">
                             {formatMonthRange(content.startDate as string, content.endDate as string)}
                           </div>
                         ) : null}
                       </div>
                     ) : (
                       <>
-                        <div className="flex items-start justify-between gap-4">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                           <div className="flex flex-wrap items-center gap-2 text-sm text-gray-700">
                             <span className="font-semibold text-gray-900">{(content.school as string) || '未填写'}</span>
                             {schoolTags.map((tag) => (
@@ -760,7 +754,7 @@ function ModulePreviewSection({
                             ))}
                           </div>
                           {firstRowItems.length > 0 && (
-                            <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1 text-sm text-gray-600">
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600 sm:justify-end">
                               {firstRowItems.map((item) => (
                                 <span key={item}>{item}</span>
                               ))}
@@ -799,9 +793,9 @@ function ModulePreviewSection({
         const titleLine = [content.company, content.position, content.projectName].filter(Boolean).join(' - ')
         return (
           <div className="mb-4 space-y-1.5">
-            <div className="flex justify-between items-start">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
               <div className="font-semibold text-gray-800">{titleLine || '公司 - 职位 - 项目名'}</div>
-              <span className="text-sm text-gray-400">
+              <span className="text-sm text-gray-400 sm:shrink-0">
                 {formatMonthRange(content.startDate, content.endDate)}
               </span>
             </div>

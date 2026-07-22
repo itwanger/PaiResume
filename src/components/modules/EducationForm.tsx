@@ -30,7 +30,7 @@ export function EducationForm({ resumeId, moduleId, initialContent }: Props) {
         onSave={saveNow}
       />
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="editor-responsive-grid">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">学校</label>
           <input type="text" value={content.school} onChange={(e) => update('school', e.target.value)}
@@ -68,7 +68,7 @@ export function EducationForm({ resumeId, moduleId, initialContent }: Props) {
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none text-sm" />
         </div>
       </div>
-      <div className="flex gap-4">
+      <div className="flex flex-wrap gap-4">
         <label className="flex items-center gap-1.5 text-sm text-gray-700">
           <input type="checkbox" checked={content.is985} onChange={(e) => update('is985', e.target.checked)}
             className="rounded border-gray-300" /> 985

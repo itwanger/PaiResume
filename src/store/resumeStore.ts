@@ -9,6 +9,11 @@ function getSortTime(value: string): number {
 
 function sortResumeList(resumeList: ResumeListItem[]): ResumeListItem[] {
   return [...resumeList].sort((a, b) => {
+    const updatedAtDiff = getSortTime(b.updatedAt) - getSortTime(a.updatedAt)
+    if (updatedAtDiff !== 0) {
+      return updatedAtDiff
+    }
+
     const createdAtDiff = getSortTime(b.createdAt) - getSortTime(a.createdAt)
     if (createdAtDiff !== 0) {
       return createdAtDiff
@@ -17,6 +22,8 @@ function sortResumeList(resumeList: ResumeListItem[]): ResumeListItem[] {
     return b.id - a.id
   })
 }
+
+let pendingResumeCreation: Promise<ResumeListItem> | null = null
 
 interface ResumeState {
   resumeList: ResumeListItem[]
@@ -51,11 +58,21 @@ export const useResumeStore = create<ResumeState>((set) => ({
     }
   },
 
-  createResume: async (title) => {
-    const { data: res } = await resumeApi.create({ title })
-    const newResume = res.data
-    set((state) => ({ resumeList: sortResumeList([newResume, ...state.resumeList]) }))
-    return newResume
+  createResume: (title) => {
+    if (pendingResumeCreation) {
+      return pendingResumeCreation
+    }
+
+    pendingResumeCreation = (async () => {
+      const { data: res } = await resumeApi.create({ title })
+      const newResume = res.data
+      set((state) => ({ resumeList: sortResumeList([newResume, ...state.resumeList]) }))
+      return newResume
+    })().finally(() => {
+      pendingResumeCreation = null
+    })
+
+    return pendingResumeCreation
   },
 
   importResume: async ({ title, modules }) => {

@@ -4,8 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.itwanger.pairesume.common.BusinessException;
 import com.itwanger.pairesume.common.ResultCode;
 import com.itwanger.pairesume.dto.ResumeExportRequestDTO;
-import com.itwanger.pairesume.entity.User;
-import com.itwanger.pairesume.mapper.UserMapper;
+import com.itwanger.pairesume.service.MembershipService;
 import com.itwanger.pairesume.service.ResumeExportService;
 import com.itwanger.pairesume.service.ResumeModuleService;
 import com.itwanger.pairesume.service.ResumeService;
@@ -30,7 +29,7 @@ import java.util.concurrent.TimeUnit;
 public class ResumeExportServiceImpl implements ResumeExportService {
     private final ResumeService resumeService;
     private final ResumeModuleService resumeModuleService;
-    private final UserMapper userMapper;
+    private final MembershipService membershipService;
     private final ObjectMapper objectMapper;
 
     @Value("${app.project-root:}")
@@ -38,11 +37,7 @@ public class ResumeExportServiceImpl implements ResumeExportService {
 
     @Override
     public ExportedResumeFile exportPdf(Long resumeId, Long userId, ResumeExportRequestDTO request) {
-        User user = userMapper.selectById(userId);
-        if (user == null) {
-            throw new BusinessException(ResultCode.USER_NOT_FOUND);
-        }
-        if (!"ACTIVE".equals(user.getMembershipStatus())) {
+        if (!membershipService.isActiveMember(userId)) {
             throw new BusinessException(ResultCode.MEMBERSHIP_REQUIRED);
         }
 

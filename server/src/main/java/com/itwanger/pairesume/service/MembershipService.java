@@ -8,9 +8,15 @@ import java.util.List;
 public interface MembershipService {
     CouponQuoteDTO quote(String couponCode);
 
+    boolean isActiveMember(Long userId);
+
+    void requireAiAccess(Long userId);
+
     List<UserAdminDTO> listUsers();
 
-    UserAdminDTO grantMembership(Long userId, Long adminUserId);
+    UserAdminDTO grantMembership(Long userId, Long adminUserId, String reason);
 
-    UserAdminDTO revokeMembership(Long userId, Long adminUserId);
+    UserAdminDTO extendMembership(Long userId, int days, Long adminUserId, String reason);
+
+    UserAdminDTO revokeMembership(Long userId, Long adminUserId, String reason);
 }

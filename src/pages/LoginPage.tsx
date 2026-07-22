@@ -1,24 +1,24 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { LogoMark } from '../components/branding/LogoMark'
+import { AUTHENTICATED_HOME_PATH } from '../config/site'
+import { buildRegisterPath, getSafeInternalPath } from '../utils/navigation'
 
 const REMEMBERED_EMAIL_KEY = 'rememberedEmail'
-const REMEMBERED_PASSWORD_KEY = 'rememberedPassword'
+const LEGACY_REMEMBERED_PASSWORD_KEY = 'rememberedPassword'
 
 function getRememberedCredentials() {
   if (typeof window === 'undefined') {
-    return { email: '', password: '', remembered: false }
+    return { email: '', remembered: false }
   }
 
+  window.localStorage.removeItem(LEGACY_REMEMBERED_PASSWORD_KEY)
   const rememberedEmail = window.localStorage.getItem(REMEMBERED_EMAIL_KEY) ?? ''
-  const rememberedPassword = window.localStorage.getItem(REMEMBERED_PASSWORD_KEY) ?? ''
-  const remembered = Boolean(rememberedEmail && rememberedPassword)
 
   return {
     email: rememberedEmail,
-    password: rememberedPassword,
-    remembered,
+    remembered: Boolean(rememberedEmail),
   }
 }
 
@@ -28,18 +28,20 @@ function clearRememberedCredentials() {
   }
 
   window.localStorage.removeItem(REMEMBERED_EMAIL_KEY)
-  window.localStorage.removeItem(REMEMBERED_PASSWORD_KEY)
+  window.localStorage.removeItem(LEGACY_REMEMBERED_PASSWORD_KEY)
 }
 
 export default function LoginPage() {
   const rememberedCredentials = getRememberedCredentials()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { login } = useAuthStore()
   const [email, setEmail] = useState(rememberedCredentials.email)
-  const [password, setPassword] = useState(rememberedCredentials.password)
+  const [password, setPassword] = useState('')
   const [rememberCredentials, setRememberCredentials] = useState(rememberedCredentials.remembered)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const returnTo = getSafeInternalPath(searchParams.get('redirect'), AUTHENTICATED_HOME_PATH)
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -55,11 +57,10 @@ export default function LoginPage() {
       await login(email, password)
       if (rememberCredentials) {
         localStorage.setItem(REMEMBERED_EMAIL_KEY, email.trim())
-        localStorage.setItem(REMEMBERED_PASSWORD_KEY, password)
       } else {
         clearRememberedCredentials()
       }
-      navigate('/dashboard')
+      navigate(returnTo, { replace: true })
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : '登录失败，请检查邮箱和密码'
       setError(message)
@@ -120,7 +121,7 @@ export default function LoginPage() {
               }}
               className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
             />
-            记住邮箱和密码
+            记住邮箱
           </label>
 
           <button
@@ -133,7 +134,7 @@ export default function LoginPage() {
 
           <p className="text-center text-sm text-gray-500">
             还没有账号？
-            <Link to="/register" className="text-primary-600 hover:text-primary-700 font-medium ml-1">
+            <Link to={buildRegisterPath(returnTo)} className="text-primary-600 hover:text-primary-700 font-medium ml-1">
               立即注册
             </Link>
           </p>

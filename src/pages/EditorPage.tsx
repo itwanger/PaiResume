@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { resumeApi } from '../api/resume'
 import { useAuthStore } from '../store/authStore'
@@ -37,7 +37,21 @@ type EditorView = 'module' | 'analysis' | 'template-selection'
 const AI_OPTIMIZABLE_MODULE_TYPES = new Set<ModuleType>(['research', 'skill'])
 const NON_REMOVABLE_MODULE_TYPES = new Set<ModuleType>(['basic_info'])
 const PREVIEW_PANEL_COLLAPSED_STORAGE_KEY = 'pai-resume.preview-panel-collapsed'
+const COMPACT_PREVIEW_MEDIA_QUERY = '(max-width: 1279px)'
+const DESKTOP_MODULE_SIDEBAR_MEDIA_QUERY = '(min-width: 768px)'
 const RESUME_PDF_PREVIEW_CONFIG_STORAGE_KEY_PREFIX = 'pai-resume.pdf-preview-config'
+
+function getStoredDesktopPreviewPreference(): boolean {
+  if (typeof window === 'undefined') {
+    return false
+  }
+
+  return window.localStorage.getItem(PREVIEW_PANEL_COLLAPSED_STORAGE_KEY) === 'true'
+}
+
+function matchesCompactPreviewViewport(): boolean {
+  return typeof window !== 'undefined' && window.matchMedia(COMPACT_PREVIEW_MEDIA_QUERY).matches
+}
 
 interface DeleteDialogState {
   moduleIds: number[]
@@ -60,7 +74,17 @@ export default function EditorPage() {
   const [deletingModuleId, setDeletingModuleId] = useState<number | null>(null)
   const [initializingBasicInfo, setInitializingBasicInfo] = useState(false)
   const [modulesLoaded, setModulesLoaded] = useState(false)
-  const [previewCollapsed, setPreviewCollapsed] = useState(false)
+  const [initialDesktopPreviewCollapsed] = useState(getStoredDesktopPreviewPreference)
+  const desktopPreviewPreferenceRef = useRef(initialDesktopPreviewCollapsed)
+  const [desktopPreviewCollapsed, setDesktopPreviewCollapsed] = useState(initialDesktopPreviewCollapsed)
+  const [isCompactViewport, setIsCompactViewport] = useState(matchesCompactPreviewViewport)
+  const [compactPreviewOpen, setCompactPreviewOpen] = useState(false)
+  const [mobileModuleMenuOpen, setMobileModuleMenuOpen] = useState(false)
+  const previewToggleRef = useRef<HTMLButtonElement | null>(null)
+  const mobilePreviewToggleRef = useRef<HTMLButtonElement | null>(null)
+  const compactPreviewDialogRef = useRef<HTMLElement | null>(null)
+  const mobileModuleTriggerRef = useRef<HTMLButtonElement | null>(null)
+  const mobileModuleDialogRef = useRef<HTMLDivElement | null>(null)
   const [pdfPreviewConfig, setPdfPreviewConfig] = useState<ResumePdfPreviewConfig>(DEFAULT_RESUME_PDF_PREVIEW_CONFIG)
 
   const resumeId = Number(id)
@@ -76,6 +100,7 @@ export default function EditorPage() {
     : requestedView === 'module'
       ? 'basic_info'
       : null
+  const isVip = user?.membershipStatus === 'ACTIVE'
 
   useEffect(() => {
     if (resumeId) {
@@ -102,7 +127,27 @@ export default function EditorPage() {
       return
     }
 
-    setPreviewCollapsed(window.localStorage.getItem(PREVIEW_PANEL_COLLAPSED_STORAGE_KEY) === 'true')
+    desktopPreviewPreferenceRef.current = desktopPreviewCollapsed
+    window.localStorage.setItem(PREVIEW_PANEL_COLLAPSED_STORAGE_KEY, String(desktopPreviewCollapsed))
+  }, [desktopPreviewCollapsed])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const mediaQuery = window.matchMedia(COMPACT_PREVIEW_MEDIA_QUERY)
+    const handleViewportChange = (event: MediaQueryListEvent) => {
+      setIsCompactViewport(event.matches)
+      setCompactPreviewOpen(false)
+      if (!event.matches) {
+        setDesktopPreviewCollapsed(desktopPreviewPreferenceRef.current)
+      }
+    }
+
+    setIsCompactViewport(mediaQuery.matches)
+    mediaQuery.addEventListener('change', handleViewportChange)
+    return () => mediaQuery.removeEventListener('change', handleViewportChange)
   }, [])
 
   useEffect(() => {
@@ -110,8 +155,70 @@ export default function EditorPage() {
       return
     }
 
-    window.localStorage.setItem(PREVIEW_PANEL_COLLAPSED_STORAGE_KEY, String(previewCollapsed))
-  }, [previewCollapsed])
+    const mediaQuery = window.matchMedia(DESKTOP_MODULE_SIDEBAR_MEDIA_QUERY)
+    const handleViewportChange = (event: MediaQueryListEvent) => {
+      if (event.matches) {
+        setMobileModuleMenuOpen(false)
+      }
+    }
+
+    mediaQuery.addEventListener('change', handleViewportChange)
+    return () => mediaQuery.removeEventListener('change', handleViewportChange)
+  }, [])
+
+  useEffect(() => {
+    const overlayOpen = mobileModuleMenuOpen || (isCompactViewport && compactPreviewOpen)
+    if (!overlayOpen || typeof document === 'undefined') {
+      return
+    }
+
+    const previousOverflow = document.body.style.overflow
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') {
+        return
+      }
+
+      if (mobileModuleMenuOpen) {
+        setMobileModuleMenuOpen(false)
+        window.requestAnimationFrame(() => mobileModuleTriggerRef.current?.focus())
+        return
+      }
+
+      setCompactPreviewOpen(false)
+      window.requestAnimationFrame(() => {
+        const mobileTrigger = mobilePreviewToggleRef.current
+        if (mobileTrigger && mobileTrigger.getClientRects().length > 0) {
+          mobileTrigger.focus()
+          return
+        }
+        previewToggleRef.current?.focus()
+      })
+    }
+
+    document.body.style.overflow = 'hidden'
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [compactPreviewOpen, isCompactViewport, mobileModuleMenuOpen])
+
+  useEffect(() => {
+    if (mobileModuleMenuOpen) {
+      window.requestAnimationFrame(() => mobileModuleDialogRef.current?.focus())
+    }
+  }, [mobileModuleMenuOpen])
+
+  useEffect(() => {
+    if (isCompactViewport && compactPreviewOpen) {
+      window.requestAnimationFrame(() => compactPreviewDialogRef.current?.focus())
+    }
+  }, [compactPreviewOpen, isCompactViewport])
+
+  useEffect(() => {
+    setCompactPreviewOpen(false)
+    setMobileModuleMenuOpen(false)
+  }, [activeModuleType, editorView])
 
   useEffect(() => {
     if (typeof window === 'undefined' || !resumeId) {
@@ -164,6 +271,24 @@ export default function EditorPage() {
     }
     setSearchParams(nextParams, { replace: true })
   }, [activeModuleType, setSearchParams])
+
+  useEffect(() => {
+    if (!user || isVip || requestedView !== 'analysis') {
+      return
+    }
+
+    setAiModuleId(null)
+    setEditorView('module')
+    setActiveModuleType((current) => current ?? 'basic_info')
+    setMembershipModalOpen(true)
+    updateEditorLocation('module', activeModuleType ?? 'basic_info')
+  }, [activeModuleType, isVip, requestedView, updateEditorLocation, user])
+
+  useEffect(() => {
+    if (user && !isVip) {
+      setAiModuleId(null)
+    }
+  }, [isVip, user])
 
   useEffect(() => {
     if (!resumeId || requestedView !== 'module' || requestedModuleType || !initialModuleType) {
@@ -257,10 +382,23 @@ export default function EditorPage() {
   }, [updateEditorLocation])
 
   const openAnalysisView = useCallback(() => {
+    if (!isVip) {
+      setAiModuleId(null)
+      setMembershipModalOpen(true)
+      return
+    }
     setAiModuleId(null)
     setEditorView('analysis')
     updateEditorLocation('analysis')
-  }, [updateEditorLocation])
+  }, [isVip, updateEditorLocation])
+
+  const openAiOptimize = useCallback((moduleId: number) => {
+    if (!isVip) {
+      setMembershipModalOpen(true)
+      return
+    }
+    setAiModuleId(moduleId)
+  }, [isVip])
 
   const openTemplateSelectionView = useCallback(() => {
     setAiModuleId(null)
@@ -320,15 +458,58 @@ export default function EditorPage() {
     [resumeId, addModule, updateEditorLocation]
   )
 
+  const closeMobileModuleMenu = useCallback(() => {
+    setMobileModuleMenuOpen(false)
+    if (typeof window !== 'undefined') {
+      window.requestAnimationFrame(() => mobileModuleTriggerRef.current?.focus())
+    }
+  }, [])
+
+  const closeCompactPreview = useCallback(() => {
+    setCompactPreviewOpen(false)
+    if (typeof window !== 'undefined') {
+      window.requestAnimationFrame(() => {
+        const mobileTrigger = mobilePreviewToggleRef.current
+        if (mobileTrigger && mobileTrigger.getClientRects().length > 0) {
+          mobileTrigger.focus()
+          return
+        }
+        previewToggleRef.current?.focus()
+      })
+    }
+  }, [])
+
+  const handlePreviewToggle = useCallback(() => {
+    if (isCompactViewport) {
+      setMobileModuleMenuOpen(false)
+      setCompactPreviewOpen((current) => !current)
+      return
+    }
+
+    setDesktopPreviewCollapsed((current) => !current)
+  }, [isCompactViewport])
+
   const activeModules = modules.filter((m) => m.moduleType === activeModuleType)
   const canAddAnotherInstance = activeModuleType ? !SINGLETON_MODULES.includes(activeModuleType) : false
   const canOptimizeActiveModule = activeModuleType ? AI_OPTIMIZABLE_MODULE_TYPES.has(activeModuleType) : false
   const canDeleteActiveModule = activeModuleType ? !NON_REMOVABLE_MODULE_TYPES.has(activeModuleType) : false
-  const analysisContainerClassName = previewCollapsed ? 'mx-auto max-w-6xl' : 'mx-auto max-w-4xl'
-  const moduleContainerClassName = previewCollapsed ? 'mx-auto max-w-5xl' : 'mx-auto max-w-3xl'
-  const previewToggleRight = previewCollapsed
-    ? '42px'
-    : 'calc(clamp(500px, 42vw, 540px) - 16px)'
+  const previewOpen = isCompactViewport ? compactPreviewOpen : !desktopPreviewCollapsed
+  const inlinePreviewOpen = !isCompactViewport && previewOpen
+  const analysisContainerClassName = inlinePreviewOpen ? 'mx-auto max-w-4xl' : 'mx-auto max-w-6xl'
+  const moduleContainerClassName = inlinePreviewOpen ? 'mx-auto max-w-3xl' : 'mx-auto max-w-5xl'
+  const previewToggleStyle = inlinePreviewOpen
+    ? { right: 'calc(clamp(420px, 38vw, 540px) - 16px)' }
+    : undefined
+  const previewTogglePositionClassName = previewOpen
+    ? (isCompactViewport ? 'right-3' : '')
+    : 'right-3 sm:right-[42px]'
+  const mobileWorkspaceLabel = editorView === 'analysis'
+    ? '简历分析'
+    : editorView === 'template-selection'
+      ? '预览与导出'
+      : activeModuleType
+        ? getModuleDisplayLabelFromModules(activeModuleType, modules)
+        : '选择模块'
 
   const handleExportPdf = useCallback(async (pageMode: ResumePdfPageMode) => {
     if (modules.length === 0) {
@@ -399,20 +580,90 @@ export default function EditorPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
-      <Header
-      />
+      <Header enableResumeDrop />
+
+      {mobileModuleMenuOpen ? (
+        <div className="fixed inset-x-0 bottom-0 top-[65px] z-50 md:hidden">
+          <button
+            type="button"
+            className="absolute inset-0 bg-slate-950/30 backdrop-blur-[1px]"
+            onClick={closeMobileModuleMenu}
+            aria-label="关闭模块菜单"
+          />
+          <div
+            ref={mobileModuleDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="选择简历模块"
+            tabIndex={-1}
+            className="relative flex h-full w-[min(20rem,calc(100vw-3rem))] flex-col bg-white shadow-2xl outline-none"
+          >
+            <div className="flex min-h-14 shrink-0 items-center justify-between border-b border-gray-100 px-4">
+              <div>
+                <p className="text-sm font-semibold text-gray-900">选择模块</p>
+                <p className="mt-0.5 text-xs text-gray-400">当前：{mobileWorkspaceLabel}</p>
+              </div>
+              <button
+                type="button"
+                onClick={closeMobileModuleMenu}
+                className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-50 hover:text-gray-900"
+                aria-label="关闭模块菜单"
+              >
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="min-h-0 flex-1">
+              <ModuleSidebar
+                variant="drawer"
+                modules={modules}
+                activeModuleType={activeModuleType}
+                onSelect={(moduleType) => {
+                  openModuleView(moduleType)
+                  closeMobileModuleMenu()
+                }}
+                onAddModule={(moduleType) => {
+                  closeMobileModuleMenu()
+                  void handleAddModule(moduleType)
+                }}
+                onRemoveModuleType={(moduleType) => {
+                  const moduleIds = modules
+                    .filter((module) => module.moduleType === moduleType)
+                    .map((module) => module.id)
+                  closeMobileModuleMenu()
+                  openDeleteDialog(moduleIds, moduleType, moduleIds.length > 1 ? '全部内容' : '当前内容')
+                }}
+                analysisActive={editorView === 'analysis'}
+                onSelectAnalysis={() => {
+                  openAnalysisView()
+                  closeMobileModuleMenu()
+                }}
+                templateSelectionActive={editorView === 'template-selection'}
+                onSelectTemplateSelection={() => {
+                  openTemplateSelectionView()
+                  closeMobileModuleMenu()
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {editorView !== 'template-selection' && (
         <button
+          ref={previewToggleRef}
           type="button"
-          onClick={() => setPreviewCollapsed((current) => !current)}
-          aria-label={previewCollapsed ? '展开预览面板' : '收起预览面板'}
-          title={previewCollapsed ? '展开预览面板' : '收起预览面板'}
-          style={{ right: previewToggleRight }}
-          className="fixed top-1/2 z-30 flex h-24 w-8 -translate-y-1/2 flex-col items-center justify-center rounded-full border border-gray-200 bg-white/95 text-gray-500 shadow-[0_18px_38px_-18px_rgba(15,23,42,0.32)] backdrop-blur transition hover:border-primary-200 hover:text-primary-700"
+          onClick={handlePreviewToggle}
+          aria-label={previewOpen ? '收起预览面板' : '展开预览面板'}
+          aria-expanded={previewOpen}
+          aria-controls="resume-preview-panel"
+          title={previewOpen ? '收起预览面板' : '展开预览面板'}
+          style={previewToggleStyle}
+          className={`fixed top-1/2 z-30 hidden h-24 w-8 -translate-y-1/2 flex-col items-center justify-center rounded-full border border-gray-200 bg-white/95 text-gray-500 shadow-[0_18px_38px_-18px_rgba(15,23,42,0.32)] backdrop-blur transition hover:border-primary-200 hover:text-primary-700 motion-reduce:transition-none sm:flex ${previewTogglePositionClassName}`}
         >
           <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            {previewCollapsed ? (
+            {!previewOpen ? (
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15 5l-7 7 7 7" />
             ) : (
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 5l7 7-7 7" />
@@ -424,8 +675,17 @@ export default function EditorPage() {
         </button>
       )}
 
-      {editorView !== 'template-selection' && previewCollapsed && (
-        <div className="fixed right-0 top-[65px] z-20 h-[calc(100vh-65px)] w-14 border-l border-gray-200 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.12),_transparent_45%),linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)]">
+      {editorView !== 'template-selection' && isCompactViewport && previewOpen ? (
+        <button
+          type="button"
+          className="fixed inset-x-0 bottom-0 top-[65px] z-10 bg-slate-950/25 backdrop-blur-[1px]"
+          onClick={closeCompactPreview}
+          aria-label="关闭预览面板"
+        />
+      ) : null}
+
+      {editorView !== 'template-selection' && !previewOpen && (
+        <div className="fixed right-0 top-[65px] z-20 hidden h-[calc(100vh-65px)] w-14 border-l border-gray-200 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.12),_transparent_45%),linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)] sm:block">
           <div className="flex h-full flex-col items-center justify-center gap-3 text-gray-400">
             <div className="flex flex-col gap-1.5">
               <span className="h-1.5 w-1.5 rounded-full bg-primary-200" />
@@ -439,7 +699,7 @@ export default function EditorPage() {
         </div>
       )}
 
-      <div className="flex flex-1 items-start">
+      <div className="relative flex flex-1 items-start">
         <ModuleSidebar
           modules={modules}
           activeModuleType={activeModuleType}
@@ -457,7 +717,43 @@ export default function EditorPage() {
           onSelectTemplateSelection={openTemplateSelectionView}
         />
 
-        <main className="min-w-0 flex-1 px-6 py-6 xl:px-8">
+        <main className="min-w-0 flex-1 px-3 py-4 sm:px-5 sm:py-5 lg:px-6 lg:py-6 xl:px-8">
+          <div className="mb-4 flex items-center justify-between gap-3 md:hidden">
+            <button
+              ref={mobileModuleTriggerRef}
+              type="button"
+              onClick={() => {
+                setCompactPreviewOpen(false)
+                setMobileModuleMenuOpen(true)
+              }}
+              aria-haspopup="dialog"
+              aria-expanded={mobileModuleMenuOpen}
+              className="inline-flex min-h-11 max-w-full items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-primary-200 hover:text-primary-700"
+            >
+              <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+              <span className="truncate">模块 · {mobileWorkspaceLabel}</span>
+            </button>
+            {editorView !== 'template-selection' ? (
+              <button
+                ref={mobilePreviewToggleRef}
+                type="button"
+                onClick={handlePreviewToggle}
+                aria-label={previewOpen ? '收起预览面板' : '展开预览面板'}
+                aria-expanded={previewOpen}
+                aria-controls="resume-preview-panel"
+                className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-primary-200 hover:text-primary-700 sm:hidden"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" />
+                  <circle cx="12" cy="12" r="2.5" strokeWidth={2} />
+                </svg>
+                预览
+              </button>
+            ) : null}
+          </div>
+
           {editorView === 'analysis' ? (
             <div className={analysisContainerClassName}>
               {exportError && (
@@ -466,7 +762,21 @@ export default function EditorPage() {
                 </div>
               )}
 
-              <ResumeAnalysis resumeId={resumeId} />
+              {isVip ? (
+                <ResumeAnalysis resumeId={resumeId} />
+              ) : (
+                <div className="rounded-xl border border-primary-200 bg-primary-50 px-6 py-10 text-center">
+                  <h2 className="text-lg font-semibold text-gray-900">AI 简历分析为 VIP 功能</h2>
+                  <p className="mt-2 text-sm leading-6 text-gray-600">免费账号仍可编辑、保存和导入简历，开通 VIP 后可使用 AI 分析与优化。</p>
+                  <button
+                    type="button"
+                    onClick={() => setMembershipModalOpen(true)}
+                    className="mt-5 rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-700"
+                  >
+                    查看 VIP 开通方式
+                  </button>
+                </div>
+              )}
             </div>
           ) : editorView === 'template-selection' ? (
             <ChromePreviewFrame
@@ -474,6 +784,8 @@ export default function EditorPage() {
               config={pdfPreviewConfig}
               onConfigChange={setPdfPreviewConfig}
               onExportPdf={(pageMode) => void handleExportPdf(pageMode)}
+              isVip={isVip}
+              onRequireVip={() => setMembershipModalOpen(true)}
               exporting={exporting}
               exportError={exportError}
             />
@@ -499,7 +811,7 @@ export default function EditorPage() {
               {activeModules.length > 0 ? (
                 <div className="space-y-4">
                   {activeModules.map((mod, index) => (
-                    <div key={mod.id} className="bg-white rounded-xl border border-gray-200 p-5">
+                    <div key={mod.id} className="editor-form-container rounded-xl border border-gray-200 bg-white p-4 sm:p-5">
                       {activeModules.length > 1 && (
                         <div className="flex items-center justify-between mb-3 pb-3 border-b border-gray-100">
                           <span className="text-sm font-medium text-gray-500">
@@ -508,13 +820,13 @@ export default function EditorPage() {
                           <div className="flex gap-2">
                             {canOptimizeActiveModule && (
                               <button
-                                onClick={() => setAiModuleId(mod.id)}
+                                onClick={() => openAiOptimize(mod.id)}
                                 className="text-xs text-primary-600 hover:text-primary-700 flex items-center gap-1"
                               >
                                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                                 </svg>
-                                AI 优化
+                                AI 优化{isVip ? '' : ' · VIP'}
                               </button>
                             )}
                             <button
@@ -532,13 +844,13 @@ export default function EditorPage() {
                         <div className="mb-3 flex justify-end gap-2">
                           {canOptimizeActiveModule && (
                             <button
-                              onClick={() => setAiModuleId(mod.id)}
+                              onClick={() => openAiOptimize(mod.id)}
                               className="text-xs text-primary-600 hover:text-primary-700 flex items-center gap-1"
                             >
                               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                               </svg>
-                              AI 优化
+                              AI 优化{isVip ? '' : ' · VIP'}
                             </button>
                           )}
                           {canDeleteActiveModule && (
@@ -576,14 +888,37 @@ export default function EditorPage() {
 
         {editorView !== 'template-selection' && (
           <aside
-            className={`relative shrink-0 self-start border-l border-gray-200 bg-gray-50 transition-[width,min-width,max-width,padding] duration-300 ease-out ${
-              previewCollapsed
-                ? 'w-14 min-w-14 max-w-14 p-0'
-                : 'w-[540px] min-w-[500px] max-w-[42vw] p-6 xl:px-8'
+            id="resume-preview-panel"
+            ref={compactPreviewDialogRef}
+            role={isCompactViewport && previewOpen ? 'dialog' : undefined}
+            aria-modal={isCompactViewport && previewOpen ? true : undefined}
+            aria-label={isCompactViewport && previewOpen ? '简历预览' : undefined}
+            tabIndex={isCompactViewport && previewOpen ? -1 : undefined}
+            className={`shrink-0 self-start border-l border-gray-200 bg-gray-50 outline-none transition-[width,min-width,max-width,padding] duration-300 ease-out motion-reduce:transition-none ${
+              previewOpen
+                ? isCompactViewport
+                  ? 'fixed bottom-0 right-0 top-[65px] z-20 h-[calc(100vh-65px)] w-full max-w-[540px] overflow-y-auto p-4 sm:p-6'
+                  : 'relative w-[540px] min-w-[420px] max-w-[38vw] p-6 xl:px-8'
+                : 'hidden sm:block sm:w-14 sm:min-w-14 sm:max-w-14 sm:p-0'
             }`}
           >
-            <div className="relative sticky top-[89px]">
-              {!previewCollapsed && (
+            <div className={isCompactViewport && previewOpen ? 'relative' : 'relative sticky top-[89px]'}>
+              {isCompactViewport && previewOpen ? (
+                <div className="mb-3 flex justify-end sm:hidden">
+                  <button
+                    type="button"
+                    onClick={closeCompactPreview}
+                    className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-600 shadow-sm transition hover:border-primary-200 hover:text-primary-700"
+                    aria-label="关闭预览浮层"
+                  >
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    返回编辑
+                  </button>
+                </div>
+              ) : null}
+              {previewOpen && (
                 <PreviewPanel
                   modules={modules}
                   loading={loading}
@@ -595,7 +930,7 @@ export default function EditorPage() {
         )}
       </div>
 
-      {aiModuleId && (
+      {aiModuleId && isVip && (
         <AiOptimizePanel
           resumeId={resumeId}
           moduleId={aiModuleId}

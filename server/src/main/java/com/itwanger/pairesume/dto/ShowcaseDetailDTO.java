@@ -10,6 +10,7 @@ public class ShowcaseDetailDTO {
     private Long id;
     private String slug;
     private String title;
+    private String templateId;
     private String scoreLabel;
     private String summary;
     private List<String> tags;

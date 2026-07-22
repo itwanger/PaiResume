@@ -15,6 +15,22 @@ export function normalizePhotoSource(value: string | null | undefined) {
   return `https://${trimmed}`
 }
 
+/**
+ * Public resume pages must not fetch seller-controlled remote images: doing so
+ * would reveal a visitor's IP address and view time before they interact with
+ * the resume. Uploaded raster images are embedded as data URLs, so they remain
+ * safe to render in a public snapshot.
+ */
+export function normalizePublicPhotoSource(value: string | null | undefined) {
+  const trimmed = value?.trim() || ''
+
+  if (/^data:image\/(?:png|jpe?g|webp|gif|avif);base64,/i.test(trimmed)) {
+    return trimmed
+  }
+
+  return ''
+}
+
 export function isUploadedPhotoSource(value: string | null | undefined) {
   return /^data:image\//i.test(value?.trim() || '')
 }

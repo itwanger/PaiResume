@@ -10,6 +10,7 @@ import {
   View,
   pdf,
 } from '@react-pdf/renderer'
+import type { ReactNode } from 'react'
 import type { ResumeModule } from '../api/resume'
 import {
   hasPaperContent,
@@ -26,7 +27,7 @@ import {
 } from './moduleContent'
 import { parseInlineMarkdownSegments } from './inlineMarkdown'
 import { normalizePhotoSource } from './resumePhoto'
-import { getModuleDisplayLabel } from './resumeDisplay'
+import { getModuleDisplayLabel, sortResumeModulesForDisplay } from './resumeDisplay'
 
 function resolveFontSource(fileName: string) {
   if (typeof window === 'undefined') {
@@ -58,6 +59,7 @@ export type ResumePdfTemplateId =
   | 'default'
   | 'compact'
   | 'accent'
+  | 'campus-blue'
   | 'minimal'
   | 'executive'
   | 'warm'
@@ -117,6 +119,15 @@ export const RESUME_PDF_TEMPLATES: ResumePdfTemplateOption[] = [
     previewTitle: '蓝调重点',
     previewSummary: '适合想强化模块层级和重点信息的简历，视觉记忆点会更强。',
     previewHighlights: ['蓝色标题', '重点前置', '层次更强'],
+  },
+  {
+    id: 'campus-blue',
+    icon: '▥',
+    name: '校园技术蓝',
+    description: '浅蓝分区栏、左置照片和分栏联系信息，适合校招技术简历。',
+    previewTitle: '校园技术蓝',
+    previewSummary: '参考优质校招简历的紧凑排版，让教育背景、项目经历和技术成果更易扫描。',
+    previewHighlights: ['浅蓝分区栏', '照片左置', '联系分栏'],
   },
   {
     id: 'minimal',
@@ -320,6 +331,43 @@ function getResolvedResumePdfThemeConfig(options?: Pick<ResumePdfOptions, 'templ
 
 function getBaseResumePdfTheme(templateId: ResolvedResumePdfTemplateId): ResumePdfTheme {
   switch (templateId) {
+    case 'campus-blue':
+      return {
+        pagePadding: 18,
+        baseFontSize: 10.2,
+        titleSize: 21,
+        subtitleSize: 10.8,
+        lineHeight: 1.32,
+        headerBottom: 8,
+        headerRowGap: 10,
+        headerRowBottom: 3,
+        contactGap: 6,
+        sectionGap: 7,
+        itemGap: 4,
+        sectionTitleSize: 12.5,
+        sectionTitleBottom: 5,
+        sectionTitlePaddingBottom: 0,
+        sectionTitleColor: '#164f9c',
+        sectionTitleBorderColor: '#bed0eb',
+        labelColor: '#1f2937',
+        bodyColor: '#20262e',
+        mutedColor: '#475569',
+        linkColor: '#1b58ad',
+        chipTextColor: '#164f9c',
+        chipBackgroundColor: '#e3ebf8',
+        paragraphTop: 2,
+        listItemTop: 1,
+        orderedIndent: 10,
+        inlineMetaRowGap: 2,
+        inlineMetaColumnGap: 8,
+        inlineMetaItemRight: 8,
+        inlineMetaItemBottom: 2,
+        chipGap: 4,
+        chipTop: 2,
+        chipFontSize: 8,
+        chipHorizontalPadding: 4,
+        chipVerticalPadding: 1.4,
+      }
     case 'minimal':
       return {
         pagePadding: 30,
@@ -802,12 +850,7 @@ const A4_WIDTH = 595.28
 const A4_HEIGHT = 841.89
 
 function sortModules(modules: ResumeModule[]) {
-  return [...modules].sort((a, b) => {
-    if (a.sortOrder === b.sortOrder) {
-      return a.id - b.id
-    }
-    return a.sortOrder - b.sortOrder
-  })
+  return sortResumeModulesForDisplay(modules)
 }
 
 function normalizeWhitespace(value: string) {
@@ -1057,6 +1100,8 @@ function getResumePdfSectionHeadingVariant(
   }
 
   switch (templateId) {
+    case 'campus-blue':
+      return 'filled'
     case 'executive':
     case 'slate':
       return 'filled'
@@ -1092,6 +1137,7 @@ function ResumePdfDocument({
   const theme = getResumePdfTheme(resolvedThemeConfig)
   const styles = createResumePdfStyles(theme)
   const isCompactDensity = resolvedThemeConfig.density === 'compact'
+  const isCampusBlue = resolvedThemeConfig.templateId === 'campus-blue'
   const isMinimal = resolvedThemeConfig.templateId === 'minimal'
   const isExecutive = resolvedThemeConfig.templateId === 'executive'
   const isSlate = resolvedThemeConfig.templateId === 'slate'
@@ -1146,8 +1192,10 @@ function ResumePdfDocument({
   const sectionStyle = [
     styles.section,
     ...(isSlate && resolvedThemeConfig.headingStyle === 'auto' ? [{ backgroundColor: '#f8fafc', padding: 8 }] : []),
-    ...(sectionHeadingVariant === 'bar' ? [{ borderLeftWidth: 3, borderLeftColor: theme.linkColor, paddingLeft: 10 }] : []),
   ]
+  const sectionBarContentStyle = sectionHeadingVariant === 'bar'
+    ? [{ borderLeftWidth: 3, borderLeftColor: theme.linkColor, paddingLeft: 10 }]
+    : []
   const sectionTitleStyle = [
     styles.sectionTitle,
     ...(sectionHeadingVariant === 'underline' && isMinimal && resolvedThemeConfig.headingStyle === 'auto'
@@ -1155,23 +1203,25 @@ function ResumePdfDocument({
       : []),
     ...(sectionHeadingVariant === 'filled'
       ? [{
-          backgroundColor: resolvedThemeConfig.templateId === 'slate' && resolvedThemeConfig.headingStyle === 'auto'
+          backgroundColor: (resolvedThemeConfig.templateId === 'slate' || isCampusBlue) && resolvedThemeConfig.headingStyle === 'auto'
             ? theme.chipBackgroundColor
             : theme.sectionTitleColor,
-          color: resolvedThemeConfig.templateId === 'slate' && resolvedThemeConfig.headingStyle === 'auto'
+          color: (resolvedThemeConfig.templateId === 'slate' || isCampusBlue) && resolvedThemeConfig.headingStyle === 'auto'
             ? theme.sectionTitleColor
             : '#f8fafc',
-          paddingHorizontal: 8,
-          paddingVertical: 4,
+          paddingHorizontal: isCampusBlue ? 10 : 8,
+          paddingVertical: isCampusBlue ? 3 : 4,
           borderBottomWidth: 0,
-          marginBottom: 8,
+          borderLeftWidth: isCampusBlue ? 2.5 : 0,
+          borderLeftColor: isCampusBlue ? theme.linkColor : theme.sectionTitleColor,
+          marginBottom: isCampusBlue ? 5 : 8,
         }]
       : []),
     ...(sectionHeadingVariant === 'bar'
       ? [{ color: theme.linkColor, borderBottomWidth: 0, paddingBottom: 0, marginBottom: 6 }]
       : []),
   ]
-  const photoFrameWidth = isCompactDensity ? 82 : 96
+  const photoFrameWidth = isCampusBlue ? 70 : (isCompactDensity ? 82 : 96)
   const photoFrameHeight = Math.round(photoFrameWidth * 4 / 3)
   const topSectionWithPhotoStyle = {
     marginBottom: educationModules.length > 0 ? theme.sectionGap : Math.max(theme.headerBottom, 10),
@@ -1189,6 +1239,43 @@ function ResumePdfDocument({
         }]
       : []),
   ]
+  const campusBlueContactItems: Array<{ label: string; value: string; href?: string }> = basicInfo
+    ? [
+        { label: '电话：', value: basicInfo.phone },
+        { label: '邮箱：', value: basicInfo.email },
+        { label: '工作年限：', value: basicInfo.workYears },
+        { label: '微信：', value: basicInfo.wechat },
+        { label: '籍贯：', value: basicInfo.hometown },
+        { label: '求职意向：', value: displayJobIntention },
+        { label: '意向城市：', value: basicInfo.targetCity },
+        { label: '到岗时间：', value: basicInfo.expectedEntryDate },
+        { label: '期望薪资：', value: basicInfo.salaryRange },
+        { label: '政治面貌：', value: basicInfo.isPartyMember ? '中共党员' : '' },
+        { label: 'GitHub：', value: basicInfo.github, href: normalizeExternalUrl(basicInfo.github) },
+        { label: '博客：', value: basicInfo.blog, href: normalizeExternalUrl(basicInfo.blog) },
+        { label: 'LeetCode：', value: basicInfo.leetcode },
+      ].filter((item) => Boolean(item.value))
+    : []
+  const renderSectionBlock = (
+    key: string | number,
+    title: string,
+    children: ReactNode,
+    styleOverrides: Array<{ marginBottom?: number }> = []
+  ) => (
+    <View key={key} style={[...sectionStyle, ...styleOverrides]}>
+      {sectionHeadingVariant === 'bar' ? (
+        <View style={sectionBarContentStyle}>
+          <Text style={sectionTitleStyle}>{title}</Text>
+          {children}
+        </View>
+      ) : (
+        <>
+          <Text style={sectionTitleStyle}>{title}</Text>
+          {children}
+        </>
+      )}
+    </View>
+  )
 
   const renderHeaderBlock = (styleOverrides: Array<{ marginBottom?: number }> = []) => (
     basicInfo ? (
@@ -1238,10 +1325,55 @@ function ResumePdfDocument({
     ) : null
   )
 
+  const renderCampusBlueHeaderBlock = () => (
+    basicInfo ? (
+      <View style={[styles.header, { marginBottom: theme.headerBottom }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          {hasPhoto ? (
+            <View style={splitPhotoFrameStyle}>
+              <Image src={photoSource} style={styles.photoImage} />
+            </View>
+          ) : null}
+          <View
+            style={{
+              width: hasPhoto ? 100 : 124,
+              flexShrink: 0,
+              alignItems: 'center',
+              justifyContent: 'center',
+              paddingHorizontal: 4,
+            }}
+          >
+            <Text style={{ fontSize: theme.titleSize, fontWeight: 700, color: theme.bodyColor }}>
+              {basicInfo.name || '未填写'}
+            </Text>
+          </View>
+          <View style={{ flexGrow: 1, flexShrink: 1, flexBasis: 0, flexDirection: 'row', flexWrap: 'wrap' }}>
+            {campusBlueContactItems.map((item) => (
+              <View key={item.label} style={{ width: '50%', paddingRight: 7, marginBottom: 5 }}>
+                <Text>
+                  <Text style={styles.label}>{item.label}</Text>
+                  {item.href ? (
+                    <Link src={item.href} style={styles.link}>{item.value}</Link>
+                  ) : item.value}
+                </Text>
+              </View>
+            ))}
+          </View>
+        </View>
+        {basicInfo.summary ? (
+          <Text style={[styles.paragraph, { marginTop: 6 }]}>
+            <Text style={styles.label}>个人总结：</Text>
+            {basicInfo.summary}
+          </Text>
+        ) : null}
+      </View>
+    ) : null
+  )
+
   const renderEducationBlock = (styleOverrides: Array<{ marginBottom?: number }> = []) => (
     educationModules.length > 0 ? (
-      <View style={[...sectionStyle, ...styleOverrides]}>
-        <Text style={sectionTitleStyle}>教育背景</Text>
+      renderSectionBlock('education', '教育背景', (
+        <>
         {educationModules.map((educationModule) => {
           const content = normalizeEducationContent(educationModule.content)
           const schoolTags = [
@@ -1272,7 +1404,20 @@ function ResumePdfDocument({
                   : []),
               ]}
             >
-              {isCompactDensity ? (
+              {isCampusBlue ? (
+                <View style={styles.rowBetween}>
+                  <Text style={[styles.strong, { flexGrow: 1, flexBasis: 0 }]}>
+                    {content.school || '未填写'}
+                    {schoolTags.length > 0 ? `（${schoolTags.join(' / ')}）` : ''}
+                  </Text>
+                  <Text style={[styles.muted, { width: 180, textAlign: 'center' }]}>
+                    {[content.major || content.department, content.degree].filter(Boolean).join(' · ')}
+                  </Text>
+                  <Text style={[styles.muted, { width: 116, textAlign: 'right' }]}>
+                    {formatMonthRange(content.startDate, content.endDate)}
+                  </Text>
+                </View>
+              ) : isCompactDensity ? (
                 <View style={styles.rowBetween}>
                   <View style={styles.inlineMeta}>
                     <Text style={styles.inlineMetaItem}>
@@ -1327,7 +1472,8 @@ function ResumePdfDocument({
             ))}
           </View>
         ) : null}
-      </View>
+        </>
+      ), styleOverrides)
     ) : null
   )
 
@@ -1352,7 +1498,9 @@ function ResumePdfDocument({
             <Text><Text style={styles.label}>核心职责：</Text></Text>
             {content.achievements.map((item, index) => (
               <View key={`${index}-${item}`} style={styles.listItem}>
-                {renderOrderedItem(styles, item, index, `project-${projectModule.id}-${index}`)}
+                {isCampusBlue
+                  ? renderBulletItem(styles, item, `project-${projectModule.id}-${index}`)
+                  : renderOrderedItem(styles, item, index, `project-${projectModule.id}-${index}`)}
               </View>
             ))}
           </View>
@@ -1364,7 +1512,12 @@ function ResumePdfDocument({
   return (
     <Document onRender={onRender}>
       <Page size={pageSize} style={styles.page}>
-        {hasPhoto ? (
+        {isCampusBlue ? (
+          <>
+            {renderCampusBlueHeaderBlock()}
+            {renderEducationBlock()}
+          </>
+        ) : hasPhoto ? (
           <View style={topSectionWithPhotoStyle}>
             <View style={styles.topSectionRow}>
               <View style={styles.topSectionMain}>
@@ -1394,11 +1547,10 @@ function ResumePdfDocument({
             case 'work_experience': {
               const content = normalizeInternshipContent(module.content)
               const titleLine = [content.company, content.position, content.projectName].filter(Boolean).join(' - ')
-              return (
-                <View key={module.id} style={sectionStyle}>
-                  <Text style={sectionTitleStyle}>
-                    {module.moduleType === 'work_experience' ? workExperienceSectionTitle : internshipSectionTitle}
-                  </Text>
+              return renderSectionBlock(
+                module.id,
+                module.moduleType === 'work_experience' ? workExperienceSectionTitle : internshipSectionTitle,
+                (
                   <View style={styles.item}>
                     <View style={styles.rowBetween}>
                       <Text style={styles.strong}>{titleLine || '公司 - 职位 - 项目名'}</Text>
@@ -1415,13 +1567,15 @@ function ResumePdfDocument({
                         <Text><Text style={styles.label}>核心职责：</Text></Text>
                         {content.responsibilities.map((line, index) => (
                           <View key={`${index}-${line}`} style={styles.listItem}>
-                            {renderOrderedItem(styles, line, index, `duty-${module.id}-${index}`)}
+                            {isCampusBlue
+                              ? renderBulletItem(styles, line, `duty-${module.id}-${index}`)
+                              : renderOrderedItem(styles, line, index, `duty-${module.id}-${index}`)}
                           </View>
                         ))}
                       </View>
                     ) : null}
                   </View>
-                </View>
+                )
               )
             }
             case 'project': {
@@ -1429,18 +1583,15 @@ function ResumePdfDocument({
                 return null
               }
 
-              return (
-                <View key={module.id} style={sectionStyle}>
-                  <Text style={sectionTitleStyle}>项目经历</Text>
-                  {projectModules.map(renderProjectItem)}
-                </View>
-              )
+              return renderSectionBlock(module.id, '项目经历', projectModules.map(renderProjectItem))
             }
             case 'skill': {
               const content = normalizeSkillContent(module.content)
-              return (
-                <View key={module.id} style={sectionStyle}>
-                  <Text style={sectionTitleStyle}>专业技能</Text>
+              return renderSectionBlock(
+                module.id,
+                '专业技能',
+                (
+                  <>
                   {content.categories
                     .map((category) => ({
                       ...category,
@@ -1471,7 +1622,8 @@ function ResumePdfDocument({
                         </Text>
                       )
                     })}
-                </View>
+                  </>
+                )
               )
             }
             case 'paper': {
@@ -1479,13 +1631,16 @@ function ResumePdfDocument({
               if (!hasPaperContent(content)) {
                 return null
               }
-              return (
-                <View key={module.id} style={sectionStyle}>
-                  <Text style={sectionTitleStyle}>论文期刊</Text>
+              return renderSectionBlock(
+                module.id,
+                '论文期刊',
+                (
+                  <>
                   <Text style={styles.strong}>{content.journalName || '论文'}</Text>
                   <Text>{[content.journalType, content.publishTime].filter(Boolean).join(' / ')}</Text>
                   {content.content ? <Text style={styles.paragraph}>{content.content}</Text> : null}
-                </View>
+                  </>
+                )
               )
             }
             case 'research': {
@@ -1493,15 +1648,18 @@ function ResumePdfDocument({
               if (!hasResearchContent(content)) {
                 return null
               }
-              return (
-                <View key={module.id} style={sectionStyle}>
-                  <Text style={sectionTitleStyle}>科研经历</Text>
+              return renderSectionBlock(
+                module.id,
+                '科研经历',
+                (
+                  <>
                   <Text style={styles.strong}>{content.projectName || '科研项目'}</Text>
                   {content.projectCycle ? <Text>{content.projectCycle}</Text> : null}
                   {content.background ? <Text style={styles.paragraph}>背景：{content.background}</Text> : null}
                   {content.workContent ? <Text style={styles.paragraph}>工作：{content.workContent}</Text> : null}
                   {content.achievements ? <Text style={styles.paragraph}>成果：{content.achievements}</Text> : null}
-                </View>
+                  </>
+                )
               )
             }
             case 'award': {
@@ -1509,14 +1667,15 @@ function ResumePdfDocument({
                 return null
               }
               const content = normalizeAwardContent(module.content)
-              return (
-                <View key={module.id} style={sectionStyle}>
-                  <Text style={sectionTitleStyle}>获奖情况</Text>
+              return renderSectionBlock(
+                module.id,
+                '获奖情况',
+                (
                   <Text>
                     {content.awardName || '奖项'}
                     {content.awardTime ? `（${formatAwardDisplayTime(content.awardTime)}）` : ''}
                   </Text>
-                </View>
+                )
               )
             }
             case 'job_intention':

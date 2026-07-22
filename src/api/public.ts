@@ -1,5 +1,4 @@
 import client, { type ApiEnvelope } from './client'
-import type { ResumeModule } from './resume'
 
 export interface ShowcaseCard {
   id: number
@@ -28,17 +27,6 @@ export interface HomeData {
   testimonials: PublishedFeedback[]
 }
 
-export interface ShowcaseDetail {
-  id: number
-  slug: string
-  title: string
-  scoreLabel: string
-  summary: string
-  tags: string[]
-  modules: ResumeModule[]
-  updatedAt: string
-}
-
 export interface FeedbackSubmissionPayload {
   contactEmail: string
   displayName: string
@@ -55,8 +43,8 @@ export const publicApi = {
   home: () =>
     client.get<ApiEnvelope<HomeData>>('/public/home'),
 
-  showcaseDetail: (slug: string) =>
-    client.get<ApiEnvelope<ShowcaseDetail>>(`/public/showcases/${slug}`),
+  showcases: () =>
+    client.get<ApiEnvelope<ShowcaseCard[]>>('/public/showcases'),
 
   submitFeedback: (payload: FeedbackSubmissionPayload) =>
     client.post('/public/feedback-submissions', payload),

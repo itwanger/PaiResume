@@ -1,4 +1,5 @@
 import client, { type ApiEnvelope } from './client'
+import { getAccessToken } from './tokenStore'
 import type { AnalysisResult } from '../types'
 
 export interface ResumeListItem {
@@ -393,7 +394,7 @@ export const resumeApi = {
     }
     logAiRequest('field-optimize-stream', request)
 
-    const token = localStorage.getItem('accessToken')
+    const token = getAccessToken()
     const response = await fetch(buildStreamApiUrl(request.url), {
       method: 'POST',
       headers: {
@@ -402,6 +403,7 @@ export const resumeApi = {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify(data),
+      credentials: 'include',
       signal: options.signal,
     })
 
@@ -505,7 +507,7 @@ export const resumeApi = {
     }
     logAiRequest('resume-analysis-stream', request)
 
-    const token = localStorage.getItem('accessToken')
+    const token = getAccessToken()
     const response = await fetch(buildStreamApiUrl(request.url), {
       method: 'POST',
       headers: {
@@ -514,6 +516,7 @@ export const resumeApi = {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify(data || {}),
+      credentials: 'include',
       signal: options.signal,
     })
 

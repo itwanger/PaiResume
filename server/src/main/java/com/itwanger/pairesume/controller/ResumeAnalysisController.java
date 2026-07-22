@@ -13,6 +13,7 @@ import com.itwanger.pairesume.mapper.ResumeMapper;
 import com.itwanger.pairesume.mapper.ResumeModuleMapper;
 import com.itwanger.pairesume.service.ResumeAnalysisRecordService;
 import com.itwanger.pairesume.service.AiService;
+import com.itwanger.pairesume.service.MembershipService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -41,25 +42,29 @@ public class ResumeAnalysisController {
     private final ResumeMapper resumeMapper;
     private final ResumeModuleMapper moduleMapper;
     private final ObjectMapper objectMapper;
+    private final MembershipService membershipService;
 
     public ResumeAnalysisController(
             AiService aiService,
             ResumeAnalysisRecordService resumeAnalysisRecordService,
             ResumeMapper resumeMapper,
             ResumeModuleMapper moduleMapper,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            MembershipService membershipService
     ) {
         this.aiService = aiService;
         this.resumeAnalysisRecordService = resumeAnalysisRecordService;
         this.resumeMapper = resumeMapper;
         this.moduleMapper = moduleMapper;
         this.objectMapper = objectMapper;
+        this.membershipService = membershipService;
     }
 
     @Operation(summary = "AI 分析整份简历")
     @PostMapping("/analysis")
     public Result<ResumeAnalysisResultDTO> analyzeResume(@PathVariable Long resumeId, @RequestBody(required = false) ResumeAnalysisRequestDTO request) {
         var userId = getCurrentUserId();
+        membershipService.requireAiAccess(userId);
         var resume = validateOwnership(resumeId, userId);
 
         List<ResumeModule> modules = moduleMapper.selectList(
@@ -95,6 +100,7 @@ public class ResumeAnalysisController {
             HttpServletResponse response
     ) {
         var userId = getCurrentUserId();
+        membershipService.requireAiAccess(userId);
         var resume = validateOwnership(resumeId, userId);
         var modules = loadResumeModules(resumeId);
         if (modules.isEmpty()) {
@@ -142,6 +148,7 @@ public class ResumeAnalysisController {
     @GetMapping("/analysis/latest")
     public Result<ResumeAnalysisResultDTO> getLatestAnalysis(@PathVariable Long resumeId) {
         var userId = getCurrentUserId();
+        membershipService.requireAiAccess(userId);
         validateOwnership(resumeId, userId);
         return Result.success(resumeAnalysisRecordService.getLatestCompletedRecord(userId, resumeId));
     }

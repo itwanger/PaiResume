@@ -4,10 +4,10 @@ import com.itwanger.pairesume.dto.*;
 
 public interface AuthService {
     /** 注册 */
-    TokenDTO register(RegisterDTO dto);
+    TokenDTO register(RegisterDTO dto, String clientIp);
 
     /** 登录 */
-    TokenDTO login(LoginDTO dto);
+    TokenDTO login(LoginDTO dto, String clientIp);
 
     /** 刷新 Token */
     TokenDTO refreshToken(String refreshToken);
@@ -19,8 +19,5 @@ public interface AuthService {
     void logout(Long userId, String accessToken);
 
     /** 发送邮箱验证码 */
-    void sendVerificationCode(String email);
-
-    /** 校验验证码 */
-    boolean verifyCode(String email, String code);
+    void sendVerificationCode(String email, String clientIp);
 }

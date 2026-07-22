@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { clearAccessToken, getAccessToken, setAccessToken } from './tokenStore'
 
 type RetryableRequestConfig = {
   _retry?: boolean
@@ -12,11 +13,12 @@ export interface ApiEnvelope<T> {
   data: T
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
 
 const client = axios.create({
   baseURL: API_BASE_URL,
   timeout: 30000,
+  withCredentials: true,
   headers: { 'Content-Type': 'application/json' },
 })
 
@@ -35,7 +37,7 @@ client.interceptors.request.use((config) => {
     return config
   }
 
-  const token = localStorage.getItem('accessToken')
+  const token = getAccessToken()
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
@@ -87,11 +89,20 @@ function shouldRefreshToken(error: unknown) {
     return false
   }
 
-  if (status === 401 || payload?.code === 401) {
-    return true
-  }
+  return status === 401 || payload?.code === 401
+}
 
-  return status === 403 && Boolean(localStorage.getItem('refreshToken'))
+export async function refreshSessionRequest<T>() {
+  const execute = () => axios.post<ApiEnvelope<T>>(
+    `${API_BASE_URL}/auth/refresh`,
+    {},
+    { withCredentials: true, timeout: 30000 }
+  )
+
+  if (typeof navigator !== 'undefined' && navigator.locks) {
+    return navigator.locks.request('pai-resume-auth-refresh', execute)
+  }
+  return execute()
 }
 
 client.interceptors.response.use(
@@ -123,27 +134,20 @@ client.interceptors.response.use(
       isRefreshing = true
 
       try {
-        const refreshToken = localStorage.getItem('refreshToken')
-        if (!refreshToken) throw new Error('No refresh token')
-
-        const { data } = await axios.post(`${API_BASE_URL}/auth/refresh`, { refreshToken })
+        const { data } = await refreshSessionRequest<{ accessToken: string }>()
         if (data?.code !== 200 || !data?.data) {
           throw new Error(data?.message || '刷新登录态失败')
         }
 
         const newAccessToken = data.data.accessToken
-        const newRefreshToken = data.data.refreshToken
-
-        localStorage.setItem('accessToken', newAccessToken)
-        localStorage.setItem('refreshToken', newRefreshToken)
+        setAccessToken(newAccessToken)
 
         processQueue(null, newAccessToken)
         originalRequest.headers.Authorization = `Bearer ${newAccessToken}`
         return client(originalRequest)
       } catch (refreshError) {
         processQueue(refreshError, null)
-        localStorage.removeItem('accessToken')
-        localStorage.removeItem('refreshToken')
+        clearAccessToken()
         window.location.href = '/login'
         return Promise.reject(refreshError)
       } finally {

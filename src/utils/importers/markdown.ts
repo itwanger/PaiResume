@@ -483,8 +483,8 @@ export function parseMarkdownResume(markdown: string, fileName = '导入简历.m
 
   modules.push(...education.modules)
   modules.push(...internships)
-  modules.push(...workExperiences)
   modules.push(...projects)
+  modules.push(...workExperiences)
   modules.push(...skills)
 
   for (const award of education.awards) {

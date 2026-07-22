@@ -11,14 +11,26 @@ import com.itwanger.pairesume.mapper.UserAuthIdentityMapper;
 import com.itwanger.pairesume.security.JwtTokenProvider;
 import com.itwanger.pairesume.service.AuthService;
 import com.itwanger.pairesume.service.MailService;
+import com.itwanger.pairesume.service.LoginRateLimitService;
+import com.itwanger.pairesume.service.VerificationCodeService;
+import com.itwanger.pairesume.service.VipInviteService;
 import com.itwanger.pairesume.util.DateTimeUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
+import java.util.HexFormat;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -26,73 +38,143 @@ import java.util.concurrent.TimeUnit;
 @Service
 public class AuthServiceImpl implements AuthService {
 
+    private static final DefaultRedisScript<Long> CONSUME_REFRESH_TOKEN_SCRIPT =
+            new DefaultRedisScript<>("""
+                    local stored = redis.call('GET', KEYS[1])
+                    if stored and stored == ARGV[1] and redis.call('EXISTS', KEYS[4]) == 0 then
+                      redis.call('DEL', KEYS[1])
+                      redis.call('SREM', KEYS[2], KEYS[1])
+                      return 1
+                    end
+                    local members = redis.call('SMEMBERS', KEYS[2])
+                    for _, key in ipairs(members) do
+                      redis.call('DEL', key)
+                    end
+                    redis.call('DEL', KEYS[2])
+                    redis.call('SREM', KEYS[3], KEYS[2])
+                    redis.call('SET', KEYS[4], '1', 'EX', ARGV[2])
+                    return 0
+                    """, Long.class);
+
+    private static final DefaultRedisScript<Long> STORE_REFRESH_TOKEN_SCRIPT =
+            new DefaultRedisScript<>("""
+                    if redis.call('EXISTS', KEYS[4]) == 1 then
+                      return 0
+                    end
+                    redis.call('SET', KEYS[1], ARGV[1], 'EX', ARGV[2])
+                    redis.call('SADD', KEYS[2], KEYS[1])
+                    redis.call('EXPIRE', KEYS[2], ARGV[2])
+                    redis.call('SADD', KEYS[3], KEYS[2])
+                    redis.call('EXPIRE', KEYS[3], ARGV[2])
+                    return 1
+                    """, Long.class);
+
+    private static final DefaultRedisScript<Long> REVOKE_REFRESH_FAMILY_SCRIPT =
+            new DefaultRedisScript<>("""
+                    local members = redis.call('SMEMBERS', KEYS[1])
+                    for _, key in ipairs(members) do
+                      redis.call('DEL', key)
+                    end
+                    redis.call('DEL', KEYS[1])
+                    redis.call('SREM', KEYS[2], KEYS[1])
+                    redis.call('SET', KEYS[3], '1', 'EX', ARGV[1])
+                    return #members
+                    """, Long.class);
+
     private final UserMapper userMapper;
     private final UserAuthIdentityMapper userAuthIdentityMapper;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final StringRedisTemplate redisTemplate;
     private final MailService mailService;
+    private final VerificationCodeService verificationCodeService;
+    private final LoginRateLimitService loginRateLimitService;
+    private final VipInviteService vipInviteService;
 
     @Value("${jwt.access-token-expiration}")
     private long accessTokenExpiration;
 
+    @Value("${jwt.refresh-token-expiration}")
+    private long refreshTokenExpiration;
+
     public AuthServiceImpl(UserMapper userMapper, UserAuthIdentityMapper userAuthIdentityMapper,
                            PasswordEncoder passwordEncoder, JwtTokenProvider jwtTokenProvider,
-                           StringRedisTemplate redisTemplate, MailService mailService) {
+                           StringRedisTemplate redisTemplate, MailService mailService,
+                           VerificationCodeService verificationCodeService,
+                           LoginRateLimitService loginRateLimitService,
+                           VipInviteService vipInviteService) {
         this.userMapper = userMapper;
         this.userAuthIdentityMapper = userAuthIdentityMapper;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
         this.redisTemplate = redisTemplate;
         this.mailService = mailService;
+        this.verificationCodeService = verificationCodeService;
+        this.loginRateLimitService = loginRateLimitService;
+        this.vipInviteService = vipInviteService;
     }
 
     @Override
-    public TokenDTO register(RegisterDTO dto) {
+    @Transactional
+    public TokenDTO register(RegisterDTO dto, String clientIp) {
         String normalizedEmail = normalizeEmail(dto.getEmail());
 
-        // 检查邮箱是否已注册
+        var verificationResult = verificationCodeService.consumeRegistrationCode(
+                normalizedEmail,
+                dto.getVerificationCode()
+        );
+        if (verificationResult == VerificationCodeService.ConsumeResult.ATTEMPTS_EXCEEDED) {
+            throw new BusinessException(ResultCode.VERIFY_CODE_ATTEMPTS_EXCEEDED);
+        }
+        if (verificationResult != VerificationCodeService.ConsumeResult.VERIFIED) {
+            throw new BusinessException(ResultCode.VERIFY_CODE_ERROR);
+        }
+
         var exists = userMapper.selectCount(
-            new LambdaQueryWrapper<User>().eq(User::getEmail, normalizedEmail)
+                new LambdaQueryWrapper<User>().eq(User::getEmail, normalizedEmail)
         );
         if (exists > 0) {
             throw new BusinessException(ResultCode.EMAIL_EXISTS);
         }
 
-        // 校验验证码
-        if (!verifyCode(normalizedEmail, dto.getVerificationCode())) {
-            throw new BusinessException(ResultCode.VERIFY_CODE_ERROR);
+        var user = new User();
+        try {
+            user.setEmail(normalizedEmail);
+            user.setPassword(passwordEncoder.encode(dto.getPassword()));
+            user.setNickname("");
+            user.setAvatar("");
+            user.setRole(0);
+            user.setStatus(1);
+            user.setMembershipStatus("FREE");
+            userMapper.insert(user);
+
+            var identity = new UserAuthIdentity();
+            identity.setUserId(user.getId());
+            identity.setProvider("EMAIL_PASSWORD");
+            identity.setPrincipal(normalizedEmail);
+            identity.setCredentialHash(user.getPassword());
+            identity.setVerifiedAt(LocalDateTime.now());
+            identity.setStatus(1);
+            userAuthIdentityMapper.insert(identity);
+        } catch (DuplicateKeyException exception) {
+            throw new BusinessException(ResultCode.EMAIL_EXISTS);
         }
 
-        // 创建用户
-        var user = new User();
-        user.setEmail(normalizedEmail);
-        user.setPassword(passwordEncoder.encode(dto.getPassword()));
-        user.setNickname("");
-        user.setAvatar("");
-        user.setRole(0);
-        user.setStatus(1);
-        user.setMembershipStatus("FREE");
-        userMapper.insert(user);
-
-        var identity = new UserAuthIdentity();
-        identity.setUserId(user.getId());
-        identity.setProvider("EMAIL_PASSWORD");
-        identity.setPrincipal(normalizedEmail);
-        identity.setCredentialHash(user.getPassword());
-        identity.setVerifiedAt(LocalDateTime.now());
-        identity.setStatus(1);
-        userAuthIdentityMapper.insert(identity);
-
-        // 删除已使用的验证码
-        redisTemplate.delete("verify:" + normalizedEmail);
+        if (StringUtils.hasText(dto.getInviteCode())) {
+            vipInviteService.redeem(user.getId(), dto.getInviteCode(), clientIp);
+            user = userMapper.selectById(user.getId());
+            if (user == null) {
+                throw new BusinessException(ResultCode.USER_NOT_FOUND);
+            }
+        }
 
         return generateTokenPair(user);
     }
 
     @Override
-    public TokenDTO login(LoginDTO dto) {
+    public TokenDTO login(LoginDTO dto, String clientIp) {
         String normalizedEmail = normalizeEmail(dto.getEmail());
+        loginRateLimitService.acquireAttempt(normalizedEmail, clientIp);
         var identity = userAuthIdentityMapper.selectOne(
             new LambdaQueryWrapper<UserAuthIdentity>()
                 .eq(UserAuthIdentity::getProvider, "EMAIL_PASSWORD")
@@ -116,34 +198,46 @@ public class AuthServiceImpl implements AuthService {
 
         identity.setLastLoginAt(LocalDateTime.now());
         userAuthIdentityMapper.updateById(identity);
+        loginRateLimitService.recordSuccess(normalizedEmail);
         return generateTokenPair(user);
     }
 
     @Override
     public TokenDTO refreshToken(String refreshToken) {
-        if (!jwtTokenProvider.validateToken(refreshToken)) {
+        if (!jwtTokenProvider.validateRefreshToken(refreshToken)) {
             throw new BusinessException(ResultCode.REFRESH_TOKEN_INVALID);
         }
 
         var userId = jwtTokenProvider.getUserIdFromToken(refreshToken);
         var jti = jwtTokenProvider.getJtiFromToken(refreshToken);
+        var sessionId = jwtTokenProvider.getSessionIdFromToken(refreshToken);
 
-        // 检查 refresh token 是否在 Redis 中
-        var storedToken = redisTemplate.opsForValue().get("refresh:" + userId + ":" + jti);
-        if (storedToken == null) {
+        Long consumed = redisTemplate.execute(
+                CONSUME_REFRESH_TOKEN_SCRIPT,
+                List.of(
+                        refreshTokenKey(userId, jti),
+                        refreshFamilyKey(userId, sessionId),
+                        refreshUserIndexKey(userId),
+                        refreshRevokedFamilyKey(userId, sessionId)
+                ),
+                tokenDigest(refreshToken),
+                String.valueOf(refreshTokenTtlSeconds())
+        );
+        if (consumed == null || consumed != 1L) {
             throw new BusinessException(ResultCode.REFRESH_TOKEN_EXPIRED);
         }
-
-        // 删除旧的 refresh token
-        redisTemplate.delete("refresh:" + userId + ":" + jti);
 
         // 获取用户信息生成新 token
         var user = userMapper.selectById(userId);
         if (user == null) {
             throw new BusinessException(ResultCode.UNAUTHORIZED);
         }
+        if (user.getStatus() == null || user.getStatus() == 0) {
+            revokeRefreshFamily(userId, sessionId);
+            throw new BusinessException(ResultCode.ACCOUNT_LOCKED);
+        }
 
-        return generateTokenPair(user);
+        return generateTokenPair(user, sessionId);
     }
 
     @Override
@@ -166,52 +260,48 @@ public class AuthServiceImpl implements AuthService {
             redisTemplate.opsForValue().set("blacklist:" + jti, "1", remainingSeconds, TimeUnit.SECONDS);
         }
 
-        // 删除 refresh token（通过模式匹配）
-        var keys = redisTemplate.keys("refresh:" + userId + ":*");
-        if (keys != null && !keys.isEmpty()) {
-            redisTemplate.delete(keys);
-        }
+        revokeRefreshFamily(userId, jwtTokenProvider.getSessionIdFromToken(accessToken));
     }
 
     @Override
-    public void sendVerificationCode(String email) {
+    public void sendVerificationCode(String email, String clientIp) {
         String normalizedEmail = normalizeEmail(email);
-        // 检查发送频率（60 秒内只能发一次）
-        var lastSent = redisTemplate.opsForValue().get("rate:" + normalizedEmail);
-        if (lastSent != null) {
-            throw new BusinessException(ResultCode.SEND_CODE_TOO_FREQUENT);
+        String code = verificationCodeService.issueRegistrationCode(normalizedEmail, clientIp);
+        try {
+            mailService.sendVerificationCode(normalizedEmail, code);
+        } catch (RuntimeException exception) {
+            verificationCodeService.rollbackRegistrationCode(normalizedEmail);
+            throw exception;
         }
-
-        // 生成 6 位验证码
-        var code = String.format("%06d", (int) (Math.random() * 1000000));
-
-        // 存储验证码到 Redis（5 分钟有效）
-        redisTemplate.opsForValue().set("verify:" + normalizedEmail, code, 5, TimeUnit.MINUTES);
-
-        // 设置发送频率限制（60 秒）
-        redisTemplate.opsForValue().set("rate:" + normalizedEmail, "1", 60, TimeUnit.SECONDS);
-
-        mailService.sendVerificationCode(normalizedEmail, code);
-        log.info("验证码已发送到 {}: {}", normalizedEmail, code);
-    }
-
-    @Override
-    public boolean verifyCode(String email, String code) {
-        var storedCode = redisTemplate.opsForValue().get("verify:" + normalizeEmail(email));
-        return code.equals(storedCode);
+        log.info("Registration verification email accepted for delivery to {}", maskEmail(normalizedEmail));
     }
 
     private TokenDTO generateTokenPair(User user) {
-        var role = user.getRole() == 1 ? "ADMIN" : "USER";
-        var accessToken = jwtTokenProvider.generateAccessToken(user.getId(), user.getEmail(), role);
-        var refreshToken = jwtTokenProvider.generateRefreshToken(user.getId());
+        return generateTokenPair(user, UUID.randomUUID().toString());
+    }
 
-        // 存储 refresh token 到 Redis（7 天有效）
-        var refreshJti = jwtTokenProvider.getJtiFromToken(refreshToken);
-        redisTemplate.opsForValue().set(
-            "refresh:" + user.getId() + ":" + refreshJti,
-            refreshToken, 7, TimeUnit.DAYS
+    private TokenDTO generateTokenPair(User user, String sessionId) {
+        var role = user.getRole() == 1 ? "ADMIN" : "USER";
+        var accessToken = jwtTokenProvider.generateAccessToken(
+                user.getId(), user.getEmail(), role, sessionId
         );
+        var refreshToken = jwtTokenProvider.generateRefreshToken(user.getId(), sessionId);
+
+        var refreshJti = jwtTokenProvider.getJtiFromToken(refreshToken);
+        Long stored = redisTemplate.execute(
+                STORE_REFRESH_TOKEN_SCRIPT,
+                List.of(
+                        refreshTokenKey(user.getId(), refreshJti),
+                        refreshFamilyKey(user.getId(), sessionId),
+                        refreshUserIndexKey(user.getId()),
+                        refreshRevokedFamilyKey(user.getId(), sessionId)
+                ),
+                tokenDigest(refreshToken),
+                String.valueOf(refreshTokenTtlSeconds())
+        );
+        if (stored == null || stored != 1L) {
+            throw new BusinessException(ResultCode.REFRESH_TOKEN_INVALID);
+        }
 
         var userInfo = buildUserInfo(user);
         return new TokenDTO(accessToken, refreshToken, accessTokenExpiration / 1000, userInfo);
@@ -225,13 +315,74 @@ public class AuthServiceImpl implements AuthService {
                 user.getNickname(),
                 user.getAvatar(),
                 role,
-                user.getMembershipStatus() == null ? "FREE" : user.getMembershipStatus(),
+                resolveMembershipStatus(user),
                 DateTimeUtils.format(user.getMembershipGrantedAt()),
+                DateTimeUtils.format(user.getMembershipExpiresAt()),
                 "ADMIN".equals(role)
         );
     }
 
+    private String resolveMembershipStatus(User user) {
+        if (!"ACTIVE".equals(user.getMembershipStatus())) {
+            return "FREE";
+        }
+        return user.getMembershipExpiresAt() == null
+                || user.getMembershipExpiresAt().isAfter(LocalDateTime.now())
+                ? "ACTIVE"
+                : "FREE";
+    }
+
     private String normalizeEmail(String email) {
         return email == null ? "" : email.trim().toLowerCase();
+    }
+
+    private String maskEmail(String email) {
+        int atIndex = email.indexOf('@');
+        if (atIndex <= 1) {
+            return "***";
+        }
+        return email.charAt(0) + "***" + email.substring(atIndex);
+    }
+
+    private void revokeRefreshFamily(Long userId, String sessionId) {
+        redisTemplate.execute(
+                REVOKE_REFRESH_FAMILY_SCRIPT,
+                List.of(
+                        refreshFamilyKey(userId, sessionId),
+                        refreshUserIndexKey(userId),
+                        refreshRevokedFamilyKey(userId, sessionId)
+                ),
+                String.valueOf(refreshTokenTtlSeconds())
+        );
+    }
+
+    private long refreshTokenTtlSeconds() {
+        return Math.max(1L, (refreshTokenExpiration + 999L) / 1000L);
+    }
+
+    private String tokenDigest(String token) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(token.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is not available", exception);
+        }
+    }
+
+    private String refreshTokenKey(Long userId, String jti) {
+        return "refresh:token:" + userId + ":" + jti;
+    }
+
+    private String refreshFamilyKey(Long userId, String sessionId) {
+        return "refresh:family:" + userId + ":" + sessionId;
+    }
+
+    private String refreshUserIndexKey(Long userId) {
+        return "refresh:user:" + userId;
+    }
+
+    private String refreshRevokedFamilyKey(Long userId, String sessionId) {
+        return "refresh:revoked:" + userId + ":" + sessionId;
     }
 }

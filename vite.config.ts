@@ -3,15 +3,19 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '')
-  const backendPort = env.SERVER_PORT || '8084'
-  const apiProxyTarget = env.VITE_API_PROXY_TARGET || `http://localhost:${backendPort}`
-  const port = Number.parseInt(env.VITE_PORT || '5173', 10)
+  const runtimeEnv = (globalThis as typeof globalThis & {
+    process?: { env?: Record<string, string | undefined> }
+  }).process?.env ?? {}
+  const backendPort = runtimeEnv.SERVER_PORT || env.SERVER_PORT || '8084'
+  const apiProxyTarget = runtimeEnv.VITE_API_PROXY_TARGET || env.VITE_API_PROXY_TARGET || `http://localhost:${backendPort}`
+  const port = Number.parseInt(runtimeEnv.VITE_PORT || env.VITE_PORT || '5173', 10)
+  const openBrowser = (runtimeEnv.VITE_OPEN_BROWSER || 'true').toLowerCase() !== 'false'
 
   return {
     plugins: [react()],
     server: {
       port: Number.isNaN(port) ? 5173 : port,
-      open: true,
+      open: openBrowser,
       proxy: {
         '/api/v2/apps/protocols/compatible-mode/v1/responses': {
           target: 'https://dashscope.aliyuncs.com',

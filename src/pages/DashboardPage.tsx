@@ -4,6 +4,8 @@ import type { ResumeListItem } from '../api/resume'
 import { useResumeStore } from '../store/resumeStore'
 import { Header } from '../components/layout/Header'
 import { ResumeCard } from '../components/dashboard/ResumeCard'
+import { buildResumeEditorPath } from '../config/site'
+import { CREATOR_MARKETPLACE_PATH } from '../utils/navigation'
 
 export default function DashboardPage() {
   const navigate = useNavigate()
@@ -34,7 +36,7 @@ export default function DashboardPage() {
       setEditingResume(null)
       setDialogMode(null)
       if (nextResumeId) {
-        navigate(`/editor/${nextResumeId}?moduleType=basic_info`)
+        navigate(buildResumeEditorPath(nextResumeId))
       }
     } catch (err: unknown) {
       const message = err instanceof Error
@@ -79,7 +81,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header />
+      <Header enableResumeDrop />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {error && (
@@ -88,21 +90,33 @@ export default function DashboardPage() {
           </div>
         )}
 
-        <div className="flex items-center justify-between mb-8">
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">我的简历</h1>
             <p className="text-gray-500 mt-1">共 {resumeList.length} 份简历</p>
           </div>
-          <button
-            onClick={openCreateDialog}
-            disabled={creating}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 disabled:opacity-50 transition-colors"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            {creating ? '创建中...' : '新建简历'}
-          </button>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <button
+              type="button"
+              onClick={() => navigate(CREATOR_MARKETPLACE_PATH)}
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-5 py-2.5 font-medium text-amber-800 transition-colors hover:bg-amber-100"
+            >
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 6v12m3-9.75C15 7.007 13.657 6 12 6S9 7.007 9 8.25s1.343 2.25 3 2.25 3 1.007 3 2.25S13.657 15 12 15s-3-1.007-3-2.25M6.75 3.75h10.5A2.25 2.25 0 0119.5 6v12a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 18V6a2.25 2.25 0 012.25-2.25z" />
+              </svg>
+              公开简历赚钱
+            </button>
+            <button
+              onClick={openCreateDialog}
+              disabled={creating}
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 disabled:opacity-50 transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              {creating ? '创建中...' : '新建简历'}
+            </button>
+          </div>
         </div>
 
         {loading && resumeList.length === 0 ? (

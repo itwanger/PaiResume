@@ -14,6 +14,8 @@ interface ChromePreviewFrameProps {
   config: ResumePdfPreviewConfig
   onConfigChange: (nextConfig: ResumePdfPreviewConfig) => void
   onExportPdf?: (pageMode: ResumePdfPageMode) => void
+  isVip?: boolean
+  onRequireVip?: () => void
   exporting?: boolean
   exportError?: string
 }
@@ -92,6 +94,52 @@ function TemplateTonePreview({
   const previewTextClassName = 'break-all leading-4'
 
   switch (templateId) {
+    case 'campus-blue':
+      return (
+        <div className={`${frameClassName} shadow-[inset_0_0_0_1px_rgba(190,208,235,0.95)]`}>
+          <div className="space-y-2 px-3 py-3 text-[10px] text-slate-600">
+            <div className="flex items-start gap-2">
+              <div className="h-12 w-9 shrink-0 bg-blue-100 ring-1 ring-blue-200" />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[12px] font-bold text-slate-800">{name}</span>
+                  <PreviewStatusBadge isActive={isActive} />
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-x-2 gap-y-1">
+                  <MiniLine className="w-full bg-slate-200" />
+                  <MiniLine className="w-full bg-slate-200" />
+                  <MiniLine className="w-4/5 bg-slate-200" />
+                  <MiniLine className="w-4/5 bg-slate-200" />
+                </div>
+              </div>
+            </div>
+            <div className="border-l-2 border-blue-700 bg-blue-100 px-2 py-1 font-semibold text-blue-800">
+              教育经历
+            </div>
+            <div className="grid grid-cols-[1fr_auto] gap-2">
+              {previewLines[0] ? <div className={previewTextClassName}>{previewLines[0]}</div> : <MiniLine className="w-4/5 bg-slate-200" />}
+              <MiniLine className="mt-1 w-12 bg-slate-200" />
+            </div>
+            <div className="border-l-2 border-blue-700 bg-blue-100 px-2 py-1 font-semibold text-blue-800">
+              项目经历
+            </div>
+            <div className="space-y-1">
+              {previewLines[1] ? <div className={previewTextClassName}>{previewLines[1]}</div> : <MiniLine className="w-full bg-slate-200" />}
+              {previewLines[2] ? <div className={previewTextClassName}>{previewLines[2]}</div> : <MiniLine className="w-4/5 bg-slate-200" />}
+            </div>
+            <div className="grid grid-cols-3 gap-1">
+              {previewHighlights.map((highlight, index) => (
+                <div
+                  key={`${templateId}-highlight-${index}`}
+                  className="truncate bg-blue-50 px-1.5 py-1 text-center font-medium text-blue-700"
+                >
+                  {highlight || ' '}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )
     case 'accent':
       return (
         <div className={`${frameClassName} bg-blue-50 shadow-[inset_0_0_0_1px_rgba(191,219,254,0.9)]`}>
@@ -349,6 +397,8 @@ export function ChromePreviewFrame({
   config,
   onConfigChange,
   onExportPdf,
+  isVip = false,
+  onRequireVip,
   exporting = false,
   exportError = '',
 }: ChromePreviewFrameProps) {
@@ -377,6 +427,19 @@ export function ChromePreviewFrame({
       ...patch,
     })
   }
+  const selectPageMode = (nextPageMode: ResumePdfPageMode) => {
+    if (nextPageMode === 'continuous' && !isVip) {
+      onRequireVip?.()
+      return
+    }
+    setPageMode(nextPageMode)
+  }
+
+  useEffect(() => {
+    if (!isVip && pageMode === 'continuous') {
+      setPageMode('standard')
+    }
+  }, [isVip, pageMode])
 
   useEffect(() => {
     setPreviewHeight(null)
@@ -504,9 +567,9 @@ export function ChromePreviewFrame({
               value={pageMode}
               options={[
                 { value: 'standard', label: '标准 PDF' },
-                { value: 'continuous', label: '智能一页' },
+                { value: 'continuous', label: isVip ? '智能一页' : '智能一页 · VIP' },
               ]}
-              onChange={setPageMode}
+              onChange={selectPageMode}
             />
             <InlinePillGroup
               label="密度"
@@ -573,11 +636,11 @@ export function ChromePreviewFrame({
         )}
       </div>
       <div
-        className="grid grid-cols-[280px_minmax(0,1fr)] bg-white"
+        className="grid grid-cols-1 bg-white xl:grid-cols-[280px_minmax(0,1fr)]"
         style={{ minHeight: `${effectivePreviewHeight}px` }}
       >
-        <aside className="pr-3">
-          <div className="flex flex-col py-2">
+        <aside className="border-b border-slate-200 pb-4 xl:border-b-0 xl:pb-0 xl:pr-3">
+          <div className="grid gap-3 py-2 sm:grid-cols-2 lg:grid-cols-3 xl:flex xl:flex-col">
             {visibleTemplates.map((template) => {
               const isActive = config.templateId === template.id
               return (
@@ -607,7 +670,7 @@ export function ChromePreviewFrame({
             })}
           </div>
         </aside>
-        <div className="border-l border-slate-200 bg-white">
+        <div className="bg-white xl:border-l xl:border-slate-200">
           <div>
             <iframe
               key={previewPath}

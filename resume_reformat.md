@@ -97,7 +97,47 @@ GitHub：https://github.com/itwanger/
 - 编写用户认证模块单元测试，结合 JUnit + Mockito 验证 Redis 引入前后的性能差异，为系统调优提供依据。
 - 基于 Kafka 解耦文件上传、处理与向量化流程，实现分片上传与断点续传；使用 Redis 的 Bitmap 存储分片状态，并通过 MinIO 按照 MD5 进行分片合并。
 
-## 技术派社区 Java后端开发 2025-06 ～ 2025-09
+### PaiCLI Agent AI应用开发 2026-05 ～ 2026-06
+
+项目描述：类似 Claude Code 的终端 Agent CLI，支持 ReAct 推理、Multi-Agent 协作、MCP 工具集成、三层记忆系统、RAG 代码库检索等，可在终端中通过自然语言驱动代码开发和调试。
+
+技术栈：Java 21、JLine 4、SQLite、JGit、Chrome DevTools Protocol、Jieba、OkHttp、Ollama
+
+核心职责：
+
+- 基于 ReAct 实现 Agent 推理，支持并行执行和动态 Token 预算，上下文压缩算法会在 90% 上下文占用时自动触发摘要压缩。
+- 设计长任务持久化方案，基于 SQLite 存储任务状态，后台 Worker 线程池异步执行，支持进程重启后自动恢复未完成任务。
+- 实现三层记忆系统：短期记忆管理当前对话、长期记忆用 SQLite 持久化跨会话知识、Compactor 做边界感知的上下文压缩，支持 BM25 + 余弦相似度混合检索。
+- 集成 MCP 接入外部工具生态，支持 stdio/HTTP 双传输协议和 Schema 自动裁剪，并通过 HITL 审批机制实现工具调用的安全管控。
+- 构建 Plan-and-Execute + Multi-Agent 架构，Planner 将复杂任务拆解为 DAG，Worker 并行执行，Reviewer 审核质量并支持自动重试，最大并行 4 线程。
+- 基于 ReAct 模式实现 Agent 核心循环，通过 ToolRegistry 动态注册 9 个内置工具 + 60+ MCP 外部工具，工具选择由 LLM Function Calling 驱动
+- 实现 Plan-and-Execute 模式，通过 DAG 拓扑排序管理子任务依赖，同批次任务并行执行，单任务失败时下游依赖自动 SKIP 不阻塞独立任务
+- 同一轮多个 tool_calls 通过 ExecutorService 并行执行，按原始顺序返回结果保证 LLM 协议兼容，ReAct/Plan/Team 复用同一套调度器
+- 实现动态 Token 预算管理（90% × 最大上下文窗口），采用 Map-Reduce 压缩策略保证上下文的连贯性，支持GLM-5.1的 200k 和DeepSeek V4的1M上下文
+- 基于策略模式设计 SearchProvider 搜索引擎抽象层，支持智谱/SerpAPI/SearXNG，可在运行时自动选择和热切换
+- 实现基于 Jsoup 的 Readability 正文提取算法，通过语义标签优先+链接密度评分的两阶段策略准确提取网页正文
+- 设计 NetworkPolicy 网络安全策略，包括 SSRF 防护（scheme 白名单+host 黑名单+DNS 解析校验）和令牌桶限流
+- 将 web_search 和 web_fetch 作为 Function Calling 工具注册到 Agent 的工具链中，实现了 LLM 自主判断联网时机的智能工具选择
+- 在 Agent 执行中集成 Token 消耗统计，累计每轮 LLM 调用的输入/输出 token 数和耗时，方便不同模型间的成本和性能对比
+- 设计并实现 Multi-Agent 主从协作架构，解决单 Agent 处理复杂任务的瓶颈，可通过斜杠命令 /team 主动开启，支持 Planner / Worker / Reviewer 3 类角色。
+- 基于 BlockingQueue + ExecutorService 实现 Worker 子 Agent 的并行执行引擎，解决多步骤任务串行执行效率低的问题，并按依赖顺序推进工作流。
+- 手写 JSON-RPC 2.0 客户端，基于 CompletableFuture + ConcurrentHashMap 实现请求响应异步配对，支持超时调度和通知广播
+- 抽象 McpTransport 传输层，实现 stdio（子进程管道通信）和 Streamable HTTP（OkHttp + SSE 流式解析）两种传输方式
+- 实现 BrowserSession 浏览器会话状态管理器，支持 isolated/shared 双模式运行时切换，采用 synchronized 同步机制保证多线程状态一致性
+- 通过 CDP 自动连接机制，Agent 检测到需要登录时可通过 --autoConnect 自动发现并连接本机 Chrome 实例，从而实现 Codex 级别的 Browser Use
+- 设计 web_fetch → 浏览器 MCP 自动 fallback 机制，当 web_fetch 因 SPA / 反爬 / 客户端渲染返回空正文时，Agent 自动切换到 Chrome DevTools MCP 通过 take_snapshot 拿取 DOM 文本，覆盖微信公众号、知乎专栏、掘金等 web_fetch 不可达场景
+- 基于 SQLite 实现轻量级向量存储，向量以 JSON 数组持久化，通过在内存中计算余弦相似度，单项目千行级代码块检索耗时 < 100ms
+- 基于 JavaParser AST 实现代码分块（文件/类/方法），文本按大小分段；统一封装 Ollama 本地模型和 OpenAI 兼容远程 API，通过环境变量丝滑切换 provider；并通过语义检索打底 + jieba 分词加权实现混合检索策略
+- 将 RAG 封装为 search_code 工具注册到 Agent 工具，通过 LLM 系统提示词引导自动触发检索，ReAct 和 Plan-and-Execute 双模式均支持代码库理解
+- 设计 Memory 系统，实现 4 种记忆类型（对话/事实/摘要/工具结果）；超出 token 阈值时自动淘汰最旧条目，保留压缩摘要重新注入上下文；通过markdown存储长期记忆，支持 JSON 文件持久化和 Agent 启动时自动加载，实现内容去重和关键词检索，可跨 session 保留用户偏好和项目信息
+- 实现 context 压缩器，采用 Map-Reduce 策略分片摘要后合并，保留最近 3 轮完整消息不参与压缩，并支持自动提取关键事实到长期记忆
+- 实现基于 DFS 的拓扑排序算法，将任务 DAG 转换为线性执行顺序，能自动检测循环依赖并报错；使用线程池并发执行无依赖的多项任务，相比串行执行效率大幅提升
+- 开发 Planner 规划器，使用 LLM 将复杂任务分解为 5-10 个可执行子任务，通过 JSON 格式输出计划，实现 ID 映射和前向引用处理
+- 集成 JLine4 实现交互式命令行，支持命令历史（上下箭头）、Tab 自动补全、行编辑和语法高亮，用户体验接近 Claude Code 和 Qoder CLI
+- 设计 ToolRegistry 工具注册表，实现 read_file、write_file、list_dir、execute_command、create_project 五个内置工具，支持 JSON Schema 参数定义
+- 基于 Qoder CLI/Codex/Claude Code 从零搭建 Agent CLI 项目，实现 ReAct、MCP、RAG、Memory 等 Agent 核心机制；支持 Tool Call 的消息序列化与解析，能够处理 system/user/assistant/tool 四种消息角色
+
+### 技术派社区 Java后端开发 2025-06 ～ 2025-09
 
 项目描述：采用 5 模块分层架构，覆盖文章发布、搜索、评论、活跃排行、AI 问答、微信扫码登录、公众号消息回复等核心场景。重点负责 AI 平台能力建设与微信公众号智能运营升级。 
 
@@ -130,7 +170,7 @@ GitHub 仓库（已有3k+星标）：https://github.com/itwanger/paicoding
 - 通过 Prometheus & Grafana 在本地搭建应用监控系统，并经过 JMeter 实测，首页在 30 个线程数、10 分钟内，HTTP 请求数可达 667 req/s；1 秒内可以完成 424 次峰值响应。
 - 采用 Redisson 看门狗策略优化缓存架构，针对热 key 的并发访问进行同步，防止其失效时导致的缓存击穿。
 
-## Java 实现轻量级关系型数据库 2025.07 – 至今
+### Java 实现轻量级关系型数据库 2025.07 – 至今
 项目描述：MiniDB 是一个模拟 MySQL 的轻量级数据库系统，覆盖了数据库核心机制如数据管理、事务管理、并发控制、索引构建等，旨在深入理解数据库底层运行原理和关键模块的协作关系。
 
 核心职责：

@@ -9,9 +9,11 @@ import com.itwanger.pairesume.entity.User;
 import com.itwanger.pairesume.mapper.UserMapper;
 import com.itwanger.pairesume.service.CouponService;
 import com.itwanger.pairesume.service.MembershipService;
+import com.itwanger.pairesume.service.MembershipAuditService;
 import com.itwanger.pairesume.util.DateTimeUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -21,10 +23,24 @@ import java.util.List;
 public class MembershipServiceImpl implements MembershipService {
     private final CouponService couponService;
     private final UserMapper userMapper;
+    private final MembershipAuditService membershipAuditService;
 
     @Override
     public CouponQuoteDTO quote(String couponCode) {
         return couponService.quote(couponCode);
+    }
+
+    @Override
+    public boolean isActiveMember(Long userId) {
+        User user = getUser(userId);
+        return hasActiveMembership(user);
+    }
+
+    @Override
+    public void requireAiAccess(Long userId) {
+        if (!isActiveMember(userId)) {
+            throw new BusinessException(ResultCode.AI_MEMBERSHIP_REQUIRED);
+        }
     }
 
     @Override
@@ -37,25 +53,80 @@ public class MembershipServiceImpl implements MembershipService {
     }
 
     @Override
-    public UserAdminDTO grantMembership(Long userId, Long adminUserId) {
-        User user = getUser(userId);
+    @Transactional
+    public UserAdminDTO grantMembership(Long userId, Long adminUserId, String reason) {
+        User user = getUserForUpdate(userId);
+        User before = membershipSnapshot(user);
         user.setMembershipStatus("ACTIVE");
         user.setMembershipGrantedAt(LocalDateTime.now());
         user.setMembershipSource("ADMIN_GRANTED");
+        user.setMembershipOriginType("ADMIN_GRANTED");
+        user.setMembershipOriginId(null);
         user.setMembershipExpiresAt(null);
-        userMapper.updateById(user);
+        userMapper.updateMembership(user);
+        membershipAuditService.record(
+                adminUserId, "GRANT_MEMBERSHIP", before, user,
+                null, null, reason, "手工开通永久 VIP"
+        );
         return toAdminDto(user);
     }
 
     @Override
-    public UserAdminDTO revokeMembership(Long userId, Long adminUserId) {
-        User user = getUser(userId);
+    @Transactional
+    public UserAdminDTO extendMembership(Long userId, int days, Long adminUserId, String reason) {
+        User user = getUserForUpdate(userId);
+        User before = membershipSnapshot(user);
+        if ("ACTIVE".equals(user.getMembershipStatus()) && user.getMembershipExpiresAt() == null) {
+            throw new BusinessException(ResultCode.MEMBERSHIP_PERMANENT);
+        }
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime extensionBase = user.getMembershipExpiresAt() != null
+                && user.getMembershipExpiresAt().isAfter(now)
+                ? user.getMembershipExpiresAt()
+                : now;
+        user.setMembershipStatus("ACTIVE");
+        if (user.getMembershipGrantedAt() == null) {
+            user.setMembershipGrantedAt(now);
+        }
+        if (!hasActiveMembership(before)) {
+            user.setMembershipOriginType("ADMIN_EXTENDED");
+            user.setMembershipOriginId(null);
+        }
+        user.setMembershipSource("ADMIN_EXTENDED");
+        user.setMembershipExpiresAt(extensionBase.plusDays(days));
+        userMapper.updateMembership(user);
+        membershipAuditService.record(
+                adminUserId, "EXTEND_MEMBERSHIP", before, user,
+                null, null, reason, "延期 " + days + " 天"
+        );
+        return toAdminDto(user);
+    }
+
+    @Override
+    @Transactional
+    public UserAdminDTO revokeMembership(Long userId, Long adminUserId, String reason) {
+        User user = getUserForUpdate(userId);
+        User before = membershipSnapshot(user);
         user.setMembershipStatus("FREE");
         user.setMembershipGrantedAt(null);
         user.setMembershipSource("ADMIN_REVOKED");
+        user.setMembershipOriginType(null);
+        user.setMembershipOriginId(null);
         user.setMembershipExpiresAt(null);
-        userMapper.updateById(user);
+        userMapper.updateMembership(user);
+        membershipAuditService.record(
+                adminUserId, "REVOKE_MEMBERSHIP", before, user,
+                null, null, reason, "手工撤销 VIP"
+        );
         return toAdminDto(user);
+    }
+
+    private User getUserForUpdate(Long userId) {
+        User user = userMapper.selectByIdForUpdate(userId);
+        if (user == null) {
+            throw new BusinessException(ResultCode.USER_NOT_FOUND);
+        }
+        return user;
     }
 
     private User getUser(Long userId) {
@@ -72,10 +143,29 @@ public class MembershipServiceImpl implements MembershipService {
         dto.setEmail(user.getEmail());
         dto.setNickname(user.getNickname());
         dto.setRole(user.getRole() != null && user.getRole() == 1 ? "ADMIN" : "USER");
-        dto.setMembershipStatus(user.getMembershipStatus());
+        dto.setMembershipStatus(hasActiveMembership(user) ? "ACTIVE" : "FREE");
         dto.setMembershipGrantedAt(DateTimeUtils.format(user.getMembershipGrantedAt()));
+        dto.setMembershipExpiresAt(DateTimeUtils.format(user.getMembershipExpiresAt()));
         dto.setMembershipSource(user.getMembershipSource());
         dto.setCreatedAt(DateTimeUtils.format(user.getCreatedAt()));
         return dto;
+    }
+
+    private boolean hasActiveMembership(User user) {
+        return "ACTIVE".equals(user.getMembershipStatus())
+                && (user.getMembershipExpiresAt() == null
+                || user.getMembershipExpiresAt().isAfter(LocalDateTime.now()));
+    }
+
+    private User membershipSnapshot(User user) {
+        User snapshot = new User();
+        snapshot.setId(user.getId());
+        snapshot.setMembershipStatus(user.getMembershipStatus());
+        snapshot.setMembershipGrantedAt(user.getMembershipGrantedAt());
+        snapshot.setMembershipSource(user.getMembershipSource());
+        snapshot.setMembershipOriginType(user.getMembershipOriginType());
+        snapshot.setMembershipOriginId(user.getMembershipOriginId());
+        snapshot.setMembershipExpiresAt(user.getMembershipExpiresAt());
+        return snapshot;
     }
 }

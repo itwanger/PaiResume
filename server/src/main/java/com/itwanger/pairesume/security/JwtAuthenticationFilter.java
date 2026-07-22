@@ -31,15 +31,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     FilterChain filterChain) throws ServletException, IOException {
         var token = resolveToken(request);
 
-        if (token != null && jwtTokenProvider.validateToken(token)) {
-            var jti = jwtTokenProvider.getJtiFromToken(token);
+        if (token != null && jwtTokenProvider.validateAccessToken(token)) {
+            var claims = jwtTokenProvider.parseToken(token);
+            var jti = claims.getId();
+            var userId = Long.parseLong(claims.getSubject());
+            var sessionId = claims.get(JwtTokenProvider.SESSION_ID_CLAIM, String.class);
             var isBlacklisted = Boolean.TRUE.equals(redisTemplate.hasKey("blacklist:" + jti));
+            var isSessionRevoked = Boolean.TRUE.equals(redisTemplate.hasKey(
+                    "refresh:revoked:" + userId + ":" + sessionId
+            ));
 
-            if (!isBlacklisted) {
-                var claims = jwtTokenProvider.parseToken(token);
-                var userId = Long.parseLong(claims.getSubject());
+            if (!isBlacklisted && !isSessionRevoked) {
                 var email = claims.get("email", String.class);
-                var role = claims.get("type", String.class);
+                var role = claims.get(JwtTokenProvider.ROLE_CLAIM, String.class);
 
                 var authorities = List.of(new SimpleGrantedAuthority("ROLE_" + role));
                 var authentication = new UsernamePasswordAuthenticationToken(userId, email, authorities);

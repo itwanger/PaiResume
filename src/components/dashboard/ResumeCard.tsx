@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import type { ResumeListItem } from '../../api/resume'
+import { buildResumeEditorPath } from '../../config/site'
 
 interface ResumeCardProps {
   resume: ResumeListItem
@@ -65,7 +66,7 @@ export function ResumeCard({ resume, onDelete, onRename }: ResumeCardProps) {
 
   return (
     <div
-      onClick={() => navigate(`/editor/${resume.id}`)}
+      onClick={() => navigate(buildResumeEditorPath(resume.id))}
       className="bg-white rounded-xl border border-gray-200 p-5 cursor-pointer hover:border-primary-300 hover:shadow-md transition-all group"
     >
       <div className="flex items-start justify-between mb-4">

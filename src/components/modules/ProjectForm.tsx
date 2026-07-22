@@ -79,7 +79,7 @@ export function ProjectForm({ resumeId, moduleId, initialContent }: Props) {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="editor-responsive-grid">
         <div>
           <label className="mb-1 block text-sm font-medium text-gray-700">项目名称</label>
           <input
@@ -130,7 +130,7 @@ export function ProjectForm({ resumeId, moduleId, initialContent }: Props) {
       </div>
 
       <div>
-        <div className="mb-1 flex items-center justify-between gap-3">
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
           <label className="block text-sm font-medium text-gray-700">项目描述</label>
           <button
             type="button"
@@ -166,9 +166,9 @@ export function ProjectForm({ resumeId, moduleId, initialContent }: Props) {
         </div>
         {content.achievements.map((item, index) => (
           <div key={index} className={index === 0 ? '' : 'mt-3'}>
-            <div className="mb-2 flex items-center justify-between gap-3">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
               <div />
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center justify-end gap-3">
                 <button
                   type="button"
                   onClick={() => void openOptimizePage('achievement', index)}

@@ -1,4 +1,4 @@
-import client, { type ApiEnvelope } from './client'
+import client, { refreshSessionRequest, type ApiEnvelope } from './client'
 
 export interface LoginParams {
   email: string
@@ -9,11 +9,11 @@ export interface RegisterParams {
   email: string
   password: string
   verificationCode: string
+  inviteCode?: string
 }
 
 export interface TokenData {
   accessToken: string
-  refreshToken: string
   expiresIn: number
   userInfo: {
     id: number
@@ -23,6 +23,7 @@ export interface TokenData {
     role: string
     membershipStatus: 'FREE' | 'ACTIVE'
     membershipGrantedAt: string | null
+    membershipExpiresAt: string | null
     admin: boolean
   }
 }
@@ -34,8 +35,7 @@ export const authApi = {
   register: (params: RegisterParams) =>
     client.post<ApiEnvelope<TokenData>>('/auth/register', params),
 
-  refresh: (refreshToken: string) =>
-    client.post<ApiEnvelope<TokenData>>('/auth/refresh', { refreshToken }),
+  refresh: () => refreshSessionRequest<TokenData>(),
 
   logout: () =>
     client.post('/auth/logout'),
