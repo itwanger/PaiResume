@@ -84,4 +84,44 @@ class VerificationCodeServiceImplTest {
                 service.consumeRegistrationCode("user@example.com", "123456")
         );
     }
+
+    @Test
+    void passwordResetCodeUsesAnIndependentNamespace() {
+        when(valueOperations.setIfAbsent(anyString(), eq("1"), any(Duration.class))).thenReturn(true);
+        doReturn(1L).when(redisTemplate)
+                .execute(any(RedisScript.class), anyList(), any(Object[].class));
+
+        String code = service.issuePasswordResetCode("user@example.com", "127.0.0.1");
+
+        assertTrue(code.matches("\\d{6}"));
+        verify(valueOperations).set(
+                startsWith("verify:password-reset:code:"),
+                argThat(stored -> stored.matches("[0-9a-f]{64}")),
+                eq(Duration.ofSeconds(300))
+        );
+    }
+
+    @Test
+    void resumeReviewContactCodeUsesIndependentOneTimeNamespace() {
+        when(valueOperations.setIfAbsent(anyString(), eq("1"), any(Duration.class))).thenReturn(true);
+        doReturn(1L).when(redisTemplate)
+                .execute(any(RedisScript.class), anyList(), any(Object[].class));
+
+        String code = service.issueResumeReviewContactCode("contact@example.net", "127.0.0.1");
+
+        assertTrue(code.matches("\\d{6}"));
+        verify(valueOperations).set(
+                startsWith("verify:resume-review-contact:code:"),
+                argThat(stored -> stored.matches("[0-9a-f]{64}")),
+                eq(Duration.ofSeconds(300))
+        );
+
+        service.consumeResumeReviewContactCode("contact@example.net", code);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<String>> keys = ArgumentCaptor.forClass(List.class);
+        verify(redisTemplate, atLeastOnce()).execute(
+                any(RedisScript.class), keys.capture(), any(Object[].class));
+        assertTrue(keys.getAllValues().stream().flatMap(List::stream)
+                .anyMatch(key -> key.startsWith("verify:resume-review-contact:code:")));
+    }
 }

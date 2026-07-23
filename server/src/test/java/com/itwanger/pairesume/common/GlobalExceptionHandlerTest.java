@@ -59,6 +59,14 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void inviteClaimOwnershipUsesForbiddenStatus() {
+        assertEquals(HttpStatus.FORBIDDEN,
+                handler.handleBusiness(
+                        new BusinessException(ResultCode.VIP_INVITE_CLAIM_FORBIDDEN)
+                ).getStatusCode());
+    }
+
+    @Test
     void disabledPaymentUsesServiceUnavailableStatus() {
         assertEquals(HttpStatus.SERVICE_UNAVAILABLE,
                 handler.handleBusiness(new BusinessException(ResultCode.PAYMENT_NOT_ENABLED)).getStatusCode());

@@ -9,6 +9,7 @@ import com.itwanger.pairesume.entity.Resume;
 import com.itwanger.pairesume.entity.ResumeModule;
 import com.itwanger.pairesume.mapper.ResumeMapper;
 import com.itwanger.pairesume.mapper.ResumeModuleMapper;
+import com.itwanger.pairesume.security.ResumePhotoSecurityPolicy;
 import com.itwanger.pairesume.service.ResumeModuleService;
 import org.springframework.stereotype.Service;
 
@@ -43,6 +44,7 @@ public class ResumeModuleServiceImpl implements ResumeModuleService {
     public ResumeModule create(Long resumeId, Long userId, ModuleCreateDTO dto) {
         verifyResumeOwnership(resumeId, userId);
         validateSingletonModule(resumeId, dto.getModuleType());
+        ResumePhotoSecurityPolicy.validateModuleContent(dto.getModuleType(), dto.getContent());
 
         var module = new ResumeModule();
         module.setResumeId(resumeId);
@@ -63,6 +65,7 @@ public class ResumeModuleServiceImpl implements ResumeModuleService {
             throw new BusinessException(ResultCode.MODULE_NOT_FOUND);
         }
 
+        ResumePhotoSecurityPolicy.validateModuleContent(module.getModuleType(), dto.getContent());
         module.setContent(dto.getContent());
         moduleMapper.updateById(module);
         touchResume(resumeId);

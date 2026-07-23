@@ -4,6 +4,9 @@ import com.itwanger.pairesume.common.Result;
 import com.itwanger.pairesume.dto.CreatorMarketListingDTO;
 import com.itwanger.pairesume.dto.MarketListingUpsertDTO;
 import com.itwanger.pairesume.dto.MarketPrivacyConfirmationDTO;
+import com.itwanger.pairesume.dto.MarketplaceAppealDTO;
+import com.itwanger.pairesume.dto.MarketplaceAppealRequestDTO;
+import com.itwanger.pairesume.service.MarketplaceGovernanceService;
 import com.itwanger.pairesume.service.ResumeMarketplaceService;
 import com.itwanger.pairesume.util.SecurityUtils;
 import io.swagger.v3.oas.annotations.Operation;
@@ -26,6 +29,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class CreatorMarketplaceController {
     private final ResumeMarketplaceService resumeMarketplaceService;
+    private final MarketplaceGovernanceService marketplaceGovernanceService;
 
     @Operation(summary = "获取我的公开简历")
     @GetMapping("/listings")
@@ -42,7 +46,7 @@ public class CreatorMarketplaceController {
         ));
     }
 
-    @Operation(summary = "公开或更新简历市场版本")
+    @Operation(summary = "提交或更新待审核的简历市场版本")
     @PutMapping("/resumes/{resumeId}/listing")
     public Result<CreatorMarketListingDTO> publish(
             @PathVariable Long resumeId,
@@ -64,7 +68,7 @@ public class CreatorMarketplaceController {
         ));
     }
 
-    @Operation(summary = "从实时简历生成新的公开版本")
+    @Operation(summary = "从实时简历生成新的待审核版本")
     @PostMapping("/resumes/{resumeId}/listing/refresh-revision")
     public Result<CreatorMarketListingDTO> refreshRevision(
             @PathVariable Long resumeId,
@@ -75,5 +79,22 @@ public class CreatorMarketplaceController {
                 resumeId,
                 dto
         ));
+    }
+
+    @Operation(summary = "获取我的市场申诉")
+    @GetMapping("/marketplace/appeals")
+    public Result<List<MarketplaceAppealDTO>> appeals() {
+        return Result.success(marketplaceGovernanceService.listCreatorAppeals(
+                SecurityUtils.getCurrentUserId()));
+    }
+
+    @Operation(summary = "对投稿驳回或平台下架发起申诉")
+    @PostMapping("/listings/{listingId}/appeals")
+    public Result<MarketplaceAppealDTO> appeal(
+            @PathVariable Long listingId,
+            @Valid @RequestBody MarketplaceAppealRequestDTO dto
+    ) {
+        return Result.success(marketplaceGovernanceService.submitAppeal(
+                SecurityUtils.getCurrentUserId(), listingId, dto));
     }
 }

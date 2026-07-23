@@ -5,11 +5,20 @@ import com.itwanger.pairesume.entity.ResumeMarketListing;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
 import java.util.List;
 
 @Mapper
 public interface ResumeMarketListingMapper extends BaseMapper<ResumeMarketListing> {
+    @Update("""
+            UPDATE resume_market_listing
+            SET view_count = view_count + 1,
+                updated_at = updated_at
+            WHERE id = #{listingId}
+            """)
+    int incrementViewCount(@Param("listingId") Long listingId);
+
     @Select("SELECT * FROM resume_market_listing WHERE id = #{id} FOR UPDATE")
     ResumeMarketListing selectByIdForUpdate(@Param("id") Long id);
 
@@ -43,7 +52,7 @@ public interface ResumeMarketListingMapper extends BaseMapper<ResumeMarketListin
                     OR CAST(l.tags AS CHAR) LIKE CONCAT('%', #{query}, '%')
                 )
               </if>
-            ORDER BY l.updated_at DESC, l.id DESC
+            ORDER BY r.created_at DESC, l.id DESC
             LIMIT #{size} OFFSET #{offset}
             </script>
             """)

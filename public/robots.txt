@@ -1,0 +1,18 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /creator
+Disallow: /dashboard
+Disallow: /editor
+Disallow: /forgot-password
+Disallow: /legal-consent
+Disallow: /login
+Disallow: /membership
+Disallow: /preview
+Disallow: /register
+Disallow: /settings
+Disallow: /showcases
+Disallow: /survey
+Disallow: /vip
+
+Sitemap: https://resume.paicoding.com/sitemap.xml

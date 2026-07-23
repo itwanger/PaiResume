@@ -13,6 +13,7 @@ public class MarketListingCardDTO {
     private List<String> tags;
     private String accessType;
     private Integer priceCents;
+    private Long viewCount;
     private String publicationStatus;
     private String moderationStatus;
     private String updatedAt;

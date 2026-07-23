@@ -13,4 +13,8 @@ public class PlatformConfigDTO {
     @NotNull(message = "问卷优惠金额不能为空")
     @Min(value = 0, message = "问卷优惠金额不能小于 0")
     private Integer questionnaireCouponAmountCents;
+
+    @NotNull(message = "人工精修价格不能为空")
+    @Min(value = 0, message = "人工精修价格不能小于 0")
+    private Integer resumeReviewPriceCents;
 }

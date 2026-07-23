@@ -52,7 +52,9 @@ export function useAnalysis() {
       })
       setAnalysisResult(result)
     } catch (err) {
-      console.error('分析失败:', err)
+      if (import.meta.env.DEV) {
+        console.error('分析失败:', err instanceof Error ? err.name : 'Error')
+      }
       setError(err instanceof Error ? err.message : '分析失败，请重试')
       setAnalysisStatus(null)
     } finally {
@@ -68,7 +70,9 @@ export function useAnalysis() {
       const { data } = await resumeApi.getLatestAnalysis(resumeId)
       setAnalysisResult(data.data)
     } catch (err) {
-      console.error('加载最近分析结果失败:', err)
+      if (import.meta.env.DEV) {
+        console.error('加载最近分析结果失败:', err instanceof Error ? err.name : 'Error')
+      }
     }
   }, [])
 

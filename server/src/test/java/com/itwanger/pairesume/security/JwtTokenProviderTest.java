@@ -23,7 +23,9 @@ class JwtTokenProviderTest {
 
     @Test
     void accessAndRefreshTokensHaveStrictlySeparatedUses() {
+        long beforeIssue = System.currentTimeMillis();
         String accessToken = tokenProvider.generateAccessToken(42L, "user@example.com", "USER", "session-1");
+        long afterIssue = System.currentTimeMillis();
         String refreshToken = tokenProvider.generateRefreshToken(42L, "session-1");
 
         assertTrue(tokenProvider.validateAccessToken(accessToken));
@@ -35,6 +37,10 @@ class JwtTokenProviderTest {
         assertEquals("42", accessClaims.getSubject());
         assertEquals("USER", accessClaims.get(JwtTokenProvider.ROLE_CLAIM, String.class));
         assertEquals("session-1", tokenProvider.getSessionIdFromToken(accessToken));
+        long issuedAtMillis = ((Number) accessClaims.get(JwtTokenProvider.ISSUED_AT_MILLIS_CLAIM)).longValue();
+        assertTrue(issuedAtMillis >= beforeIssue);
+        assertTrue(issuedAtMillis <= afterIssue);
+        assertEquals(issuedAtMillis / 1000L, accessClaims.getIssuedAt().getTime() / 1000L);
     }
 
     @Test
@@ -49,5 +55,13 @@ class JwtTokenProviderTest {
         );
 
         assertFalse(otherProvider.validateAccessToken(token));
+    }
+
+    @Test
+    void qrOnlyAccessTokenDoesNotNeedOrExposeAFakeEmailClaim() {
+        String token = tokenProvider.generateAccessToken(42L, null, "USER", "session-qr");
+
+        assertTrue(tokenProvider.validateAccessToken(token));
+        assertNull(tokenProvider.parseToken(token).get("email"));
     }
 }

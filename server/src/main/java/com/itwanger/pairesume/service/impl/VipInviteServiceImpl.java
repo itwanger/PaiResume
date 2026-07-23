@@ -20,6 +20,7 @@ import com.itwanger.pairesume.util.DateTimeUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
@@ -31,7 +32,7 @@ import java.util.List;
 public class VipInviteServiceImpl implements VipInviteService {
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final String CODE_CHARACTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-    private static final int MEMBERSHIP_DAYS = 30;
+    private static final int DEFAULT_MEMBERSHIP_DAYS = 30;
     private static final int DEFAULT_MAX_REDEMPTIONS = 100;
     private static final int DEFAULT_EXPIRES_IN_DAYS = 30;
 
@@ -53,7 +54,9 @@ public class VipInviteServiceImpl implements VipInviteService {
             invite.setMaxRedemptions(dto != null && dto.getMaxRedemptions() != null
                     ? dto.getMaxRedemptions() : DEFAULT_MAX_REDEMPTIONS);
             invite.setRedeemedCount(0);
-            invite.setMembershipDays(MEMBERSHIP_DAYS);
+            int membershipDays = dto != null && dto.getMembershipDays() != null
+                    ? dto.getMembershipDays() : DEFAULT_MEMBERSHIP_DAYS;
+            invite.setMembershipDays(membershipDays);
             int expiresInDays = dto != null && dto.getExpiresInDays() != null
                     ? dto.getExpiresInDays() : DEFAULT_EXPIRES_IN_DAYS;
             invite.setExpiresAt(LocalDateTime.now().plusDays(expiresInDays));
@@ -65,6 +68,7 @@ public class VipInviteServiceImpl implements VipInviteService {
                         invite.getRemark().isBlank() ? "创建知识星球 VIP 邀请码" : invite.getRemark(),
                         "创建邀请码 " + invite.getCode()
                                 + "，名额 " + invite.getMaxRedemptions()
+                                + "，权益 " + membershipDays + " 天"
                                 + "，有效期 " + expiresInDays + " 天"
                 );
                 return toAdminDto(invite);
@@ -171,31 +175,58 @@ public class VipInviteServiceImpl implements VipInviteService {
         if (user == null) {
             throw new BusinessException(ResultCode.USER_NOT_FOUND);
         }
-        vipInviteRateLimitService.acquireAttempt(user.getEmail(), clientIp);
+        vipInviteRateLimitService.acquireAttempt("user:" + userId, clientIp);
+        validateUserForRedemption(user);
+
+        VipInviteCode invite = vipInviteCodeMapper.selectByCodeForUpdate(normalizeCode(code));
+        validateForRedemption(invite);
+        return grantInviteMembership(user, invite);
+    }
+
+    @Override
+    @Transactional(
+            propagation = Propagation.MANDATORY,
+            noRollbackFor = BusinessException.class
+    )
+    public VipInviteRedemptionDTO redeemClaim(Long userId, Long inviteCodeId) {
+        User user = userMapper.selectByIdForUpdate(userId);
+        if (user == null) {
+            throw new BusinessException(ResultCode.USER_NOT_FOUND);
+        }
+        validateUserForRedemption(user);
+
+        VipInviteCode invite = vipInviteCodeMapper.selectByIdForUpdate(inviteCodeId);
+        validateForRedemption(invite);
+        return grantInviteMembership(user, invite);
+    }
+
+    private void validateUserForRedemption(User user) {
         if (hasActiveMembership(user)) {
             throw new BusinessException(ResultCode.MEMBERSHIP_ALREADY_ACTIVE);
         }
         Long previousRedemptions = vipInviteRedemptionMapper.selectCount(
                 new LambdaQueryWrapper<VipInviteRedemption>()
-                        .eq(VipInviteRedemption::getUserId, userId)
+                        .eq(VipInviteRedemption::getUserId, user.getId())
         );
         if (previousRedemptions != null && previousRedemptions > 0) {
             throw new BusinessException(ResultCode.VIP_INVITE_USER_ALREADY_REDEEMED);
         }
+    }
 
-        VipInviteCode invite = vipInviteCodeMapper.selectByCodeForUpdate(normalizeCode(code));
-        validateForRedemption(invite);
-
+    private VipInviteRedemptionDTO grantInviteMembership(User user, VipInviteCode invite) {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime membershipExpiresAt = now.plusDays(invite.getMembershipDays());
         VipInviteRedemption redemption = new VipInviteRedemption();
         redemption.setInviteCodeId(invite.getId());
-        redemption.setUserId(userId);
+        redemption.setUserId(user.getId());
         redemption.setMembershipStartedAt(now);
         redemption.setMembershipExpiresAt(membershipExpiresAt);
         redemption.setRedemptionStatus("ACTIVE");
         redemption.setRedeemedAt(now);
-        vipInviteRedemptionMapper.insert(redemption);
+        requireAffected(
+                vipInviteRedemptionMapper.insert(redemption),
+                "VIP invite redemption insert was lost"
+        );
 
         user.setMembershipStatus("ACTIVE");
         user.setMembershipGrantedAt(now);
@@ -203,14 +234,20 @@ public class VipInviteServiceImpl implements VipInviteService {
         user.setMembershipOriginType("VIP_INVITE");
         user.setMembershipOriginId(redemption.getId());
         user.setMembershipExpiresAt(membershipExpiresAt);
-        userMapper.updateMembership(user);
+        requireAffected(
+                userMapper.updateMembership(user),
+                "VIP invite membership update was lost"
+        );
 
         int redeemedCount = invite.getRedeemedCount() + 1;
         invite.setRedeemedCount(redeemedCount);
         if (redeemedCount >= invite.getMaxRedemptions()) {
             invite.setInviteStatus("EXHAUSTED");
         }
-        vipInviteCodeMapper.updateById(invite);
+        requireAffected(
+                vipInviteCodeMapper.updateById(invite),
+                "VIP invite quota update was lost"
+        );
 
         return new VipInviteRedemptionDTO(
                 "ACTIVE",
@@ -218,6 +255,12 @@ public class VipInviteServiceImpl implements VipInviteService {
                 DateTimeUtils.format(membershipExpiresAt),
                 "VIP_INVITE"
         );
+    }
+
+    private void requireAffected(int affected, String message) {
+        if (affected != 1) {
+            throw new IllegalStateException(message);
+        }
     }
 
     private void validateForRedemption(VipInviteCode invite) {
@@ -232,6 +275,10 @@ public class VipInviteServiceImpl implements VipInviteService {
         }
         if (invite.getExpiresAt() != null && !invite.getExpiresAt().isAfter(LocalDateTime.now())) {
             throw new BusinessException(ResultCode.VIP_INVITE_EXPIRED);
+        }
+        if (invite.getRedeemedCount() == null || invite.getMaxRedemptions() == null
+                || invite.getRedeemedCount() >= invite.getMaxRedemptions()) {
+            throw new BusinessException(ResultCode.VIP_INVITE_EXHAUSTED);
         }
     }
 

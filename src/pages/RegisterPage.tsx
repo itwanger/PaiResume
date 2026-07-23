@@ -18,6 +18,7 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false)
   const [codeSent, setCodeSent] = useState(false)
   const [countdown, setCountdown] = useState(0)
+  const [agreementsAccepted, setAgreementsAccepted] = useState(false)
   const returnTo = getSafeInternalPath(searchParams.get('redirect'), AUTHENTICATED_HOME_PATH)
 
   const handleSendCode = async () => {
@@ -65,9 +66,21 @@ export default function RegisterPage() {
       return
     }
 
+    if (!agreementsAccepted) {
+      setError('请先阅读并同意服务条款和隐私政策')
+      return
+    }
+
     setLoading(true)
     try {
-      await register(email, password, verificationCode, inviteCode.trim() || undefined)
+      await register(
+        email,
+        password,
+        verificationCode,
+        agreementsAccepted,
+        agreementsAccepted,
+        inviteCode.trim() || undefined,
+      )
       navigate(returnTo, { replace: true })
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : '注册失败，请稍后重试'
@@ -78,12 +91,15 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <LogoMark className="mx-auto mb-4 h-14 w-14" />
-          <h1 className="text-2xl font-bold text-gray-900">派简历</h1>
-          <p className="text-gray-500 mt-1">创建新账号</p>
+    <div className="min-h-screen bg-gray-50 px-4 py-8 sm:py-10">
+      <div className="mx-auto w-full max-w-md">
+        <div className="mb-5 flex items-center justify-center gap-3">
+          <Link to="/" className="inline-flex items-center gap-2.5" aria-label="返回派简历首页">
+            <LogoMark className="h-10 w-10" />
+            <span className="text-xl font-bold tracking-tight text-gray-900">派简历</span>
+          </Link>
+          <span className="h-5 w-px bg-gray-300" aria-hidden="true" />
+          <h1 className="text-base font-medium text-gray-500">创建新账号</h1>
         </div>
 
         <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-5">
@@ -157,18 +173,43 @@ export default function RegisterPage() {
               type="text"
               value={inviteCode}
               onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-              placeholder="星球用户可填写，注册后获得 30 天 VIP"
+              placeholder="星球用户可填写，权益期限以邀请码批次为准"
               className="w-full px-4 py-2.5 border border-emerald-300 bg-white rounded-lg focus:ring-2 focus:ring-emerald-200 focus:border-emerald-500 outline-none transition-colors"
               autoComplete="off"
               maxLength={64}
             />
-            <div className="mt-2 space-y-1 text-xs leading-5 text-emerald-800">
-              <p>每个账号只能领取一次，不能叠加，也不能换一个邀请码重复续期。</p>
-              <p>邀请码截止时间只限制领取；兑换成功后，从成功时间起获得完整 30 天 VIP，到期不会自动续期。</p>
-              <p>到期后简历数据继续保留，免费编辑、保存和导入不受影响。</p>
-              <p>邀请码仅限星球成员本人使用，请勿截图、转发或发布到公开渠道。</p>
-            </div>
           </div>
+
+          <label className="flex cursor-pointer items-start gap-3 text-sm leading-6 text-gray-600">
+            <input
+              type="checkbox"
+              checked={agreementsAccepted}
+              onChange={(event) => setAgreementsAccepted(event.target.checked)}
+              className="mt-1 h-4 w-4 shrink-0 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              required
+            />
+            <span>
+              我已阅读并同意
+              <Link
+                to="/terms"
+                target="_blank"
+                rel="noreferrer"
+                className="mx-1 font-medium text-primary-600 hover:text-primary-700"
+              >
+                《服务条款》
+              </Link>
+              和
+              <Link
+                to="/privacy"
+                target="_blank"
+                rel="noreferrer"
+                className="ml-1 font-medium text-primary-600 hover:text-primary-700"
+              >
+                《隐私政策》
+              </Link>
+              ，并知悉仅在我主动使用 AI 功能时，相关简历内容会发送给政策所述第三方模型服务商处理
+            </span>
+          </label>
 
           <button
             type="submit"
@@ -183,6 +224,13 @@ export default function RegisterPage() {
             <Link to={buildLoginPath(returnTo)} className="text-primary-600 hover:text-primary-700 font-medium ml-1">
               立即登录
             </Link>
+          </p>
+
+          <p className="text-center text-xs leading-5 text-gray-400">
+            付费前请同时查看
+            <Link to="/refund-policy" className="mx-1 hover:text-primary-600">退款规则</Link>
+            与
+            <Link to="/customer-service" className="ml-1 hover:text-primary-600">客服说明</Link>
           </p>
         </form>
       </div>

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.itwanger.pairesume.common.BusinessException;
 import com.itwanger.pairesume.common.ResultCode;
 import com.itwanger.pairesume.dto.ResumeExportRequestDTO;
+import com.itwanger.pairesume.security.ResumePhotoSecurityPolicy;
 import com.itwanger.pairesume.service.MembershipService;
 import com.itwanger.pairesume.service.ResumeExportService;
 import com.itwanger.pairesume.service.ResumeModuleService;
@@ -43,6 +44,7 @@ public class ResumeExportServiceImpl implements ResumeExportService {
 
         var resume = resumeService.getByIdAndUserId(resumeId, userId);
         var modules = resumeModuleService.listByResumeId(resumeId, userId);
+        ResumePhotoSecurityPolicy.validateModulesForExport(modules);
 
         Path tempFile = null;
         try {
@@ -76,7 +78,8 @@ public class ResumeExportServiceImpl implements ResumeExportService {
                 throw new BusinessException(ResultCode.EXPORT_FAILED.getCode(), "导出超时");
             }
             if (process.exitValue() != 0) {
-                log.error("Resume export worker failed: {}", processOutput);
+                log.error("Resume export worker failed: exitCode={}, outputLength={}",
+                        process.exitValue(), processOutput.length());
                 throw new BusinessException(ResultCode.EXPORT_FAILED);
             }
 
@@ -85,14 +88,15 @@ public class ResumeExportServiceImpl implements ResumeExportService {
         } catch (BusinessException e) {
             throw e;
         } catch (Exception e) {
-            log.error("Failed to export resume {}", resumeId, e);
+            log.error("Failed to export resume: resumeId={}, errorType={}",
+                    resumeId, e.getClass().getSimpleName());
             throw new BusinessException(ResultCode.EXPORT_FAILED);
         } finally {
             if (tempFile != null) {
                 try {
                     Files.deleteIfExists(tempFile);
                 } catch (IOException e) {
-                    log.warn("Failed to delete temp export file {}", tempFile, e);
+                    log.warn("Failed to delete temp export file: errorType={}", e.getClass().getSimpleName());
                 }
             }
         }

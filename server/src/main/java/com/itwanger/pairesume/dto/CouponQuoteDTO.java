@@ -9,4 +9,5 @@ public class CouponQuoteDTO {
     private Integer payableAmount;
     private String couponStatus;
     private boolean paymentEnabled;
+    private Integer membershipDays;
 }

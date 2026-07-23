@@ -29,6 +29,15 @@ public class UserAuthIdentity {
 
     private LocalDateTime lastLoginAt;
 
+    /** 派聪明服务号当前关注状态；仅由签名桥接事件更新。 */
+    private Boolean subscribed;
+
+    private LocalDateTime subscribedAt;
+
+    private LocalDateTime unsubscribedAt;
+
+    private LocalDateTime subscriptionUpdatedAt;
+
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
 

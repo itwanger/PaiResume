@@ -2,6 +2,7 @@ package com.itwanger.pairesume.service.impl;
 
 import com.itwanger.pairesume.common.BusinessException;
 import com.itwanger.pairesume.common.ResultCode;
+import com.itwanger.pairesume.config.MarketplaceFeatureProperties;
 import com.itwanger.pairesume.entity.ResumeViewOrder;
 import com.itwanger.pairesume.mapper.ResumeMarketListingMapper;
 import com.itwanger.pairesume.mapper.ResumeViewOrderMapper;
@@ -35,6 +36,7 @@ class MarketplaceOrderServiceImplTest {
     @Mock private MarketplaceOrderSettlementService settlementService;
     @Mock private MarketplacePaymentGateway paymentGateway;
     @Mock private MarketplacePaymentProperties paymentProperties;
+    @Mock private MarketplaceFeatureProperties marketplaceFeatureProperties;
     @Mock private ResumeMarketListingMapper listingMapper;
     @Mock private ResumeViewOrderMapper orderMapper;
     @Mock private UserMapper userMapper;
@@ -121,7 +123,8 @@ class MarketplaceOrderServiceImplTest {
                 PaymentProviderState.CLOSED, "PR-1", null,
                 "app", "mch", "CNY", 1000, null);
         when(paymentGateway.provider()).thenReturn("wechat");
-        when(paymentProperties.isAcceptNewOrders()).thenReturn(true);
+        when(marketplaceFeatureProperties.isEnabled()).thenReturn(true);
+        when(paymentProperties.isMarketplaceAcceptNewOrders()).thenReturn(true);
         when(localOrderService.findOrCreate(
                 "slug", 7L, false, "old-key-123", "wechat", "WECHAT_NATIVE", true))
                 .thenReturn(new MarketplaceOrderDecision(order, null));
@@ -141,13 +144,25 @@ class MarketplaceOrderServiceImplTest {
 
     @Test
     void pausedProviderRejectsNewOrderButRemainsAvailableForOtherPaymentWork() {
-        when(paymentProperties.isAcceptNewOrders()).thenReturn(false);
+        when(marketplaceFeatureProperties.isEnabled()).thenReturn(true);
+        when(paymentProperties.isMarketplaceAcceptNewOrders()).thenReturn(false);
 
         BusinessException exception = assertThrows(BusinessException.class,
                 () -> service.createOrder("slug", 7L, false, "new-key-123", "127.0.0.1"));
 
         assertEquals(ResultCode.PAYMENT_NOT_ENABLED.getCode(), exception.getCode());
         verifyNoInteractions(localOrderService, paymentGateway);
+    }
+
+    @Test
+    void closedMarketplaceRejectsNewOrderBeforeReadingPaymentSwitch() {
+        when(marketplaceFeatureProperties.isEnabled()).thenReturn(false);
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> service.createOrder("slug", 7L, false, "new-key-123", "127.0.0.1"));
+
+        assertEquals(ResultCode.PAYMENT_NOT_ENABLED.getCode(), exception.getCode());
+        verifyNoInteractions(paymentProperties, localOrderService, paymentGateway);
     }
 
     @Test
@@ -162,7 +177,7 @@ class MarketplaceOrderServiceImplTest {
         service.handleWechatNotification(notification);
 
         verify(settlementService).settlePaidNotification("PR-1", providerPaid);
-        verify(paymentProperties, never()).isAcceptNewOrders();
+        verify(paymentProperties, never()).isMarketplaceAcceptNewOrders();
     }
 
     @Test
@@ -248,7 +263,7 @@ class MarketplaceOrderServiceImplTest {
 
         verify(paymentGateway).queryOrder("PR-1");
         verify(settlementService).settlePaidOrder("PR-1", providerPaid);
-        verify(paymentProperties, never()).isAcceptNewOrders();
+        verify(paymentProperties, never()).isMarketplaceAcceptNewOrders();
         verify(localOrderService).releaseReconciliationLease(
                 org.mockito.ArgumentMatchers.eq(10L),
                 org.mockito.ArgumentMatchers.anyString());

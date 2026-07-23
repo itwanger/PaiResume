@@ -1,0 +1,25 @@
+[Unit]
+Description=PaiResume backend
+After=network-online.target mysql.service redis.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pai-resume
+Group=pai-resume
+WorkingDirectory=/opt/pai-resume/current/server
+EnvironmentFile=/etc/pai-resume/pai-resume.env
+ExecStartPre=/opt/pai-resume/bin/production-preflight.sh
+ExecStart=/usr/bin/java -XX:MaxRAMPercentage=75 -jar /opt/pai-resume/current/server/pai-resume-server.jar
+SuccessExitStatus=143
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=45
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log/pai-resume /tmp
+
+[Install]
+WantedBy=multi-user.target

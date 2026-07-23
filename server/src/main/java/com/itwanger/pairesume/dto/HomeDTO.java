@@ -8,6 +8,7 @@ import java.util.List;
 public class HomeDTO {
     private Integer membershipPriceCents;
     private Integer questionnaireCouponAmountCents;
+    private boolean marketplaceEnabled;
     private List<ShowcaseCardDTO> showcases;
     private List<PublishedFeedbackDTO> testimonials;
 }

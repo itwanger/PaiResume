@@ -1,6 +1,7 @@
 package com.itwanger.pairesume.dto;
 
 import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -23,4 +24,10 @@ public class RegisterDTO {
 
     @Size(max = 64, message = "邀请码长度不能超过64个字符")
     private String inviteCode;
+
+    @AssertTrue(message = "请阅读并同意服务条款")
+    private boolean termsAccepted;
+
+    @AssertTrue(message = "请阅读并同意隐私政策")
+    private boolean privacyAccepted;
 }

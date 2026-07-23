@@ -26,7 +26,8 @@ public class MembershipController {
     @Operation(summary = "会员价格报价")
     @PostMapping("/quote")
     public Result<CouponQuoteDTO> quote(@RequestBody(required = false) MembershipQuoteRequestDTO dto) {
-        return Result.success(membershipService.quote(dto == null ? null : dto.getCouponCode()));
+        return Result.success(membershipService.quote(
+                SecurityUtils.getCurrentUserId(), dto == null ? null : dto.getCouponCode()));
     }
 
     @Operation(summary = "兑换 VIP 邀请码")

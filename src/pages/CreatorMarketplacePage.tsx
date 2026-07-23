@@ -6,6 +6,7 @@ import {
   type CreatorEarningsSummary,
   type CreatorListing,
   type CreatorListingPayload,
+  type MarketplaceAppeal,
   type MarketplaceAccessType,
 } from '../api/marketplace'
 import { resumeApi, type ResumeListItem } from '../api/resume'
@@ -87,10 +88,28 @@ function getStatusLabel(status: string): string {
   return labels[status] ?? status
 }
 
-function getModerationLabel(status: CreatorListing['moderationStatus']): string {
-  if (status === 'APPROVED') return '正常'
-  if (status === 'SUSPENDED') return '已暂停展示'
-  return status ?? ''
+function getReviewLabel(status: CreatorListing['reviewStatus']): string {
+  const labels: Record<CreatorListing['reviewStatus'], string> = {
+    PENDING: '待审核',
+    APPROVED: '审核通过',
+    REJECTED: '审核驳回',
+  }
+  return labels[status]
+}
+
+function getReviewBadgeClass(status: CreatorListing['reviewStatus']): string {
+  if (status === 'PENDING') return 'rounded-full bg-amber-50 px-3 py-1 text-amber-700'
+  if (status === 'REJECTED') return 'rounded-full bg-red-50 px-3 py-1 text-red-700'
+  return 'rounded-full bg-emerald-50 px-3 py-1 text-emerald-700'
+}
+
+function getAppealStatusLabel(status: MarketplaceAppeal['appealStatus']): string {
+  const labels: Record<MarketplaceAppeal['appealStatus'], string> = {
+    OPEN: '处理中',
+    APPROVED: '申诉通过',
+    REJECTED: '申诉驳回',
+  }
+  return labels[status]
 }
 
 export default function CreatorMarketplacePage() {
@@ -116,12 +135,15 @@ export default function CreatorMarketplacePage() {
     reversedCount: 0,
   })
   const [earnings, setEarnings] = useState<CreatorEarning[]>([])
+  const [appeals, setAppeals] = useState<MarketplaceAppeal[]>([])
   const [loading, setLoading] = useState(true)
   const [listingLoading, setListingLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [unpublishing, setUnpublishing] = useState(false)
   const [refreshingRevision, setRefreshingRevision] = useState(false)
   const [settlementRequestingId, setSettlementRequestingId] = useState<number | null>(null)
+  const [appealDescription, setAppealDescription] = useState('')
+  const [appealSubmitting, setAppealSubmitting] = useState(false)
   const [confirmUnpublishOpen, setConfirmUnpublishOpen] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -129,6 +151,11 @@ export default function CreatorMarketplacePage() {
   const selectedResume = useMemo(
     () => resumes.find((resume) => resume.id === selectedResumeId) ?? null,
     [resumes, selectedResumeId],
+  )
+
+  const selectedAppeals = useMemo(
+    () => listing ? appeals.filter((appeal) => appeal.listingId === listing.id) : [],
+    [appeals, listing],
   )
 
   const refreshEarnings = useCallback(async () => {
@@ -144,11 +171,12 @@ export default function CreatorMarketplacePage() {
     setLoading(true)
     setError('')
     try {
-      const [resumeResponse, listingResponse, summaryResponse, earningResponse] = await Promise.all([
+      const [resumeResponse, listingResponse, summaryResponse, earningResponse, appealResponse] = await Promise.all([
         resumeApi.list(),
         creatorMarketplaceApi.listings(),
         creatorMarketplaceApi.earningsSummary(),
         creatorMarketplaceApi.earnings(),
+        creatorMarketplaceApi.appeals(),
       ])
       const nextResumes = resumeResponse.data.data
       const nextListings = listingResponse.data.data
@@ -156,6 +184,7 @@ export default function CreatorMarketplacePage() {
       setListings(nextListings)
       setEarningsSummary(summaryResponse.data.data)
       setEarnings(earningResponse.data.data)
+      setAppeals(appealResponse.data.data)
       setSelectedResumeId((current) => current ?? nextResumes[0]?.id ?? null)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : '创作者中心加载失败')
@@ -180,6 +209,7 @@ export default function CreatorMarketplacePage() {
     setListingLoading(true)
     setError('')
     setSuccess('')
+    setAppealDescription('')
 
     creatorMarketplaceApi.listing(selectedResumeId)
       .then(({ data: response }) => {
@@ -243,7 +273,9 @@ export default function CreatorMarketplacePage() {
       setListing(response.data)
       setListings((current) => upsertListing(current, response.data))
       setForm((current) => ({ ...current, privacyConfirmed: false }))
-      setSuccess('已发布并生成新的只读快照。后续修改原简历不会自动改变已公开内容。')
+      setSuccess(response.data.currentRevisionId
+        ? '更新已提交审核。审核期间公开页继续展示上一个已通过版本，审核通过后再自动切换。'
+        : '首次投稿已提交审核。审核通过前不会公开，也不能被搜索或购买。')
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : '简历发布失败')
     } finally {
@@ -286,7 +318,7 @@ export default function CreatorMarketplacePage() {
       setListing(response.data)
       setListings((current) => upsertListing(current, response.data))
       setForm((current) => ({ ...current, privacyConfirmed: false }))
-      setSuccess('公开快照已刷新为当前简历内容。')
+      setSuccess('新快照已提交审核。审核期间公开页继续展示上一个已通过版本。')
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : '公开快照刷新失败')
     } finally {
@@ -316,8 +348,34 @@ export default function CreatorMarketplacePage() {
     }
   }
 
+  const handleSubmitAppeal = async () => {
+    if (!listing || appealSubmitting) return
+
+    const description = appealDescription.trim()
+    if (description.length < 10) {
+      setError('请至少填写 10 个字符，说明申诉理由和已经完成的修改。')
+      return
+    }
+
+    setAppealSubmitting(true)
+    setError('')
+    setSuccess('')
+    try {
+      const { data: response } = await creatorMarketplaceApi.submitAppeal(listing.id, description)
+      setAppeals((current) => [response.data, ...current])
+      setAppealDescription('')
+      setSuccess('申诉已提交，平台会在后台复核处理。')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : '申诉提交失败')
+    } finally {
+      setAppealSubmitting(false)
+    }
+  }
+
   const totalIncome = earningsSummary.lifetimeNetEarnedCents
   const isPublished = listing?.publicationStatus === 'PUBLISHED'
+  const canAppeal = listing?.moderationStatus === 'SUSPENDED' || listing?.reviewStatus === 'REJECTED'
+  const hasOpenAppeal = selectedAppeals.some((appeal) => appeal.appealStatus === 'OPEN')
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -329,7 +387,7 @@ export default function CreatorMarketplacePage() {
             <p className="text-sm font-medium text-primary-700">简历内容市场</p>
             <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-950">创作者中心</h1>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-              你可以免费公开简历，也可以设置一次性查看价格。内容正常展示期间，买家支付一次后可持续查看；作者收益由平台记账，可逐笔申请线下结算。
+              你可以免费公开简历，也可以设置一次性查看价格。所有首次投稿和版本更新都会先进入平台审核；作者收益由平台记账，可逐笔申请线下结算。
             </p>
           </div>
           <Link to="/dashboard" className="text-sm font-medium text-primary-700 hover:text-primary-800">返回我的简历</Link>
@@ -371,7 +429,12 @@ export default function CreatorMarketplacePage() {
           </div>
         ) : null}
 
-        <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm leading-6 text-red-800">
+        <div className="mt-6 rounded-2xl border border-primary-200 bg-primary-50 px-5 py-4 text-sm leading-6 text-primary-800">
+          <strong className="font-semibold text-primary-950">投稿先审后发：</strong>
+          首次投稿在审核通过前不会公开；已公开简历提交更新后，审核期间仍展示上一个已通过版本，不会提前替换线上内容。
+        </div>
+
+        <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm leading-6 text-red-800">
           <strong className="font-semibold text-red-950">发布前请逐项检查隐私：</strong>
           公开内容可能包含电话、邮箱、微信、照片、住址、学校和任职经历。平台不会自动替你脱敏，请删除不希望陌生人看到的信息后再发布。
         </div>
@@ -412,7 +475,15 @@ export default function CreatorMarketplacePage() {
                     >
                       <span className="block truncate text-sm font-medium text-slate-900">{resume.title}</span>
                       <span className="mt-1 flex items-center justify-between gap-2 text-xs text-slate-500">
-                        <span>{resumeListing?.publicationStatus === 'PUBLISHED' ? '已公开' : '未公开'}</span>
+                        <span>
+                          {resumeListing?.moderationStatus === 'SUSPENDED'
+                            ? '平台已下架'
+                            : resumeListing?.reviewStatus === 'PENDING'
+                              ? '待审核'
+                              : resumeListing?.reviewStatus === 'REJECTED'
+                                ? '审核驳回'
+                                : resumeListing?.publicationStatus === 'PUBLISHED' ? '已公开' : '未公开'}
+                        </span>
                         {resumeListing?.accessType === 'PAID' ? <span>{formatCurrency(resumeListing.priceCents)}</span> : null}
                       </span>
                     </button>
@@ -429,13 +500,15 @@ export default function CreatorMarketplacePage() {
                     <h2 className="mt-1 text-xl font-semibold text-slate-950">{selectedResume?.title ?? '当前简历'}</h2>
                   </div>
                   <div className="flex flex-wrap gap-2 text-xs">
-                    <span className={isPublished
-                      ? 'rounded-full bg-emerald-50 px-3 py-1 text-emerald-700'
-                      : 'rounded-full bg-slate-100 px-3 py-1 text-slate-600'}>
-                      {isPublished ? '已公开' : '未公开'}
+                    <span className={listing?.moderationStatus === 'SUSPENDED'
+                      ? 'rounded-full bg-red-50 px-3 py-1 text-red-700'
+                      : isPublished
+                        ? 'rounded-full bg-emerald-50 px-3 py-1 text-emerald-700'
+                        : 'rounded-full bg-slate-100 px-3 py-1 text-slate-600'}>
+                      {listing?.moderationStatus === 'SUSPENDED' ? '平台已下架' : isPublished ? '已公开' : '未公开'}
                     </span>
-                    {listing?.moderationStatus ? (
-                      <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-600">状态：{getModerationLabel(listing.moderationStatus)}</span>
+                    {listing?.reviewStatus ? (
+                      <span className={getReviewBadgeClass(listing.reviewStatus)}>{getReviewLabel(listing.reviewStatus)}</span>
                     ) : null}
                   </div>
                 </div>
@@ -445,6 +518,23 @@ export default function CreatorMarketplacePage() {
                     <strong className="font-semibold text-red-950">平台已暂停这份简历：</strong>
                     暂停期间只有你和管理员可以查看，其他访客及历史买家均无法访问。
                     {listing.moderationReason ? ` 原因：${listing.moderationReason}` : ''}
+                  </div>
+                ) : null}
+
+                {listing?.moderationStatus !== 'SUSPENDED' && listing?.reviewStatus === 'PENDING' ? (
+                  <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
+                    <strong className="font-semibold text-amber-950">版本正在审核：</strong>
+                    {listing.currentRevisionId && listing.publicationStatus === 'PUBLISHED'
+                      ? '公开页继续展示上一个已通过版本；本次待审版本只有你和管理员可查看，审核通过后才会切换。'
+                      : '这是首次投稿，审核通过前不会公开、搜索或开放购买。'}
+                  </div>
+                ) : null}
+
+                {listing?.moderationStatus !== 'SUSPENDED' && listing?.reviewStatus === 'REJECTED' ? (
+                  <div className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-800">
+                    <strong className="font-semibold text-red-950">本次投稿未通过审核。</strong>
+                    {listing.moderationReason ? ` 原因：${listing.moderationReason}` : ''}
+                    {' '}你可以修改后重新提交，也可以在下方发起申诉。
                   </div>
                 ) : null}
 
@@ -541,13 +631,13 @@ export default function CreatorMarketplacePage() {
                         className="mt-0.5 h-4 w-4 rounded border-red-300 text-primary-600 focus:ring-primary-500"
                       />
                       <span className="text-sm leading-6 text-red-900">
-                        我已检查简历正文，并确认同意公开其中可能包含的电话、邮箱、微信、照片及经历信息。每次发布或更新定价前都需要重新确认。
+                        我已检查简历正文，并确认同意在审核通过后公开其中可能包含的电话、邮箱、微信、照片及经历信息。每次投稿或更新定价前都需要重新确认。
                       </span>
                     </label>
 
                     {listing?.snapshotOutdated ? (
                       <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
-                        原简历已更新，当前公开快照仍是旧版本。点击“刷新公开快照”后才会向新访客展示最新内容。
+                        原简历已更新，当前公开快照仍是旧版本。点击“提交最新快照审核”，并在审核通过后，才会向新访客展示最新内容。
                       </div>
                     ) : null}
 
@@ -558,7 +648,7 @@ export default function CreatorMarketplacePage() {
                         disabled={saving}
                         className="inline-flex items-center justify-center rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-primary-700 disabled:cursor-wait disabled:opacity-60"
                       >
-                        {saving ? '正在生成公开快照...' : isPublished ? '保存设置并更新快照' : '确认并发布'}
+                        {saving ? '正在生成待审快照...' : isPublished ? '提交更新审核' : '提交发布审核'}
                       </button>
                       {isPublished ? (
                         <>
@@ -568,7 +658,7 @@ export default function CreatorMarketplacePage() {
                             disabled={refreshingRevision}
                             className="inline-flex items-center justify-center rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60"
                           >
-                            {refreshingRevision ? '正在刷新...' : '刷新公开快照'}
+                            {refreshingRevision ? '正在生成待审快照...' : '提交最新快照审核'}
                           </button>
                           <button
                             type="button"
@@ -588,6 +678,95 @@ export default function CreatorMarketplacePage() {
                         </>
                       ) : null}
                     </div>
+                  </div>
+                )}
+              </section>
+
+              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+                <div>
+                  <h2 className="text-xl font-semibold text-slate-950">审核与申诉</h2>
+                  <p className="mt-1 text-sm leading-6 text-slate-500">
+                    投稿被驳回或内容被平台下架后，可以补充修改说明和权利证明，提交一次待处理申诉。
+                  </p>
+                </div>
+
+                {!listing ? (
+                  <div className="mt-5 rounded-xl border border-dashed border-slate-300 px-5 py-8 text-center text-sm text-slate-500">
+                    提交投稿后，这里会显示审核结果和申诉记录。
+                  </div>
+                ) : (
+                  <div className="mt-5 space-y-5">
+                    {canAppeal ? (
+                      hasOpenAppeal ? (
+                        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
+                          当前已有一条申诉正在处理中。平台给出结果前无需重复提交。
+                        </div>
+                      ) : (
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                          <label htmlFor="marketplace-appeal-description" className="block text-sm font-medium text-slate-800">
+                            {listing.moderationStatus === 'SUSPENDED' ? '下架申诉说明' : '审核驳回申诉说明'}
+                          </label>
+                          <textarea
+                            id="marketplace-appeal-description"
+                            rows={4}
+                            minLength={10}
+                            maxLength={1000}
+                            value={appealDescription}
+                            onChange={(event) => setAppealDescription(event.target.value)}
+                            placeholder="请说明争议点、已经完成的修改，以及平台可以如何核验。"
+                            className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm leading-6 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+                          />
+                          <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <span className="text-xs text-slate-400">{appealDescription.length}/1000</span>
+                            <button
+                              type="button"
+                              onClick={() => void handleSubmitAppeal()}
+                              disabled={appealSubmitting}
+                              className="rounded-lg border border-primary-200 bg-white px-4 py-2.5 text-sm font-medium text-primary-700 hover:bg-primary-50 disabled:cursor-wait disabled:opacity-60"
+                            >
+                              {appealSubmitting ? '正在提交...' : '提交申诉'}
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    ) : (
+                      <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-800">
+                        当前没有可申诉的驳回或下架状态。
+                      </div>
+                    )}
+
+                    {selectedAppeals.length ? (
+                      <div>
+                        <h3 className="text-sm font-semibold text-slate-900">申诉记录</h3>
+                        <div className="mt-3 space-y-3">
+                          {selectedAppeals.map((appeal) => (
+                            <article key={appeal.id} className="rounded-xl border border-slate-200 px-4 py-4">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div className="flex flex-wrap items-center gap-2 text-xs">
+                                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600">
+                                    {appeal.appealType === 'TAKEDOWN' ? '下架申诉' : '审核驳回申诉'}
+                                  </span>
+                                  <span className={appeal.appealStatus === 'OPEN'
+                                    ? 'rounded-full bg-amber-50 px-2.5 py-1 text-amber-700'
+                                    : appeal.appealStatus === 'APPROVED'
+                                      ? 'rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700'
+                                      : 'rounded-full bg-red-50 px-2.5 py-1 text-red-700'}>
+                                    {getAppealStatusLabel(appeal.appealStatus)}
+                                  </span>
+                                </div>
+                                <time className="text-xs text-slate-400">{new Date(appeal.createdAt).toLocaleString('zh-CN')}</time>
+                              </div>
+                              <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700">{appeal.description}</p>
+                              {appeal.handledReason ? (
+                                <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-600">
+                                  平台处理说明：{appeal.handledReason}
+                                </p>
+                              ) : null}
+                            </article>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 )}
               </section>

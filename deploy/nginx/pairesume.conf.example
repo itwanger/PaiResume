@@ -1,0 +1,57 @@
+map $uri $pai_resume_cache_control {
+    default "no-cache";
+    ~*\.(?:js|mjs|css|png|jpg|jpeg|gif|svg|webp|ico|woff2?|otf|ttf)$ "public, max-age=604800, immutable";
+}
+
+map $uri $pai_resume_robots_tag {
+    default "";
+    ~^/(?:admin|creator|dashboard|editor|forgot-password|legal-consent|login|membership|preview|register|settings|showcases|survey|vip)(?:/|$) "noindex, nofollow";
+}
+
+server {
+    listen 80;
+    server_name resume.paicoding.com;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name resume.paicoding.com;
+
+    ssl_certificate /etc/letsencrypt/live/resume.paicoding.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/resume.paicoding.com/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    root /opt/pai-resume/current/dist;
+    index index.html;
+    client_max_body_size 10m;
+
+    add_header X-Content-Type-Options nosniff always;
+    add_header X-Frame-Options DENY always;
+    add_header Referrer-Policy strict-origin-when-cross-origin always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header Cache-Control $pai_resume_cache_control always;
+    add_header X-Robots-Tag $pai_resume_robots_tag always;
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:8084;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Request-ID $request_id;
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 300s;
+    }
+
+    location ~* \.(?:js|mjs|css|png|jpg|jpeg|gif|svg|webp|ico|woff2?|otf|ttf)$ {
+        try_files $uri =404;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

@@ -24,4 +24,10 @@ public interface VipInviteService {
     );
 
     VipInviteRedemptionDTO redeem(Long userId, String code, String clientIp);
+
+    /**
+     * 在调用方已经开启的领取事务内，按已验证的邀请码主键兑换权益。
+     * 该入口不接收邀请码明文，也不重复消耗匿名创建 claim 的限流预算。
+     */
+    VipInviteRedemptionDTO redeemClaim(Long userId, Long inviteCodeId);
 }

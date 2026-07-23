@@ -66,6 +66,7 @@ export default function SurveyPage() {
                   type="email"
                   value={form.contactEmail}
                   onChange={(event) => setForm((current) => ({ ...current, contactEmail: event.target.value }))}
+                  maxLength={128}
                   className="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none transition-colors focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
                 />
               </label>
@@ -74,6 +75,7 @@ export default function SurveyPage() {
                 <input
                   value={form.displayName}
                   onChange={(event) => setForm((current) => ({ ...current, displayName: event.target.value }))}
+                  maxLength={64}
                   className="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none transition-colors focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
                 />
               </label>
@@ -82,6 +84,7 @@ export default function SurveyPage() {
                 <input
                   value={form.schoolOrCompany}
                   onChange={(event) => setForm((current) => ({ ...current, schoolOrCompany: event.target.value }))}
+                  maxLength={128}
                   className="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none transition-colors focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
                 />
               </label>
@@ -90,6 +93,7 @@ export default function SurveyPage() {
                 <input
                   value={form.targetRole}
                   onChange={(event) => setForm((current) => ({ ...current, targetRole: event.target.value }))}
+                  maxLength={128}
                   className="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none transition-colors focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
                 />
               </label>
@@ -113,6 +117,7 @@ export default function SurveyPage() {
               <textarea
                 value={form.testimonialText}
                 onChange={(event) => setForm((current) => ({ ...current, testimonialText: event.target.value }))}
+                maxLength={2000}
                 rows={5}
                 className="w-full rounded-lg border border-gray-300 px-4 py-3 outline-none transition-colors focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
               />
@@ -123,6 +128,7 @@ export default function SurveyPage() {
               <textarea
                 value={form.desiredFeatures}
                 onChange={(event) => setForm((current) => ({ ...current, desiredFeatures: event.target.value }))}
+                maxLength={5000}
                 rows={4}
                 className="w-full rounded-lg border border-gray-300 px-4 py-3 outline-none transition-colors focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
               />
@@ -133,6 +139,7 @@ export default function SurveyPage() {
               <textarea
                 value={form.bugFeedback}
                 onChange={(event) => setForm((current) => ({ ...current, bugFeedback: event.target.value }))}
+                maxLength={5000}
                 rows={4}
                 className="w-full rounded-lg border border-gray-300 px-4 py-3 outline-none transition-colors focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
               />

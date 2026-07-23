@@ -19,7 +19,9 @@ import { PaperForm } from '../components/modules/PaperForm'
 import { ResearchForm } from '../components/modules/ResearchForm'
 import { AwardForm } from '../components/modules/AwardForm'
 import { MembershipUpgradeModal } from '../components/membership/MembershipUpgradeModal'
+import { ResumeReviewModal } from '../components/review/ResumeReviewModal'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
+import { flushResumeAutoSaves } from '../hooks/useAutoSave'
 import { SINGLETON_MODULES, type ModuleType } from '../types'
 import { normalizeJobIntentionContent } from '../utils/moduleContent'
 import { getModuleDisplayLabelFromModules } from '../utils/resumeDisplay'
@@ -70,6 +72,7 @@ export default function EditorPage() {
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState('')
   const [membershipModalOpen, setMembershipModalOpen] = useState(false)
+  const [resumeReviewModalOpen, setResumeReviewModalOpen] = useState(false)
   const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState | null>(null)
   const [deletingModuleId, setDeletingModuleId] = useState<number | null>(null)
   const [initializingBasicInfo, setInitializingBasicInfo] = useState(false)
@@ -82,6 +85,7 @@ export default function EditorPage() {
   const [mobileModuleMenuOpen, setMobileModuleMenuOpen] = useState(false)
   const previewToggleRef = useRef<HTMLButtonElement | null>(null)
   const mobilePreviewToggleRef = useRef<HTMLButtonElement | null>(null)
+  const resumeReviewTriggerRef = useRef<HTMLButtonElement | null>(null)
   const compactPreviewDialogRef = useRef<HTMLElement | null>(null)
   const mobileModuleTriggerRef = useRef<HTMLButtonElement | null>(null)
   const mobileModuleDialogRef = useRef<HTMLDivElement | null>(null)
@@ -361,7 +365,9 @@ export default function EditorPage() {
     void addModule(resumeId, 'basic_info', getDefaultContent('basic_info'), 0)
       .catch((error) => {
         if (!cancelled) {
-          console.error('初始化基本信息模块失败:', error)
+          if (import.meta.env.DEV) {
+            console.error('初始化基本信息模块失败:', error instanceof Error ? error.name : 'Error')
+          }
         }
       })
       .finally(() => {
@@ -550,6 +556,13 @@ export default function EditorPage() {
       setExporting(false)
     }
   }, [modules.length, pdfPreviewConfig.accentPreset, pdfPreviewConfig.density, pdfPreviewConfig.headingStyle, pdfPreviewConfig.templateId, resumeId, user?.membershipStatus])
+
+  const closeResumeReviewModal = useCallback(() => {
+    setResumeReviewModalOpen(false)
+    window.requestAnimationFrame(() => resumeReviewTriggerRef.current?.focus())
+  }, [])
+
+  const flushBeforeResumeReview = useCallback(() => flushResumeAutoSaves(resumeId), [resumeId])
 
   const renderModuleForm = (moduleId: number, content: Record<string, unknown>) => {
     if (!activeModuleType) return null
@@ -752,6 +765,26 @@ export default function EditorPage() {
                 预览
               </button>
             ) : null}
+          </div>
+
+          <div className="mb-4 flex justify-end">
+            <button
+              ref={resumeReviewTriggerRef}
+              type="button"
+              onClick={() => setResumeReviewModalOpen(true)}
+              className="group inline-flex min-h-12 w-full items-center justify-center gap-3 rounded-xl border border-primary-200 bg-white px-4 py-2.5 text-left shadow-sm transition hover:border-primary-300 hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 sm:w-auto"
+              aria-haspopup="dialog"
+            >
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-100 text-primary-700 transition group-hover:bg-primary-200" aria-hidden="true">
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L8 18l-4 1 1-4L16.5 3.5z" />
+                </svg>
+              </span>
+              <span>
+                <span className="block text-sm font-semibold text-slate-900">请二哥帮我改简历</span>
+                <span className="block text-xs leading-5 text-slate-500">人工精修 · 按服务端次数规则使用</span>
+              </span>
+            </button>
           </div>
 
           {editorView === 'analysis' ? (
@@ -961,6 +994,18 @@ export default function EditorPage() {
         open={membershipModalOpen}
         onClose={() => setMembershipModalOpen(false)}
       />
+
+      {user ? (
+        <ResumeReviewModal
+          open={resumeReviewModalOpen}
+          resumeId={resumeId}
+          userId={user.id}
+          accountEmail={user.email}
+          hasResumeContent={modules.length > 0}
+          onBeforeSubmit={flushBeforeResumeReview}
+          onClose={closeResumeReviewModal}
+        />
+      ) : null}
     </div>
   )
 }

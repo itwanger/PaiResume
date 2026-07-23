@@ -36,7 +36,9 @@ export function AiOptimizePanel({ resumeId, moduleId, onClose }: Props) {
       await updateModuleContent(resumeId, moduleId, optimized)
       onClose()
     } catch (err) {
-      console.error('保存失败:', err)
+      if (import.meta.env.DEV) {
+        console.error('保存失败:', err instanceof Error ? err.name : 'Error')
+      }
     }
   }
 

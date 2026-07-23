@@ -33,13 +33,7 @@ public class CouponServiceImpl implements CouponService {
 
     @Override
     public CouponQuoteDTO quote(String couponCode) {
-        int listPrice = platformConfigService.getConfigEntity().getMembershipPriceCents();
-        CouponQuoteDTO dto = new CouponQuoteDTO();
-        dto.setListPrice(listPrice);
-        dto.setDiscountAmount(0);
-        dto.setPayableAmount(listPrice);
-        dto.setCouponStatus("NOT_APPLIED");
-        dto.setPaymentEnabled(false);
+        CouponQuoteDTO dto = createBaseQuote();
 
         if (!StringUtils.hasText(couponCode)) {
             return dto;
@@ -47,12 +41,43 @@ public class CouponServiceImpl implements CouponService {
 
         CouponCode coupon = getCouponByCode(couponCode);
         validateCouponStatusForQuote(coupon);
-
-        int discountAmount = Math.min(listPrice, coupon.getAmountCents());
-        dto.setDiscountAmount(discountAmount);
-        dto.setPayableAmount(Math.max(0, listPrice - discountAmount));
-        dto.setCouponStatus("VALID");
+        applyCoupon(dto, coupon);
         return dto;
+    }
+
+    @Override
+    public CouponQuoteDTO quoteForUser(String couponCode, String recipientEmail) {
+        CouponQuoteDTO quote = createBaseQuote();
+        if (!StringUtils.hasText(couponCode)) {
+            return quote;
+        }
+        CouponCode coupon = getCouponByCode(couponCode);
+        if (!StringUtils.hasText(recipientEmail)
+                || !recipientEmail.trim().equalsIgnoreCase(coupon.getRecipientEmail())) {
+            // Do not reveal whether a coupon belongs to another account.
+            throw new BusinessException(ResultCode.COUPON_INVALID);
+        }
+        validateCouponStatusForQuote(coupon);
+        applyCoupon(quote, coupon);
+        return quote;
+    }
+
+    private CouponQuoteDTO createBaseQuote() {
+        int listPrice = platformConfigService.getConfigEntity().getMembershipPriceCents();
+        CouponQuoteDTO dto = new CouponQuoteDTO();
+        dto.setListPrice(listPrice);
+        dto.setDiscountAmount(0);
+        dto.setPayableAmount(listPrice);
+        dto.setCouponStatus("NOT_APPLIED");
+        dto.setPaymentEnabled(false);
+        return dto;
+    }
+
+    private void applyCoupon(CouponQuoteDTO quote, CouponCode coupon) {
+        int discountAmount = Math.min(quote.getListPrice(), coupon.getAmountCents());
+        quote.setDiscountAmount(discountAmount);
+        quote.setPayableAmount(Math.max(0, quote.getListPrice() - discountAmount));
+        quote.setCouponStatus("VALID");
     }
 
     @Override

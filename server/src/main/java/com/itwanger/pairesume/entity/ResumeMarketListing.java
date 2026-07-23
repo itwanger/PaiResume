@@ -32,9 +32,17 @@ public class ResumeMarketListing {
 
     private Integer priceCents;
 
+    private Long viewCount;
+
     private String publicationStatus;
 
     private String moderationStatus;
+
+    private String reviewStatus;
+
+    private LocalDateTime reviewSubmittedAt;
+
+    private Boolean publishAfterReview;
 
     private Long moderatedBy;
 
@@ -43,6 +51,8 @@ public class ResumeMarketListing {
     private String moderationReason;
 
     private Long currentRevisionId;
+
+    private Long pendingRevisionId;
 
     private LocalDateTime publicConsentAt;
 

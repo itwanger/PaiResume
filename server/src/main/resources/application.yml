@@ -1,11 +1,13 @@
 server:
   port: ${SERVER_PORT:8084}
+  shutdown: graceful
   forward-headers-strategy: ${FORWARD_HEADERS_STRATEGY:none}
   servlet:
     context-path: /api
 
 app:
   environment: ${APP_ENV:unset}
+  project-root: ${APP_PROJECT_ROOT:}
   # Business DATETIME values use one fixed wall-clock zone on every node.
   time-zone: ${APP_TIME_ZONE:Asia/Shanghai}
   public-url: ${APP_PUBLIC_URL:https://resume.paicoding.com}
@@ -13,6 +15,19 @@ app:
     refresh-cookie-name: ${REFRESH_COOKIE_NAME:pai_refresh}
     refresh-cookie-secure: ${REFRESH_COOKIE_SECURE:false}
     refresh-cookie-max-age-seconds: ${REFRESH_COOKIE_MAX_AGE_SECONDS:604800}
+    # 派聪明服务号由 paicoding 统一持有 AppSecret/access_token。PaiResume 只通过
+    # 双向 HMAC 内部网关创建临时 scene 二维码并接收可信扫码事件。
+    wechat-service:
+      enabled: ${PAICONGMING_WECHAT_LOGIN_ENABLED:false}
+      gateway-base-url: ${PAICONGMING_WECHAT_GATEWAY_BASE_URL:}
+      gateway-qr-path: ${PAICONGMING_WECHAT_GATEWAY_QR_PATH:/api/internal/pairesume/wechat/qrcodes}
+      bridge-secret: ${PAICONGMING_WECHAT_BRIDGE_SECRET:}
+      account-app-id: ${PAICONGMING_WECHAT_APP_ID:}
+      scene-prefix: ${PAICONGMING_WECHAT_SCENE_PREFIX:pr_}
+      challenge-ttl-seconds: ${PAICONGMING_WECHAT_CHALLENGE_TTL_SECONDS:300}
+      bridge-clock-skew-seconds: ${PAICONGMING_WECHAT_BRIDGE_CLOCK_SKEW_SECONDS:300}
+      bridge-replay-ttl-seconds: ${PAICONGMING_WECHAT_BRIDGE_REPLAY_TTL_SECONDS:600}
+      challenge-create-minute-limit: ${PAICONGMING_WECHAT_CHALLENGE_CREATE_MINUTE_LIMIT:10}
   dev-account:
     email: ${DEV_ACCOUNT_EMAIL:test@example.com}
     password: ${DEV_ACCOUNT_PASSWORD:Test123456}
@@ -41,15 +56,42 @@ app:
     window-seconds: ${VIP_INVITE_RATE_LIMIT_WINDOW_SECONDS:900}
     account-attempt-limit: ${VIP_INVITE_RATE_LIMIT_ACCOUNT_ATTEMPTS:5}
     ip-attempt-limit: ${VIP_INVITE_RATE_LIMIT_IP_ATTEMPTS:50}
+  vip-invite-claim:
+    ttl-seconds: ${VIP_INVITE_CLAIM_TTL_SECONDS:600}
+    retention-days: ${VIP_INVITE_CLAIM_RETENTION_DAYS:30}
+    cleanup-batch-size: ${VIP_INVITE_CLAIM_CLEANUP_BATCH_SIZE:500}
+    cleanup-initial-delay-ms: ${VIP_INVITE_CLAIM_CLEANUP_INITIAL_DELAY_MS:60000}
+    cleanup-interval-ms: ${VIP_INVITE_CLAIM_CLEANUP_INTERVAL_MS:3600000}
   marketplace:
+    # User-submitted listings are fail-closed until moderation operations is ready.
+    enabled: ${MARKETPLACE_ENABLED:false}
     min-price-cents: ${MARKETPLACE_MIN_PRICE_CENTS:100}
     max-price-cents: ${MARKETPLACE_MAX_PRICE_CENTS:99900}
+    report-daily-ip-limit: ${MARKETPLACE_REPORT_DAILY_IP_LIMIT:10}
+    report-duplicate-window-hours: ${MARKETPLACE_REPORT_DUPLICATE_WINDOW_HOURS:24}
+  resume-review:
+    # 只控制第三次起的人工精修付费新单；回调、查单和邮件重试始终保持可用。
+    paid-accept-new-orders: ${RESUME_REVIEW_PAID_ACCEPT_NEW_ORDERS:false}
+    payment-order-expire-minutes: ${RESUME_REVIEW_PAYMENT_ORDER_EXPIRE_MINUTES:30}
+    recipient-email: ${RESUME_REVIEW_RECIPIENT_EMAIL:}
+    message-id-domain: ${RESUME_REVIEW_MESSAGE_ID_DOMAIN:resume.paicoding.com}
+    follow-official-account-name: ${RESUME_REVIEW_FOLLOW_OFFICIAL_ACCOUNT_NAME:沉默王二}
+    follow-qr-code-url: ${RESUME_REVIEW_FOLLOW_QR_CODE_URL:}
+    follow-bridge-enabled: ${RESUME_REVIEW_FOLLOW_BRIDGE_ENABLED:false}
+    follow-bridge-hmac-secret: ${RESUME_REVIEW_FOLLOW_BRIDGE_HMAC_SECRET:}
+    follow-challenge-expire-minutes: ${RESUME_REVIEW_FOLLOW_CHALLENGE_EXPIRE_MINUTES:30}
   payment:
     provider: ${PAYMENT_PROVIDER:disabled}
-    # Keep false until the merchant configuration is ready. A configured
-    # provider remains alive for callbacks and reconciliation while paused.
+    # Deprecated fail-closed compatibility switch. It must stay false; use the
+    # two independent switches below. A configured provider remains alive for
+    # callbacks and reconciliation while new orders are paused.
     accept-new-orders: ${PAYMENT_ACCEPT_NEW_ORDERS:false}
+    membership-accept-new-orders: ${MEMBERSHIP_PAYMENT_ACCEPT_NEW_ORDERS:false}
+    marketplace-accept-new-orders: ${MARKETPLACE_PAYMENT_ACCEPT_NEW_ORDERS:false}
     order-expire-minutes: ${PAYMENT_ORDER_EXPIRE_MINUTES:15}
+    # 会员订单固定保留 30 分钟；年费会员默认 365 天，并固化进订单快照。
+    membership-order-expire-minutes: ${MEMBERSHIP_ORDER_EXPIRE_MINUTES:30}
+    membership-payment-days: ${MEMBERSHIP_PAYMENT_DAYS:365}
     platform-fee-basis-points: ${MARKETPLACE_PLATFORM_FEE_BPS:0}
     creator-earning-hold-days: ${MARKETPLACE_EARNING_HOLD_DAYS:7}
     paid-order-reconciliation-interval-minutes: ${MARKETPLACE_PAID_RECONCILIATION_INTERVAL_MINUTES:360}
@@ -64,6 +106,8 @@ app:
       notify-url: ${WECHAT_PAY_NOTIFY_URL:${app.public-url}/api/public/payments/wechat/notify}
 
 spring:
+  lifecycle:
+    timeout-per-shutdown-phase: ${SHUTDOWN_TIMEOUT:30s}
   jackson:
     time-zone: ${app.time-zone}
   devtools:
@@ -142,6 +186,10 @@ springdoc:
   swagger-ui:
     enabled: ${SPRINGDOC_ENABLED:true}
     path: /swagger-ui.html
+
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%X{requestId:-no-request}] [%thread] %logger{36} - %msg%n"
 
 knife4j:
   enable: ${SPRINGDOC_ENABLED:true}

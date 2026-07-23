@@ -3,6 +3,7 @@ package com.itwanger.pairesume.service;
 import com.itwanger.pairesume.dto.MarketplaceOrderDTO;
 import com.itwanger.pairesume.dto.MarketplacePaymentReviewDTO;
 import com.itwanger.pairesume.payment.PaymentNotificationRequest;
+import com.itwanger.pairesume.payment.ProviderPaymentResult;
 
 public interface MarketplaceOrderService {
     MarketplaceOrderDTO createOrder(String listingSlug, Long buyerUserId, boolean admin,
@@ -13,6 +14,8 @@ public interface MarketplaceOrderService {
     MarketplaceOrderDTO refreshOrder(String orderNo, Long userId, boolean admin);
 
     void handleWechatNotification(PaymentNotificationRequest request);
+
+    void handleVerifiedProviderNotification(ProviderPaymentResult result);
 
     java.util.List<MarketplacePaymentReviewDTO> listPaymentReviews(String status);
 

@@ -19,6 +19,8 @@ public class PlatformConfig {
 
     private Integer questionnaireCouponAmountCents;
 
+    private Integer resumeReviewPriceCents;
+
     private Long updatedBy;
 
     @TableField(fill = FieldFill.INSERT)

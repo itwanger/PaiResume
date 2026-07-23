@@ -10,6 +10,8 @@ import com.itwanger.pairesume.mapper.UserMapper;
 import com.itwanger.pairesume.service.CouponService;
 import com.itwanger.pairesume.service.MembershipService;
 import com.itwanger.pairesume.service.MembershipAuditService;
+import com.itwanger.pairesume.payment.MarketplacePaymentGateway;
+import com.itwanger.pairesume.payment.MarketplacePaymentProperties;
 import com.itwanger.pairesume.util.DateTimeUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -24,10 +26,17 @@ public class MembershipServiceImpl implements MembershipService {
     private final CouponService couponService;
     private final UserMapper userMapper;
     private final MembershipAuditService membershipAuditService;
+    private final MarketplacePaymentProperties paymentProperties;
+    private final MarketplacePaymentGateway paymentGateway;
 
     @Override
-    public CouponQuoteDTO quote(String couponCode) {
-        return couponService.quote(couponCode);
+    public CouponQuoteDTO quote(Long userId, String couponCode) {
+        User user = getUser(userId);
+        CouponQuoteDTO quote = couponService.quoteForUser(couponCode, user.getEmail());
+        quote.setPaymentEnabled(paymentProperties.isMembershipAcceptNewOrders()
+                && !"disabled".equals(paymentGateway.provider()));
+        quote.setMembershipDays(paymentProperties.getMembershipPaymentDays());
+        return quote;
     }
 
     @Override

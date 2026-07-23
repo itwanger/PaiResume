@@ -26,6 +26,12 @@ public class VipInviteRateLimitServiceImpl implements VipInviteRateLimitService 
             end
             return 1
             """, Long.class);
+    private static final DefaultRedisScript<Long> ACQUIRE_IP_SCRIPT = new DefaultRedisScript<>("""
+            local ipCount = redis.call('INCR', KEYS[1])
+            if ipCount == 1 then redis.call('EXPIRE', KEYS[1], ARGV[1]) end
+            if ipCount > tonumber(ARGV[2]) then return 0 end
+            return 1
+            """, Long.class);
 
     private final StringRedisTemplate redisTemplate;
     private final int windowSeconds;
@@ -45,21 +51,38 @@ public class VipInviteRateLimitServiceImpl implements VipInviteRateLimitService 
     }
 
     @Override
-    public void acquireAttempt(String email, String clientIp) {
+    public void acquireAttempt(String accountSubject, String clientIp) {
         Long acquired = redisTemplate.execute(
                 ACQUIRE_SCRIPT,
-                List.of(accountKey(email), ipKey(clientIp)),
+                List.of(accountKey(accountSubject), ipKey(clientIp)),
                 String.valueOf(windowSeconds),
                 String.valueOf(accountAttemptLimit),
                 String.valueOf(ipAttemptLimit)
         );
+        requireAcquired(acquired);
+    }
+
+    @Override
+    public void acquireIpAttempt(String clientIp) {
+        Long acquired = redisTemplate.execute(
+                ACQUIRE_IP_SCRIPT,
+                List.of(ipKey(clientIp)),
+                String.valueOf(windowSeconds),
+                String.valueOf(ipAttemptLimit)
+        );
+        requireAcquired(acquired);
+    }
+
+    private void requireAcquired(Long acquired) {
         if (acquired == null || acquired != 1L) {
             throw new BusinessException(ResultCode.VIP_INVITE_RATE_LIMITED);
         }
     }
 
-    private String accountKey(String email) {
-        return "vip-invite:attempts:account:" + fingerprint(email == null ? "unknown" : email.trim().toLowerCase());
+    private String accountKey(String accountSubject) {
+        String normalized = accountSubject == null || accountSubject.isBlank()
+                ? "missing-subject" : accountSubject.trim().toLowerCase();
+        return "vip-invite:attempts:account:" + fingerprint(normalized);
     }
 
     private String ipKey(String clientIp) {

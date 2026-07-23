@@ -17,10 +17,13 @@ public class AdminMarketListingDTO {
     private Integer priceCents;
     private String publicationStatus;
     private String moderationStatus;
+    private String reviewStatus;
+    private String reviewSubmittedAt;
     private Long moderatedBy;
     private String moderatedAt;
     private String moderationReason;
     private Long currentRevisionId;
+    private Long pendingRevisionId;
     private String createdAt;
     private String updatedAt;
 }

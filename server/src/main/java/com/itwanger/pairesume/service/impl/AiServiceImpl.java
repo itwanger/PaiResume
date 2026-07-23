@@ -282,10 +282,11 @@ public class AiServiceImpl implements AiService {
         } catch (BusinessException e) {
             throw e;
         } catch (WebClientResponseException e) {
-            log.error("AI optimization upstream failed with status {}", e.getStatusCode(), e);
+            log.error("AI optimization upstream failed: status={}, errorType={}",
+                    e.getStatusCode(), e.getClass().getSimpleName());
             throw new BusinessException(ResultCode.AI_SERVICE_BUSY.getCode(), buildUpstreamErrorMessage(e));
         } catch (Exception e) {
-            log.error("AI optimization failed", e);
+            log.error("AI optimization failed: errorType={}", e.getClass().getSimpleName());
             throw new BusinessException(ResultCode.AI_SERVICE_BUSY);
         }
     }
@@ -300,11 +301,11 @@ public class AiServiceImpl implements AiService {
         validateConfiguration();
         var plan = prepareFieldOptimizePlan(moduleType, content, request);
 
-        log.info("[AI Optimize][Service] preparing field optimize: moduleType={}, fieldType={}, index={}, original={}",
+        log.info("[AI Optimize][Service] preparing field optimize: moduleType={}, fieldType={}, index={}, originalLength={}",
                 plan.moduleType(),
                 plan.fieldType(),
                 request.getIndex(),
-                truncateText(plan.originalText(), 240));
+                plan.originalText().length());
 
         try {
             var candidateOutput = plan.candidateOutput();
@@ -324,16 +325,16 @@ public class AiServiceImpl implements AiService {
                 throw new BusinessException(ResultCode.AI_SERVICE_BUSY);
             }
 
-            log.info("[AI Optimize][Service] upstream raw response: moduleType={}, fieldType={}, body={}",
-                    plan.moduleType(), plan.fieldType(), truncateText(response, 1200));
+            log.info("[AI Optimize][Service] upstream response received: moduleType={}, fieldType={}, responseLength={}",
+                    plan.moduleType(), plan.fieldType(), response.length());
 
             if (candidateOutput) {
                 var candidates = normalizeResumeCandidates(parseTextCandidatesResponse(response));
-                log.info("[AI Optimize][Service] parsed field optimize candidates: moduleType={}, fieldType={}, count={}, candidates={}",
-                        plan.moduleType(), plan.fieldType(), candidates.size(), candidates.stream().map(item -> truncateText(item, 160)).toList());
+                log.info("[AI Optimize][Service] parsed field optimize candidates: moduleType={}, fieldType={}, count={}",
+                        plan.moduleType(), plan.fieldType(), candidates.size());
                 if ("project_description".equals(plan.fieldType()) && !areTextCandidatesUsable(candidates)) {
-                    log.warn("[AI Optimize][Service] unusable project description candidates detected, retrying: moduleType={}, candidates={}",
-                            plan.moduleType(), candidates.stream().map(item -> truncateText(item, 80)).toList());
+                    log.warn("[AI Optimize][Service] unusable project description candidates detected, retrying: moduleType={}, count={}",
+                            plan.moduleType(), candidates.size());
                     var retryResponse = invokeChatCompletion(
                             model,
                             systemPrompt,
@@ -348,11 +349,11 @@ public class AiServiceImpl implements AiService {
                         throw new BusinessException(ResultCode.AI_SERVICE_BUSY);
                     }
 
-                    log.info("[AI Optimize][Service] upstream retry raw response: moduleType={}, fieldType={}, body={}",
-                            plan.moduleType(), plan.fieldType(), truncateText(retryResponse, 1200));
+                    log.info("[AI Optimize][Service] upstream retry response received: moduleType={}, fieldType={}, responseLength={}",
+                            plan.moduleType(), plan.fieldType(), retryResponse.length());
                     candidates = normalizeResumeCandidates(parseTextCandidatesResponse(retryResponse));
-                    log.info("[AI Optimize][Service] parsed retry candidates: moduleType={}, count={}, candidates={}",
-                            plan.moduleType(), candidates.size(), candidates.stream().map(item -> truncateText(item, 160)).toList());
+                    log.info("[AI Optimize][Service] parsed retry candidates: moduleType={}, count={}",
+                            plan.moduleType(), candidates.size());
                 }
 
                 if (!areTextCandidatesUsable(candidates)) {
@@ -371,8 +372,8 @@ public class AiServiceImpl implements AiService {
                 throw new BusinessException(ResultCode.AI_RESPONSE_INVALID);
             }
 
-            log.info("[AI Optimize][Service] parsed field optimize result: moduleType={}, fieldType={}, optimized={}",
-                    plan.moduleType(), plan.fieldType(), truncateText(optimizedText, 240));
+            log.info("[AI Optimize][Service] parsed field optimize result: moduleType={}, fieldType={}, optimizedLength={}",
+                    plan.moduleType(), plan.fieldType(), optimizedText.length());
 
             return Map.of(
                     "original", plan.originalText(),
@@ -381,10 +382,11 @@ public class AiServiceImpl implements AiService {
         } catch (BusinessException e) {
             throw e;
         } catch (WebClientResponseException e) {
-            log.error("AI field optimization upstream failed with status {}", e.getStatusCode(), e);
+            log.error("AI field optimization upstream failed: status={}, errorType={}",
+                    e.getStatusCode(), e.getClass().getSimpleName());
             throw new BusinessException(ResultCode.AI_SERVICE_BUSY.getCode(), buildUpstreamErrorMessage(e));
         } catch (Exception e) {
-            log.error("AI field optimization failed", e);
+            log.error("AI field optimization failed: errorType={}", e.getClass().getSimpleName());
             throw new BusinessException(ResultCode.AI_SERVICE_BUSY);
         }
     }
@@ -429,8 +431,8 @@ public class AiServiceImpl implements AiService {
                         candidates = normalizeResumeCandidates(finalizeCandidateOutput(targetModel, systemPrompt, plan.prompt(), streamResult.content()));
                     }
                 }
-                log.info("[AI Optimize][Service] stream field optimize candidates ready: moduleType={}, fieldType={}, count={}, candidates={}",
-                        plan.moduleType(), plan.fieldType(), candidates.size(), candidates.stream().map(candidate -> truncateText(candidate, 80)).toList());
+                log.info("[AI Optimize][Service] stream field optimize candidates ready: moduleType={}, fieldType={}, count={}",
+                        plan.moduleType(), plan.fieldType(), candidates.size());
                 if (!areTextCandidatesUsable(candidates)) {
                     throw new BusinessException(ResultCode.AI_RESPONSE_INVALID.getCode(), "AI 返回了不可采纳的候选结果，请重试");
                 }
@@ -448,8 +450,8 @@ public class AiServiceImpl implements AiService {
             if (optimizedText.isBlank()) {
                 throw new BusinessException(ResultCode.AI_RESPONSE_INVALID.getCode(), "AI 思考已结束，但未返回最终结果，请重试");
             }
-            log.info("[AI Optimize][Service] stream field optimize result ready: moduleType={}, fieldType={}, optimized={}",
-                    plan.moduleType(), plan.fieldType(), truncateText(optimizedText, 120));
+            log.info("[AI Optimize][Service] stream field optimize result ready: moduleType={}, fieldType={}, optimizedLength={}",
+                    plan.moduleType(), plan.fieldType(), optimizedText.length());
 
             return Map.of(
                     "original", plan.originalText(),
@@ -458,7 +460,7 @@ public class AiServiceImpl implements AiService {
         } catch (BusinessException e) {
             throw e;
         } catch (Exception e) {
-            log.error("AI field streaming optimization failed", e);
+            log.error("AI field streaming optimization failed: errorType={}", e.getClass().getSimpleName());
             throw new BusinessException(ResultCode.AI_SERVICE_BUSY);
         }
     }
@@ -654,7 +656,8 @@ public class AiServiceImpl implements AiService {
             ));
             return config;
         } catch (Exception e) {
-            log.warn("Failed to load field optimize prompt config from {}", configPath, e);
+            log.warn("Failed to load field optimize prompt config from {}: errorType={}",
+                    configPath, e.getClass().getSimpleName());
             return fallback;
         }
     }
@@ -732,10 +735,11 @@ public class AiServiceImpl implements AiService {
         } catch (BusinessException e) {
             throw e;
         } catch (WebClientResponseException e) {
-            log.error("AI resume analysis upstream failed with status {}", e.getStatusCode(), e);
+            log.error("AI resume analysis upstream failed: status={}, errorType={}",
+                    e.getStatusCode(), e.getClass().getSimpleName());
             throw new BusinessException(ResultCode.AI_SERVICE_BUSY.getCode(), buildUpstreamErrorMessage(e));
         } catch (Exception e) {
-            log.error("AI resume analysis failed", e);
+            log.error("AI resume analysis failed: errorType={}", e.getClass().getSimpleName());
             throw new BusinessException(ResultCode.AI_SERVICE_BUSY);
         }
     }
@@ -772,7 +776,7 @@ public class AiServiceImpl implements AiService {
         } catch (BusinessException e) {
             throw e;
         } catch (Exception e) {
-            log.error("AI resume analysis streaming failed", e);
+            log.error("AI resume analysis streaming failed: errorType={}", e.getClass().getSimpleName());
             throw new BusinessException(ResultCode.AI_SERVICE_BUSY);
         }
     }
@@ -846,7 +850,8 @@ public class AiServiceImpl implements AiService {
                 }
                 throw e;
             } catch (Exception e) {
-                log.warn("Smart one-page optimization fallback for module {}", module.getId(), e);
+                log.warn("Smart one-page optimization fallback: moduleId={}, errorType={}",
+                        module.getId(), e.getClass().getSimpleName());
                 optimizedModules.add(cloneModule(module));
                 effectiveModules.add(cloneModule(module));
                 decisions.add(buildDecision(module.getId(), "keep_original", "当前模块优化失败，已自动保留原文。"));
@@ -1312,15 +1317,15 @@ public class AiServiceImpl implements AiService {
             boolean disableThinking
     ) {
         var requestBody = buildRequestBody(targetModel, systemPrompt, userPrompt, temperature, maxTokens, jsonMode, disableThinking);
-        log.info("[AI Optimize][Upstream] request: url={}, model={}, jsonMode={}, disableThinking={}, temperature={}, maxTokens={}, systemPrompt={}, userPrompt={}",
+        log.info("[AI Optimize][Upstream] request: url={}, model={}, jsonMode={}, disableThinking={}, temperature={}, maxTokens={}, systemPromptLength={}, userPromptLength={}",
                 buildChatCompletionUrl(),
                 targetModel,
                 jsonMode,
                 disableThinking,
                 temperature,
                 maxTokens,
-                truncateText(systemPrompt, 200),
-                truncateText(userPrompt, 600));
+                systemPrompt == null ? 0 : systemPrompt.length(),
+                userPrompt == null ? 0 : userPrompt.length());
 
         return webClient.post()
                 .uri(buildChatCompletionUrl())
@@ -1344,15 +1349,15 @@ public class AiServiceImpl implements AiService {
     ) throws Exception {
         var requestBody = buildRequestBody(targetModel, systemPrompt, userPrompt, temperature, maxTokens, jsonMode, disableThinking);
         requestBody.put("stream", true);
-        log.info("[AI Optimize][Upstream] stream request: url={}, model={}, jsonMode={}, disableThinking={}, temperature={}, maxTokens={}, systemPrompt={}, userPrompt={}",
+        log.info("[AI Optimize][Upstream] stream request: url={}, model={}, jsonMode={}, disableThinking={}, temperature={}, maxTokens={}, systemPromptLength={}, userPromptLength={}",
                 buildChatCompletionUrl(),
                 targetModel,
                 jsonMode,
                 disableThinking,
                 temperature,
                 maxTokens,
-                truncateText(systemPrompt, 200),
-                truncateText(userPrompt, 600));
+                systemPrompt == null ? 0 : systemPrompt.length(),
+                userPrompt == null ? 0 : userPrompt.length());
 
         var requestJson = objectMapper.writeValueAsString(requestBody);
         var request = HttpRequest.newBuilder()
@@ -1505,7 +1510,8 @@ public class AiServiceImpl implements AiService {
         } catch (BusinessException e) {
             throw e;
         } catch (Exception e) {
-            log.error("Failed to parse AI response: {}", e.getMessage());
+            log.error("Failed to parse AI response: errorType={}, responseLength={}",
+                    e.getClass().getSimpleName(), response == null ? 0 : response.length());
             throw new BusinessException(ResultCode.AI_RESPONSE_INVALID);
         }
     }
@@ -1520,7 +1526,8 @@ public class AiServiceImpl implements AiService {
         } catch (BusinessException e) {
             throw e;
         } catch (Exception e) {
-            log.error("Failed to parse analysis response: {} | raw: {}", e.getMessage(), truncateText(response, 1200));
+            log.error("Failed to parse analysis response: errorType={}, responseLength={}",
+                    e.getClass().getSimpleName(), response == null ? 0 : response.length());
             throw new BusinessException(ResultCode.AI_RESPONSE_INVALID);
         }
     }
@@ -1585,7 +1592,8 @@ public class AiServiceImpl implements AiService {
             }
             return extractOptimizedTextFromReasoning(root.path("choices").path(0).path("message").path("reasoning_content").asText(""));
         } catch (Exception e) {
-            log.error("Failed to parse AI text response: {}", e.getMessage());
+            log.error("Failed to parse AI text response: errorType={}, responseLength={}",
+                    e.getClass().getSimpleName(), response == null ? 0 : response.length());
             throw new BusinessException(ResultCode.AI_RESPONSE_INVALID);
         }
     }
@@ -1604,7 +1612,8 @@ public class AiServiceImpl implements AiService {
         } catch (BusinessException e) {
             throw e;
         } catch (Exception e) {
-            log.error("Failed to parse AI text candidates response: {}", e.getMessage());
+            log.error("Failed to parse AI text candidates response: errorType={}, responseLength={}",
+                    e.getClass().getSimpleName(), response == null ? 0 : response.length());
             throw new BusinessException(ResultCode.AI_RESPONSE_INVALID);
         }
     }
@@ -1766,7 +1775,8 @@ public class AiServiceImpl implements AiService {
         } catch (BusinessException e) {
             throw e;
         } catch (Exception e) {
-            log.error("Failed to parse AI text candidates content: {}", e.getMessage());
+            log.error("Failed to parse AI text candidates content: errorType={}, contentLength={}",
+                    e.getClass().getSimpleName(), content == null ? 0 : content.length());
             throw new BusinessException(ResultCode.AI_RESPONSE_INVALID);
         }
     }
@@ -1824,7 +1834,8 @@ public class AiServiceImpl implements AiService {
                 ));
             }
         } catch (Exception e) {
-            log.warn("[AI Optimize][Service] failed to parse upstream stream chunk: {}", truncateText(eventData, 400), e);
+            log.warn("[AI Optimize][Service] failed to parse upstream stream chunk: eventLength={}, errorType={}",
+                    eventData.length(), e.getClass().getSimpleName());
         }
         return false;
     }
@@ -1872,14 +1883,12 @@ public class AiServiceImpl implements AiService {
         if (!state.reasoningStarted) {
             state.reasoningStarted = true;
             state.reasoningLoggedLength = reasoningBuilder.length();
-            log.info("[AI Optimize][Upstream] reasoning stream started: delta={}, totalLength={}",
-                    truncateText(delta, 80), reasoningBuilder.length());
+            log.info("[AI Optimize][Upstream] reasoning stream started: totalLength={}", reasoningBuilder.length());
             return;
         }
         if (reasoningBuilder.length() - state.reasoningLoggedLength >= 240) {
             state.reasoningLoggedLength = reasoningBuilder.length();
-            log.info("[AI Optimize][Upstream] reasoning stream progress: totalLength={}, preview={}",
-                    reasoningBuilder.length(), truncateText(reasoningBuilder.toString(), 120));
+            log.info("[AI Optimize][Upstream] reasoning stream progress: totalLength={}", reasoningBuilder.length());
         }
     }
 
@@ -1890,14 +1899,12 @@ public class AiServiceImpl implements AiService {
         if (!state.contentStarted) {
             state.contentStarted = true;
             state.contentLoggedLength = contentBuilder.length();
-            log.info("[AI Optimize][Upstream] final content stream started: delta={}, totalLength={}",
-                    truncateText(delta, 80), contentBuilder.length());
+            log.info("[AI Optimize][Upstream] final content stream started: totalLength={}", contentBuilder.length());
             return;
         }
         if (contentBuilder.length() - state.contentLoggedLength >= 120) {
             state.contentLoggedLength = contentBuilder.length();
-            log.info("[AI Optimize][Upstream] final content stream progress: totalLength={}, preview={}",
-                    contentBuilder.length(), truncateText(contentBuilder.toString(), 160));
+            log.info("[AI Optimize][Upstream] final content stream progress: totalLength={}", contentBuilder.length());
         }
     }
 

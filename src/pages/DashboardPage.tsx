@@ -75,7 +75,9 @@ export default function DashboardPage() {
     try {
       await deleteResume(id)
     } catch (err) {
-      console.error('删除失败:', err)
+      if (import.meta.env.DEV) {
+        console.error('删除失败:', err instanceof Error ? err.name : 'Error')
+      }
     }
   }
 

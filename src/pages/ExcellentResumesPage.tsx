@@ -61,6 +61,7 @@ export default function ExcellentResumesPage() {
   const [showcases, setShowcases] = useState<ShowcaseCard[]>([])
   const [showcaseLoading, setShowcaseLoading] = useState(true)
   const [showcaseError, setShowcaseError] = useState('')
+  const [marketplaceEnabled, setMarketplaceEnabled] = useState<boolean | null>(null)
   const [marketplaceListings, setMarketplaceListings] = useState<MarketplaceListingCard[]>([])
   const [marketplaceLoading, setMarketplaceLoading] = useState(true)
   const [marketplaceError, setMarketplaceError] = useState('')
@@ -75,9 +76,11 @@ export default function ExcellentResumesPage() {
       setShowcaseLoading(true)
       setShowcaseError('')
       try {
-        const { data: response } = await publicApi.showcases()
-        setShowcases(response.data)
+        const { data: response } = await publicApi.home()
+        setShowcases(response.data.showcases)
+        setMarketplaceEnabled(response.data.marketplaceEnabled)
       } catch (err: unknown) {
+        setMarketplaceEnabled(false)
         setShowcaseError(err instanceof Error ? err.message : '官方精选加载失败')
       } finally {
         setShowcaseLoading(false)
@@ -109,8 +112,15 @@ export default function ExcellentResumesPage() {
   }, [accessType, submittedQuery])
 
   useEffect(() => {
+    if (marketplaceEnabled === null) return
+    if (!marketplaceEnabled) {
+      setMarketplaceListings([])
+      setMarketplaceError('')
+      setMarketplaceLoading(false)
+      return
+    }
     void loadMarketplace(1)
-  }, [loadMarketplace])
+  }, [loadMarketplace, marketplaceEnabled])
 
   const openShowcase = (showcase: ShowcaseCard) => {
     if (!initialized) return
@@ -150,12 +160,18 @@ export default function ExcellentResumesPage() {
             <div className="max-w-3xl">
               <div className="inline-flex items-center gap-2 border border-primary-200 bg-primary-50 px-3 py-1.5 text-xs font-medium text-primary-700">
                 <span>官方精选</span>
-                <span className="h-1 w-1 rounded-full bg-primary-400" />
-                <span>用户公开市场</span>
+                {marketplaceEnabled ? (
+                  <>
+                    <span className="h-1 w-1 rounded-full bg-primary-400" />
+                    <span>用户公开市场</span>
+                  </>
+                ) : null}
               </div>
               <h1 className="mt-5 text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">优质简历</h1>
               <p className="mt-4 text-base leading-7 text-slate-600">
-                官方精选适合对照结构与写法，由 VIP 权益解锁；用户公开简历由作者自主选择免费或付费，购买后在内容正常展示期间当前账号可持续查看。
+                {marketplaceEnabled
+                  ? '官方精选适合对照结构与写法，由 VIP 权益解锁；用户公开简历由作者自主选择免费或付费，购买后在内容正常展示期间当前账号可持续查看。'
+                  : '当前阶段仅开放平台官方精选，适合对照简历结构、项目表达与排版方式，由 VIP 权益解锁。用户公开市场将在审核与支付验收完成后另行开放。'}
               </p>
             </div>
 
@@ -165,18 +181,20 @@ export default function ExcellentResumesPage() {
                 <div className="mt-1 text-sm text-slate-500">官方精选</div>
               </div>
               <div className="border border-slate-200 bg-slate-50 px-4 py-4">
-                <div className="text-2xl font-semibold text-slate-950">免费 / 付费</div>
-                <div className="mt-1 text-sm text-slate-500">作者自主设置浏览方式</div>
+                <div className="text-2xl font-semibold text-slate-950">{marketplaceEnabled ? '免费 / 付费' : 'VIP 权益'}</div>
+                <div className="mt-1 text-sm text-slate-500">{marketplaceEnabled ? '作者自主设置浏览方式' : '服务端校验完整内容权限'}</div>
               </div>
               <div className="border border-slate-200 bg-slate-50 px-4 py-4">
-                <div className="text-2xl font-semibold text-slate-950">一次购买</div>
-                <div className="mt-1 text-sm text-slate-500">正常展示期间持续查看</div>
+                <div className="text-2xl font-semibold text-slate-950">{marketplaceEnabled ? '一次购买' : '持续更新'}</div>
+                <div className="mt-1 text-sm text-slate-500">{marketplaceEnabled ? '正常展示期间持续查看' : '平台审核后公开展示'}</div>
               </div>
             </div>
 
-            <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
-              VIP 只免平台官方精选，不免其他用户发布的付费简历；付费款项进入平台商户，作者收益由平台记录，作者可申请线下结算。
-            </div>
+            {marketplaceEnabled ? (
+              <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
+                VIP 只免平台官方精选，不免其他用户发布的付费简历；付费款项进入平台商户，作者收益由平台记录，作者可申请线下结算。
+              </div>
+            ) : null}
           </div>
         </section>
 
@@ -240,7 +258,8 @@ export default function ExcellentResumesPage() {
           )}
         </section>
 
-        <section className="border-t border-slate-200 bg-white">
+        {marketplaceEnabled ? (
+          <section className="border-t border-slate-200 bg-white">
           <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-12">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
@@ -364,7 +383,8 @@ export default function ExcellentResumesPage() {
               </div>
             ) : null}
           </div>
-        </section>
+          </section>
+        ) : null}
       </main>
     </div>
   )

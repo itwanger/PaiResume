@@ -5,6 +5,11 @@ import {
   type CouponAdmin,
   type FeedbackSubmissionAdmin,
   type MembershipAdminAuditLog,
+  type MembershipPaymentAdminOrder,
+  type MembershipPaymentAdminSummary,
+  type MembershipPaymentOrderStatus,
+  type MembershipPaymentReviewStatus,
+  type MarketplaceListingModerationAction,
   type MarketplacePaymentReview,
   type MarketplacePaymentReviewStatus,
   type PlatformConfig,
@@ -17,8 +22,11 @@ import {
   getMarketplacePageItems,
   getMarketplaceTotalPages,
   type CreatorEarning,
+  type MarketplaceReviewStatus,
 } from '../api/marketplace'
 import { resumeApi, type ResumeListItem } from '../api/resume'
+import { MarketplaceGovernancePanel } from '../components/admin/MarketplaceGovernancePanel'
+import { ResumeReviewAdminPanel } from '../components/admin/ResumeReviewAdminPanel'
 import { Header } from '../components/layout/Header'
 
 function formatCents(value: number) {
@@ -44,6 +52,7 @@ const EMPTY_INVITE_FORM = {
   remark: '知识星球专属',
   expiresInDays: '30',
   maxRedemptions: '100',
+  membershipDays: '30',
 }
 
 const MEMBERSHIP_AUDIT_ACTION_LABELS: Record<string, string> = {
@@ -67,6 +76,33 @@ const MARKETPLACE_ORDER_STATUS_LABELS: Record<string, string> = {
   DUPLICATE_PAID: '重复支付',
   REFUND_REQUIRED: '待人工退款复核',
   REFUNDED: '已退款',
+}
+
+const MEMBERSHIP_PAYMENT_ORDER_STATUS_LABELS: Record<MembershipPaymentOrderStatus, string> = {
+  CREATED: '订单已创建',
+  PREPAYING: '正在创建预支付',
+  PREPAY_UNKNOWN: '预支付结果待确认',
+  PENDING: '待支付',
+  EXPIRED: '已过期待关单',
+  CANCELED: '已取消',
+  PAID: '支付成功',
+  REFUND_REQUIRED: '需要人工复核',
+}
+
+const MEMBERSHIP_PAYMENT_REVIEW_STATUS_LABELS: Record<MembershipPaymentReviewStatus, string> = {
+  NONE: '无需复核',
+  PENDING: '待处理',
+  REFUND_PROCESSING: '退款处理中',
+  REFUNDED: '已退款',
+  REJECTED: '已驳回',
+  CLOSED: '已关闭',
+}
+
+const MEMBERSHIP_PAYMENT_AUDIT_ACTION_LABELS: Record<string, string> = {
+  START_REFUND: '标记退款处理中',
+  CONFIRM_REFUNDED: '确认商户平台已退款',
+  REJECT_REFUND: '驳回退款复核',
+  CLOSE_REVIEW: '关闭人工复核',
 }
 
 function getInviteDisplayStatus(invite: VipInviteAdmin): VipInviteAdmin['status'] {
@@ -97,6 +133,7 @@ export default function AdminPage() {
   const [platformConfig, setPlatformConfig] = useState<PlatformConfig>({
     membershipPriceCents: 6600,
     questionnaireCouponAmountCents: 1000,
+    resumeReviewPriceCents: 0,
   })
   const [feedbacks, setFeedbacks] = useState<FeedbackSubmissionAdmin[]>([])
   const [coupons, setCoupons] = useState<CouponAdmin[]>([])
@@ -112,12 +149,22 @@ export default function AdminPage() {
   const [marketListingTotal, setMarketListingTotal] = useState(0)
   const [marketPublicationFilter, setMarketPublicationFilter] = useState<'' | 'PUBLISHED' | 'UNPUBLISHED'>('')
   const [marketModerationFilter, setMarketModerationFilter] = useState<'' | 'APPROVED' | 'SUSPENDED'>('')
+  const [marketReviewFilter, setMarketReviewFilter] = useState<'' | MarketplaceReviewStatus>('PENDING')
+  const [governanceAuditRefreshKey, setGovernanceAuditRefreshKey] = useState(0)
   const [pendingCreatorEarnings, setPendingCreatorEarnings] = useState<CreatorEarning[]>([])
   const [paymentReviews, setPaymentReviews] = useState<MarketplacePaymentReview[]>([])
   const [paymentCloseWork, setPaymentCloseWork] = useState<MarketplacePaymentReview[]>([])
   const [paymentReviewFilter, setPaymentReviewFilter] = useState<'' | MarketplacePaymentReviewStatus>('')
   const [paymentOrderLookup, setPaymentOrderLookup] = useState('')
   const [paymentOrderLookupResult, setPaymentOrderLookupResult] = useState<MarketplacePaymentReview | null>(null)
+  const [membershipPaymentOrders, setMembershipPaymentOrders] = useState<MembershipPaymentAdminOrder[]>([])
+  const [membershipPaymentSummary, setMembershipPaymentSummary] = useState<MembershipPaymentAdminSummary | null>(null)
+  const [membershipPaymentPage, setMembershipPaymentPage] = useState(1)
+  const [membershipPaymentTotalPages, setMembershipPaymentTotalPages] = useState(1)
+  const [membershipPaymentTotal, setMembershipPaymentTotal] = useState(0)
+  const [membershipPaymentOrderFilter, setMembershipPaymentOrderFilter] = useState<'' | MembershipPaymentOrderStatus>('REFUND_REQUIRED')
+  const [membershipPaymentReviewFilter, setMembershipPaymentReviewFilter] = useState<'' | MembershipPaymentReviewStatus>('')
+  const [selectedMembershipPaymentOrder, setSelectedMembershipPaymentOrder] = useState<MembershipPaymentAdminOrder | null>(null)
   const [resumes, setResumes] = useState<ResumeListItem[]>([])
   const [showcaseForm, setShowcaseForm] = useState(EMPTY_SHOWCASE_FORM)
   const [inviteForm, setInviteForm] = useState(EMPTY_INVITE_FORM)
@@ -131,6 +178,10 @@ export default function AdminPage() {
   const [paymentCloseWorkLoading, setPaymentCloseWorkLoading] = useState(false)
   const [paymentOrderLookupLoading, setPaymentOrderLookupLoading] = useState(false)
   const [confirmingRefundOrderNo, setConfirmingRefundOrderNo] = useState<string | null>(null)
+  const [membershipPaymentsLoading, setMembershipPaymentsLoading] = useState(false)
+  const [membershipPaymentSummaryLoading, setMembershipPaymentSummaryLoading] = useState(false)
+  const [membershipPaymentDetailLoading, setMembershipPaymentDetailLoading] = useState(false)
+  const [membershipPaymentActionOrderNo, setMembershipPaymentActionOrderNo] = useState<string | null>(null)
   const [moderatingListingId, setModeratingListingId] = useState<number | null>(null)
   const [settlingEarningId, setSettlingEarningId] = useState<number | null>(null)
   const [error, setError] = useState('')
@@ -138,6 +189,12 @@ export default function AdminPage() {
 
   useEffect(() => {
     void loadAll()
+    void Promise.all([
+      refreshMembershipPaymentOrders(1, 'REFUND_REQUIRED', ''),
+      refreshMembershipPaymentSummary(),
+    ]).catch((err: unknown) => {
+      setError(err instanceof Error ? err.message : '会员支付复核数据加载失败')
+    })
   }, [])
 
   const showcaseOptions = useMemo(() => resumes.map((resume) => ({
@@ -171,7 +228,7 @@ export default function AdminPage() {
         adminApi.listMembershipAuditLogs(),
         adminApi.listShowcases(),
         resumeApi.list(),
-        adminApi.listMarketplaceListings({ page: 1, size: 20 }),
+        adminApi.listMarketplaceListings({ page: 1, size: 20, reviewStatus: 'PENDING' }),
         adminApi.listCreatorEarnings(),
         adminApi.listMarketplacePaymentReviews(),
         adminApi.listMarketplaceCloseWork(),
@@ -239,6 +296,7 @@ export default function AdminPage() {
     page = marketListingPage,
     publicationStatus = marketPublicationFilter,
     moderationStatus = marketModerationFilter,
+    reviewStatus = marketReviewFilter,
   ) {
     setMarketListingsLoading(true)
     try {
@@ -247,6 +305,7 @@ export default function AdminPage() {
         size: 20,
         publicationStatus,
         moderationStatus,
+        reviewStatus,
       })
       setMarketListings(getMarketplacePageItems(res.data))
       setMarketListingPage(res.data.page)
@@ -289,6 +348,58 @@ export default function AdminPage() {
     }
   }
 
+  async function refreshMembershipPaymentOrders(
+    page: number,
+    orderStatus: '' | MembershipPaymentOrderStatus,
+    reviewStatus: '' | MembershipPaymentReviewStatus,
+  ) {
+    setMembershipPaymentsLoading(true)
+    try {
+      const { data: res } = await adminApi.listMembershipPaymentOrders({
+        page,
+        size: 20,
+        orderStatus,
+        reviewStatus,
+      })
+      setMembershipPaymentOrders(res.data.records)
+      setMembershipPaymentPage(res.data.page)
+      setMembershipPaymentTotal(res.data.total)
+      setMembershipPaymentTotalPages(Math.max(1, res.data.totalPages))
+    } finally {
+      setMembershipPaymentsLoading(false)
+    }
+  }
+
+  async function refreshMembershipPaymentSummary() {
+    setMembershipPaymentSummaryLoading(true)
+    try {
+      const { data: res } = await adminApi.getMembershipPaymentSummary()
+      setMembershipPaymentSummary(res.data)
+    } finally {
+      setMembershipPaymentSummaryLoading(false)
+    }
+  }
+
+  async function refreshMembershipPaymentDashboard() {
+    await Promise.all([
+      refreshMembershipPaymentOrders(1, membershipPaymentOrderFilter, membershipPaymentReviewFilter),
+      refreshMembershipPaymentSummary(),
+    ])
+  }
+
+  async function showMembershipPaymentDetail(orderNo: string) {
+    setMembershipPaymentDetailLoading(true)
+    setError('')
+    try {
+      const { data: res } = await adminApi.getMembershipPaymentOrder(orderNo)
+      setSelectedMembershipPaymentOrder(res.data)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : '会员支付订单详情加载失败')
+    } finally {
+      setMembershipPaymentDetailLoading(false)
+    }
+  }
+
   async function lookupMarketplaceOrder() {
     const orderNo = paymentOrderLookup.trim()
     if (!orderNo) {
@@ -327,6 +438,16 @@ export default function AdminPage() {
   }
 
   const handleSaveConfig = async () => {
+    const priceFields = [
+      ['会员价格', platformConfig.membershipPriceCents],
+      ['问卷优惠金额', platformConfig.questionnaireCouponAmountCents],
+      ['人工精修单次价格', platformConfig.resumeReviewPriceCents],
+    ] as const
+    const invalidField = priceFields.find(([, value]) => !Number.isInteger(value) || value < 0)
+    if (invalidField) {
+      setError(`${invalidField[0]}必须是大于等于 0 的整数（单位：分）`)
+      return
+    }
     setSavingConfig(true)
     setError('')
     setSuccess('')
@@ -448,12 +569,17 @@ export default function AdminPage() {
   const handleCreateInvite = async () => {
     const expiresInDays = Number(inviteForm.expiresInDays)
     const maxRedemptions = Number(inviteForm.maxRedemptions)
+    const membershipDays = Number(inviteForm.membershipDays)
     if (!Number.isInteger(expiresInDays) || expiresInDays < 1 || expiresInDays > 365) {
       setError('邀请码有效天数必须是 1-365 之间的整数')
       return
     }
     if (!Number.isInteger(maxRedemptions) || maxRedemptions < 1 || maxRedemptions > 100000) {
       setError('邀请码兑换名额必须是 1-100000 之间的整数')
+      return
+    }
+    if (![30, 90, 365].includes(membershipDays)) {
+      setError('邀请码会员权益只能选择 30 天、90 天或 365 天')
       return
     }
     setCreatingInvite(true)
@@ -464,6 +590,7 @@ export default function AdminPage() {
         remark: inviteForm.remark.trim() || undefined,
         expiresInDays,
         maxRedemptions,
+        membershipDays,
       })
       await Promise.all([refreshVipInvites(), refreshMembershipAuditLogs()])
       setSuccess(`VIP 邀请码 ${res.data.code} 已生成`)
@@ -488,7 +615,7 @@ export default function AdminPage() {
     const publicOrigin = (configuredPublicUrl || window.location.origin).replace(/\/+$/, '')
     const remaining = Math.max(0, invite.maxRedemptions - invite.redeemedCount)
     return [
-      '【二哥编程星球专属｜派简历 30 天 VIP】',
+      `【二哥编程星球专属｜派简历 ${invite.membershipDays} 天 VIP】`,
       '',
       `派简历网站：${publicOrigin}`,
       `新用户注册：${publicOrigin}/register`,
@@ -510,7 +637,7 @@ export default function AdminPage() {
       '- 这是“VIP 邀请码”，不是支付优惠码，兑换时不需要付款；',
       '- 每个账号只能领取一次，不能叠加，也不能用新的邀请码重复续期；',
       `- 兑换截止时间只限制何时领取，不会缩短已经领取的 ${invite.membershipDays} 天权益；`,
-      '- VIP 到期后不会自动续期，如需继续使用，由管理员在后台延期；',
+      '- VIP 到期后不会自动续期，如需继续使用，可重新购买或由管理员在后台延期；',
       '- 邀请码仅限本知识星球成员本人使用，请勿截图、转发或发布到公开渠道；如发现泄露，邀请码可能立即作废，异常领取的 VIP 权益也可能被撤销。',
       '',
       '若遇到兑换问题，请在星球内联系我，并提供注册邮箱，方便核查。',
@@ -585,17 +712,25 @@ export default function AdminPage() {
 
   const handleModerateMarketplaceListing = async (
     listing: AdminMarketListing,
-    action: 'APPROVE' | 'SUSPEND',
+    action: MarketplaceListingModerationAction,
   ) => {
-    const reason = requestRequiredReason(
-      action === 'APPROVE'
-        ? `请输入通过《${listing.title}》审核的原因（必填）`
-        : `请输入暂停展示《${listing.title}》的原因（必填）`,
-    )
+    const actionLabel = action === 'APPROVE'
+      ? '通过投稿'
+      : action === 'REJECT'
+        ? '驳回投稿'
+        : action === 'TAKEDOWN'
+          ? '下架条目'
+          : '恢复条目'
+    const reason = requestRequiredReason(`请输入“${actionLabel}《${listing.title}》”的原因（必填，将写入审计记录）`)
     if (!reason) return
-    if (action === 'SUSPEND' && !window.confirm(
-      '确认暂停展示这份公开简历？\n\n暂停后，除作者和管理员外的所有访问都会被阻止，包括历史买家；同时会关闭该版本尚未完成的成交。',
-    )) {
+    const confirmation = action === 'APPROVE'
+      ? '确认通过这次投稿？\n\n待审版本会成为新的公开版本；如果创作者在等待期间主动取消发布，审核通过也不会自动重新上架。'
+      : action === 'REJECT'
+        ? '确认驳回这次投稿？\n\n已有已通过版本会继续展示，待审版本不会公开；创作者可以发起申诉。'
+        : action === 'TAKEDOWN'
+          ? '确认下架这份公开简历？\n\n下架后，除作者和管理员外的所有访问都会被阻止，包括历史买家；同时会关闭该版本尚未完成的成交。'
+          : '确认恢复这份公开简历的访问资格？\n\n恢复只解除平台风控下架，不会覆盖创作者自己的发布/下架选择。'
+    if (!window.confirm(confirmation)) {
       return
     }
 
@@ -605,7 +740,8 @@ export default function AdminPage() {
     try {
       await adminApi.moderateMarketplaceListing(listing.id, action, reason)
       await refreshMarketplaceListings()
-      setSuccess(action === 'APPROVE' ? '公开简历已通过审核' : '公开简历已暂停展示')
+      setGovernanceAuditRefreshKey((current) => current + 1)
+      setSuccess(`《${listing.title}》已${actionLabel}`)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : '公开简历审核失败')
     } finally {
@@ -682,6 +818,75 @@ export default function AdminPage() {
     }
   }
 
+  const handleMembershipPaymentReviewAction = async (
+    order: MembershipPaymentAdminOrder,
+    action: 'START_REFUND' | 'CONFIRM_REFUNDED' | 'REJECT_REFUND' | 'CLOSE_REVIEW',
+  ) => {
+    const hasGrantedEntitlement = Boolean(order.membershipStartedAt || order.membershipExpiresAt)
+    if (hasGrantedEntitlement && (action === 'START_REFUND' || action === 'CONFIRM_REFUNDED')) {
+      setError('本订单已经发放会员权益。请先按权益来源重算并完成人工权益处置，不能直接登记退款。')
+      return
+    }
+
+    const actionName = MEMBERSHIP_PAYMENT_AUDIT_ACTION_LABELS[action]
+    const reason = requestRequiredReason(`请输入“${actionName}”的操作原因（必填，将写入审计日志）`)
+    if (!reason) return
+
+    let refundReference = ''
+    if (action === 'START_REFUND' || action === 'CONFIRM_REFUNDED') {
+      const rawReference = window.prompt(
+        action === 'CONFIRM_REFUNDED'
+          ? '请输入商户平台退款单号或核验流水（必填）。本页面不会发起退款。'
+          : '如商户平台已经生成退款单号，可在此填写（可选）。本页面只登记处理状态，不会发起退款。',
+        order.refundReference ?? '',
+      )
+      if (rawReference === null) return
+      refundReference = rawReference.trim()
+      if (action === 'CONFIRM_REFUNDED' && !refundReference) {
+        setError('确认退款必须填写商户平台退款单号或核验流水')
+        return
+      }
+      if (refundReference.length > 128) {
+        setError('退款单号或核验流水不能超过 128 个字符')
+        return
+      }
+    }
+
+    const confirmation = action === 'CONFIRM_REFUNDED'
+      ? `确认已在商户平台为会员订单 ${order.orderNo} 完成原路退款？\n\n本操作只登记商户平台结果，不会发起退款。`
+      : action === 'START_REFUND'
+        ? `确认已在商户平台开始处理会员订单 ${order.orderNo} 的退款？\n\n本操作只更新后台复核状态，不会发起退款。`
+        : `确认${actionName}会员订单 ${order.orderNo}？\n\n操作原因会永久写入审计记录。`
+    if (!window.confirm(confirmation)) return
+
+    setMembershipPaymentActionOrderNo(order.orderNo)
+    setError('')
+    setSuccess('')
+    try {
+      const response = action === 'START_REFUND'
+        ? await adminApi.startMembershipRefund(order.orderNo, reason, refundReference || undefined)
+        : action === 'CONFIRM_REFUNDED'
+          ? await adminApi.confirmMembershipRefund(order.orderNo, reason, refundReference)
+          : action === 'REJECT_REFUND'
+            ? await adminApi.rejectMembershipRefund(order.orderNo, reason)
+            : await adminApi.closeMembershipPaymentReview(order.orderNo, reason)
+      setSelectedMembershipPaymentOrder(response.data.data)
+      await Promise.all([
+        refreshMembershipPaymentOrders(
+          membershipPaymentPage,
+          membershipPaymentOrderFilter,
+          membershipPaymentReviewFilter,
+        ),
+        refreshMembershipPaymentSummary(),
+      ])
+      setSuccess(`会员订单 ${order.orderNo}：${actionName}成功`)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : `${actionName}失败`)
+    } finally {
+      setMembershipPaymentActionOrderNo(null)
+    }
+  }
+
   const handleSubmitShowcase = async () => {
     setSubmittingShowcase(true)
     setError('')
@@ -732,7 +937,7 @@ export default function AdminPage() {
       <main className="mx-auto max-w-7xl space-y-8 px-4 py-8 sm:px-6 lg:px-8">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">管理后台</h1>
-          <p className="mt-2 text-sm text-gray-500">统一管理会员、优质简历、用户公开简历审核和作者收益结算。</p>
+          <p className="mt-2 text-sm text-gray-500">统一管理会员、人工简历精修、优质简历、用户公开简历审核和作者收益结算。</p>
         </div>
 
         {error ? <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
@@ -764,8 +969,25 @@ export default function AdminPage() {
                       className="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none transition-colors focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
                     />
                   </label>
-                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-4 text-sm text-gray-600">
-                    当前会员价 {formatCents(platformConfig.membershipPriceCents)}，问卷默认优惠 {formatCents(platformConfig.questionnaireCouponAmountCents)}
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-gray-700">人工精修单次价格（分）</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1}
+                      required
+                      value={platformConfig.resumeReviewPriceCents}
+                      onChange={(event) => setPlatformConfig((current) => ({ ...current, resumeReviewPriceCents: Number(event.target.value) }))}
+                      className="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none transition-colors focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
+                    />
+                    <span className="mt-2 block text-xs leading-5 text-gray-500">仅用于关注奖励已核销后的第三次及以后申请，每次按创建订单时的服务端价格快照收费。</span>
+                  </label>
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-4 text-sm leading-6 text-gray-600">
+                    <p>当前会员价 {formatCents(platformConfig.membershipPriceCents)}，问卷默认优惠 {formatCents(platformConfig.questionnaireCouponAmountCents)}。</p>
+                    <p className={platformConfig.resumeReviewPriceCents > 0 ? 'mt-1 text-gray-700' : 'mt-1 font-medium text-amber-700'}>
+                      人工精修单次价 {formatCents(platformConfig.resumeReviewPriceCents)}；价格为 0 时，即使部署环境打开收款开关，也不会接受第三次及以后的付费新单。
+                    </p>
+                    <p className="mt-1 text-xs text-gray-500">修改价格只影响之后创建的新订单，不会改写已有申请和订单金额；独立收款开关由部署配置管理。</p>
                   </div>
                   <button
                     type="button"
@@ -912,15 +1134,40 @@ export default function AdminPage() {
               </div>
             </section>
 
-            <section className="rounded-lg border border-gray-200 bg-white px-6 py-6">
+            <ResumeReviewAdminPanel />
+
+            <section className="rounded-lg border border-blue-200 bg-white px-6 py-6">
               <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900">用户公开简历管理</h2>
-                  <p className="mt-1 text-sm leading-6 text-gray-500">
-                    审核用户免费或付费公开的简历。暂停展示属于风控措施，会阻止除作者和管理员外的所有访问，包括历史买家。
+                  <h2 className="text-lg font-semibold text-gray-900">投稿审核与上下架</h2>
+                  <p className="mt-1 max-w-3xl text-sm leading-6 text-gray-500">
+                    默认显示待审投稿。通过后才切换公开版本；更新待审期间，原已通过版本继续展示。平台下架会阻止历史买家访问，恢复不会覆盖创作者自己的发布选择。
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-3">
+                  <select
+                    aria-label="投稿审核状态筛选"
+                    value={marketReviewFilter}
+                    onChange={(event) => {
+                      const value = event.target.value as '' | MarketplaceReviewStatus
+                      setMarketReviewFilter(value)
+                      setMarketListingPage(1)
+                      void refreshMarketplaceListings(
+                        1,
+                        marketPublicationFilter,
+                        marketModerationFilter,
+                        value,
+                      ).catch((err: unknown) => {
+                        setError(err instanceof Error ? err.message : '投稿审核列表加载失败')
+                      })
+                    }}
+                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+                  >
+                    <option value="">全部投稿状态</option>
+                    <option value="PENDING">待审核</option>
+                    <option value="REJECTED">已驳回</option>
+                    <option value="APPROVED">已通过</option>
+                  </select>
                   <select
                     aria-label="发布状态筛选"
                     value={marketPublicationFilter}
@@ -928,7 +1175,7 @@ export default function AdminPage() {
                       const value = event.target.value as '' | 'PUBLISHED' | 'UNPUBLISHED'
                       setMarketPublicationFilter(value)
                       setMarketListingPage(1)
-                      void refreshMarketplaceListings(1, value, marketModerationFilter).catch((err: unknown) => {
+                      void refreshMarketplaceListings(1, value, marketModerationFilter, marketReviewFilter).catch((err: unknown) => {
                         setError(err instanceof Error ? err.message : '公开简历列表加载失败')
                       })
                     }}
@@ -939,21 +1186,21 @@ export default function AdminPage() {
                     <option value="UNPUBLISHED">已下架</option>
                   </select>
                   <select
-                    aria-label="审核状态筛选"
+                    aria-label="平台风控状态筛选"
                     value={marketModerationFilter}
                     onChange={(event) => {
                       const value = event.target.value as '' | 'APPROVED' | 'SUSPENDED'
                       setMarketModerationFilter(value)
                       setMarketListingPage(1)
-                      void refreshMarketplaceListings(1, marketPublicationFilter, value).catch((err: unknown) => {
+                      void refreshMarketplaceListings(1, marketPublicationFilter, value, marketReviewFilter).catch((err: unknown) => {
                         setError(err instanceof Error ? err.message : '公开简历列表加载失败')
                       })
                     }}
                     className="rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
                   >
-                    <option value="">全部审核状态</option>
-                    <option value="APPROVED">正常展示</option>
-                    <option value="SUSPENDED">已暂停</option>
+                    <option value="">全部风控状态</option>
+                    <option value="APPROVED">平台正常</option>
+                    <option value="SUSPENDED">平台已下架</option>
                   </select>
                   <button
                     type="button"
@@ -972,13 +1219,14 @@ export default function AdminPage() {
                 <p className="mt-5 text-sm text-gray-500">正在加载公开简历...</p>
               ) : marketListings.length ? (
                 <div className="mt-5 overflow-x-auto">
-                  <table className="min-w-[1080px] w-full divide-y divide-gray-200 text-sm">
+                  <table className="min-w-[1320px] w-full divide-y divide-gray-200 text-sm">
                     <thead>
                       <tr className="text-left text-gray-500">
                         <th className="py-3 pr-4 font-medium">简历 / 作者</th>
                         <th className="py-3 pr-4 font-medium">浏览方式</th>
                         <th className="py-3 pr-4 font-medium">发布状态</th>
-                        <th className="py-3 pr-4 font-medium">审核状态 / 原因</th>
+                        <th className="py-3 pr-4 font-medium">投稿审核</th>
+                        <th className="py-3 pr-4 font-medium">平台风控 / 原因</th>
                         <th className="py-3 pr-4 font-medium">更新时间</th>
                         <th className="py-3 font-medium">操作</th>
                       </tr>
@@ -1002,8 +1250,30 @@ export default function AdminPage() {
                             {listingItem.publicationStatus === 'PUBLISHED' ? '已发布' : '已下架'}
                           </td>
                           <td className="py-4 pr-4">
+                            <div className={listingItem.reviewStatus === 'PENDING'
+                              ? 'font-medium text-amber-700'
+                              : listingItem.reviewStatus === 'REJECTED'
+                                ? 'font-medium text-red-700'
+                                : 'font-medium text-emerald-700'}>
+                              {listingItem.reviewStatus === 'PENDING'
+                                ? '待审核'
+                                : listingItem.reviewStatus === 'REJECTED'
+                                  ? '已驳回'
+                                  : '已通过'}
+                            </div>
+                            {listingItem.pendingRevisionId ? (
+                              <div className="mt-1 text-xs text-gray-500">待审版本 #{listingItem.pendingRevisionId}</div>
+                            ) : null}
+                            {listingItem.reviewSubmittedAt ? (
+                              <div className="mt-1 text-xs text-gray-400">提交于 {listingItem.reviewSubmittedAt}</div>
+                            ) : null}
+                            {listingItem.currentRevisionId ? (
+                              <div className="mt-1 text-xs text-gray-400">当前版本 #{listingItem.currentRevisionId}</div>
+                            ) : null}
+                          </td>
+                          <td className="py-4 pr-4">
                             <div className={listingItem.moderationStatus === 'SUSPENDED' ? 'text-red-700' : 'text-emerald-700'}>
-                              {listingItem.moderationStatus === 'SUSPENDED' ? '已暂停' : '正常展示'}
+                              {listingItem.moderationStatus === 'SUSPENDED' ? '平台已下架' : '平台正常'}
                             </div>
                             {listingItem.moderationReason ? (
                               <div className="mt-1 max-w-sm text-xs leading-5 text-gray-500">
@@ -1013,25 +1283,51 @@ export default function AdminPage() {
                           </td>
                           <td className="py-4 pr-4 text-xs text-gray-500">{listingItem.updatedAt}</td>
                           <td className="py-4">
-                            {listingItem.moderationStatus === 'SUSPENDED' ? (
-                              <button
-                                type="button"
-                                onClick={() => void handleModerateMarketplaceListing(listingItem, 'APPROVE')}
-                                disabled={moderatingListingId !== null}
-                                className="min-w-max text-emerald-700 hover:text-emerald-800 disabled:cursor-wait disabled:opacity-50"
-                              >
-                                {moderatingListingId === listingItem.id ? '处理中...' : '通过审核'}
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => void handleModerateMarketplaceListing(listingItem, 'SUSPEND')}
-                                disabled={moderatingListingId !== null}
-                                className="min-w-max text-red-700 hover:text-red-800 disabled:cursor-wait disabled:opacity-50"
-                              >
-                                {moderatingListingId === listingItem.id ? '处理中...' : '暂停展示'}
-                              </button>
-                            )}
+                            <div className="flex min-w-[220px] flex-wrap gap-2">
+                              {listingItem.pendingRevisionId ? (
+                                <button
+                                  type="button"
+                                  onClick={() => void handleModerateMarketplaceListing(listingItem, 'APPROVE')}
+                                  disabled={moderatingListingId !== null}
+                                  className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-medium text-white hover:bg-emerald-700 disabled:cursor-wait disabled:opacity-50"
+                                >
+                                  {moderatingListingId === listingItem.id ? '处理中...' : '通过投稿'}
+                                </button>
+                              ) : null}
+                              {listingItem.reviewStatus === 'PENDING' && listingItem.pendingRevisionId ? (
+                                <button
+                                  type="button"
+                                  onClick={() => void handleModerateMarketplaceListing(listingItem, 'REJECT')}
+                                  disabled={moderatingListingId !== null}
+                                  className="rounded-lg border border-red-200 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50 disabled:cursor-wait disabled:opacity-50"
+                                >
+                                  驳回投稿
+                                </button>
+                              ) : null}
+                              {listingItem.currentRevisionId && listingItem.moderationStatus === 'APPROVED' ? (
+                                <button
+                                  type="button"
+                                  onClick={() => void handleModerateMarketplaceListing(listingItem, 'TAKEDOWN')}
+                                  disabled={moderatingListingId !== null}
+                                  className="rounded-lg border border-red-200 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50 disabled:cursor-wait disabled:opacity-50"
+                                >
+                                  平台下架
+                                </button>
+                              ) : null}
+                              {listingItem.currentRevisionId && listingItem.moderationStatus === 'SUSPENDED' ? (
+                                <button
+                                  type="button"
+                                  onClick={() => void handleModerateMarketplaceListing(listingItem, 'RESTORE')}
+                                  disabled={moderatingListingId !== null}
+                                  className="rounded-lg border border-emerald-200 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:cursor-wait disabled:opacity-50"
+                                >
+                                  恢复访问
+                                </button>
+                              ) : null}
+                              {!listingItem.pendingRevisionId && !listingItem.currentRevisionId ? (
+                                <span className="text-xs text-gray-400">暂无可处理版本</span>
+                              ) : null}
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -1070,6 +1366,13 @@ export default function AdminPage() {
                 </div>
               </div>
             </section>
+
+            <MarketplaceGovernancePanel
+              auditRefreshKey={governanceAuditRefreshKey}
+              onListingsChanged={async () => {
+                await refreshMarketplaceListings()
+              }}
+            />
 
             <section className="rounded-lg border border-amber-200 bg-white px-6 py-6">
               <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
@@ -1150,6 +1453,331 @@ export default function AdminPage() {
                   暂无作者申请线下结算。
                 </p>
               )}
+            </section>
+
+            <section className="rounded-lg border border-orange-200 bg-white px-6 py-6">
+              <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">会员支付复核</h2>
+                  <p className="mt-1 max-w-3xl text-sm leading-6 text-gray-500">
+                    处理会员订单的迟到付款、重复付款和其他退款复核。这里与下方用户简历交易退款相互独立。
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void refreshMembershipPaymentDashboard().catch((err: unknown) => {
+                    setError(err instanceof Error ? err.message : '会员支付复核数据加载失败')
+                  })}
+                  disabled={membershipPaymentsLoading || membershipPaymentSummaryLoading}
+                  className="w-fit rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:border-gray-300 hover:text-gray-900 disabled:cursor-wait disabled:opacity-50"
+                >
+                  {membershipPaymentsLoading || membershipPaymentSummaryLoading ? '刷新中...' : '刷新会员支付'}
+                </button>
+              </div>
+
+              <div className="mt-5 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm leading-6 text-orange-900">
+                <strong>操作边界：</strong>
+                本页面只登记商户平台的人工处理结果，不会调用微信或其他支付平台发起退款。若订单已经发放本单会员权益，必须先按权益来源重算并完成人工权益处置，不能直接登记退款完成。
+              </div>
+
+              <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {[
+                  ['待处理复核', membershipPaymentSummary?.pendingReviews ?? '-'],
+                  ['退款处理中', membershipPaymentSummary?.refundProcessingReviews ?? '-'],
+                  ['重复付款复核', membershipPaymentSummary?.duplicatePaymentReviews ?? '-'],
+                  ['本进程对账失败', membershipPaymentSummary?.reconciliationFailuresSinceStart ?? '-'],
+                  ['已确认退款', membershipPaymentSummary?.refundedReviews ?? '-'],
+                  ['已驳回', membershipPaymentSummary?.rejectedReviews ?? '-'],
+                  ['已关闭', membershipPaymentSummary?.closedReviews ?? '-'],
+                  ['会员订单总数', membershipPaymentSummary?.totalOrders ?? '-'],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+                    <div className="text-xs text-gray-500">{label}</div>
+                    <div className="mt-1 text-xl font-semibold text-gray-950">{value}</div>
+                  </div>
+                ))}
+              </div>
+              {membershipPaymentSummary?.reconciliationFailuresSinceStart ? (
+                <p className="mt-3 text-xs leading-5 text-red-700">
+                  最近一次对账失败：{membershipPaymentSummary.lastReconciliationFailureAt || '时间未记录'}；计数自 {membershipPaymentSummary.observabilityStartedAt} 本进程启动后累计。
+                </p>
+              ) : null}
+
+              <div className="mt-5 flex flex-wrap gap-3">
+                <select
+                  aria-label="会员支付订单状态筛选"
+                  value={membershipPaymentOrderFilter}
+                  onChange={(event) => {
+                    const value = event.target.value as '' | MembershipPaymentOrderStatus
+                    setMembershipPaymentOrderFilter(value)
+                    setMembershipPaymentPage(1)
+                    void refreshMembershipPaymentOrders(1, value, membershipPaymentReviewFilter).catch((err: unknown) => {
+                      setError(err instanceof Error ? err.message : '会员支付订单加载失败')
+                    })
+                  }}
+                  className="rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+                >
+                  <option value="">全部支付状态</option>
+                  {Object.entries(MEMBERSHIP_PAYMENT_ORDER_STATUS_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+                <select
+                  aria-label="会员支付复核状态筛选"
+                  value={membershipPaymentReviewFilter}
+                  onChange={(event) => {
+                    const value = event.target.value as '' | MembershipPaymentReviewStatus
+                    setMembershipPaymentReviewFilter(value)
+                    setMembershipPaymentPage(1)
+                    void refreshMembershipPaymentOrders(1, membershipPaymentOrderFilter, value).catch((err: unknown) => {
+                      setError(err instanceof Error ? err.message : '会员支付订单加载失败')
+                    })
+                  }}
+                  className="rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+                >
+                  <option value="">全部复核状态</option>
+                  {Object.entries(MEMBERSHIP_PAYMENT_REVIEW_STATUS_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {membershipPaymentsLoading && membershipPaymentOrders.length === 0 ? (
+                <p className="mt-5 text-sm text-gray-500">正在加载会员支付订单...</p>
+              ) : membershipPaymentOrders.length ? (
+                <div className="mt-5 overflow-x-auto">
+                  <table className="min-w-[1120px] w-full divide-y divide-gray-200 text-sm">
+                    <thead>
+                      <tr className="text-left text-gray-500">
+                        <th className="py-3 pr-4 font-medium">会员 / 订单</th>
+                        <th className="py-3 pr-4 font-medium">金额 / 支付</th>
+                        <th className="py-3 pr-4 font-medium">支付状态</th>
+                        <th className="py-3 pr-4 font-medium">复核状态</th>
+                        <th className="py-3 pr-4 font-medium">复核原因 / 最近处理</th>
+                        <th className="py-3 font-medium">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 text-gray-700">
+                      {membershipPaymentOrders.map((order) => (
+                        <tr key={order.id} className="align-top">
+                          <td className="py-4 pr-4">
+                            <div className="font-medium text-gray-900">{order.userEmail || `用户 #${order.userId}`}</div>
+                            <div className="mt-1 max-w-[250px] break-all text-xs text-gray-500">{order.orderNo}</div>
+                            <div className="mt-1 text-xs text-gray-400">创建于 {order.createdAt}</div>
+                          </td>
+                          <td className="py-4 pr-4">
+                            <div className="font-semibold text-gray-900">{formatCents(order.payableAmountCents)}</div>
+                            <div className="mt-1 text-xs text-gray-500">原价 {formatCents(order.listPriceCents)} · {order.membershipDays} 天</div>
+                            <div className="mt-1 text-xs text-gray-400">{order.provider} · {order.currency}</div>
+                          </td>
+                          <td className="py-4 pr-4">
+                            <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-800">
+                              {MEMBERSHIP_PAYMENT_ORDER_STATUS_LABELS[order.orderStatus]}
+                            </span>
+                            <div className="mt-2 text-xs text-gray-400">{order.paidAt || order.expiresAt || '-'}</div>
+                          </td>
+                          <td className="py-4 pr-4">
+                            <span className={order.reviewStatus === 'REFUNDED'
+                              ? 'rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700'
+                              : order.reviewStatus === 'PENDING' || order.reviewStatus === 'REFUND_PROCESSING'
+                                ? 'rounded-full bg-orange-50 px-2.5 py-1 text-xs font-medium text-orange-800'
+                                : 'rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700'}>
+                              {MEMBERSHIP_PAYMENT_REVIEW_STATUS_LABELS[order.reviewStatus]}
+                            </span>
+                            {order.refundReference ? (
+                              <div className="mt-2 max-w-[220px] break-all text-xs text-emerald-700">退款流水：{order.refundReference}</div>
+                            ) : null}
+                          </td>
+                          <td className="max-w-sm py-4 pr-4 text-xs leading-5">
+                            <div className="font-medium text-red-700">{order.paymentReviewReason || '无异常原因'}</div>
+                            {order.adminActionReason ? (
+                              <div className="mt-1 text-gray-500">
+                                {order.handlerEmail || (order.handledBy ? `管理员 #${order.handledBy}` : '管理员')}：{order.adminActionReason}
+                              </div>
+                            ) : null}
+                            {order.reviewUpdatedAt ? <div className="mt-1 text-gray-400">{order.reviewUpdatedAt}</div> : null}
+                          </td>
+                          <td className="py-4">
+                            <button
+                              type="button"
+                              onClick={() => void showMembershipPaymentDetail(order.orderNo)}
+                              disabled={membershipPaymentDetailLoading}
+                              className="min-w-max text-primary-700 hover:text-primary-800 disabled:cursor-wait disabled:opacity-50"
+                            >
+                              {membershipPaymentDetailLoading ? '加载中...' : '查看详情与处理'}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="mt-5 rounded-lg border border-dashed border-gray-300 px-4 py-10 text-center text-sm text-gray-500">
+                  当前筛选条件下暂无会员支付订单。
+                </p>
+              )}
+
+              <div className="mt-5 flex flex-wrap items-center justify-between gap-3 text-sm text-gray-500">
+                <span>共 {membershipPaymentTotal} 笔 · 第 {membershipPaymentPage} / {membershipPaymentTotalPages} 页</span>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={membershipPaymentPage <= 1 || membershipPaymentsLoading}
+                    onClick={() => void refreshMembershipPaymentOrders(
+                      membershipPaymentPage - 1,
+                      membershipPaymentOrderFilter,
+                      membershipPaymentReviewFilter,
+                    ).catch((err: unknown) => {
+                      setError(err instanceof Error ? err.message : '会员支付订单加载失败')
+                    })}
+                    className="rounded-lg border border-gray-200 px-3 py-2 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    上一页
+                  </button>
+                  <button
+                    type="button"
+                    disabled={membershipPaymentPage >= membershipPaymentTotalPages || membershipPaymentsLoading}
+                    onClick={() => void refreshMembershipPaymentOrders(
+                      membershipPaymentPage + 1,
+                      membershipPaymentOrderFilter,
+                      membershipPaymentReviewFilter,
+                    ).catch((err: unknown) => {
+                      setError(err instanceof Error ? err.message : '会员支付订单加载失败')
+                    })}
+                    className="rounded-lg border border-gray-200 px-3 py-2 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    下一页
+                  </button>
+                </div>
+              </div>
+
+              {selectedMembershipPaymentOrder ? (
+                <div className="mt-6 rounded-lg border border-orange-200 bg-orange-50/50 p-5">
+                  <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-base font-semibold text-gray-950">订单详情</h3>
+                        <span className="rounded-full bg-white px-2.5 py-1 text-xs text-gray-700">
+                          {MEMBERSHIP_PAYMENT_ORDER_STATUS_LABELS[selectedMembershipPaymentOrder.orderStatus]}
+                        </span>
+                        <span className="rounded-full bg-white px-2.5 py-1 text-xs text-orange-800">
+                          {MEMBERSHIP_PAYMENT_REVIEW_STATUS_LABELS[selectedMembershipPaymentOrder.reviewStatus]}
+                        </span>
+                      </div>
+                      <div className="mt-2 break-all text-xs text-gray-500">{selectedMembershipPaymentOrder.orderNo}</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedMembershipPaymentOrder(null)}
+                      className="w-fit text-sm text-gray-500 hover:text-gray-800"
+                    >
+                      关闭详情
+                    </button>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 rounded-lg border border-gray-200 bg-white p-4 text-xs leading-6 text-gray-600 md:grid-cols-2 lg:grid-cols-3">
+                    <div>用户：{selectedMembershipPaymentOrder.userEmail || `#${selectedMembershipPaymentOrder.userId}`}</div>
+                    <div>实付：{formatCents(selectedMembershipPaymentOrder.payableAmountCents)}</div>
+                    <div>支付交易号：<span className="break-all">{selectedMembershipPaymentOrder.providerTransactionId || '未记录'}</span></div>
+                    <div>支付时间：{selectedMembershipPaymentOrder.paidAt || '-'}</div>
+                    <div>复核原因：{selectedMembershipPaymentOrder.paymentReviewReason || '-'}</div>
+                    <div>退款流水：{selectedMembershipPaymentOrder.refundReference || '-'}</div>
+                    <div>权益起点：{selectedMembershipPaymentOrder.membershipStartedAt || '本单未发放'}</div>
+                    <div>权益终点：{selectedMembershipPaymentOrder.membershipExpiresAt || '本单未发放'}</div>
+                    <div>最近处理：{selectedMembershipPaymentOrder.reviewUpdatedAt || '-'}</div>
+                  </div>
+
+                  {selectedMembershipPaymentOrder.membershipStartedAt || selectedMembershipPaymentOrder.membershipExpiresAt ? (
+                    <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-800">
+                      本单已经发放会员权益，退款登记按钮已禁用。请先核对后续续费、邀请码和管理员权益，并按权益来源重算；不要直接撤销整段 VIP。
+                    </div>
+                  ) : null}
+
+                  {selectedMembershipPaymentOrder.reviewStatus === 'PENDING'
+                    || selectedMembershipPaymentOrder.reviewStatus === 'REFUND_PROCESSING' ? (
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {!selectedMembershipPaymentOrder.membershipStartedAt
+                          && !selectedMembershipPaymentOrder.membershipExpiresAt
+                          && selectedMembershipPaymentOrder.reviewStatus === 'PENDING' ? (
+                            <button
+                              type="button"
+                              onClick={() => void handleMembershipPaymentReviewAction(selectedMembershipPaymentOrder, 'START_REFUND')}
+                              disabled={membershipPaymentActionOrderNo !== null}
+                              className="rounded-lg bg-orange-600 px-3 py-2 text-xs font-medium text-white hover:bg-orange-700 disabled:cursor-wait disabled:opacity-50"
+                            >
+                              {membershipPaymentActionOrderNo === selectedMembershipPaymentOrder.orderNo ? '处理中...' : '标记退款处理中'}
+                            </button>
+                          ) : null}
+                        {!selectedMembershipPaymentOrder.membershipStartedAt
+                          && !selectedMembershipPaymentOrder.membershipExpiresAt
+                          && selectedMembershipPaymentOrder.reviewStatus === 'REFUND_PROCESSING' ? (
+                            <button
+                              type="button"
+                              onClick={() => void handleMembershipPaymentReviewAction(selectedMembershipPaymentOrder, 'CONFIRM_REFUNDED')}
+                              disabled={membershipPaymentActionOrderNo !== null}
+                              className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-medium text-white hover:bg-emerald-700 disabled:cursor-wait disabled:opacity-50"
+                            >
+                              {membershipPaymentActionOrderNo === selectedMembershipPaymentOrder.orderNo ? '处理中...' : '确认商户平台已退款'}
+                            </button>
+                          ) : null}
+                        <button
+                          type="button"
+                          onClick={() => void handleMembershipPaymentReviewAction(selectedMembershipPaymentOrder, 'REJECT_REFUND')}
+                          disabled={membershipPaymentActionOrderNo !== null}
+                          className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:border-gray-400 disabled:cursor-wait disabled:opacity-50"
+                        >
+                          驳回复核
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleMembershipPaymentReviewAction(selectedMembershipPaymentOrder, 'CLOSE_REVIEW')}
+                          disabled={membershipPaymentActionOrderNo !== null}
+                          className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:border-gray-400 disabled:cursor-wait disabled:opacity-50"
+                        >
+                          关闭复核
+                        </button>
+                      </div>
+                    ) : null}
+
+                  <div className="mt-5">
+                    <h4 className="text-sm font-semibold text-gray-900">人工处置审计记录</h4>
+                    {selectedMembershipPaymentOrder.auditLogs.length ? (
+                      <div className="mt-3 overflow-x-auto rounded-lg border border-gray-200 bg-white px-3">
+                        <table className="min-w-[900px] w-full divide-y divide-gray-200 text-xs">
+                          <thead>
+                            <tr className="text-left text-gray-500">
+                              <th className="py-3 pr-4 font-medium">时间 / 管理员</th>
+                              <th className="py-3 pr-4 font-medium">动作</th>
+                              <th className="py-3 pr-4 font-medium">状态变化</th>
+                              <th className="py-3 pr-4 font-medium">操作原因</th>
+                              <th className="py-3 font-medium">退款流水</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100 text-gray-700">
+                            {selectedMembershipPaymentOrder.auditLogs.map((audit) => (
+                              <tr key={audit.id} className="align-top">
+                                <td className="py-3 pr-4">
+                                  <div>{audit.createdAt}</div>
+                                  <div className="mt-1 text-gray-400">{audit.adminEmail || `管理员 #${audit.adminUserId}`}</div>
+                                </td>
+                                <td className="py-3 pr-4">{MEMBERSHIP_PAYMENT_AUDIT_ACTION_LABELS[audit.action] || audit.action}</td>
+                                <td className="py-3 pr-4">
+                                  {MEMBERSHIP_PAYMENT_REVIEW_STATUS_LABELS[audit.fromStatus]} → {MEMBERSHIP_PAYMENT_REVIEW_STATUS_LABELS[audit.toStatus]}
+                                </td>
+                                <td className="max-w-sm py-3 pr-4 leading-5">{audit.reason}</td>
+                                <td className="max-w-[220px] break-all py-3">{audit.refundReference || '-'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <p className="mt-3 text-xs text-gray-500">尚无人工处置记录。</p>
+                    )}
+                  </div>
+                </div>
+              ) : null}
             </section>
 
             <section className="rounded-lg border border-red-200 bg-white px-6 py-6">
@@ -1446,7 +2074,7 @@ export default function AdminPage() {
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900">知识星球 VIP 邀请码</h2>
                   <p className="mt-1 max-w-3xl text-sm leading-6 text-gray-500">
-                    每个批次码可供多名星球用户兑换。兑换成功时起获得完整 30 天 VIP；每个账号只能领取一次，且邀请码与支付优惠码完全独立。
+                    每个批次码可单独配置权益天数，并供多名星球用户兑换；每个账号只能领取一次，且邀请码与支付优惠码完全独立。
                   </p>
                 </div>
                 <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
@@ -1454,7 +2082,7 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="mt-5 grid gap-4 md:grid-cols-3">
+              <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <label className="block">
                   <span className="mb-2 block text-sm font-medium text-gray-700">批次备注</span>
                   <input
@@ -1487,6 +2115,18 @@ export default function AdminPage() {
                     className="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
                   />
                 </label>
+                <label className="block">
+                  <span className="mb-2 block text-sm font-medium text-gray-700">VIP 权益（天）</span>
+                  <select
+                    value={inviteForm.membershipDays}
+                    onChange={(event) => setInviteForm((current) => ({ ...current, membershipDays: event.target.value }))}
+                    className="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                  >
+                    <option value="30">30 天体验</option>
+                    <option value="90">90 天福利</option>
+                    <option value="365">365 天年度福利</option>
+                  </select>
+                </label>
               </div>
 
               <button
@@ -1495,7 +2135,7 @@ export default function AdminPage() {
                 disabled={creatingInvite}
                 className="mt-4 rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-50"
               >
-                {creatingInvite ? '生成中...' : '生成 30 天 VIP 邀请码'}
+                {creatingInvite ? '生成中...' : `生成 ${inviteForm.membershipDays || '-'} 天 VIP 邀请码`}
               </button>
 
               <div className="mt-6 overflow-x-auto">
@@ -1504,6 +2144,7 @@ export default function AdminPage() {
                     <tr className="text-left text-gray-500">
                       <th className="py-3 pr-4 font-medium">邀请码</th>
                       <th className="py-3 pr-4 font-medium">备注</th>
+                      <th className="py-3 pr-4 font-medium">权益期限</th>
                       <th className="py-3 pr-4 font-medium">兑换进度</th>
                       <th className="py-3 pr-4 font-medium">截止时间</th>
                       <th className="py-3 pr-4 font-medium">状态</th>
@@ -1518,6 +2159,7 @@ export default function AdminPage() {
                       <tr key={invite.id}>
                         <td className="py-3 pr-4 font-mono font-semibold text-emerald-800">{invite.code}</td>
                         <td className="py-3 pr-4">{invite.remark || '-'}</td>
+                        <td className="py-3 pr-4">{invite.membershipDays} 天</td>
                         <td className="py-3 pr-4">{invite.redeemedCount} / {invite.maxRedemptions}</td>
                         <td className="py-3 pr-4">{invite.expiresAt ?? '-'}</td>
                         <td className="py-3 pr-4">

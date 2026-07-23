@@ -20,7 +20,11 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -212,7 +216,7 @@ public class FeedbackSubmissionServiceImpl implements FeedbackSubmissionService 
 
     private void enforceRateLimit(String email, String sourceIp) {
         String normalizedEmail = email.trim().toLowerCase();
-        String emailKey = "feedback:email:" + normalizedEmail;
+        String emailKey = "feedback:email:" + rateLimitFingerprint(normalizedEmail);
         Long emailCount = redisTemplate.opsForValue().increment(emailKey);
         if (emailCount != null && emailCount == 1) {
             redisTemplate.expire(emailKey, 24, TimeUnit.HOURS);
@@ -222,7 +226,7 @@ public class FeedbackSubmissionServiceImpl implements FeedbackSubmissionService 
         }
 
         String normalizedIp = sourceIp == null || sourceIp.isBlank() ? "unknown" : sourceIp;
-        String ipKey = "feedback:ip:" + normalizedIp;
+        String ipKey = "feedback:ip:" + rateLimitFingerprint(normalizedIp);
         Long ipCount = redisTemplate.opsForValue().increment(ipKey);
         if (ipCount != null && ipCount == 1) {
             redisTemplate.expire(ipKey, 1, TimeUnit.HOURS);
@@ -238,5 +242,15 @@ public class FeedbackSubmissionServiceImpl implements FeedbackSubmissionService 
         }
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private String rateLimitFingerprint(String value) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(value.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest).substring(0, 32);
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is required for feedback rate limiting", exception);
+        }
     }
 }

@@ -1,5 +1,6 @@
 package com.itwanger.pairesume.service.impl;
 
+import com.itwanger.pairesume.config.MarketplaceFeatureProperties;
 import com.itwanger.pairesume.dto.HomeDTO;
 import com.itwanger.pairesume.service.FeedbackSubmissionService;
 import com.itwanger.pairesume.service.PlatformConfigService;
@@ -14,6 +15,7 @@ public class PublicHomeServiceImpl implements PublicHomeService {
     private final PlatformConfigService platformConfigService;
     private final ResumeShowcaseService resumeShowcaseService;
     private final FeedbackSubmissionService feedbackSubmissionService;
+    private final MarketplaceFeatureProperties marketplaceFeatureProperties;
 
     @Override
     public HomeDTO getHome() {
@@ -21,6 +23,7 @@ public class PublicHomeServiceImpl implements PublicHomeService {
         var config = platformConfigService.getConfig();
         dto.setMembershipPriceCents(config.getMembershipPriceCents());
         dto.setQuestionnaireCouponAmountCents(config.getQuestionnaireCouponAmountCents());
+        dto.setMarketplaceEnabled(marketplaceFeatureProperties.isEnabled());
         dto.setShowcases(resumeShowcaseService.listPublishedShowcases());
         dto.setTestimonials(feedbackSubmissionService.listPublishedTestimonials());
         return dto;

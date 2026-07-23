@@ -6,6 +6,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.itwanger.pairesume.common.BusinessException;
 import com.itwanger.pairesume.common.ResultCode;
+import com.itwanger.pairesume.config.MarketplaceFeatureProperties;
 import com.itwanger.pairesume.dto.AdminMarketListingDTO;
 import com.itwanger.pairesume.dto.AdminMarketModerationDTO;
 import com.itwanger.pairesume.dto.CreatorMarketListingDTO;
@@ -17,17 +18,22 @@ import com.itwanger.pairesume.dto.MarketPrivacyConfirmationDTO;
 import com.itwanger.pairesume.dto.MarketResumeModuleDTO;
 import com.itwanger.pairesume.dto.MarketplacePageDTO;
 import com.itwanger.pairesume.entity.Resume;
+import com.itwanger.pairesume.entity.MarketplaceGovernanceAudit;
 import com.itwanger.pairesume.entity.ResumeMarketListing;
 import com.itwanger.pairesume.entity.ResumeMarketListingRevision;
 import com.itwanger.pairesume.entity.ResumeModule;
 import com.itwanger.pairesume.mapper.ResumeMapper;
+import com.itwanger.pairesume.mapper.MarketplaceGovernanceAuditMapper;
 import com.itwanger.pairesume.mapper.ResumeMarketListingMapper;
 import com.itwanger.pairesume.mapper.ResumeMarketListingRevisionMapper;
 import com.itwanger.pairesume.mapper.ResumeModuleMapper;
 import com.itwanger.pairesume.payment.MarketplacePaymentProperties;
+import com.itwanger.pairesume.security.ResumePhotoSecurityPolicy;
 import com.itwanger.pairesume.service.ResumeMarketplaceService;
 import com.itwanger.pairesume.util.DateTimeUtils;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,20 +50,16 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ResumeMarketplaceServiceImpl implements ResumeMarketplaceService {
     private static final int MAX_PAGE_SIZE = 50;
     private static final int MAX_TAG_LENGTH = 24;
-    private static final Pattern SAFE_PUBLIC_PHOTO_DATA_URL = Pattern.compile(
-            "^data:image/(?:png|jpe?g|webp|gif|avif);base64,",
-            Pattern.CASE_INSENSITIVE
-    );
-
     private final ResumeMarketListingMapper listingMapper;
     private final ResumeMarketListingRevisionMapper revisionMapper;
     private final ResumeMapper resumeMapper;
@@ -65,6 +67,9 @@ public class ResumeMarketplaceServiceImpl implements ResumeMarketplaceService {
     private final ObjectMapper objectMapper;
     private final MarketplacePaymentProperties paymentProperties;
     private final MarketplaceOrderLocalService marketplaceOrderLocalService;
+    private final MarketplaceFeatureProperties marketplaceFeatureProperties;
+    private final MarketplaceGovernanceAuditMapper governanceAuditMapper;
+    private final StringRedisTemplate redisTemplate;
 
     @Value("${app.marketplace.min-price-cents:100}")
     private int minPriceCents;
@@ -84,6 +89,9 @@ public class ResumeMarketplaceServiceImpl implements ResumeMarketplaceService {
         int safeSize = Math.min(MAX_PAGE_SIZE, Math.max(1, size));
         String normalizedQuery = normalizeQuery(query);
         String normalizedAccessType = normalizeFilterAccessType(accessType);
+        if (!marketplaceFeatureProperties.isEnabled()) {
+            return new MarketplacePageDTO<>(List.of(), 0, safePage, safeSize, 0);
+        }
         long total = listingMapper.countPublishedListings(normalizedQuery, normalizedAccessType);
         long offset = (long) (safePage - 1) * safeSize;
         List<Long> listingIds = listingMapper.selectPublishedListingIds(
@@ -114,14 +122,43 @@ public class ResumeMarketplaceServiceImpl implements ResumeMarketplaceService {
     @Override
     @Transactional(readOnly = true)
     public MarketListingCardDTO getPublicOffer(String slug) {
+        requireMarketplaceEnabled();
         ResumeMarketListing listing = getBySlug(slug);
         requirePubliclyVisible(listing);
         return toCardDto(listing);
     }
 
     @Override
+    @Transactional
+    public void recordView(String slug, String clientIp) {
+        requireMarketplaceEnabled();
+        ResumeMarketListing listing = getBySlug(slug);
+        requirePubliclyVisible(listing);
+        String normalizedIp = StringUtils.hasText(clientIp) ? clientIp.trim() : "unknown";
+        String viewKey;
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(normalizedIp.getBytes(StandardCharsets.UTF_8));
+            viewKey = "marketplace:view:" + listing.getId() + ":" + toHex(digest).substring(0, 32);
+            Boolean firstView = redisTemplate.opsForValue()
+                    .setIfAbsent(viewKey, "1", 24, TimeUnit.HOURS);
+            if (!Boolean.TRUE.equals(firstView)) {
+                return;
+            }
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is required for marketplace view deduplication", exception);
+        } catch (RuntimeException exception) {
+            log.warn("Marketplace view deduplication unavailable: errorType={}",
+                    exception.getClass().getSimpleName());
+            return;
+        }
+        listingMapper.incrementViewCount(listing.getId());
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public MarketListingContentDTO getFreeContent(String slug) {
+        requireMarketplaceEnabled();
         ResumeMarketListing listing = getBySlug(slug);
         requirePubliclyVisible(listing);
         if (!"FREE".equals(listing.getAccessType())) {
@@ -171,6 +208,7 @@ public class ResumeMarketplaceServiceImpl implements ResumeMarketplaceService {
     @Override
     @Transactional
     public CreatorMarketListingDTO publish(Long userId, Long resumeId, MarketListingUpsertDTO dto) {
+        requireMarketplaceEnabled();
         if (!Boolean.TRUE.equals(dto.getPrivacyConfirmed())) {
             throw new BusinessException(ResultCode.MARKET_PUBLIC_CONSENT_REQUIRED);
         }
@@ -189,30 +227,28 @@ public class ResumeMarketplaceServiceImpl implements ResumeMarketplaceService {
             listing.setSellerUserId(userId);
             listing.setSlug(buildSlug(resumeId));
             listing.setModerationStatus("APPROVED");
+            listing.setReviewStatus("APPROVED");
             listing.setPublicationStatus("UNPUBLISHED");
             listing.setVersion(0);
             applySettings(listing, accessType, priceCents, summary, tags, now);
             listingMapper.insert(listing);
         } else {
             verifyListingOwnership(listing, userId);
-            applySettings(listing, accessType, priceCents, summary, tags, now);
+            listing.setPublicConsentAt(now);
         }
 
-        Long previousRevisionId = listing.getCurrentRevisionId();
-        ResumeMarketListingRevision revision = createRevision(listing, resume);
-        boolean revisionChanged = !Objects.equals(previousRevisionId, revision.getId());
-        listing.setCurrentRevisionId(revision.getId());
-        listing.setPublicationStatus("PUBLISHED");
-        if (listing.getPublishedAt() == null) {
-            listing.setPublishedAt(now);
-        }
+        String previousReviewStatus = listing.getReviewStatus();
+        ResumeMarketListingRevision revision = createRevision(
+                listing, resume, summary, tags, accessType, priceCents);
+        listing.setPendingRevisionId(revision.getId());
+        listing.setReviewStatus("PENDING");
+        listing.setReviewSubmittedAt(now);
+        listing.setPublishAfterReview(true);
+        listing.setModerationReason(null);
         listing.setVersion(nextVersion(listing));
         listingMapper.updateById(listing);
-        if (revisionChanged) {
-            marketplaceOrderLocalService.markSaleClosed(
-                    listing.getId(), listing.getCurrentRevisionId(), "FREE".equals(accessType), now,
-                    "FREE".equals(accessType) ? "ACCESS_FREE" : "REVISION_REPLACED");
-        }
+        recordAudit(listing.getId(), userId, "CREATOR", "SUBMIT_REVIEW", "SUBMISSION",
+                revision.getId(), previousReviewStatus, "PENDING", null);
         return toCreatorDto(listing);
     }
 
@@ -222,6 +258,7 @@ public class ResumeMarketplaceServiceImpl implements ResumeMarketplaceService {
         getOwnedResume(resumeId, userId, true);
         ResumeMarketListing listing = requireCreatorListing(resumeId, userId, true);
         listing.setPublicationStatus("UNPUBLISHED");
+        listing.setPublishAfterReview(false);
         listing.setVersion(nextVersion(listing));
         listingMapper.updateById(listing);
         marketplaceOrderLocalService.markSaleClosed(
@@ -238,8 +275,10 @@ public class ResumeMarketplaceServiceImpl implements ResumeMarketplaceService {
             return;
         }
         verifyListingOwnership(listing, userId);
-        if (!"UNPUBLISHED".equals(listing.getPublicationStatus())) {
+        if (!"UNPUBLISHED".equals(listing.getPublicationStatus())
+                || Boolean.TRUE.equals(listing.getPublishAfterReview())) {
             listing.setPublicationStatus("UNPUBLISHED");
+            listing.setPublishAfterReview(false);
             listing.setVersion(nextVersion(listing));
             listingMapper.updateById(listing);
             marketplaceOrderLocalService.markSaleClosed(
@@ -255,23 +294,32 @@ public class ResumeMarketplaceServiceImpl implements ResumeMarketplaceService {
             Long resumeId,
             MarketPrivacyConfirmationDTO dto
     ) {
+        requireMarketplaceEnabled();
         if (dto == null || !Boolean.TRUE.equals(dto.getPrivacyConfirmed())) {
             throw new BusinessException(ResultCode.MARKET_PUBLIC_CONSENT_REQUIRED);
         }
         Resume resume = getOwnedResume(resumeId, userId, true);
         ResumeMarketListing listing = requireCreatorListing(resumeId, userId, true);
-        Long previousRevisionId = listing.getCurrentRevisionId();
-        ResumeMarketListingRevision revision = createRevision(listing, resume);
-        boolean revisionChanged = !Objects.equals(previousRevisionId, revision.getId());
-        listing.setCurrentRevisionId(revision.getId());
-        listing.setPublicConsentAt(LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now();
+        String previousReviewStatus = listing.getReviewStatus();
+        ResumeMarketListingRevision revision = createRevision(
+                listing,
+                resume,
+                listing.getSummary(),
+                copyTags(listing.getTags()),
+                listing.getAccessType(),
+                listing.getPriceCents()
+        );
+        listing.setPendingRevisionId(revision.getId());
+        listing.setReviewStatus("PENDING");
+        listing.setReviewSubmittedAt(now);
+        listing.setPublishAfterReview("PUBLISHED".equals(listing.getPublicationStatus()));
+        listing.setModerationReason(null);
+        listing.setPublicConsentAt(now);
         listing.setVersion(nextVersion(listing));
         listingMapper.updateById(listing);
-        if (revisionChanged) {
-            marketplaceOrderLocalService.markSaleClosed(
-                    listing.getId(), listing.getCurrentRevisionId(), false, LocalDateTime.now(),
-                    "REVISION_REPLACED");
-        }
+        recordAudit(listing.getId(), userId, "CREATOR", "REFRESH_REVIEW", "SUBMISSION",
+                revision.getId(), previousReviewStatus, "PENDING", null);
         return toCreatorDto(listing);
     }
 
@@ -281,7 +329,8 @@ public class ResumeMarketplaceServiceImpl implements ResumeMarketplaceService {
             int page,
             int size,
             String publicationStatus,
-            String moderationStatus
+            String moderationStatus,
+            String reviewStatus
     ) {
         int safePage = Math.max(1, page);
         int safeSize = Math.min(MAX_PAGE_SIZE, Math.max(1, size));
@@ -295,11 +344,18 @@ public class ResumeMarketplaceServiceImpl implements ResumeMarketplaceService {
                 List.of("APPROVED", "SUSPENDED"),
                 "审核状态筛选值无效"
         );
+        String normalizedReview = normalizeOptionalStatus(
+                reviewStatus,
+                List.of("PENDING", "APPROVED", "REJECTED"),
+                "投稿审核状态筛选值无效"
+        );
         LambdaQueryWrapper<ResumeMarketListing> query = new LambdaQueryWrapper<ResumeMarketListing>()
                 .eq(StringUtils.hasText(normalizedPublication),
                         ResumeMarketListing::getPublicationStatus, normalizedPublication)
                 .eq(StringUtils.hasText(normalizedModeration),
                         ResumeMarketListing::getModerationStatus, normalizedModeration)
+                .eq(StringUtils.hasText(normalizedReview),
+                        ResumeMarketListing::getReviewStatus, normalizedReview)
                 .orderByDesc(ResumeMarketListing::getUpdatedAt)
                 .orderByDesc(ResumeMarketListing::getId);
         Page<ResumeMarketListing> result = listingMapper.selectPage(
@@ -331,35 +387,107 @@ public class ResumeMarketplaceServiceImpl implements ResumeMarketplaceService {
         String action = dto.getAction() == null
                 ? ""
                 : dto.getAction().trim().toUpperCase(Locale.ROOT);
-        String moderationStatus;
-        if ("APPROVE".equals(action) || "APPROVED".equals(action)) {
-            moderationStatus = "APPROVED";
-        } else if ("SUSPEND".equals(action) || "SUSPENDED".equals(action)) {
-            moderationStatus = "SUSPENDED";
-        } else {
-            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "审核动作仅支持 APPROVE 或 SUSPEND");
-        }
-
-        ResumeMarketListing listing = listingMapper.selectOne(
-                new LambdaQueryWrapper<ResumeMarketListing>()
-                        .eq(ResumeMarketListing::getId, listingId)
-                        .last("LIMIT 1 FOR UPDATE")
-        );
+        ResumeMarketListing listing = listingMapper.selectByIdForUpdate(listingId);
         if (listing == null) {
             throw new BusinessException(ResultCode.MARKET_LISTING_NOT_FOUND);
         }
-        listing.setModerationStatus(moderationStatus);
+        LocalDateTime now = LocalDateTime.now();
+        String reason = dto.getReason().trim();
+        Long auditTargetId = listingId;
+        String auditTargetType = "LISTING";
+        String fromStatus;
+        String toStatus;
+        Long previousRevisionId = listing.getCurrentRevisionId();
+        boolean closeAllOrders = false;
+        boolean closeOtherRevisionOrders = false;
+
+        if ("APPROVE".equals(action) || "APPROVED".equals(action)) {
+            Long pendingRevisionId = listing.getPendingRevisionId();
+            if (pendingRevisionId == null) {
+                throw new BusinessException(ResultCode.MARKET_REVIEW_REQUIRED);
+            }
+            ResumeMarketListingRevision pendingRevision = getListingRevision(listing, pendingRevisionId);
+            fromStatus = defaultReviewStatus(listing.getReviewStatus());
+            toStatus = "APPROVED";
+            auditTargetId = pendingRevisionId;
+            auditTargetType = "SUBMISSION";
+            listing.setCurrentRevisionId(pendingRevisionId);
+            listing.setPendingRevisionId(null);
+            listing.setReviewStatus("APPROVED");
+            applyApprovedRevisionSettings(listing, pendingRevision);
+            if (Boolean.TRUE.equals(listing.getPublishAfterReview())) {
+                listing.setPublicationStatus("PUBLISHED");
+            }
+            listing.setPublishAfterReview(false);
+            if (!"SUSPENDED".equals(listing.getModerationStatus())) {
+                listing.setModerationStatus("APPROVED");
+            }
+            if ("PUBLISHED".equals(listing.getPublicationStatus())
+                    && listing.getPublishedAt() == null) {
+                listing.setPublishedAt(now);
+            }
+            if (!Objects.equals(previousRevisionId, pendingRevisionId)) {
+                closeAllOrders = "FREE".equals(pendingRevision.getAccessTypeSnapshot());
+                closeOtherRevisionOrders = !closeAllOrders;
+            }
+        } else if ("REJECT".equals(action) || "REJECTED".equals(action)) {
+            if (listing.getPendingRevisionId() == null) {
+                throw new BusinessException(ResultCode.MARKET_REVIEW_REQUIRED);
+            }
+            fromStatus = defaultReviewStatus(listing.getReviewStatus());
+            toStatus = "REJECTED";
+            auditTargetId = listing.getPendingRevisionId();
+            auditTargetType = "SUBMISSION";
+            listing.setReviewStatus("REJECTED");
+        } else if ("SUSPEND".equals(action) || "SUSPENDED".equals(action)
+                || "TAKEDOWN".equals(action)) {
+            if (listing.getCurrentRevisionId() == null) {
+                throw new BusinessException(ResultCode.MARKET_LISTING_NOT_PUBLISHED);
+            }
+            fromStatus = listing.getModerationStatus();
+            toStatus = "SUSPENDED";
+            listing.setModerationStatus("SUSPENDED");
+            closeAllOrders = true;
+        } else if ("RESTORE".equals(action)) {
+            if (listing.getCurrentRevisionId() == null) {
+                throw new BusinessException(ResultCode.MARKET_LISTING_NOT_PUBLISHED);
+            }
+            fromStatus = listing.getModerationStatus();
+            toStatus = "APPROVED";
+            listing.setModerationStatus("APPROVED");
+        } else {
+            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(),
+                    "审核动作仅支持 APPROVE、REJECT、TAKEDOWN、SUSPEND 或 RESTORE");
+        }
+
         listing.setModeratedBy(adminUserId);
-        listing.setModeratedAt(LocalDateTime.now());
-        listing.setModerationReason(dto.getReason().trim());
+        listing.setModeratedAt(now);
+        listing.setModerationReason(reason);
         listing.setVersion(nextVersion(listing));
         listingMapper.updateById(listing);
-        if ("SUSPENDED".equals(moderationStatus)) {
+        if (closeAllOrders) {
             marketplaceOrderLocalService.markSaleClosed(
-                    listing.getId(), listing.getCurrentRevisionId(), true, LocalDateTime.now(),
-                    "MODERATION_SUSPEND");
+                    listing.getId(), listing.getCurrentRevisionId(), true, now,
+                    "SUBMISSION".equals(auditTargetType) && "APPROVED".equals(toStatus)
+                            ? "ACCESS_FREE" : "MODERATION_SUSPEND");
+        } else if (closeOtherRevisionOrders) {
+            marketplaceOrderLocalService.markSaleClosed(
+                    listing.getId(), listing.getCurrentRevisionId(), false, now,
+                    "REVISION_REPLACED");
         }
+        recordAudit(listingId, adminUserId, "ADMIN", normalizeAuditAction(action), auditTargetType,
+                auditTargetId, fromStatus, toStatus, reason);
         return toAdminDto(listing);
+    }
+
+    private void applyApprovedRevisionSettings(
+            ResumeMarketListing listing,
+            ResumeMarketListingRevision revision
+    ) {
+        listing.setSummary(revision.getSummarySnapshot());
+        listing.setTags(copyTags(revision.getTagsSnapshot()));
+        listing.setAccessType(revision.getAccessTypeSnapshot());
+        listing.setPriceCents(revision.getPriceCentsSnapshot());
     }
 
     private void applySettings(
@@ -377,7 +505,14 @@ public class ResumeMarketplaceServiceImpl implements ResumeMarketplaceService {
         listing.setPublicConsentAt(consentAt);
     }
 
-    private ResumeMarketListingRevision createRevision(ResumeMarketListing listing, Resume resume) {
+    private ResumeMarketListingRevision createRevision(
+            ResumeMarketListing listing,
+            Resume resume,
+            String summary,
+            List<String> tags,
+            String accessType,
+            Integer priceCents
+    ) {
         List<ResumeModule> modules = moduleMapper.selectList(
                 new LambdaQueryWrapper<ResumeModule>()
                         .eq(ResumeModule::getResumeId, resume.getId())
@@ -401,10 +536,10 @@ public class ResumeMarketplaceServiceImpl implements ResumeMarketplaceService {
         candidate.setRevisionNo(latest == null ? 1 : latest.getRevisionNo() + 1);
         candidate.setTitleSnapshot(resume.getTitle());
         candidate.setTemplateIdSnapshot(StringUtils.hasText(resume.getTemplateId()) ? resume.getTemplateId() : "default");
-        candidate.setSummarySnapshot(listing.getSummary());
-        candidate.setTagsSnapshot(copyTags(listing.getTags()));
-        candidate.setAccessTypeSnapshot(listing.getAccessType());
-        candidate.setPriceCentsSnapshot(listing.getPriceCents());
+        candidate.setSummarySnapshot(summary);
+        candidate.setTagsSnapshot(copyTags(tags));
+        candidate.setAccessTypeSnapshot(accessType);
+        candidate.setPriceCentsSnapshot(priceCents);
         candidate.setModulesSnapshot(moduleSnapshots);
         candidate.setSourceResumeUpdatedAt(resume.getUpdatedAt());
         candidate.setContentHash(calculateContentHash(candidate));
@@ -437,7 +572,7 @@ public class ResumeMarketplaceServiceImpl implements ResumeMarketplaceService {
             return;
         }
         Object photo = content.get("photo");
-        if (photo instanceof String value && SAFE_PUBLIC_PHOTO_DATA_URL.matcher(value.trim()).find()) {
+        if (ResumePhotoSecurityPolicy.isSafeRasterDataUrl(photo)) {
             return;
         }
         content.remove("photo");
@@ -474,10 +609,10 @@ public class ResumeMarketplaceServiceImpl implements ResumeMarketplaceService {
             boolean admin
     ) {
         if (admin) {
-            return new AccessResolution("ADMIN", true, requireCurrentRevisionId(listing));
+            return new AccessResolution("ADMIN", true, requireOwnerRevisionId(listing));
         }
         if (userId != null && userId.equals(listing.getSellerUserId())) {
-            return new AccessResolution("OWNER", true, requireCurrentRevisionId(listing));
+            return new AccessResolution("OWNER", true, requireOwnerRevisionId(listing));
         }
         if ("SUSPENDED".equals(listing.getModerationStatus())) {
             throw new BusinessException(ResultCode.MARKET_LISTING_SUSPENDED);
@@ -488,6 +623,10 @@ public class ResumeMarketplaceServiceImpl implements ResumeMarketplaceService {
                 : listingMapper.selectActiveEntitlementRevisionId(listing.getId(), userId);
         if (entitledRevisionId != null) {
             return new AccessResolution("PURCHASED", true, entitledRevisionId);
+        }
+
+        if (!marketplaceFeatureProperties.isEnabled()) {
+            throw new BusinessException(ResultCode.MARKETPLACE_DISABLED);
         }
 
         if ("PUBLISHED".equals(listing.getPublicationStatus())
@@ -575,6 +714,13 @@ public class ResumeMarketplaceServiceImpl implements ResumeMarketplaceService {
         return listing.getCurrentRevisionId();
     }
 
+    private Long requireOwnerRevisionId(ResumeMarketListing listing) {
+        if (listing.getPendingRevisionId() != null) {
+            return listing.getPendingRevisionId();
+        }
+        return requireCurrentRevisionId(listing);
+    }
+
     private ResumeMarketListingRevision getRevision(Long revisionId) {
         ResumeMarketListingRevision revision = revisionMapper.selectById(revisionId);
         if (revision == null) {
@@ -601,33 +747,45 @@ public class ResumeMarketplaceServiceImpl implements ResumeMarketplaceService {
         dto.setTags(copyTags(revision.getTagsSnapshot()));
         dto.setAccessType(revision.getAccessTypeSnapshot());
         dto.setPriceCents(revision.getPriceCentsSnapshot());
+        dto.setViewCount(listing.getViewCount() == null ? 0L : listing.getViewCount());
         dto.setPublicationStatus(listing.getPublicationStatus());
         dto.setModerationStatus(listing.getModerationStatus());
-        dto.setUpdatedAt(DateTimeUtils.format(listing.getUpdatedAt()));
-        dto.setPaymentEnabled(paymentProperties.isAcceptNewOrders());
+        dto.setUpdatedAt(DateTimeUtils.format(revision.getCreatedAt()));
+        dto.setPaymentEnabled(marketplaceFeatureProperties.isEnabled()
+                && paymentProperties.isMarketplaceAcceptNewOrders());
         return dto;
     }
 
     private AdminMarketListingDTO toAdminDto(ResumeMarketListing listing) {
-        ResumeMarketListingRevision revision = listing.getCurrentRevisionId() == null
+        ResumeMarketListingRevision currentRevision = listing.getCurrentRevisionId() == null
                 ? null
                 : getListingRevision(listing, listing.getCurrentRevisionId());
+        ResumeMarketListingRevision pendingRevision = listing.getPendingRevisionId() == null
+                ? null
+                : getListingRevision(listing, listing.getPendingRevisionId());
+        ResumeMarketListingRevision displayRevision = pendingRevision == null ? currentRevision : pendingRevision;
         AdminMarketListingDTO dto = new AdminMarketListingDTO();
         dto.setId(listing.getId());
         dto.setResumeId(listing.getResumeId());
         dto.setSellerUserId(listing.getSellerUserId());
         dto.setSlug(listing.getSlug());
-        dto.setTitle(revision == null ? "未生成公开版本" : revision.getTitleSnapshot());
-        dto.setSummary(listing.getSummary());
-        dto.setTags(copyTags(listing.getTags()));
-        dto.setAccessType(listing.getAccessType());
-        dto.setPriceCents(listing.getPriceCents());
+        dto.setTitle(displayRevision == null ? "未生成公开版本" : displayRevision.getTitleSnapshot());
+        dto.setSummary(displayRevision == null ? listing.getSummary() : displayRevision.getSummarySnapshot());
+        dto.setTags(displayRevision == null ? copyTags(listing.getTags())
+                : copyTags(displayRevision.getTagsSnapshot()));
+        dto.setAccessType(displayRevision == null ? listing.getAccessType()
+                : displayRevision.getAccessTypeSnapshot());
+        dto.setPriceCents(displayRevision == null ? listing.getPriceCents()
+                : displayRevision.getPriceCentsSnapshot());
         dto.setPublicationStatus(listing.getPublicationStatus());
         dto.setModerationStatus(listing.getModerationStatus());
+        dto.setReviewStatus(defaultReviewStatus(listing.getReviewStatus()));
+        dto.setReviewSubmittedAt(DateTimeUtils.format(listing.getReviewSubmittedAt()));
         dto.setModeratedBy(listing.getModeratedBy());
         dto.setModeratedAt(DateTimeUtils.format(listing.getModeratedAt()));
         dto.setModerationReason(listing.getModerationReason());
         dto.setCurrentRevisionId(listing.getCurrentRevisionId());
+        dto.setPendingRevisionId(listing.getPendingRevisionId());
         dto.setCreatedAt(DateTimeUtils.format(listing.getCreatedAt()));
         dto.setUpdatedAt(DateTimeUtils.format(listing.getUpdatedAt()));
         return dto;
@@ -664,29 +822,41 @@ public class ResumeMarketplaceServiceImpl implements ResumeMarketplaceService {
         dto.setAccessType(revision.getAccessTypeSnapshot());
         dto.setPriceCents(revision.getPriceCentsSnapshot());
         dto.setRevisionId(revision.getId());
-        dto.setPaymentEnabled(paymentProperties.isAcceptNewOrders());
+        dto.setPaymentEnabled(marketplaceFeatureProperties.isEnabled()
+                && paymentProperties.isMarketplaceAcceptNewOrders());
         return dto;
     }
 
     private CreatorMarketListingDTO toCreatorDto(ResumeMarketListing listing) {
         Resume resume = resumeMapper.selectById(listing.getResumeId());
-        ResumeMarketListingRevision revision = listing.getCurrentRevisionId() == null
+        ResumeMarketListingRevision currentRevision = listing.getCurrentRevisionId() == null
                 ? null
                 : getListingRevision(listing, listing.getCurrentRevisionId());
+        ResumeMarketListingRevision pendingRevision = listing.getPendingRevisionId() == null
+                ? null
+                : getListingRevision(listing, listing.getPendingRevisionId());
+        ResumeMarketListingRevision displayRevision = pendingRevision == null ? currentRevision : pendingRevision;
         CreatorMarketListingDTO dto = new CreatorMarketListingDTO();
         dto.setId(listing.getId());
         dto.setResumeId(listing.getResumeId());
         dto.setSlug(listing.getSlug());
-        dto.setTitle(resume != null ? resume.getTitle() : revision == null ? "已删除简历" : revision.getTitleSnapshot());
-        dto.setSummary(listing.getSummary());
-        dto.setTags(copyTags(listing.getTags()));
-        dto.setAccessType(listing.getAccessType());
-        dto.setPriceCents(listing.getPriceCents());
+        dto.setTitle(resume != null ? resume.getTitle()
+                : displayRevision == null ? "已删除简历" : displayRevision.getTitleSnapshot());
+        dto.setSummary(displayRevision == null ? listing.getSummary() : displayRevision.getSummarySnapshot());
+        dto.setTags(displayRevision == null ? copyTags(listing.getTags())
+                : copyTags(displayRevision.getTagsSnapshot()));
+        dto.setAccessType(displayRevision == null ? listing.getAccessType()
+                : displayRevision.getAccessTypeSnapshot());
+        dto.setPriceCents(displayRevision == null ? listing.getPriceCents()
+                : displayRevision.getPriceCentsSnapshot());
         dto.setPublicationStatus(listing.getPublicationStatus());
         dto.setModerationStatus(listing.getModerationStatus());
+        dto.setReviewStatus(defaultReviewStatus(listing.getReviewStatus()));
+        dto.setReviewSubmittedAt(DateTimeUtils.format(listing.getReviewSubmittedAt()));
         dto.setModerationReason(listing.getModerationReason());
         dto.setCurrentRevisionId(listing.getCurrentRevisionId());
-        dto.setSnapshotOutdated(isSnapshotOutdated(resume, revision));
+        dto.setPendingRevisionId(listing.getPendingRevisionId());
+        dto.setSnapshotOutdated(isSnapshotOutdated(resume, displayRevision));
         dto.setCreatedAt(DateTimeUtils.format(listing.getCreatedAt()));
         dto.setUpdatedAt(DateTimeUtils.format(listing.getUpdatedAt()));
         return dto;
@@ -800,6 +970,49 @@ public class ResumeMarketplaceServiceImpl implements ResumeMarketplaceService {
 
     private List<String> copyTags(List<String> tags) {
         return tags == null ? List.of() : List.copyOf(tags);
+    }
+
+    private void requireMarketplaceEnabled() {
+        if (!marketplaceFeatureProperties.isEnabled()) {
+            throw new BusinessException(ResultCode.MARKETPLACE_DISABLED);
+        }
+    }
+
+    private String defaultReviewStatus(String reviewStatus) {
+        return StringUtils.hasText(reviewStatus) ? reviewStatus : "APPROVED";
+    }
+
+    private String normalizeAuditAction(String action) {
+        return switch (action) {
+            case "APPROVED" -> "APPROVE";
+            case "REJECTED" -> "REJECT";
+            case "SUSPENDED" -> "SUSPEND";
+            default -> action;
+        };
+    }
+
+    private void recordAudit(
+            Long listingId,
+            Long actorUserId,
+            String actorType,
+            String action,
+            String targetType,
+            Long targetId,
+            String fromStatus,
+            String toStatus,
+            String reason
+    ) {
+        MarketplaceGovernanceAudit audit = new MarketplaceGovernanceAudit();
+        audit.setListingId(listingId);
+        audit.setActorUserId(actorUserId);
+        audit.setActorType(actorType);
+        audit.setAction(action);
+        audit.setTargetType(targetType);
+        audit.setTargetId(targetId);
+        audit.setFromStatus(fromStatus);
+        audit.setToStatus(toStatus);
+        audit.setReason(reason);
+        governanceAuditMapper.insert(audit);
     }
 
     private int nextVersion(ResumeMarketListing listing) {

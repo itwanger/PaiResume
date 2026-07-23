@@ -1,7 +1,8 @@
 package com.itwanger.pairesume.payment;
 
 import jakarta.annotation.PostConstruct;
-import lombok.RequiredArgsConstructor;
+import com.itwanger.pairesume.config.ResumeReviewProperties;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -10,11 +11,22 @@ import java.net.URI;
 import java.util.Set;
 
 @Component
-@RequiredArgsConstructor
 public class PaymentConfigurationValidator {
     private static final Set<String> SUPPORTED_PROVIDERS = Set.of("disabled", "mock", "wechat-native");
 
     private final MarketplacePaymentProperties properties;
+    private final ResumeReviewProperties resumeReviewProperties;
+
+    @Autowired
+    public PaymentConfigurationValidator(MarketplacePaymentProperties properties,
+                                         ResumeReviewProperties resumeReviewProperties) {
+        this.properties = properties;
+        this.resumeReviewProperties = resumeReviewProperties;
+    }
+
+    PaymentConfigurationValidator(MarketplacePaymentProperties properties) {
+        this(properties, new ResumeReviewProperties());
+    }
 
     @Value("${app.environment:unset}")
     private String environment;
@@ -25,13 +37,42 @@ public class PaymentConfigurationValidator {
         if (!SUPPORTED_PROVIDERS.contains(provider)) {
             throw new IllegalStateException("PAYMENT_PROVIDER must be disabled, mock, or wechat-native");
         }
-        if (properties.isAcceptNewOrders() && "disabled".equals(provider)) {
+        if (properties.isAcceptNewOrders()) {
             throw new IllegalStateException(
-                    "PAYMENT_ACCEPT_NEW_ORDERS=true requires PAYMENT_PROVIDER=mock or wechat-native"
+                    "PAYMENT_ACCEPT_NEW_ORDERS is deprecated and must remain false; use "
+                            + "MEMBERSHIP_PAYMENT_ACCEPT_NEW_ORDERS or "
+                            + "MARKETPLACE_PAYMENT_ACCEPT_NEW_ORDERS"
+            );
+        }
+        if ((properties.isMembershipAcceptNewOrders()
+                || properties.isMarketplaceAcceptNewOrders()) && "disabled".equals(provider)) {
+            throw new IllegalStateException(
+                    "Enabling new membership or marketplace orders requires "
+                            + "PAYMENT_PROVIDER=mock or wechat-native"
+            );
+        }
+        if (resumeReviewProperties.isPaidAcceptNewOrders() && !"wechat-native".equals(provider)) {
+            throw new IllegalStateException(
+                    "RESUME_REVIEW_PAID_ACCEPT_NEW_ORDERS requires PAYMENT_PROVIDER=wechat-native"
+            );
+        }
+        if (resumeReviewProperties.getPaymentOrderExpireMinutes() != 30) {
+            throw new IllegalStateException(
+                    "RESUME_REVIEW_PAYMENT_ORDER_EXPIRE_MINUTES must be exactly 30"
             );
         }
         if (properties.getOrderExpireMinutes() < 5 || properties.getOrderExpireMinutes() > 120) {
             throw new IllegalStateException("PAYMENT_ORDER_EXPIRE_MINUTES must be between 5 and 120");
+        }
+        if (properties.getMembershipOrderExpireMinutes() != 30) {
+            throw new IllegalStateException("MEMBERSHIP_ORDER_EXPIRE_MINUTES must be exactly 30");
+        }
+        if (properties.getMembershipPaymentDays() < 1 || properties.getMembershipPaymentDays() > 3650) {
+            throw new IllegalStateException("MEMBERSHIP_PAYMENT_DAYS must be between 1 and 3650");
+        }
+        if ("production".equalsIgnoreCase(normalizedEnvironment())
+                && properties.getMembershipPaymentDays() != 365) {
+            throw new IllegalStateException("MEMBERSHIP_PAYMENT_DAYS must be exactly 365 in production");
         }
         if (properties.getPlatformFeeBasisPoints() < 0 || properties.getPlatformFeeBasisPoints() > 5000) {
             throw new IllegalStateException("MARKETPLACE_PLATFORM_FEE_BPS must be between 0 and 5000");

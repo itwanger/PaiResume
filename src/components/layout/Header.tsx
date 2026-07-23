@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ChangeEvent, type MouseEvent as ReactMouseEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import {
   AUTHENTICATED_HOME_PATH,
@@ -19,20 +19,19 @@ const IMPORT_LOG_PREFIX = '[resume-import]'
 const MARKDOWN_FILE_PATTERN = /\.(md|markdown|txt)$/i
 const NAVBAR_EMAIL_VISIBLE_CHARACTERS = 7
 
-function getNavbarEmailLabel(email?: string): string {
-  const normalizedEmail = email?.trim() || '用户'
-  const characters = Array.from(normalizedEmail)
+function getNavbarAccountLabel(accountLabel?: string | null): string {
+  const normalizedLabel = accountLabel?.trim() || '用户'
+  const characters = Array.from(normalizedLabel)
 
   if (characters.length <= NAVBAR_EMAIL_VISIBLE_CHARACTERS) {
-    return normalizedEmail
+    return normalizedLabel
   }
 
   return `${characters.slice(0, NAVBAR_EMAIL_VISIBLE_CHARACTERS - 1).join('')}…`
 }
 
-function logImportStep(message: string, details?: Record<string, unknown>) {
-  if (details) {
-    console.info(`${IMPORT_LOG_PREFIX} ${message}`, details)
+function logImportStep(message: string) {
+  if (!import.meta.env.DEV) {
     return
   }
 
@@ -78,13 +77,14 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
   const [importError, setImportError] = useState('')
   const [draggingImportFile, setDraggingImportFile] = useState(false)
   const menuRef = useRef<HTMLDivElement | null>(null)
-  const fileInputRefs = useRef<Partial<Record<ResumeImportType, HTMLInputElement | null>>>({})
   const dragDepthRef = useRef(0)
   const readyAuthenticated = initialized && isAuthenticated
-  const resumeImportAvailable = readyAuthenticated
-  const resumeDropEnabled = readyAuthenticated && enableResumeDrop
+  const legalConsentAccepted = !user?.legalConsentRequired
+  const resumeImportAvailable = readyAuthenticated && legalConsentAccepted
+  const resumeDropEnabled = readyAuthenticated && legalConsentAccepted && enableResumeDrop
   const isVipUser = user?.membershipStatus === 'ACTIVE'
-  const navbarEmailLabel = getNavbarEmailLabel(user?.email)
+  const navbarIdentity = user?.email || user?.nickname
+  const navbarEmailLabel = getNavbarAccountLabel(navbarIdentity)
   const editorSectionActive = location.pathname === RESUME_EDITOR_ENTRY_PATH
     || location.pathname.startsWith(`${RESUME_EDITOR_ENTRY_PATH}/`)
     || location.pathname.startsWith('/preview/')
@@ -100,19 +100,10 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
 
   const handleImportFile = useCallback(async (file: File, currentType: ResumeImportType) => {
     const importer = getResumeImporter(currentType)
-    logImportStep('handleImportFile:start', {
-      type: currentType,
-      fileName: file.name,
-      fileSize: file.size,
-      fileType: file.type,
-      importerEnabled: importer?.enabled ?? false,
-      hasParser: typeof importer?.parse === 'function',
-    })
+    logImportStep(`handleImportFile:start:${currentType}`)
 
     if (!importer?.enabled || !importer.parse) {
-      logImportStep('handleImportFile:importer-unavailable', {
-        type: currentType,
-      })
+      logImportStep(`handleImportFile:importer-unavailable:${currentType}`)
       setImportingType(null)
       setImportError('当前导入方式暂不可用')
       return
@@ -121,29 +112,16 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
     try {
       setImportingType(currentType)
       const payload = await importer.parse(file)
-      logImportStep('handleImportFile:parse-success', {
-        type: currentType,
-        title: payload.title,
-        moduleCount: payload.modules.length,
-      })
+      logImportStep(`handleImportFile:parse-success:${currentType}`)
       const resume = await importResume(payload)
-      logImportStep('handleImportFile:store-import-success', {
-        type: currentType,
-        resumeId: resume.id,
-      })
+      logImportStep(`handleImportFile:store-import-success:${currentType}`)
       navigate(buildResumeEditorPath(resume.id))
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : '导入失败，请稍后再试'
-      logImportStep('handleImportFile:error', {
-        type: currentType,
-        message,
-        error,
-      })
+      logImportStep(`handleImportFile:error:${currentType}`)
       setImportError(message)
     } finally {
-      logImportStep('handleImportFile:finish', {
-        type: currentType,
-      })
+      logImportStep(`handleImportFile:finish:${currentType}`)
       setImportingType(null)
     }
   }, [importResume, navigate])
@@ -188,9 +166,7 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
       }
       dragDepthRef.current += 1
       setDraggingImportFile(true)
-      logImportStep('dragImport:enter', {
-        dragDepth: dragDepthRef.current,
-      })
+      logImportStep('dragImport:enter')
     }
 
     const handleDragOver = (event: DragEvent) => {
@@ -217,9 +193,7 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
         return
       }
       dragDepthRef.current = Math.max(0, dragDepthRef.current - 1)
-      logImportStep('dragImport:leave', {
-        dragDepth: dragDepthRef.current,
-      })
+      logImportStep('dragImport:leave')
       if (dragDepthRef.current === 0) {
         setDraggingImportFile(false)
       }
@@ -245,12 +219,7 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
       }
 
       const importType = getImportTypeFromFile(file)
-      logImportStep('dragImport:drop', {
-        fileName: file.name,
-        fileSize: file.size,
-        fileType: file.type,
-        resolvedType: importType,
-      })
+      logImportStep(importType ? `dragImport:drop:${importType}` : 'dragImport:drop:unsupported')
 
       if (!importType) {
         setImportError('当前仅支持拖拽导入 Markdown / TXT 简历文件')
@@ -280,49 +249,24 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
   }
 
   const handleImportChange = (type: ResumeImportType) => async (event: ChangeEvent<HTMLInputElement>) => {
-    logImportStep('handleImportChange:fired', {
-      type,
-      fileCount: event.target.files?.length ?? 0,
-      inputValue: event.target.value,
-    })
+    logImportStep(`handleImportChange:fired:${type}`)
     const file = event.target.files?.[0]
     event.target.value = ''
 
     if (!file) {
-      logImportStep('handleImportChange:no-file-selected', {
-        type,
-      })
+      logImportStep(`handleImportChange:no-file-selected:${type}`)
       return
     }
 
-    logImportStep('handleImportChange:file-selected', {
-      type,
-      fileName: file.name,
-      fileSize: file.size,
-      fileType: file.type,
-    })
+    logImportStep(`handleImportChange:file-selected:${type}`)
     setImportError('')
     setImportMenuOpen(false)
     setMobileMenuOpen(false)
     await handleImportFile(file, type)
   }
 
-  const handleImportInputMouseDown = (type: ResumeImportType) => {
+  const handleImportInputMouseDown = () => {
     setImportError('')
-    logImportStep('importInput:onMouseDown', {
-      type,
-      activeElement: document.activeElement instanceof HTMLElement
-        ? `${document.activeElement.tagName.toLowerCase()}#${document.activeElement.id || '(no-id)'}`
-        : document.activeElement?.nodeName ?? null,
-    })
-  }
-
-  const handleImportInputClick = (type: ResumeImportType) => (event: ReactMouseEvent<HTMLInputElement>) => {
-    logImportStep('importInput:onClick', {
-      type,
-      inputId: event.currentTarget.id,
-      accept: event.currentTarget.accept,
-    })
   }
 
   return (
@@ -348,7 +292,7 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
                     我的简历
                   </NavLink>
                 ) : null}
-                {readyAuthenticated ? (
+                {readyAuthenticated && user?.marketplaceEnabled ? (
                   <NavLink to={CREATOR_MARKETPLACE_PATH} className={navigationLinkClass}>
                     创作者中心
                   </NavLink>
@@ -404,12 +348,9 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
                                   id={`resume-import-${importer.type}`}
                                   type="file"
                                   accept={importer.accept}
+                                  aria-label={`导入${importer.label}`}
                                   className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
-                                  ref={(node) => {
-                                    fileInputRefs.current[importer.type] = node
-                                  }}
-                                  onMouseDown={() => handleImportInputMouseDown(importer.type)}
-                                  onClick={handleImportInputClick(importer.type)}
+                                  onMouseDown={handleImportInputMouseDown}
                                   onChange={handleImportChange(importer.type)}
                                 />
                                 <span>
@@ -446,11 +387,17 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
                   ) : null}
                   <span
                     className="hidden text-sm text-gray-600 xl:inline"
-                    title={user?.email}
-                    aria-label={user?.email ? `当前用户：${user.email}` : '当前用户'}
+                    title={navbarIdentity || undefined}
+                    aria-label={navbarIdentity ? `当前用户：${navbarIdentity}` : '当前用户'}
                   >
                     {navbarEmailLabel}
                   </span>
+                  <Link
+                    to="/settings/account"
+                    className="text-sm text-gray-500 transition-colors hover:text-primary-700"
+                  >
+                    账号
+                  </Link>
                   <button
                     type="button"
                     onClick={() => void handleLogout()}
@@ -505,7 +452,7 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
                     我的简历
                   </NavLink>
                 ) : null}
-                {readyAuthenticated ? (
+                {readyAuthenticated && user?.marketplaceEnabled ? (
                   <NavLink to={CREATOR_MARKETPLACE_PATH} className={navigationLinkClass}>
                     创作者中心
                   </NavLink>
@@ -549,9 +496,9 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
                                 type="file"
                                 accept={importer.accept}
                                 disabled={!!importingType}
+                                aria-label={`导入${importer.label}`}
                                 className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
-                                onMouseDown={() => handleImportInputMouseDown(importer.type)}
-                                onClick={handleImportInputClick(importer.type)}
+                                onMouseDown={handleImportInputMouseDown}
                                 onChange={handleImportChange(importer.type)}
                               />
                               <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -572,11 +519,18 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
                       ) : null}
                       <span
                         className="min-w-0 flex-1 text-sm text-gray-600"
-                        title={user?.email}
-                        aria-label={user?.email ? `当前用户：${user.email}` : '当前用户'}
+                        title={navbarIdentity || undefined}
+                        aria-label={navbarIdentity ? `当前用户：${navbarIdentity}` : '当前用户'}
                       >
                         {navbarEmailLabel}
                       </span>
+                      <Link
+                        to="/settings/account"
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="text-sm text-gray-500 transition-colors hover:text-primary-700"
+                      >
+                        账号设置
+                      </Link>
                       <button
                         type="button"
                         onClick={() => void handleLogout()}
@@ -604,7 +558,7 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
           ) : null}
 
           {resumeImportAvailable && importError ? (
-            <div className="border-t border-red-100 py-2 text-sm text-red-600">{importError}</div>
+            <div role="alert" className="border-t border-red-100 py-2 text-sm text-red-600">{importError}</div>
           ) : null}
         </div>
       </header>

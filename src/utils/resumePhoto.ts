@@ -24,7 +24,7 @@ export function normalizePhotoSource(value: string | null | undefined) {
 export function normalizePublicPhotoSource(value: string | null | undefined) {
   const trimmed = value?.trim() || ''
 
-  if (/^data:image\/(?:png|jpe?g|webp|gif|avif);base64,/i.test(trimmed)) {
+  if (/^data:image\/(?:png|jpe?g);base64,/i.test(trimmed)) {
     return trimmed
   }
 
@@ -36,8 +36,8 @@ export function isUploadedPhotoSource(value: string | null | undefined) {
 }
 
 export async function readPhotoFileAsDataUrl(file: File) {
-  if (!file.type.startsWith('image/')) {
-    throw new Error('请选择 PNG、JPG 或 WebP 等图片文件')
+  if (file.type !== 'image/png' && file.type !== 'image/jpeg') {
+    throw new Error('请选择 PNG 或 JPG 图片文件')
   }
 
   if (file.size > BASIC_INFO_PHOTO_MAX_SIZE) {
@@ -49,7 +49,7 @@ export async function readPhotoFileAsDataUrl(file: File) {
 
     reader.onload = () => {
       const result = reader.result
-      if (typeof result === 'string' && result.startsWith('data:image/')) {
+      if (typeof result === 'string' && /^data:image\/(?:png|jpeg);base64,/i.test(result)) {
         resolve(result)
         return
       }

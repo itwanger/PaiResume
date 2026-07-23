@@ -1,0 +1,22 @@
+CREATE TABLE IF NOT EXISTS `vip_invite_claim` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+    `token_hash` CHAR(64) NOT NULL COMMENT '一次性领取令牌 SHA-256，不保存明文',
+    `invite_code_id` BIGINT NOT NULL COMMENT '已验证的邀请码 ID，不保存邀请码明文',
+    `challenge_id_hash` CHAR(64) NULL COMMENT '绑定的派聪明扫码 challenge SHA-256',
+    `user_id` BIGINT NULL COMMENT '扫码后绑定的用户 ID，绑定后不可更换',
+    `redemption_id` BIGINT NULL COMMENT '成功兑换记录 ID',
+    `status` VARCHAR(24) NOT NULL COMMENT 'AWAITING_IDENTITY/PENDING_CONSENT/PENDING_REDEMPTION/REDEEMED/EXPIRED/FAILED',
+    `failure_code` VARCHAR(40) NULL COMMENT '内部失败分类，不保存敏感上下文',
+    `expires_at` DATETIME NOT NULL COMMENT '领取令牌过期时间',
+    `bound_at` DATETIME NULL COMMENT '绑定用户时间',
+    `completed_at` DATETIME NULL COMMENT '完成兑换时间',
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_vip_invite_claim_token_hash` (`token_hash`),
+    UNIQUE KEY `uk_vip_invite_claim_challenge_hash` (`challenge_id_hash`),
+    UNIQUE KEY `uk_vip_invite_claim_redemption` (`redemption_id`),
+    KEY `idx_vip_invite_claim_user_status` (`user_id`, `status`, `created_at`),
+    KEY `idx_vip_invite_claim_expiry` (`status`, `expires_at`),
+    KEY `idx_vip_invite_claim_retention` (`status`, `updated_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='未登录用户邀请码扫码领取流程';

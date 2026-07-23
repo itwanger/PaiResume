@@ -2,6 +2,7 @@ package com.itwanger.pairesume.service.impl;
 
 import com.itwanger.pairesume.common.BusinessException;
 import com.itwanger.pairesume.common.ResultCode;
+import com.itwanger.pairesume.config.MarketplaceFeatureProperties;
 import com.itwanger.pairesume.dto.MarketplaceOrderDTO;
 import com.itwanger.pairesume.dto.MarketplacePaymentReviewDTO;
 import com.itwanger.pairesume.entity.User;
@@ -45,6 +46,7 @@ public class MarketplaceOrderServiceImpl implements MarketplaceOrderService {
     private final MarketplaceOrderSettlementService settlementService;
     private final MarketplacePaymentGateway paymentGateway;
     private final MarketplacePaymentProperties paymentProperties;
+    private final MarketplaceFeatureProperties marketplaceFeatureProperties;
     private final ResumeMarketListingMapper listingMapper;
     private final ResumeViewOrderMapper orderMapper;
     private final UserMapper userMapper;
@@ -54,7 +56,8 @@ public class MarketplaceOrderServiceImpl implements MarketplaceOrderService {
     @Override
     public MarketplaceOrderDTO createOrder(String listingSlug, Long buyerUserId, boolean admin,
                                            String idempotencyKey, String clientIp) {
-        if (!paymentProperties.isAcceptNewOrders()) {
+        if (!marketplaceFeatureProperties.isEnabled()
+                || !paymentProperties.isMarketplaceAcceptNewOrders()) {
             throw new BusinessException(ResultCode.PAYMENT_NOT_ENABLED);
         }
         MarketplaceOrderDecision decision = findOrCreateDecision(
@@ -127,6 +130,11 @@ public class MarketplaceOrderServiceImpl implements MarketplaceOrderService {
             throw new BusinessException(ResultCode.PAYMENT_NOT_ENABLED);
         }
         ProviderPaymentResult providerResult = paymentGateway.verifyNotification(request);
+        handleVerifiedProviderNotification(providerResult);
+    }
+
+    @Override
+    public void handleVerifiedProviderNotification(ProviderPaymentResult providerResult) {
         if (providerResult.state() == PaymentProviderState.PAID) {
             settlementService.settlePaidNotification(providerResult.orderNo(), providerResult);
         } else {
@@ -236,7 +244,8 @@ public class MarketplaceOrderServiceImpl implements MarketplaceOrderService {
 
     private MarketplaceOrderDecision findOrCreateDecision(String listingSlug, Long buyerUserId,
                                                            boolean admin, String idempotencyKey) {
-        boolean paymentEnabled = paymentProperties.isAcceptNewOrders();
+        boolean paymentEnabled = marketplaceFeatureProperties.isEnabled()
+                && paymentProperties.isMarketplaceAcceptNewOrders();
         try {
             return localOrderService.findOrCreate(
                     listingSlug,

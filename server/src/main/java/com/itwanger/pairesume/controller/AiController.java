@@ -160,8 +160,8 @@ public class AiController {
                     snapshot,
                     e.getMessage()
             ));
-            log.warn("[AI Optimize][Controller] field optimize stream failed: resumeId={}, moduleId={}, code={}, message={}",
-                    resumeId, moduleId, e.getCode(), e.getMessage());
+            log.warn("[AI Optimize][Controller] field optimize stream failed: resumeId={}, moduleId={}, code={}",
+                    resumeId, moduleId, e.getCode());
             sendSseEvent(response, "error", Map.of(
                     "code", e.getCode(),
                     "message", e.getMessage()
@@ -176,7 +176,8 @@ public class AiController {
                     snapshot,
                     "流式 AI 优化失败，请稍后重试"
             ));
-            log.error("[AI Optimize][Controller] field optimize stream crashed: resumeId={}, moduleId={}", resumeId, moduleId, e);
+            log.error("[AI Optimize][Controller] field optimize stream crashed: resumeId={}, moduleId={}, errorType={}",
+                    resumeId, moduleId, e.getClass().getSimpleName());
             sendSseEvent(response, "error", Map.of(
                     "code", ResultCode.INTERNAL_ERROR.getCode(),
                     "message", "流式 AI 优化失败，请稍后重试"
@@ -341,27 +342,22 @@ public class AiController {
                 if (value == null) {
                     return;
                 }
-                if ("text".equals(key) || "delta".equals(key) || "original".equals(key) || "optimized".equals(key)) {
-                    sanitized.put(key, truncateText(String.valueOf(value), 160));
-                    return;
+                if (value instanceof String text) {
+                    sanitized.put(key + "Length", text.length());
+                } else if (value instanceof java.util.Collection<?> collection) {
+                    sanitized.put(key + "Count", collection.size());
+                } else if (value instanceof java.util.Map<?, ?> map) {
+                    sanitized.put(key + "Keys", map.keySet());
+                } else if (value instanceof Number || value instanceof Boolean) {
+                    sanitized.put(key, value);
+                } else {
+                    sanitized.put(key + "Type", value.getClass().getSimpleName());
                 }
-                if ("candidates".equals(key) && value instanceof java.util.List<?> list) {
-                    sanitized.put(key, list.stream().map(item -> truncateText(String.valueOf(item), 80)).toList());
-                    return;
-                }
-                sanitized.put(key, value);
             });
             return objectMapper.writeValueAsString(sanitized);
         } catch (Exception e) {
             return payload.keySet().toString();
         }
-    }
-
-    private String truncateText(String text, int maxLength) {
-        if (text == null || text.length() <= maxLength) {
-            return text;
-        }
-        return text.substring(0, maxLength) + "...";
     }
 
     private static class StreamSnapshot {

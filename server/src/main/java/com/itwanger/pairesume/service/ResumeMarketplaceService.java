@@ -22,6 +22,8 @@ public interface ResumeMarketplaceService {
 
     MarketListingCardDTO getPublicOffer(String slug);
 
+    void recordView(String slug, String clientIp);
+
     MarketListingContentDTO getFreeContent(String slug);
 
     MarketListingAccessDTO getAccess(String slug, Long userId, boolean admin);
@@ -48,7 +50,8 @@ public interface ResumeMarketplaceService {
             int page,
             int size,
             String publicationStatus,
-            String moderationStatus
+            String moderationStatus,
+            String reviewStatus
     );
 
     AdminMarketListingDTO moderate(

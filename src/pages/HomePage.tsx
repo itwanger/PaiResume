@@ -1,158 +1,28 @@
 import { useEffect, useState } from 'react'
+import { motion, useReducedMotion } from 'framer-motion'
 import { Link, useNavigate } from 'react-router-dom'
-import { publicApi, type HomeData, type ShowcaseCard } from '../api/public'
+import {
+  getMarketplacePageItems,
+  marketplaceApi,
+  type MarketplaceListingCard,
+} from '../api/marketplace'
+import { publicApi, type HomeData } from '../api/public'
 import { Header } from '../components/layout/Header'
 import { buildResumeEditorPath, GITHUB_REPOSITORY_URL } from '../config/site'
 import { useAuthStore } from '../store/authStore'
 import { useResumeStore } from '../store/resumeStore'
-import { EXCELLENT_RESUMES_PATH } from '../utils/navigation'
+import { buildMarketplaceListingPath, EXCELLENT_RESUMES_PATH } from '../utils/navigation'
 
-const MOCK_TESTIMONIALS = [
-  {
-    id: -1,
-    displayName: '林同学',
-    schoolOrCompany: '应届生',
-    targetRole: 'Java 后端开发',
-    rating: 5,
-    testimonialText: '原来项目经历写得很散，按照建议梳理后，职责和成果都更清楚。智能一页把多页内容合成一张连续长页，查看和导出都更顺畅。',
-    createdAt: '',
-    avatarClassName: 'bg-blue-100 text-blue-700',
-  },
-  {
-    id: -2,
-    displayName: '周同学',
-    schoolOrCompany: '硕士在读',
-    targetRole: '产品经理',
-    rating: 5,
-    testimonialText: 'AI 给出的建议很具体，会指出问题，也会给出修改思路。调整后每段经历都更聚焦，整体排版也更清爽。',
-    createdAt: '',
-    avatarClassName: 'bg-violet-100 text-violet-700',
-  },
-  {
-    id: -3,
-    displayName: '陈先生',
-    schoolOrCompany: '互联网从业者',
-    targetRole: '前端开发工程师',
-    rating: 5,
-    testimonialText: '最有帮助的是把日常工作拆成职责、行动和结果，修改时更有方向。导出的 PDF 结构清晰，后续针对岗位调整也很方便。',
-    createdAt: '',
-    avatarClassName: 'bg-emerald-100 text-emerald-700',
-  },
-  {
-    id: -4,
-    displayName: '许同学',
-    schoolOrCompany: '腾讯暑期实习',
-    targetRole: 'Agent 工程师',
-    rating: 5,
-    testimonialText: '原来的 Agent 项目只写了框架和模型，看不出具体做了什么。优化后把任务编排、工具调用、记忆和评测链路都写清楚了，最终拿到了腾讯暑期实习 offer。',
-    createdAt: '',
-    avatarClassName: 'bg-rose-100 text-rose-700',
-  },
-  {
-    id: -5,
-    displayName: '唐同学',
-    schoolOrCompany: '美团日常实习',
-    targetRole: 'AI 应用开发',
-    rating: 5,
-    testimonialText: 'RAG 项目原先写得像技术栈清单，AI 帮我重新梳理了检索、评测和效果优化的完整链路。针对岗位调整两版后，顺利拿到了美团 AI 应用开发日常实习。',
-    createdAt: '',
-    avatarClassName: 'bg-cyan-100 text-cyan-700',
-  },
-  {
-    id: -6,
-    displayName: '宋同学',
-    schoolOrCompany: '字节跳动 SP',
-    targetRole: 'AI Infra',
-    rating: 5,
-    testimonialText: '推理优化项目里术语很多，但亮点不突出。按照建议改成吞吐、延迟和资源利用率三条主线后，技术深度更容易被看见，最后拿到了字节跳动 AI Infra SP。',
-    createdAt: '',
-    avatarClassName: 'bg-orange-100 text-orange-700',
-  },
-]
-
-const MOCK_SHOWCASES: ShowcaseCard[] = [
-  {
-    id: -101,
-    slug: 'demo-ai-application-internship',
-    title: '沉默王二 · AI 应用开发 · 暑期实习',
-    scoreLabel: '99分',
-    summary: '把 RAG、工具调用与评测闭环写成清晰的项目主线，突出 AI 应用从原型到落地的完整能力。',
-    tags: ['RAG 应用', 'Agent 工作流', '暑期实习'],
-    updatedAt: '',
-  },
-  {
-    id: -102,
-    slug: 'demo-agent-engineer',
-    title: 'Agent 工程师 · 校招',
-    scoreLabel: '98分',
-    summary: '突出任务规划、多 Agent 协作、工具调用、记忆系统与效果评测，体现完整的 Agent 工程闭环。',
-    tags: ['Agent', 'MCP', '评测体系'],
-    updatedAt: '',
-  },
-  {
-    id: -103,
-    slug: 'demo-fullstack-engineer',
-    title: '全栈工程师 · 社招',
-    scoreLabel: '96分',
-    summary: '串联前端体验、后端服务与上线部署，用一条完整业务链路呈现端到端交付能力。',
-    tags: ['React', 'Spring Boot', '云部署'],
-    updatedAt: '',
-  },
-  {
-    id: -104,
-    slug: 'demo-java-backend-campus',
-    title: 'Java 后端工程师 · 校招',
-    scoreLabel: '97分',
-    summary: '围绕接口设计、数据流与系统稳定性展开项目经历，让技术选型和工程成果更容易被看见。',
-    tags: ['Java', '微服务', '高并发'],
-    updatedAt: '',
-  },
-  {
-    id: -105,
-    slug: 'demo-java-backend-experienced',
-    title: 'Java 后端 · 三年工作经验',
-    scoreLabel: '98分',
-    summary: '从业务职责进一步写到系统设计、性能优化和协作影响，体现有经验工程师的能力进阶。',
-    tags: ['三年经验', '系统设计', '性能优化'],
-    updatedAt: '',
-  },
-  {
-    id: -106,
-    slug: 'demo-ai-application-daily-internship',
-    title: 'AI 应用开发 · 日常实习',
-    scoreLabel: '96分',
-    summary: '聚焦检索增强、提示词设计与效果评测，把课程项目整理成更贴近日常实习要求的工程经历。',
-    tags: ['Python', 'RAG', '日常实习'],
-    updatedAt: '',
-  },
-  {
-    id: -107,
-    slug: 'demo-python-engineer',
-    title: 'Python 工程师 · 社招',
-    scoreLabel: '95分',
-    summary: '突出服务开发、数据处理与自动化能力，让 Python 技术栈与实际业务价值形成对应。',
-    tags: ['Python', 'FastAPI', '数据处理'],
-    updatedAt: '',
-  },
-  {
-    id: -108,
-    slug: 'demo-go-engineer',
-    title: 'Go 工程师 · 社招',
-    scoreLabel: '96分',
-    summary: '围绕高并发服务、云原生基础设施与可观测性组织内容，强化 Go 工程方向的技术辨识度。',
-    tags: ['Go', '云原生', '微服务'],
-    updatedAt: '',
-  },
-  {
-    id: -109,
-    slug: 'demo-frontend-engineer',
-    title: '前端工程师 · 校招',
-    scoreLabel: '95分',
-    summary: '把页面开发进一步写成体验、性能与工程化成果，呈现从需求理解到上线交付的完整过程。',
-    tags: ['React', 'TypeScript', '性能优化'],
-    updatedAt: '',
-  },
-]
+interface HomepageShowcaseCard {
+  id: number
+  source: 'MARKETPLACE_FREE' | 'MARKETPLACE_PAID' | 'OFFICIAL'
+  href: string
+  title: string
+  summary: string
+  tags: string[]
+  priceCents: number
+  viewCount?: number
+}
 
 type HeroFeatureIcon = 'one-page' | 'score' | 'optimize' | 'library'
 
@@ -188,6 +58,18 @@ const HERO_FEATURES: Array<{
   },
 ]
 
+function formatCurrency(cents: number): string {
+  return `¥${(cents / 100).toFixed(2)}`
+}
+
+function formatViewCount(count: number): string {
+  if (count <= 0) return '刚刚上架'
+  if (count < 10_000) return `${new Intl.NumberFormat('zh-CN').format(count)} 次浏览`
+
+  const wan = count / 10_000
+  return `${wan >= 10 ? wan.toFixed(0) : wan.toFixed(1)} 万次浏览`
+}
+
 function FeatureIcon({ icon }: { icon: HeroFeatureIcon }) {
   if (icon === 'score') {
     return (
@@ -222,31 +104,193 @@ function FeatureIcon({ icon }: { icon: HeroFeatureIcon }) {
   )
 }
 
+const SHOWCASE_PREVIEW_THEMES = [
+  { gradient: 'from-blue-600 to-cyan-500', accent: 'bg-blue-500', tint: 'bg-blue-50', text: 'text-blue-700' },
+  { gradient: 'from-violet-600 to-fuchsia-500', accent: 'bg-violet-500', tint: 'bg-violet-50', text: 'text-violet-700' },
+  { gradient: 'from-emerald-600 to-teal-500', accent: 'bg-emerald-500', tint: 'bg-emerald-50', text: 'text-emerald-700' },
+  { gradient: 'from-rose-600 to-orange-400', accent: 'bg-rose-500', tint: 'bg-rose-50', text: 'text-rose-700' },
+  { gradient: 'from-indigo-700 to-blue-500', accent: 'bg-indigo-500', tint: 'bg-indigo-50', text: 'text-indigo-700' },
+  { gradient: 'from-amber-500 to-orange-500', accent: 'bg-amber-500', tint: 'bg-amber-50', text: 'text-amber-700' },
+]
+
+function ResumeLine({ width, className = 'bg-slate-200' }: { width: string; className?: string }) {
+  return <span className={`block h-1 rounded-full ${width} ${className}`} />
+}
+
+function ResumeShowcaseThumbnail({ index, title }: { index: number; title: string }) {
+  const theme = SHOWCASE_PREVIEW_THEMES[index % SHOWCASE_PREVIEW_THEMES.length]
+  const variant = index % 3
+  const displayName = title.split('·')[0]?.trim() || '候选人'
+  const avatarText = displayName.slice(0, 1).toUpperCase()
+
+  if (variant === 1) {
+    return (
+      <div className="relative h-full overflow-hidden bg-white shadow-[0_18px_45px_-30px_rgba(15,23,42,0.75)] ring-1 ring-inset ring-slate-200/80">
+        <div className={`h-20 bg-gradient-to-r ${theme.gradient}`} />
+        <div className="absolute left-1/2 top-10 flex h-14 w-14 -translate-x-1/2 items-center justify-center rounded-full border-4 border-white bg-slate-100 text-sm font-bold text-slate-700 shadow-sm">
+          {avatarText}
+        </div>
+        <div className="px-5 pb-5 pt-9 text-center">
+          <div className="text-[10px] font-bold text-slate-800">{displayName}</div>
+          <div className="mt-1 text-[6px] tracking-[0.2em] text-slate-400">RESUME PROFILE</div>
+          <div className={`mx-auto mt-3 h-px w-4/5 ${theme.accent}`} />
+          <div className="mt-4 space-y-4 text-left">
+            {['教育背景', '项目经历', '专业技能'].map((section, sectionIndex) => (
+              <div key={section}>
+                <div className={`mb-2 text-[7px] font-semibold ${theme.text}`}>{section}</div>
+                <div className="space-y-1.5">
+                  <ResumeLine width={sectionIndex === 1 ? 'w-full' : 'w-5/6'} />
+                  <ResumeLine width={sectionIndex === 2 ? 'w-3/5' : 'w-4/5'} className="bg-slate-100" />
+                  {sectionIndex === 1 ? <ResumeLine width="w-2/3" className="bg-slate-100" /> : null}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (variant === 2) {
+    return (
+      <div className="flex h-full overflow-hidden bg-white shadow-[0_18px_45px_-30px_rgba(15,23,42,0.75)] ring-1 ring-inset ring-slate-200/80">
+        <aside className={`w-[32%] bg-gradient-to-b ${theme.gradient} px-3 py-5 text-white`}>
+          <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-white/70 bg-white/15 text-sm font-bold">
+            {avatarText}
+          </div>
+          <div className="mt-3 text-[9px] font-bold leading-4">{displayName}</div>
+          <div className="mt-5 space-y-2">
+            <ResumeLine width="w-full" className="bg-white/65" />
+            <ResumeLine width="w-4/5" className="bg-white/45" />
+            <ResumeLine width="w-3/5" className="bg-white/45" />
+          </div>
+          <div className="mt-6 space-y-2.5">
+            {['技能', '工具', '语言'].map((label) => (
+              <div key={label}>
+                <div className="text-[6px] font-medium text-white/80">{label}</div>
+                <div className="mt-1 h-1 overflow-hidden rounded-full bg-black/15">
+                  <div className="h-full w-4/5 rounded-full bg-white/75" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </aside>
+        <div className="flex-1 px-4 py-5">
+          {['个人亮点', '工作经历', '项目经历', '教育背景'].map((section, sectionIndex) => (
+            <div key={section} className={sectionIndex ? 'mt-4' : ''}>
+              <div className="flex items-center gap-2">
+                <span className={`h-2 w-2 rounded-full ${theme.accent}`} />
+                <div className="text-[7px] font-bold text-slate-700">{section}</div>
+              </div>
+              <div className="mt-2 space-y-1.5 pl-4">
+                <ResumeLine width="w-full" />
+                <ResumeLine width={sectionIndex % 2 ? 'w-4/5' : 'w-2/3'} className="bg-slate-100" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="h-full overflow-hidden bg-white shadow-[0_18px_45px_-30px_rgba(15,23,42,0.75)] ring-1 ring-inset ring-slate-200/80">
+      <header className={`flex h-16 items-center justify-between bg-gradient-to-r px-5 text-white ${theme.gradient}`}>
+        <div>
+          <div className="text-[10px] font-bold">{displayName}</div>
+          <div className="mt-1 text-[6px] tracking-[0.16em] text-white/75">PROFESSIONAL RESUME</div>
+        </div>
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 text-sm font-bold ring-1 ring-white/45">
+          {avatarText}
+        </div>
+      </header>
+      <div className="px-5 py-4">
+        <div className={`rounded-lg px-3 py-2 ${theme.tint}`}>
+          <div className={`text-[7px] font-semibold ${theme.text}`}>个人优势</div>
+          <div className="mt-1.5 space-y-1.5">
+            <ResumeLine width="w-full" className="bg-slate-300/75" />
+            <ResumeLine width="w-4/5" className="bg-slate-200/80" />
+          </div>
+        </div>
+        <div className="mt-4 space-y-4">
+          {['工作经历', '项目经历', '专业技能'].map((section, sectionIndex) => (
+            <div key={section}>
+              <div className="flex items-center gap-2">
+                <span className={`h-3 w-0.5 rounded-full ${theme.accent}`} />
+                <div className="text-[7px] font-bold text-slate-700">{section}</div>
+              </div>
+              <div className="mt-2 space-y-1.5 pl-2.5">
+                <ResumeLine width={sectionIndex === 0 ? 'w-full' : 'w-5/6'} />
+                <ResumeLine width={sectionIndex === 2 ? 'w-3/5' : 'w-4/5'} className="bg-slate-100" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function HomePage() {
   const navigate = useNavigate()
+  const shouldReduceMotion = useReducedMotion() ?? false
   const { isAuthenticated, initialized, user } = useAuthStore()
   const createResume = useResumeStore((state) => state.createResume)
   const readyAuthenticated = initialized && isAuthenticated
   const [homeData, setHomeData] = useState<HomeData | null>(null)
+  const [marketplaceListings, setMarketplaceListings] = useState<MarketplaceListingCard[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [creatingResume, setCreatingResume] = useState(false)
   const [createResumeError, setCreateResumeError] = useState('')
-  const testimonials = (homeData?.testimonials.length ?? 0) >= 3
-    ? homeData!.testimonials
-    : MOCK_TESTIMONIALS
-  const showcases = (homeData?.showcases.length ?? 0) > 1
-    ? homeData!.showcases
-    : MOCK_SHOWCASES
+  const marketplaceEnabled = homeData?.marketplaceEnabled === true
+  const testimonials = homeData?.testimonials ?? []
+  const marketplaceShowcases: HomepageShowcaseCard[] = (marketplaceEnabled ? marketplaceListings : []).map((listing) => ({
+        id: listing.listingId,
+        source: listing.accessType === 'PAID' ? 'MARKETPLACE_PAID' : 'MARKETPLACE_FREE',
+        href: buildMarketplaceListingPath(listing.slug),
+        title: listing.title,
+        summary: listing.summary,
+        tags: listing.tags ?? [],
+        priceCents: listing.priceCents,
+        viewCount: listing.viewCount ?? 0,
+      }))
+  const officialShowcases: HomepageShowcaseCard[] = (homeData?.showcases ?? []).map((showcase) => ({
+    id: showcase.id,
+    source: 'OFFICIAL',
+    href: `/showcases/${encodeURIComponent(showcase.slug)}`,
+    title: showcase.title,
+    summary: showcase.summary,
+    tags: showcase.tags ?? [],
+    priceCents: 0,
+  }))
+  const showcases = [...marketplaceShowcases, ...officialShowcases].slice(0, 8)
 
   useEffect(() => {
     const loadHome = async () => {
       setLoading(true)
+      setError('')
       try {
-        const { data: res } = await publicApi.home()
-        setHomeData(res.data)
-      } catch (err: unknown) {
-        console.error('[home] Failed to load public content', err)
+        const homeResult = await publicApi.home()
+        const nextHomeData = homeResult.data.data
+        setHomeData(nextHomeData)
+        setMarketplaceListings([])
+
+        if (nextHomeData.marketplaceEnabled) {
+          try {
+            const marketplaceResult = await marketplaceApi.publicListings({ page: 1, size: 8 })
+            setMarketplaceListings(getMarketplacePageItems(marketplaceResult.data.data))
+          } catch {
+            if (import.meta.env.DEV) {
+              console.error('[home] Failed to load marketplace listings', 'RequestError')
+            }
+            setError('用户公开简历暂时加载失败，平台精选仍可正常查看。')
+          }
+        }
+      } catch {
+        if (import.meta.env.DEV) {
+          console.error('[home] Failed to load public content', 'RequestError')
+        }
         setError('优质简历暂时加载失败，请稍后刷新重试。')
       } finally {
         setLoading(false)
@@ -400,54 +444,126 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
-          <div className="flex items-end justify-between gap-4">
-            <div>
-              <h2 className="text-2xl font-semibold text-gray-900">优质简历库</h2>
-              <p className="mt-2 text-sm text-gray-500">按岗位查看高质量简历，快速找到内容结构、项目写法和排版思路。</p>
+        <section className="border-y border-slate-200 bg-gradient-to-b from-slate-50 to-slate-100/80">
+          <div className="mx-auto max-w-[1536px] px-4 py-16 sm:px-6 lg:px-8">
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <div className="text-sm font-medium text-primary-700">
+                  {marketplaceEnabled ? '免费公开 · 付费精选' : '平台精选 · VIP 查看'}
+                </div>
+                <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">优质简历库</h2>
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  {marketplaceEnabled
+                    ? '按岗位查看优质简历，免费内容直接阅读，付费内容先看预览、按需解锁。'
+                    : '按岗位查看平台精选简历，登录并开通 VIP 后查看完整内容。用户公开市场将按上线阶段另行开放。'}
+                </p>
+              </div>
+              <Link to={EXCELLENT_RESUMES_PATH} className="hidden text-sm font-medium text-primary-700 transition hover:text-primary-800 sm:inline-flex">
+                查看全部简历&nbsp;→
+              </Link>
             </div>
-          </div>
 
-          {error ? <p className="mt-6 text-sm text-red-600">{error}</p> : null}
-          {loading ? (
-            <div className="mt-6 text-sm text-gray-500">内容加载中…</div>
-          ) : showcases.length ? (
-            <div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {showcases.map((showcase) => (
-                <Link
-                  key={showcase.id}
-                  to={EXCELLENT_RESUMES_PATH}
-                  className="group flex h-full flex-col rounded-2xl border border-gray-200 bg-white px-5 py-5 transition duration-200 hover:-translate-y-0.5 hover:border-primary-200 hover:shadow-md"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 pr-2">
-                      <div className="text-xs font-medium text-primary-700">精选简历</div>
-                      <div className="mt-2 text-lg font-semibold leading-7 text-gray-900">{showcase.title}</div>
-                    </div>
-                    <span className="shrink-0 rounded-full bg-primary-50 px-3 py-1.5 text-sm font-semibold text-primary-700">
-                      {showcase.scoreLabel}
-                    </span>
-                  </div>
-                  <p className="mt-4 flex-1 text-sm leading-6 text-gray-600">{showcase.summary}</p>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {showcase.tags?.map((tag) => (
-                      <span key={tag} className="rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-600">
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                  <div className="mt-5 flex items-center justify-between border-t border-gray-100 pt-4 text-sm font-medium text-primary-700">
-                    <span>查看简历结构</span>
-                    <span className="transition-transform duration-200 group-hover:translate-x-1" aria-hidden="true">→</span>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <div className="mt-6 rounded-lg border border-dashed border-gray-300 px-6 py-10 text-sm text-gray-500">
-              更多岗位简历正在持续更新。
-            </div>
-          )}
+            {error ? <p className="mt-6 text-sm text-red-600">{error}</p> : null}
+            {loading ? (
+              <div className="mt-6 text-sm text-slate-500">内容加载中…</div>
+            ) : showcases.length ? (
+              <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {showcases.map((showcase, index) => {
+                  const paid = showcase.source === 'MARKETPLACE_PAID'
+                  const official = showcase.source === 'OFFICIAL'
+                  const priceLabel = paid ? formatCurrency(showcase.priceCents) : official ? 'VIP 精选' : '免费公开'
+                  const actionLabel = paid
+                    ? `${priceLabel} 解锁完整简历`
+                    : official ? 'VIP 查看完整简历' : '免费查看完整简历'
+                  const badgeClassName = paid
+                    ? 'bg-amber-50 text-amber-700 ring-amber-200'
+                    : official
+                      ? 'bg-primary-50 text-primary-700 ring-primary-200'
+                      : 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+
+                  return (
+                    <motion.div
+                    key={`${showcase.source}-${showcase.id}`}
+                    initial={shouldReduceMotion ? false : { opacity: 0, y: 24 }}
+                    whileInView={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
+                    viewport={{ once: true, amount: 0.15 }}
+                    transition={{
+                      duration: 0.45,
+                      delay: Math.min(index * 0.05, 0.3),
+                      ease: [0.22, 1, 0.36, 1],
+                    }}
+                    className="h-full"
+                  >
+                    <Link
+                      to={showcase.href}
+                      className="group flex h-full flex-col overflow-hidden border border-slate-200 bg-white shadow-[0_18px_45px_-34px_rgba(15,23,42,0.5)] transition duration-300 ease-out hover:-translate-y-1.5 hover:border-primary-200 hover:shadow-[0_28px_60px_-32px_rgba(29,78,216,0.45)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 motion-reduce:transform-none motion-reduce:transition-none"
+                    >
+                      <div className="relative h-72 overflow-hidden bg-gradient-to-br from-slate-100 via-white to-primary-50">
+                        <div className="h-full origin-top transition duration-300 ease-out group-hover:scale-[1.025] group-focus-visible:scale-[1.025] motion-reduce:transform-none motion-reduce:transition-none" aria-hidden="true">
+                          <ResumeShowcaseThumbnail index={index} title={showcase.title} />
+                        </div>
+                        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/20 via-primary-50/90 to-white opacity-0 backdrop-blur-[2px] transition duration-300 group-hover:opacity-100 group-focus-visible:opacity-100 motion-reduce:transition-none" />
+                        <div
+                          aria-hidden="true"
+                          className="pointer-events-none absolute inset-x-5 bottom-5 translate-y-3 opacity-0 transition duration-300 ease-out group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100 motion-reduce:transform-none motion-reduce:transition-none"
+                        >
+                          <div className={`inline-flex px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${badgeClassName}`}>
+                            {priceLabel}
+                          </div>
+                          <p className="mt-3 text-sm leading-6 text-slate-700">{showcase.summary}</p>
+                          <div className="mt-4 flex items-center justify-between bg-primary-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-primary-950/20">
+                            <span>{actionLabel}</span>
+                            <span>→</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-1 flex-col p-5">
+                        <div className="flex items-start justify-between gap-4">
+                          <h3 className="min-w-0 text-lg font-semibold leading-7 text-slate-900">{showcase.title}</h3>
+                          <span className={`shrink-0 px-3 py-1 text-sm font-semibold ring-1 ring-inset ${badgeClassName}`}>
+                            {priceLabel}
+                          </span>
+                        </div>
+                        <p aria-hidden="true" className="mt-3 max-h-12 overflow-hidden text-sm leading-6 text-slate-500 md:hidden">
+                          {showcase.summary}
+                        </p>
+                        <span className="sr-only">{showcase.summary}</span>
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          {showcase.tags?.slice(0, 3).map((tag) => (
+                            <span key={tag} className="bg-slate-100 px-3 py-1 text-xs text-slate-600 ring-1 ring-inset ring-slate-200/70">
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                        <div className="mt-auto flex items-center justify-between border-t border-slate-100 pt-4 text-sm font-medium text-slate-500 md:mt-5">
+                          {showcase.viewCount === undefined ? (
+                            <span>平台精选</span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5">
+                              <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" aria-hidden="true">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.75 12s3.25-5.25 9.25-5.25S21.25 12 21.25 12 18 17.25 12 17.25 2.75 12 2.75 12Z" />
+                                <circle cx="12" cy="12" r="2.25" />
+                              </svg>
+                              {formatViewCount(showcase.viewCount)}
+                            </span>
+                          )}
+                          <span className="text-primary-700 transition-transform duration-200 group-hover:translate-x-1 group-focus-visible:translate-x-1 motion-reduce:transform-none" aria-hidden="true">
+                            {paid ? '查看详情' : official ? 'VIP 查看' : '免费查看'} →
+                          </span>
+                        </div>
+                      </div>
+                    </Link>
+                  </motion.div>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="mt-8 rounded-2xl border border-dashed border-slate-300 bg-white/70 px-6 py-12 text-sm text-slate-500">
+                更多岗位简历正在持续更新。
+              </div>
+            )}
+          </div>
         </section>
 
         <section className="border-y border-gray-200 bg-white">
@@ -462,19 +578,49 @@ export default function HomePage() {
             ) : testimonials.length ? (
               <div className="mt-6 grid gap-5 lg:grid-cols-3">
                 {testimonials.map((testimonial, index) => (
-                  <div key={testimonial.id} className="min-w-0 rounded-lg border border-gray-200 bg-gray-50 px-5 py-5">
+                  <motion.article
+                    key={testimonial.id}
+                    initial={shouldReduceMotion ? false : { opacity: 0, y: 24, scale: 0.98 }}
+                    whileInView={shouldReduceMotion ? undefined : { opacity: 1, y: 0, scale: 1 }}
+                    viewport={{ once: true, amount: 0.2 }}
+                    whileHover={shouldReduceMotion ? undefined : {
+                      y: -6,
+                      boxShadow: '0 18px 38px -24px rgba(29, 78, 216, 0.38)',
+                    }}
+                    transition={{
+                      duration: 0.48,
+                      delay: Math.min(index * 0.07, 0.35),
+                      ease: [0.22, 1, 0.36, 1],
+                    }}
+                    className="min-w-0 rounded-2xl border border-gray-200 bg-gray-50 px-5 py-5 transition-colors hover:border-primary-200 hover:bg-white"
+                  >
                     <div className="flex items-start gap-3">
                       <div
                         aria-hidden="true"
-                        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${'avatarClassName' in testimonial ? testimonial.avatarClassName : ['bg-blue-100 text-blue-700', 'bg-violet-100 text-violet-700', 'bg-emerald-100 text-emerald-700'][index % 3]}`}
+                        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${['bg-blue-100 text-blue-700', 'bg-violet-100 text-violet-700', 'bg-emerald-100 text-emerald-700'][index % 3]}`}
                       >
                         {testimonial.displayName.slice(0, 1)}
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-3">
                           <div className="font-medium text-gray-900">{testimonial.displayName}</div>
-                          <div className="shrink-0 text-sm tracking-wide text-amber-400" aria-label={`${testimonial.rating} 分`}>
-                            {'★'.repeat(testimonial.rating)}
+                          <div className="flex shrink-0 text-sm tracking-wide text-amber-400" aria-label={`${testimonial.rating} 分`}>
+                            {Array.from({ length: testimonial.rating }, (_, starIndex) => (
+                              <motion.span
+                                key={starIndex}
+                                aria-hidden="true"
+                                initial={shouldReduceMotion ? false : { opacity: 0, scale: 0.4, rotate: -18 }}
+                                whileInView={shouldReduceMotion ? undefined : { opacity: 1, scale: 1, rotate: 0 }}
+                                viewport={{ once: true, amount: 0.8 }}
+                                transition={{
+                                  duration: 0.28,
+                                  delay: Math.min(index * 0.07, 0.35) + starIndex * 0.045,
+                                  ease: [0.22, 1, 0.36, 1],
+                                }}
+                              >
+                                ★
+                              </motion.span>
+                            ))}
                           </div>
                         </div>
                         <div className="mt-1 text-sm leading-5 text-gray-500">
@@ -483,7 +629,7 @@ export default function HomePage() {
                       </div>
                     </div>
                     <p className="mt-4 text-sm leading-6 text-gray-600">{testimonial.testimonialText}</p>
-                  </div>
+                  </motion.article>
                 ))}
               </div>
             ) : (

@@ -152,24 +152,57 @@ export interface ResumeExportResponse {
 const AI_LOG_PREFIX = '[PaiResume AI]'
 const STREAM_API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
 
+function summarizeAiLogDetails(details: Record<string, unknown>) {
+  const summary: Record<string, unknown> = {}
+  const safeKeys = new Set(['resumeId', 'moduleId', 'fieldType', 'index', 'url', 'status', 'event'])
+
+  for (const [key, value] of Object.entries(details)) {
+    if (safeKeys.has(key) && (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean')) {
+      summary[key] = value
+      continue
+    }
+    if (key === 'request' && value && typeof value === 'object' && !Array.isArray(value)) {
+      summary.request = summarizeAiLogDetails(value as Record<string, unknown>)
+      continue
+    }
+    if (key === 'payload' && value && typeof value === 'object') {
+      summary.payloadKeys = Object.keys(value as Record<string, unknown>)
+      continue
+    }
+    if (key === 'response') {
+      summary.responseReceived = value !== null && value !== undefined
+      continue
+    }
+    if (key === 'error') {
+      summary.errorType = value && typeof value === 'object' && 'name' in value
+        ? String((value as { name?: unknown }).name || 'Error')
+        : 'Error'
+    }
+  }
+  return summary
+}
+
 function logAiRequest(action: string, details: Record<string, unknown>) {
+  if (!import.meta.env.DEV) return
   console.info(`${AI_LOG_PREFIX} ${action}:request`, {
     timestamp: new Date().toISOString(),
-    ...details,
+    ...summarizeAiLogDetails(details),
   })
 }
 
 function logAiResponse(action: string, details: Record<string, unknown>) {
+  if (!import.meta.env.DEV) return
   console.info(`${AI_LOG_PREFIX} ${action}:response`, {
     timestamp: new Date().toISOString(),
-    ...details,
+    ...summarizeAiLogDetails(details),
   })
 }
 
 function logAiError(action: string, details: Record<string, unknown>) {
+  if (!import.meta.env.DEV) return
   console.error(`${AI_LOG_PREFIX} ${action}:error`, {
     timestamp: new Date().toISOString(),
-    ...details,
+    ...summarizeAiLogDetails(details),
   })
 }
 

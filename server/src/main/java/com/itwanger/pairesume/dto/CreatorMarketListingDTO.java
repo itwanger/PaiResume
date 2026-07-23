@@ -16,8 +16,11 @@ public class CreatorMarketListingDTO {
     private Integer priceCents;
     private String publicationStatus;
     private String moderationStatus;
+    private String reviewStatus;
+    private String reviewSubmittedAt;
     private String moderationReason;
     private Long currentRevisionId;
+    private Long pendingRevisionId;
     private boolean snapshotOutdated;
     private String createdAt;
     private String updatedAt;

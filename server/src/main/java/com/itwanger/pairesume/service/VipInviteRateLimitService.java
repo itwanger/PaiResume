@@ -1,5 +1,7 @@
 package com.itwanger.pairesume.service;
 
 public interface VipInviteRateLimitService {
-    void acquireAttempt(String email, String clientIp);
+    void acquireAttempt(String accountSubject, String clientIp);
+
+    void acquireIpAttempt(String clientIp);
 }

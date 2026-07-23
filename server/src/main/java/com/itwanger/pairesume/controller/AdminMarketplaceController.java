@@ -31,17 +31,19 @@ public class AdminMarketplaceController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String publicationStatus,
-            @RequestParam(required = false) String moderationStatus
+            @RequestParam(required = false) String moderationStatus,
+            @RequestParam(required = false) String reviewStatus
     ) {
         return Result.success(resumeMarketplaceService.listAdminListings(
                 page,
                 size,
                 publicationStatus,
-                moderationStatus
+                moderationStatus,
+                reviewStatus
         ));
     }
 
-    @Operation(summary = "通过或暂停用户公开简历")
+    @Operation(summary = "通过、驳回、下架或恢复用户公开简历")
     @PatchMapping("/{listingId}/moderation")
     public Result<AdminMarketListingDTO> moderate(
             @PathVariable Long listingId,

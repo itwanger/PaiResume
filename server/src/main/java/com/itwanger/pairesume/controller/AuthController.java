@@ -92,6 +92,36 @@ public class AuthController {
         return Result.success();
     }
 
+    @Operation(summary = "发送重置密码验证码")
+    @PostMapping("/password-reset/code")
+    public Result<Void> requestPasswordReset(@Valid @RequestBody PasswordResetRequestDTO dto,
+                                             HttpServletRequest request) {
+        authService.requestPasswordReset(dto.getEmail(), request.getRemoteAddr());
+        return Result.success();
+    }
+
+    @Operation(summary = "确认重置密码")
+    @PostMapping("/password-reset/confirm")
+    public Result<Void> resetPassword(@Valid @RequestBody PasswordResetConfirmDTO dto) {
+        authService.resetPassword(dto);
+        return Result.success();
+    }
+
+    @Operation(summary = "同意当前版本服务条款与隐私政策")
+    @PostMapping("/legal-consent")
+    public Result<UserInfoDTO> acceptLegalConsent(@Valid @RequestBody LegalConsentDTO dto) {
+        return Result.success(authService.acceptLegalConsent(SecurityUtils.getCurrentUserId(), dto));
+    }
+
+    @Operation(summary = "注销当前账号")
+    @DeleteMapping("/account")
+    public Result<Void> deleteAccount(@Valid @RequestBody AccountDeletionDTO dto,
+                                      HttpServletResponse response) {
+        authService.deleteAccount(SecurityUtils.getCurrentUserId(), dto);
+        response.addHeader(HttpHeaders.SET_COOKIE, buildRefreshCookie("", 0));
+        return Result.success();
+    }
+
     @Data
     public static class SendCodeRequest {
         @NotBlank @Email

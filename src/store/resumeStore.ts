@@ -40,6 +40,7 @@ interface ResumeState {
   addModule: (resumeId: number, moduleType: string, content: Record<string, unknown>, sortOrder?: number) => Promise<void>
   deleteModule: (resumeId: number, moduleId: number) => Promise<void>
   setCurrentResumeId: (id: number | null) => void
+  clearUserData: () => void
 }
 
 export const useResumeStore = create<ResumeState>((set) => ({
@@ -150,4 +151,9 @@ export const useResumeStore = create<ResumeState>((set) => ({
   },
 
   setCurrentResumeId: (id) => set({ currentResumeId: id }),
+
+  clearUserData: () => {
+    pendingResumeCreation = null
+    set({ resumeList: [], currentResumeId: null, modules: [], loading: false })
+  },
 }))

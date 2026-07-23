@@ -23,6 +23,7 @@ export interface PublishedFeedback {
 export interface HomeData {
   membershipPriceCents: number
   questionnaireCouponAmountCents: number
+  marketplaceEnabled: boolean
   showcases: ShowcaseCard[]
   testimonials: PublishedFeedback[]
 }

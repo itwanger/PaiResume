@@ -18,6 +18,7 @@ public class JwtTokenProvider {
     public static final String TOKEN_USE_REFRESH = "refresh";
     public static final String ROLE_CLAIM = "role";
     public static final String SESSION_ID_CLAIM = "sid";
+    public static final String ISSUED_AT_MILLIS_CLAIM = "iat_ms";
 
     private final SecretKey key;
     private final long accessTokenExpiration;
@@ -49,6 +50,7 @@ public class JwtTokenProvider {
                 .claim(TOKEN_USE_CLAIM, TOKEN_USE_ACCESS)
                 .claim(ROLE_CLAIM, role)
                 .claim(SESSION_ID_CLAIM, sessionId)
+                .claim(ISSUED_AT_MILLIS_CLAIM, now.getTime())
                 .id(UUID.randomUUID().toString())
                 .issuedAt(now)
                 .expiration(new Date(now.getTime() + accessTokenExpiration))

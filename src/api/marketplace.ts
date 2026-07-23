@@ -6,6 +6,20 @@ export type MarketplacePublicationStatus = 'PUBLISHED' | 'UNPUBLISHED'
 
 export type MarketplaceModerationStatus = 'APPROVED' | 'SUSPENDED'
 
+export type MarketplaceReviewStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
+
+export type MarketplaceReportType =
+  | 'PRIVACY'
+  | 'COPYRIGHT'
+  | 'FRAUD'
+  | 'ILLEGAL'
+  | 'MISLEADING'
+  | 'OTHER'
+
+export type MarketplaceReportStatus = 'OPEN' | 'RESOLVED' | 'DISMISSED'
+
+export type MarketplaceAppealStatus = 'OPEN' | 'APPROVED' | 'REJECTED'
+
 export type MarketplaceOrderStatus =
   | 'CREATED'
   | 'PREPAYING'
@@ -47,10 +61,12 @@ export interface MarketplaceListingCard extends MarketplaceListingSummary {
   moderationStatus: MarketplaceModerationStatus
   updatedAt: string
   paymentEnabled: boolean
+  viewCount: number
 }
 
 export interface MarketplaceListingOffer extends MarketplaceListingSummary {
   paymentEnabled?: boolean
+  viewCount?: number
 }
 
 export interface MarketplaceContent extends MarketplaceListingSummary {
@@ -108,9 +124,48 @@ export interface CreatorListing {
   priceCents: number
   publicationStatus: MarketplacePublicationStatus
   moderationStatus: MarketplaceModerationStatus
+  reviewStatus: MarketplaceReviewStatus
+  reviewSubmittedAt: string | null
   moderationReason: string | null
   currentRevisionId: number | null
+  pendingRevisionId: number | null
   snapshotOutdated: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface MarketplaceReport {
+  id: number
+  listingId: number
+  listingSlug: string | null
+  reportType: MarketplaceReportType
+  description: string
+  contact: string | null
+  processingStatus: MarketplaceReportStatus
+  handledBy: number | null
+  handledReason: string | null
+  handledAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface MarketplaceReportPayload {
+  type: MarketplaceReportType
+  description: string
+  contact?: string
+}
+
+export interface MarketplaceAppeal {
+  id: number
+  listingId: number
+  listingRevisionId: number | null
+  creatorUserId: number
+  appealType: 'REVIEW_REJECTION' | 'TAKEDOWN'
+  description: string
+  appealStatus: MarketplaceAppealStatus
+  handledBy: number | null
+  handledReason: string | null
+  handledAt: string | null
   createdAt: string
   updatedAt: string
 }
@@ -206,9 +261,20 @@ export const marketplaceApi = {
       `/public/marketplace/listings/${encodeURIComponent(slug)}/offer`,
     ),
 
+  recordView: (slug: string) =>
+    client.post<ApiEnvelope<void>>(
+      `/public/marketplace/listings/${encodeURIComponent(slug)}/views`,
+    ),
+
   publicContent: (slug: string) =>
     client.get<ApiEnvelope<MarketplaceContent>>(
       `/public/marketplace/listings/${encodeURIComponent(slug)}/content`,
+    ),
+
+  submitReport: (slug: string, payload: MarketplaceReportPayload) =>
+    client.post<ApiEnvelope<MarketplaceReport>>(
+      `/public/marketplace/listings/${encodeURIComponent(slug)}/reports`,
+      payload,
     ),
 
   access: (slug: string) =>
@@ -255,6 +321,15 @@ export const creatorMarketplaceApi = {
     client.post<ApiEnvelope<CreatorListing>>(
       `/creator/resumes/${resumeId}/listing/refresh-revision`,
       { privacyConfirmed },
+    ),
+
+  appeals: () =>
+    client.get<ApiEnvelope<MarketplaceAppeal[]>>('/creator/marketplace/appeals'),
+
+  submitAppeal: (listingId: number, description: string) =>
+    client.post<ApiEnvelope<MarketplaceAppeal>>(
+      `/creator/listings/${listingId}/appeals`,
+      { description },
     ),
 
   earningsSummary: () =>

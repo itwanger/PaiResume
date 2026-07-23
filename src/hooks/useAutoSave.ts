@@ -3,17 +3,92 @@ import { useResumeStore } from '../store/resumeStore'
 
 export type ModuleSaveState = 'saved' | 'dirty' | 'saving' | 'error'
 
+const LOCAL_DRAFT_PREFIX = 'pai-resume:draft:'
+const activeFlushers = new Map<string, Set<() => Promise<void>>>()
+
+interface LocalDraft {
+  content: Record<string, unknown>
+  serialized: string
+  updatedAt: string
+}
+
+function localDraftKey(targetKey: string) {
+  return `${LOCAL_DRAFT_PREFIX}${targetKey}`
+}
+
+export async function flushResumeAutoSaves(resumeId: number) {
+  const prefix = `${resumeId}:`
+  const flushers = Array.from(activeFlushers.entries())
+    .filter(([targetKey]) => targetKey.startsWith(prefix))
+    .flatMap(([, registered]) => Array.from(registered))
+
+  const results = await Promise.allSettled(flushers.map((flush) => flush()))
+  const failed = results.find((result): result is PromiseRejectedResult => result.status === 'rejected')
+  if (failed) {
+    throw failed.reason instanceof Error ? failed.reason : new Error('简历仍有内容未保存，请重试')
+  }
+}
+
+function writeLocalDraft(targetKey: string, content: Record<string, unknown>, serialized: string) {
+  if (typeof window === 'undefined') return
+  try {
+    const draft: LocalDraft = { content, serialized, updatedAt: new Date().toISOString() }
+    window.localStorage.setItem(localDraftKey(targetKey), JSON.stringify(draft))
+  } catch {
+    // Server autosave and the unload warning remain active if browser storage is unavailable.
+  }
+}
+
+function removeLocalDraftIfMatching(targetKey: string, serialized: string) {
+  if (typeof window === 'undefined') return
+  try {
+    const rawDraft = window.localStorage.getItem(localDraftKey(targetKey))
+    if (!rawDraft) return
+    const draft = JSON.parse(rawDraft) as Partial<LocalDraft>
+    if (draft.serialized === serialized) {
+      window.localStorage.removeItem(localDraftKey(targetKey))
+    }
+  } catch {
+    window.localStorage.removeItem(localDraftKey(targetKey))
+  }
+}
+
+export function readLocalModuleDraft(resumeId: number, moduleId: number) {
+  if (typeof window === 'undefined') return null
+  const key = localDraftKey(`${resumeId}:${moduleId}`)
+  try {
+    const rawDraft = window.localStorage.getItem(key)
+    if (!rawDraft) return null
+    const draft = JSON.parse(rawDraft) as Partial<LocalDraft>
+    if (!draft.content || typeof draft.content !== 'object' || Array.isArray(draft.content)) {
+      window.localStorage.removeItem(key)
+      return null
+    }
+    return draft.content
+  } catch {
+    window.localStorage.removeItem(key)
+    return null
+  }
+}
+
 export function useAutoSave(resumeId: number, moduleId: number | null) {
+  const targetKey = `${resumeId}:${moduleId ?? 'none'}`
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const committedContentRef = useRef<string | null>(null)
-  const latestContentRef = useRef<Record<string, unknown> | null>(null)
-  const latestSerializedRef = useRef<string | null>(null)
-  const queuedSerializedRef = useRef<string | null>(null)
+  const committedContentRef = useRef(new Map<string, string>())
+  const latestSnapshotRef = useRef<{
+    targetKey: string
+    content: Record<string, unknown>
+    serialized: string
+  } | null>(null)
+  const pendingSavesRef = useRef(new Map<string, Promise<void>>())
   const saveChainRef = useRef<Promise<void>>(Promise.resolve())
+  const activeTargetKeyRef = useRef(targetKey)
   const { updateModuleContent } = useResumeStore()
   const [saveState, setSaveState] = useState<ModuleSaveState>('saved')
   const [errorMessage, setErrorMessage] = useState('')
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+
+  activeTargetKeyRef.current = targetKey
 
   const clearTimer = useCallback(() => {
     if (timerRef.current) {
@@ -24,20 +99,36 @@ export function useAutoSave(resumeId: number, moduleId: number | null) {
 
   const syncLatestSnapshot = useCallback((content: Record<string, unknown>) => {
     const serialized = JSON.stringify(content)
-    latestContentRef.current = content
-    latestSerializedRef.current = serialized
+    latestSnapshotRef.current = { targetKey, content, serialized }
     return serialized
+  }, [targetKey])
+
+  const updateSaveState = useCallback((snapshotTargetKey: string, nextState: ModuleSaveState, message = '') => {
+    if (activeTargetKeyRef.current !== snapshotTargetKey) {
+      return
+    }
+
+    const latestSnapshot = latestSnapshotRef.current
+    const committedContent = committedContentRef.current.get(snapshotTargetKey)
+    const isDirty = Boolean(
+      latestSnapshot
+      && latestSnapshot.targetKey === snapshotTargetKey
+      && latestSnapshot.serialized !== committedContent
+    )
+
+    setSaveState(nextState)
+    setErrorMessage(message)
+    setHasUnsavedChanges(isDirty)
   }, [])
 
   const markSaved = useCallback((content: Record<string, unknown>) => {
     const serialized = syncLatestSnapshot(content)
-    committedContentRef.current = serialized
-    queuedSerializedRef.current = null
+    committedContentRef.current.set(targetKey, serialized)
     clearTimer()
     setSaveState('saved')
     setErrorMessage('')
     setHasUnsavedChanges(false)
-  }, [clearTimer, syncLatestSnapshot])
+  }, [clearTimer, syncLatestSnapshot, targetKey])
 
   const enqueueSave = useCallback(
     (content: Record<string, unknown>, serialized: string) => {
@@ -45,75 +136,78 @@ export function useAutoSave(resumeId: number, moduleId: number | null) {
         return Promise.resolve()
       }
 
-      if (serialized === committedContentRef.current) {
-        setSaveState('saved')
-        setErrorMessage('')
-        setHasUnsavedChanges(false)
+      if (serialized === committedContentRef.current.get(targetKey)) {
+        updateSaveState(targetKey, 'saved')
         return saveChainRef.current
       }
 
-      if (queuedSerializedRef.current === serialized) {
-        return saveChainRef.current
+      const pendingSaveKey = `${targetKey}:${serialized}`
+      const existingSave = pendingSavesRef.current.get(pendingSaveKey)
+      if (existingSave) {
+        return existingSave
       }
 
-      queuedSerializedRef.current = serialized
-      saveChainRef.current = saveChainRef.current
+      const saveOperation = saveChainRef.current
         .catch(() => undefined)
         .then(async () => {
-          if (serialized === committedContentRef.current) {
-            if (latestSerializedRef.current === serialized) {
-              setSaveState('saved')
-              setErrorMessage('')
-              setHasUnsavedChanges(false)
+          if (serialized === committedContentRef.current.get(targetKey)) {
+            const latestSnapshot = latestSnapshotRef.current
+            if (latestSnapshot?.targetKey === targetKey && latestSnapshot.serialized === serialized) {
+              updateSaveState(targetKey, 'saved')
             }
             return
           }
 
-          setSaveState('saving')
-          setErrorMessage('')
+          updateSaveState(targetKey, 'saving')
 
           try {
             await updateModuleContent(resumeId, moduleId, content)
-            committedContentRef.current = serialized
+            committedContentRef.current.set(targetKey, serialized)
+            removeLocalDraftIfMatching(targetKey, serialized)
 
-            if (latestSerializedRef.current === serialized) {
-              setSaveState('saved')
-              setErrorMessage('')
-              setHasUnsavedChanges(false)
+            const latestSnapshot = latestSnapshotRef.current
+            if (latestSnapshot?.targetKey === targetKey && latestSnapshot.serialized === serialized) {
+              updateSaveState(targetKey, 'saved')
               return
             }
 
-            setSaveState('dirty')
-            setHasUnsavedChanges(true)
+            updateSaveState(targetKey, 'dirty')
           } catch (error: unknown) {
-            if (latestSerializedRef.current === serialized) {
-              setSaveState('error')
-              setErrorMessage(error instanceof Error ? error.message : '保存失败，请稍后重试')
+            const latestSnapshot = latestSnapshotRef.current
+            if (latestSnapshot?.targetKey === targetKey && latestSnapshot.serialized === serialized) {
+              updateSaveState(
+                targetKey,
+                'error',
+                error instanceof Error ? error.message : '保存失败，请稍后重试',
+              )
             } else {
-              setSaveState('dirty')
+              updateSaveState(targetKey, 'dirty')
             }
-            setHasUnsavedChanges(true)
             throw error
-          } finally {
-            if (queuedSerializedRef.current === serialized) {
-              queuedSerializedRef.current = null
-            }
           }
         })
 
-      return saveChainRef.current
+      saveChainRef.current = saveOperation
+      pendingSavesRef.current.set(pendingSaveKey, saveOperation)
+      void saveOperation.then(
+        () => pendingSavesRef.current.delete(pendingSaveKey),
+        () => pendingSavesRef.current.delete(pendingSaveKey),
+      )
+
+      return saveOperation
     },
-    [moduleId, resumeId, updateModuleContent]
+    [moduleId, resumeId, targetKey, updateModuleContent, updateSaveState]
   )
 
   const save = useCallback(
     (content: Record<string, unknown>) => {
       const serialized = syncLatestSnapshot(content)
+      writeLocalDraft(targetKey, content, serialized)
 
       clearTimer()
 
-      if (serialized === committedContentRef.current) {
-        queuedSerializedRef.current = null
+      if (serialized === committedContentRef.current.get(targetKey)) {
+        removeLocalDraftIfMatching(targetKey, serialized)
         setSaveState('saved')
         setErrorMessage('')
         setHasUnsavedChanges(false)
@@ -125,32 +219,88 @@ export function useAutoSave(resumeId: number, moduleId: number | null) {
       setHasUnsavedChanges(true)
       timerRef.current = setTimeout(() => {
         timerRef.current = null
-        void enqueueSave(content, serialized)
+        void enqueueSave(content, serialized).catch(() => undefined)
       }, 1500)
     },
-    [clearTimer, enqueueSave, syncLatestSnapshot]
+    [clearTimer, enqueueSave, syncLatestSnapshot, targetKey]
   )
 
   const saveNow = useCallback(
     async (content: Record<string, unknown>) => {
       const serialized = syncLatestSnapshot(content)
+      writeLocalDraft(targetKey, content, serialized)
       clearTimer()
       await enqueueSave(content, serialized)
     },
-    [clearTimer, enqueueSave, syncLatestSnapshot]
+    [clearTimer, enqueueSave, syncLatestSnapshot, targetKey]
   )
 
   const flush = useCallback(() => {
     clearTimer()
-    if (latestContentRef.current && latestSerializedRef.current && latestSerializedRef.current !== committedContentRef.current) {
-      return enqueueSave(latestContentRef.current, latestSerializedRef.current)
+    const latestSnapshot = latestSnapshotRef.current
+    if (
+      latestSnapshot
+      && latestSnapshot.targetKey === targetKey
+      && latestSnapshot.serialized !== committedContentRef.current.get(targetKey)
+    ) {
+      return enqueueSave(latestSnapshot.content, latestSnapshot.serialized)
     }
     return Promise.resolve()
-  }, [clearTimer, enqueueSave])
+  }, [clearTimer, enqueueSave, targetKey])
 
-  useEffect(() => () => {
-    clearTimer()
-  }, [clearTimer])
+  useEffect(() => {
+    const registered = activeFlushers.get(targetKey) ?? new Set<() => Promise<void>>()
+    registered.add(flush)
+    activeFlushers.set(targetKey, registered)
+
+    return () => {
+      const current = activeFlushers.get(targetKey)
+      current?.delete(flush)
+      if (current?.size === 0) {
+        activeFlushers.delete(targetKey)
+      }
+    }
+  }, [flush, targetKey])
+
+  useEffect(() => {
+    const flushPendingChanges = () => {
+      void flush().catch(() => undefined)
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        flushPendingChanges()
+      }
+    }
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      const latestSnapshot = latestSnapshotRef.current
+      const hasPendingChanges = Boolean(
+        latestSnapshot
+        && latestSnapshot.targetKey === targetKey
+        && latestSnapshot.serialized !== committedContentRef.current.get(targetKey)
+      )
+
+      if (!hasPendingChanges) {
+        return
+      }
+
+      flushPendingChanges()
+      event.preventDefault()
+      event.returnValue = ''
+    }
+
+    window.addEventListener('pagehide', flushPendingChanges)
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      window.removeEventListener('pagehide', flushPendingChanges)
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      flushPendingChanges()
+    }
+  }, [flush, targetKey])
 
   return { save, saveNow, flush, markSaved, saveState, errorMessage, hasUnsavedChanges }
 }

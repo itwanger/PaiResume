@@ -42,7 +42,8 @@ class MembershipServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        membershipService = new MembershipServiceImpl(couponService, userMapper, membershipAuditService);
+        membershipService = new MembershipServiceImpl(
+                couponService, userMapper, membershipAuditService, null, null);
     }
 
     @Test

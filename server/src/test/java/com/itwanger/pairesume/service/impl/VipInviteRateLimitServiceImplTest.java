@@ -63,4 +63,27 @@ class VipInviteRateLimitServiceImplTest {
         assertFalse(keys.get(0).contains("user@example.com"));
         assertFalse(keys.get(1).contains("127.0.0.1"));
     }
+
+    @Test
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    void anonymousClaimUsesOnlyTheFiftyAttemptIpBudget() {
+        doReturn(1L).when(redisTemplate)
+                .execute(any(RedisScript.class), anyList(), any(Object[].class));
+        var service = new VipInviteRateLimitServiceImpl(redisTemplate, 900, 5, 50);
+
+        service.acquireIpAttempt(" 127.0.0.1 ");
+
+        ArgumentCaptor<List> keysCaptor = ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<Object[]> argsCaptor = ArgumentCaptor.forClass(Object[].class);
+        verify(redisTemplate).execute(
+                any(RedisScript.class),
+                keysCaptor.capture(),
+                argsCaptor.capture()
+        );
+        List<String> keys = keysCaptor.getValue();
+        assertEquals(1, keys.size());
+        assertTrue(keys.get(0).startsWith("vip-invite:attempts:ip:"));
+        assertFalse(keys.get(0).contains("127.0.0.1"));
+        assertEquals(List.of("900", "50"), List.of(argsCaptor.getValue()));
+    }
 }

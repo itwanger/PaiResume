@@ -8,6 +8,7 @@ import org.springframework.util.StringUtils;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.Set;
 
 @Component
@@ -39,11 +40,13 @@ public class StartupConfigValidator {
     private final String flywayUsername;
     private final String flywayPassword;
     private final String redisPassword;
+    private final String aiApiKey;
     private final boolean springdocEnabled;
     private final boolean refreshCookieSecure;
     private final long refreshCookieMaxAgeSeconds;
     private final long accessTokenExpirationMs;
     private final long refreshTokenExpirationMs;
+    private final WechatQrAuthProperties wechatQrAuthProperties;
 
     public StartupConfigValidator(
             @Value("${app.environment:unset}") String appEnvironment,
@@ -67,11 +70,13 @@ public class StartupConfigValidator {
             @Value("${spring.flyway.user:}") String flywayUsername,
             @Value("${spring.flyway.password:}") String flywayPassword,
             @Value("${spring.data.redis.password:}") String redisPassword,
+            @Value("${ai.api-key:}") String aiApiKey,
             @Value("${springdoc.api-docs.enabled:true}") boolean springdocEnabled,
             @Value("${app.auth.refresh-cookie-secure:false}") boolean refreshCookieSecure,
             @Value("${app.auth.refresh-cookie-max-age-seconds:604800}") long refreshCookieMaxAgeSeconds,
             @Value("${jwt.access-token-expiration}") long accessTokenExpirationMs,
-            @Value("${jwt.refresh-token-expiration}") long refreshTokenExpirationMs
+            @Value("${jwt.refresh-token-expiration}") long refreshTokenExpirationMs,
+            WechatQrAuthProperties wechatQrAuthProperties
     ) {
         this.appEnvironment = appEnvironment;
         this.publicUrl = publicUrl;
@@ -94,11 +99,13 @@ public class StartupConfigValidator {
         this.flywayUsername = flywayUsername;
         this.flywayPassword = flywayPassword;
         this.redisPassword = redisPassword;
+        this.aiApiKey = aiApiKey;
         this.springdocEnabled = springdocEnabled;
         this.refreshCookieSecure = refreshCookieSecure;
         this.refreshCookieMaxAgeSeconds = refreshCookieMaxAgeSeconds;
         this.accessTokenExpirationMs = accessTokenExpirationMs;
         this.refreshTokenExpirationMs = refreshTokenExpirationMs;
+        this.wechatQrAuthProperties = wechatQrAuthProperties;
     }
 
     @PostConstruct
@@ -122,6 +129,8 @@ public class StartupConfigValidator {
         if (jwtSecret.equals(verificationCodeSecret)) {
             throw new IllegalStateException("JWT_SECRET and VERIFICATION_CODE_SECRET must be different");
         }
+        rejectProductionPlaceholder("JWT_SECRET", jwtSecret, false);
+        rejectProductionPlaceholder("VERIFICATION_CODE_SECRET", verificationCodeSecret, false);
         validateProductionPublicUrl();
         if (!StringUtils.hasText(mailHost)
                 || !StringUtils.hasText(mailUsername)
@@ -131,6 +140,14 @@ public class StartupConfigValidator {
                     "MAIL_HOST, MAIL_USERNAME, MAIL_PASSWORD, and MAIL_FROM are required in production"
             );
         }
+        rejectProductionPlaceholder("MAIL_USERNAME", mailUsername, true);
+        rejectProductionPlaceholder("MAIL_PASSWORD", mailPassword, false);
+        rejectProductionPlaceholder("MAIL_FROM", mailFrom, true);
+        rejectProductionPlaceholder("MYSQL_PASSWORD", datasourcePassword, false);
+        rejectProductionPlaceholder("FLYWAY_PASSWORD", flywayPassword, false);
+        rejectProductionPlaceholder("REDIS_PASSWORD", redisPassword, false);
+        rejectProductionPlaceholder("AI_API_KEY", aiApiKey, false);
+        validateProductionWechatQrAuth();
         if (!mailSslEnabled && !(mailStartTlsEnabled && mailStartTlsRequired)) {
             throw new IllegalStateException(
                     "Production SMTP must use implicit TLS or required STARTTLS"
@@ -146,6 +163,22 @@ public class StartupConfigValidator {
     private void requireStrongSecret(String name, String value, String forbiddenDefault) {
         if (!StringUtils.hasText(value) || value.length() < 32 || forbiddenDefault.equals(value)) {
             throw new IllegalStateException(name + " must be a non-default value of at least 32 characters");
+        }
+    }
+
+    private void rejectProductionPlaceholder(String name, String value, boolean emailField) {
+        if (!StringUtils.hasText(value)) {
+            return;
+        }
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
+        boolean yourPlaceholder = normalized.startsWith("your_")
+                && (!emailField || !normalized.contains("@") || normalized.startsWith("your_email@"));
+        boolean publishedPlaceholder = normalized.contains("replace-me")
+                || normalized.startsWith("replace-with-")
+                || yourPlaceholder;
+        boolean exampleEmail = emailField && normalized.endsWith("@example.com");
+        if (publishedPlaceholder || exampleEmail) {
+            throw new IllegalStateException(name + " must not use a published placeholder value");
         }
     }
 
@@ -171,6 +204,41 @@ public class StartupConfigValidator {
             }
         } catch (URISyntaxException exception) {
             throw new IllegalStateException("APP_PUBLIC_URL must be a valid URI", exception);
+        }
+    }
+
+    private void validateProductionWechatQrAuth() {
+        if (wechatQrAuthProperties == null || !wechatQrAuthProperties.isEnabled()) {
+            return;
+        }
+        wechatQrAuthProperties.requireReady();
+        URI gateway = URI.create(wechatQrAuthProperties.getGatewayBaseUrl().trim());
+        String host = gateway.getHost();
+        if (!"https".equalsIgnoreCase(gateway.getScheme())
+                || !StringUtils.hasText(host)
+                || host.contains("*")
+                || "localhost".equalsIgnoreCase(host)
+                || "127.0.0.1".equals(host)
+                || "::1".equals(host)) {
+            throw new IllegalStateException(
+                    "PAICONGMING_WECHAT_GATEWAY_BASE_URL must be an explicit public HTTPS URL in production"
+            );
+        }
+        rejectProductionPlaceholder(
+                "PAICONGMING_WECHAT_BRIDGE_SECRET",
+                wechatQrAuthProperties.getBridgeSecret(),
+                false
+        );
+        rejectProductionPlaceholder(
+                "PAICONGMING_WECHAT_APP_ID",
+                wechatQrAuthProperties.getAccountAppId(),
+                false
+        );
+        if (wechatQrAuthProperties.getBridgeSecret().equals(jwtSecret)
+                || wechatQrAuthProperties.getBridgeSecret().equals(verificationCodeSecret)) {
+            throw new IllegalStateException(
+                    "PAICONGMING_WECHAT_BRIDGE_SECRET must be independent from other application secrets"
+            );
         }
     }
 

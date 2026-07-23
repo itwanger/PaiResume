@@ -24,6 +24,7 @@ public class PlatformConfigServiceImpl implements PlatformConfigService {
         PlatformConfig config = getConfigEntity();
         config.setMembershipPriceCents(dto.getMembershipPriceCents());
         config.setQuestionnaireCouponAmountCents(dto.getQuestionnaireCouponAmountCents());
+        config.setResumeReviewPriceCents(dto.getResumeReviewPriceCents());
         config.setUpdatedBy(adminUserId);
         platformConfigMapper.updateById(config);
         return toDto(config);
@@ -40,6 +41,7 @@ public class PlatformConfigServiceImpl implements PlatformConfigService {
         config.setId(PLATFORM_CONFIG_ID);
         config.setMembershipPriceCents(6600);
         config.setQuestionnaireCouponAmountCents(1000);
+        config.setResumeReviewPriceCents(0);
         platformConfigMapper.insert(config);
         return config;
     }
@@ -48,6 +50,7 @@ public class PlatformConfigServiceImpl implements PlatformConfigService {
         PlatformConfigDTO dto = new PlatformConfigDTO();
         dto.setMembershipPriceCents(config.getMembershipPriceCents());
         dto.setQuestionnaireCouponAmountCents(config.getQuestionnaireCouponAmountCents());
+        dto.setResumeReviewPriceCents(config.getResumeReviewPriceCents());
         return dto;
     }
 }

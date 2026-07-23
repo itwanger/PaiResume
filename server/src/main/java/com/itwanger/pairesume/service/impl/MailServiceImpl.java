@@ -14,6 +14,7 @@ import org.springframework.util.StringUtils;
 
 import jakarta.mail.internet.MimeMessage;
 import java.nio.charset.StandardCharsets;
+import org.springframework.core.io.ByteArrayResource;
 
 @Slf4j
 @Service
@@ -63,6 +64,32 @@ public class MailServiceImpl implements MailService {
     }
 
     @Override
+    public void sendPasswordResetCode(String email, String code) {
+        ensureMailConfigured();
+        PasswordResetMailTemplate.RenderedMail renderedMail = PasswordResetMailTemplate.render(
+                code,
+                verificationCodeTtlSeconds,
+                publicUrl
+        );
+
+        try {
+            MimeMessage message = javaMailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(
+                    message,
+                    MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED,
+                    StandardCharsets.UTF_8.name()
+            );
+            helper.setFrom(mailFrom, "派简历");
+            helper.setTo(email);
+            helper.setSubject(renderedMail.subject());
+            helper.setText(renderedMail.plainText(), renderedMail.htmlText());
+            javaMailSender.send(message);
+        } catch (Exception exception) {
+            handleDeliveryFailure(email, exception);
+        }
+    }
+
+    @Override
     public void sendCouponCode(String email, String couponCode, int amountCents) {
         String amountText = formatCents(amountCents);
         sendTextMail(
@@ -70,6 +97,35 @@ public class MailServiceImpl implements MailService {
                 "派简历优惠码",
                 "感谢你提交派简历问卷。你的优惠码是 " + couponCode + "，可减免 " + amountText + "。支付功能上线前，如需开通会员，请联系管理员人工处理。"
         );
+    }
+
+    @Override
+    public void sendResumeReviewContactCode(String email, String code) {
+        sendTextMail(email, "派简历人工精修联系邮箱验证码",
+                "你正在验证人工精修联系邮箱，验证码为 " + code
+                        + "，" + Math.max(1, verificationCodeTtlSeconds / 60) + " 分钟内有效。如非本人操作请忽略。");
+    }
+
+    @Override
+    public void sendResumeReview(String recipientEmail, String messageId, String requestNo,
+                                 String contactEmail, byte[] pdfContent, String fileName) {
+        ensureMailConfigured();
+        try {
+            MimeMessage message = javaMailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(
+                    message, true, StandardCharsets.UTF_8.name());
+            helper.setFrom(mailFrom, "派简历");
+            helper.setTo(recipientEmail);
+            helper.setReplyTo(contactEmail);
+            helper.setSubject("人工精修请求 " + requestNo);
+            helper.setText("请查收由派简历服务端根据用户锁定快照生成的 PDF。\n"
+                    + "请求号：" + requestNo + "\n用户联系邮箱：" + contactEmail);
+            helper.addAttachment(fileName, new ByteArrayResource(pdfContent), "application/pdf");
+            message.setHeader("Message-ID", messageId);
+            javaMailSender.send(message);
+        } catch (Exception exception) {
+            handleDeliveryFailure(recipientEmail, exception);
+        }
     }
 
     private void sendTextMail(String email, String subject, String text) {

@@ -84,8 +84,22 @@ public class VerificationCodeServiceImpl implements VerificationCodeService {
 
     @Override
     public String issueRegistrationCode(String email, String clientIp) {
+        return issueCode("register", email, clientIp);
+    }
+
+    @Override
+    public String issuePasswordResetCode(String email, String clientIp) {
+        return issueCode("password-reset", email, clientIp);
+    }
+
+    @Override
+    public String issueResumeReviewContactCode(String email, String clientIp) {
+        return issueCode("resume-review-contact", email, clientIp);
+    }
+
+    private String issueCode(String purpose, String email, String clientIp) {
         String emailFingerprint = fingerprint(email);
-        String cooldownKey = cooldownKey(emailFingerprint);
+        String cooldownKey = cooldownKey(purpose, emailFingerprint);
         Boolean acquired = redisTemplate.opsForValue().setIfAbsent(
                 cooldownKey,
                 "1",
@@ -101,11 +115,11 @@ public class VerificationCodeServiceImpl implements VerificationCodeService {
 
             String code = String.format("%06d", SECURE_RANDOM.nextInt(1_000_000));
             redisTemplate.opsForValue().set(
-                    codeKey(emailFingerprint),
-                    hashCode(email, code),
+                    codeKey(purpose, emailFingerprint),
+                    hashCode(purpose, email, code),
                     Duration.ofSeconds(codeTtlSeconds)
             );
-            redisTemplate.delete(attemptKey(emailFingerprint));
+            redisTemplate.delete(attemptKey(purpose, emailFingerprint));
             return code;
         } catch (RuntimeException exception) {
             redisTemplate.delete(cooldownKey);
@@ -115,21 +129,49 @@ public class VerificationCodeServiceImpl implements VerificationCodeService {
 
     @Override
     public void rollbackRegistrationCode(String email) {
+        rollbackCode("register", email);
+    }
+
+    @Override
+    public void rollbackPasswordResetCode(String email) {
+        rollbackCode("password-reset", email);
+    }
+
+    @Override
+    public void rollbackResumeReviewContactCode(String email) {
+        rollbackCode("resume-review-contact", email);
+    }
+
+    private void rollbackCode(String purpose, String email) {
         String emailFingerprint = fingerprint(email);
         redisTemplate.delete(List.of(
-                codeKey(emailFingerprint),
-                attemptKey(emailFingerprint),
-                cooldownKey(emailFingerprint)
+                codeKey(purpose, emailFingerprint),
+                attemptKey(purpose, emailFingerprint),
+                cooldownKey(purpose, emailFingerprint)
         ));
     }
 
     @Override
     public ConsumeResult consumeRegistrationCode(String email, String code) {
+        return consumeCode("register", email, code);
+    }
+
+    @Override
+    public ConsumeResult consumePasswordResetCode(String email, String code) {
+        return consumeCode("password-reset", email, code);
+    }
+
+    @Override
+    public ConsumeResult consumeResumeReviewContactCode(String email, String code) {
+        return consumeCode("resume-review-contact", email, code);
+    }
+
+    private ConsumeResult consumeCode(String purpose, String email, String code) {
         String emailFingerprint = fingerprint(email);
         Long result = redisTemplate.execute(
                 CONSUME_CODE_SCRIPT,
-                List.of(codeKey(emailFingerprint), attemptKey(emailFingerprint)),
-                hashCode(email, code),
+                List.of(codeKey(purpose, emailFingerprint), attemptKey(purpose, emailFingerprint)),
+                hashCode(purpose, email, code),
                 String.valueOf(maxVerifyAttempts),
                 String.valueOf(codeTtlSeconds)
         );
@@ -157,11 +199,11 @@ public class VerificationCodeServiceImpl implements VerificationCodeService {
         }
     }
 
-    private String hashCode(String email, String code) {
+    private String hashCode(String purpose, String email, String code) {
         try {
             Mac mac = Mac.getInstance(HMAC_ALGORITHM);
             mac.init(new SecretKeySpec(codeSecret, HMAC_ALGORITHM));
-            byte[] digest = mac.doFinal(("register:" + email + ":" + code).getBytes(StandardCharsets.UTF_8));
+            byte[] digest = mac.doFinal((purpose + ":" + email + ":" + code).getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(digest);
         } catch (GeneralSecurityException exception) {
             throw new IllegalStateException("Unable to hash verification code", exception);
@@ -182,15 +224,15 @@ public class VerificationCodeServiceImpl implements VerificationCodeService {
         return clientIp == null || clientIp.isBlank() ? "unknown" : clientIp.trim();
     }
 
-    private String codeKey(String emailFingerprint) {
-        return "verify:register:code:" + emailFingerprint;
+    private String codeKey(String purpose, String emailFingerprint) {
+        return "verify:" + purpose + ":code:" + emailFingerprint;
     }
 
-    private String attemptKey(String emailFingerprint) {
-        return "verify:register:attempts:" + emailFingerprint;
+    private String attemptKey(String purpose, String emailFingerprint) {
+        return "verify:" + purpose + ":attempts:" + emailFingerprint;
     }
 
-    private String cooldownKey(String emailFingerprint) {
-        return "verify:register:cooldown:" + emailFingerprint;
+    private String cooldownKey(String purpose, String emailFingerprint) {
+        return "verify:" + purpose + ":cooldown:" + emailFingerprint;
     }
 }

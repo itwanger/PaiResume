@@ -4,14 +4,17 @@ import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.itwanger.pairesume.common.BusinessException;
 import com.itwanger.pairesume.common.ResultCode;
+import com.itwanger.pairesume.config.MarketplaceFeatureProperties;
 import com.itwanger.pairesume.dto.AdminMarketModerationDTO;
 import com.itwanger.pairesume.dto.MarketListingUpsertDTO;
 import com.itwanger.pairesume.dto.MarketPrivacyConfirmationDTO;
 import com.itwanger.pairesume.entity.Resume;
+import com.itwanger.pairesume.entity.MarketplaceGovernanceAudit;
 import com.itwanger.pairesume.entity.ResumeMarketListing;
 import com.itwanger.pairesume.entity.ResumeMarketListingRevision;
 import com.itwanger.pairesume.entity.ResumeModule;
 import com.itwanger.pairesume.mapper.ResumeMapper;
+import com.itwanger.pairesume.mapper.MarketplaceGovernanceAuditMapper;
 import com.itwanger.pairesume.mapper.ResumeMarketListingMapper;
 import com.itwanger.pairesume.mapper.ResumeMarketListingRevisionMapper;
 import com.itwanger.pairesume.mapper.ResumeModuleMapper;
@@ -19,21 +22,27 @@ import com.itwanger.pairesume.payment.MarketplacePaymentProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -46,6 +55,9 @@ class ResumeMarketplaceServiceImplTest {
     @Mock private ResumeMapper resumeMapper;
     @Mock private ResumeModuleMapper moduleMapper;
     @Mock private MarketplaceOrderLocalService marketplaceOrderLocalService;
+    @Mock private MarketplaceGovernanceAuditMapper governanceAuditMapper;
+    @Mock private StringRedisTemplate redisTemplate;
+    @Mock private ValueOperations<String, String> valueOperations;
 
     private ResumeMarketplaceServiceImpl service;
     private MarketplacePaymentProperties paymentProperties;
@@ -60,10 +72,19 @@ class ResumeMarketplaceServiceImplTest {
                 moduleMapper,
                 new ObjectMapper(),
                 paymentProperties,
-                marketplaceOrderLocalService
+                marketplaceOrderLocalService,
+                enabledMarketplace(),
+                governanceAuditMapper,
+                redisTemplate
         );
         ReflectionTestUtils.setField(service, "minPriceCents", 100);
         ReflectionTestUtils.setField(service, "maxPriceCents", 99900);
+    }
+
+    private MarketplaceFeatureProperties enabledMarketplace() {
+        MarketplaceFeatureProperties properties = new MarketplaceFeatureProperties();
+        properties.setEnabled(true);
+        return properties;
     }
 
     @Test
@@ -143,8 +164,10 @@ class ResumeMarketplaceServiceImplTest {
         ), revision.getModulesSnapshot().get(1));
         assertFalse(revision.getModulesSnapshot().get(1).containsKey("id"));
         assertFalse(revision.getModulesSnapshot().get(1).containsKey("resumeId"));
-        assertEquals("PUBLISHED", result.getPublicationStatus());
-        assertEquals(31L, result.getCurrentRevisionId());
+        assertEquals("UNPUBLISHED", result.getPublicationStatus());
+        assertEquals("PENDING", result.getReviewStatus());
+        assertNull(result.getCurrentRevisionId());
+        assertEquals(31L, result.getPendingRevisionId());
         verify(listingMapper).updateById(any(ResumeMarketListing.class));
     }
 
@@ -180,6 +203,38 @@ class ResumeMarketplaceServiceImplTest {
         assertEquals(24, result.getSize());
         assertEquals(2, result.getTotalPages());
         assertEquals("Java 项目简历", result.getRecords().get(0).getTitle());
+        assertEquals(42L, result.getRecords().get(0).getViewCount());
+    }
+
+    @Test
+    void recordViewOnlyIncrementsPubliclyVisibleListing() {
+        ResumeMarketListing listing = paidListing("PUBLISHED", "APPROVED", 41L);
+        when(listingMapper.selectOne(any(Wrapper.class))).thenReturn(listing);
+
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.setIfAbsent(any(String.class), eq("1"), eq(24L), eq(TimeUnit.HOURS)))
+                .thenReturn(true);
+
+        service.recordView("paid-resume", "203.0.113.8");
+
+        verify(listingMapper).incrementViewCount(10L);
+        ArgumentCaptor<String> keyCaptor = ArgumentCaptor.forClass(String.class);
+        verify(valueOperations).setIfAbsent(keyCaptor.capture(), eq("1"), eq(24L), eq(TimeUnit.HOURS));
+        assertTrue(keyCaptor.getValue().matches("marketplace:view:10:[0-9a-f]{32}"));
+        assertFalse(keyCaptor.getValue().contains("203.0.113.8"));
+    }
+
+    @Test
+    void repeatedViewFromSameFingerprintDoesNotIncrementAgain() {
+        ResumeMarketListing listing = paidListing("PUBLISHED", "APPROVED", 41L);
+        when(listingMapper.selectOne(any(Wrapper.class))).thenReturn(listing);
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.setIfAbsent(any(String.class), eq("1"), eq(24L), eq(TimeUnit.HOURS)))
+                .thenReturn(false);
+
+        service.recordView("paid-resume", "203.0.113.8");
+
+        verify(listingMapper, never()).incrementViewCount(any());
     }
 
     @Test
@@ -256,7 +311,7 @@ class ResumeMarketplaceServiceImplTest {
         when(listingMapper.selectOne(any(Wrapper.class))).thenReturn(listing);
         when(listingMapper.selectActiveEntitlementRevisionId(10L, 8L)).thenReturn(null);
         when(revisionMapper.selectById(41L)).thenReturn(currentRevision);
-        paymentProperties.setAcceptNewOrders(true);
+        paymentProperties.setMarketplaceAcceptNewOrders(true);
 
         var access = service.getAccess("paid-resume", 8L, false);
 
@@ -315,7 +370,7 @@ class ResumeMarketplaceServiceImplTest {
     void administratorCanSuspendListingWithoutDeletingItsRevision() {
         ResumeMarketListing listing = paidListing("PUBLISHED", "APPROVED", 41L);
         ResumeMarketListingRevision currentRevision = revision(41L, listing.getId(), "待审核版本");
-        when(listingMapper.selectOne(any(Wrapper.class))).thenReturn(listing);
+        when(listingMapper.selectByIdForUpdate(10L)).thenReturn(listing);
         when(revisionMapper.selectById(41L)).thenReturn(currentRevision);
         AdminMarketModerationDTO request = new AdminMarketModerationDTO();
         request.setAction("SUSPEND");
@@ -331,6 +386,117 @@ class ResumeMarketplaceServiceImplTest {
         assertEquals("SUSPENDED", result.getModerationStatus());
         verify(listingMapper).updateById(listing);
         verify(revisionMapper, never()).deleteById(41L);
+    }
+
+    @Test
+    void updatedSubmissionKeepsApprovedRevisionLiveUntilReviewPasses() {
+        LocalDateTime now = LocalDateTime.now();
+        Resume resume = resume(11L, 7L, now);
+        ResumeMarketListing listing = paidListing("PUBLISHED", "APPROVED", 41L);
+        listing.setReviewStatus("APPROVED");
+        ResumeMarketListingRevision current = revision(41L, 10L, "线上版本");
+        current.setContentHash("old-content-hash");
+        AtomicReference<ResumeMarketListingRevision> pending = new AtomicReference<>();
+        when(resumeMapper.selectOne(any(Wrapper.class))).thenReturn(resume);
+        when(listingMapper.selectOne(any(Wrapper.class))).thenReturn(listing);
+        when(moduleMapper.selectList(any(Wrapper.class))).thenReturn(List.of());
+        when(revisionMapper.selectOne(any(Wrapper.class))).thenReturn(current);
+        when(revisionMapper.insert(any(ResumeMarketListingRevision.class))).thenAnswer(invocation -> {
+            ResumeMarketListingRevision revision = invocation.getArgument(0);
+            revision.setId(42L);
+            pending.set(revision);
+            return 1;
+        });
+        when(resumeMapper.selectById(11L)).thenReturn(resume);
+        when(revisionMapper.selectById(41L)).thenReturn(current);
+        when(revisionMapper.selectById(42L)).thenAnswer(invocation -> pending.get());
+
+        var result = service.publish(7L, 11L, freePublishRequest());
+
+        assertEquals(41L, result.getCurrentRevisionId());
+        assertEquals(42L, result.getPendingRevisionId());
+        assertEquals("PENDING", result.getReviewStatus());
+        assertEquals("PUBLISHED", result.getPublicationStatus());
+        assertEquals("PAID", listing.getAccessType());
+        verify(marketplaceOrderLocalService, never()).markSaleClosed(
+                any(), any(), any(Boolean.class), any(), any());
+    }
+
+    @Test
+    void approvalAtomicallyPromotesPendingRevisionAndClosesOldSale() {
+        ResumeMarketListing listing = paidListing("PUBLISHED", "APPROVED", 41L);
+        listing.setReviewStatus("PENDING");
+        listing.setPendingRevisionId(42L);
+        ResumeMarketListingRevision pending = revision(42L, 10L, "审核通过版本");
+        pending.setSummarySnapshot("已脱敏的新摘要");
+        pending.setTagsSnapshot(List.of("Java", "后端"));
+        pending.setAccessTypeSnapshot("FREE");
+        pending.setPriceCentsSnapshot(0);
+        when(listingMapper.selectByIdForUpdate(10L)).thenReturn(listing);
+        when(revisionMapper.selectById(42L)).thenReturn(pending);
+        AdminMarketModerationDTO request = new AdminMarketModerationDTO();
+        request.setAction("APPROVE");
+        request.setReason("隐私检查和内容检查均已通过");
+
+        var result = service.moderate(10L, 1L, request);
+
+        assertEquals(42L, result.getCurrentRevisionId());
+        assertNull(result.getPendingRevisionId());
+        assertEquals("APPROVED", result.getReviewStatus());
+        assertEquals("FREE", result.getAccessType());
+        assertEquals(0, result.getPriceCents());
+        verify(marketplaceOrderLocalService).markSaleClosed(
+                eq(10L), eq(42L), eq(true), any(LocalDateTime.class), eq("ACCESS_FREE"));
+        verify(governanceAuditMapper).insert((MarketplaceGovernanceAudit) any());
+    }
+
+    @Test
+    void approvalDoesNotRepublishAfterCreatorExplicitlyUnpublishes() {
+        ResumeMarketListing listing = paidListing("UNPUBLISHED", "APPROVED", 41L);
+        listing.setReviewStatus("PENDING");
+        listing.setPendingRevisionId(42L);
+        listing.setPublishAfterReview(false);
+        ResumeMarketListingRevision pending = revision(42L, 10L, "审核通过但保持下架");
+        when(listingMapper.selectByIdForUpdate(10L)).thenReturn(listing);
+        when(revisionMapper.selectById(42L)).thenReturn(pending);
+        AdminMarketModerationDTO request = new AdminMarketModerationDTO();
+        request.setAction("APPROVE");
+        request.setReason("内容审核通过，发布状态仍以作者最后操作为准");
+
+        var result = service.moderate(10L, 1L, request);
+
+        assertEquals("UNPUBLISHED", result.getPublicationStatus());
+        assertEquals("APPROVED", result.getReviewStatus());
+        assertEquals(42L, result.getCurrentRevisionId());
+    }
+
+    @Test
+    void closedMarketplaceStillAllowsPreviouslyPurchasedRevision() {
+        MarketplaceFeatureProperties disabled = new MarketplaceFeatureProperties();
+        service = new ResumeMarketplaceServiceImpl(
+                listingMapper,
+                revisionMapper,
+                resumeMapper,
+                moduleMapper,
+                new ObjectMapper(),
+                paymentProperties,
+                marketplaceOrderLocalService,
+                disabled,
+                governanceAuditMapper,
+                redisTemplate
+        );
+        ReflectionTestUtils.setField(service, "minPriceCents", 100);
+        ReflectionTestUtils.setField(service, "maxPriceCents", 99900);
+        ResumeMarketListing listing = paidListing("PUBLISHED", "APPROVED", 41L);
+        ResumeMarketListingRevision purchased = revision(40L, 10L, "已购版本");
+        when(listingMapper.selectOne(any(Wrapper.class))).thenReturn(listing);
+        when(listingMapper.selectActiveEntitlementRevisionId(10L, 8L)).thenReturn(40L);
+        when(revisionMapper.selectById(40L)).thenReturn(purchased);
+
+        var content = service.getContent("paid-resume", 8L, false);
+
+        assertEquals(40L, content.getRevisionId());
+        assertEquals("已购版本", content.getTitle());
     }
 
     @Test
@@ -427,6 +593,7 @@ class ResumeMarketplaceServiceImplTest {
         listing.setTags(List.of("Java"));
         listing.setAccessType("PAID");
         listing.setPriceCents(500);
+        listing.setViewCount(42L);
         listing.setPublicationStatus(publicationStatus);
         listing.setModerationStatus(moderationStatus);
         listing.setCurrentRevisionId(revisionId);

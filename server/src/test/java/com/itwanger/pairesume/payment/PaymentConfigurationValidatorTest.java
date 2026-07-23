@@ -2,6 +2,7 @@ package com.itwanger.pairesume.payment;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
+import com.itwanger.pairesume.config.ResumeReviewProperties;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -13,22 +14,80 @@ class PaymentConfigurationValidatorTest {
     @Test
     void acceptingNewOrdersDefaultsToFailClosed() {
         assertFalse(new MarketplacePaymentProperties().isAcceptNewOrders());
+        assertFalse(new MarketplacePaymentProperties().isMembershipAcceptNewOrders());
+        assertFalse(new MarketplacePaymentProperties().isMarketplaceAcceptNewOrders());
+        assertEquals(365, new MarketplacePaymentProperties().getMembershipPaymentDays());
         assertEquals(7, new MarketplacePaymentProperties().getCreatorEarningHoldDays());
     }
 
     @Test
-    void disabledProviderCannotAcceptNewOrders() {
+    void membershipDurationMustStayWithinSupportedRange() {
         MarketplacePaymentProperties properties = new MarketplacePaymentProperties();
-        properties.setProvider("disabled");
+        properties.setMembershipPaymentDays(0);
+        assertThrows(IllegalStateException.class, () -> validator(properties).validate());
+
+        properties.setMembershipPaymentDays(365);
+        assertDoesNotThrow(() -> validator(properties).validate());
+
+        properties.setMembershipPaymentDays(3651);
+        assertThrows(IllegalStateException.class, () -> validator(properties).validate());
+    }
+
+    @Test
+    void productionMembershipPlanMustRemainAnnual() {
+        MarketplacePaymentProperties properties = new MarketplacePaymentProperties();
+        properties.setMembershipPaymentDays(30);
+
+        assertThrows(IllegalStateException.class,
+                () -> validator(properties, "production").validate());
+
+        properties.setMembershipPaymentDays(365);
+        assertDoesNotThrow(() -> validator(properties, "production").validate());
+    }
+
+    @Test
+    void legacyGlobalSwitchAlwaysFailsClosed() {
+        MarketplacePaymentProperties properties = new MarketplacePaymentProperties();
+        properties.setProvider("wechat-native");
         properties.setAcceptNewOrders(true);
 
         assertThrows(IllegalStateException.class, () -> validator(properties).validate());
     }
 
     @Test
+    void disabledProviderCannotAcceptIndependentNewOrders() {
+        MarketplacePaymentProperties properties = new MarketplacePaymentProperties();
+        properties.setProvider("disabled");
+        properties.setMembershipAcceptNewOrders(true);
+
+        assertThrows(IllegalStateException.class, () -> validator(properties).validate());
+    }
+
+    @Test
+    void paidResumeReviewHasAnIndependentFailClosedSwitchAndRequiresWechatNative() {
+        MarketplacePaymentProperties properties = new MarketplacePaymentProperties();
+        ResumeReviewProperties review = new ResumeReviewProperties();
+        review.setPaidAcceptNewOrders(true);
+        PaymentConfigurationValidator validator = new PaymentConfigurationValidator(properties, review);
+        ReflectionTestUtils.setField(validator, "environment", "development");
+
+        assertThrows(IllegalStateException.class, validator::validate);
+    }
+
+    @Test
     void configuredWechatProviderCanStayAliveWhileNewOrdersArePaused() {
         MarketplacePaymentProperties properties = validWechatProperties();
-        properties.setAcceptNewOrders(false);
+        properties.setMembershipAcceptNewOrders(false);
+        properties.setMarketplaceAcceptNewOrders(false);
+
+        assertDoesNotThrow(() -> validator(properties).validate());
+    }
+
+    @Test
+    void membershipAndMarketplaceSwitchesCanBeEnabledIndependently() {
+        MarketplacePaymentProperties properties = validWechatProperties();
+        properties.setMembershipAcceptNewOrders(true);
+        properties.setMarketplaceAcceptNewOrders(false);
 
         assertDoesNotThrow(() -> validator(properties).validate());
     }

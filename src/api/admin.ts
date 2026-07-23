@@ -2,15 +2,60 @@ import client, { type ApiEnvelope } from './client'
 import type {
   CreatorEarning,
   MarketplaceAccessType,
+  MarketplaceAppeal,
+  MarketplaceAppealStatus,
   MarketplaceModerationStatus,
   MarketplaceOrderStatus,
   MarketplacePage,
   MarketplacePublicationStatus,
+  MarketplaceReport,
+  MarketplaceReportStatus,
+  MarketplaceReviewStatus,
 } from './marketplace'
+import type { ResumeReviewRequest } from './resumeReview'
 
 export interface PlatformConfig {
   membershipPriceCents: number
   questionnaireCouponAmountCents: number
+  resumeReviewPriceCents: number
+}
+
+export interface ResumeReviewAudit {
+  id: number
+  requestNo: string
+  actorUserId: number | null
+  actorType: string
+  action: string
+  fromStatus: string | null
+  toStatus: string | null
+  reason: string | null
+  createdAt: string
+}
+
+export interface ResumeReviewFallbackCode {
+  id: number
+  code: string | null
+  codeHint: string
+  status: 'ISSUED' | 'REDEEMED' | 'EXPIRED' | string
+  expiresAt: string
+  warning: string
+}
+
+export type ResumeReviewAdminRequest = Omit<ResumeReviewRequest, 'codeUrl' | 'qrCodeDataUrl'> & {
+  userId: number
+  provider: string | null
+  payChannel: string | null
+  providerTransactionId: string | null
+  refundReference: string | null
+  handledBy: number | null
+  acceptedAt: string | null
+  completedAt: string | null
+  returnedAt: string | null
+  mailStatus: 'PENDING' | 'SENDING' | 'FAILED' | 'SENT' | null
+  mailAttemptCount: number | null
+  mailLastErrorType: string | null
+  mailNextAttemptAt: string | null
+  mailSentAt: string | null
 }
 
 export interface CouponAdmin {
@@ -44,6 +89,7 @@ export interface CreateVipInvitePayload {
   remark?: string
   expiresInDays?: number
   maxRedemptions?: number
+  membershipDays?: number
 }
 
 export interface VipInviteRedemptionAdmin {
@@ -148,10 +194,13 @@ export interface AdminMarketListing {
   priceCents: number
   publicationStatus: MarketplacePublicationStatus
   moderationStatus: MarketplaceModerationStatus
+  reviewStatus: MarketplaceReviewStatus
+  reviewSubmittedAt: string | null
   moderatedBy: number | null
   moderatedAt: string | null
   moderationReason: string | null
   currentRevisionId: number | null
+  pendingRevisionId: number | null
   createdAt: string
   updatedAt: string
 }
@@ -161,6 +210,37 @@ export interface AdminMarketListingQuery {
   size?: number
   publicationStatus?: 'PUBLISHED' | 'UNPUBLISHED' | ''
   moderationStatus?: MarketplaceModerationStatus | ''
+  reviewStatus?: MarketplaceReviewStatus | ''
+}
+
+export type MarketplaceListingModerationAction =
+  | 'APPROVE'
+  | 'REJECT'
+  | 'TAKEDOWN'
+  | 'RESTORE'
+
+export type MarketplaceReportAction = 'RESOLVE' | 'DISMISS' | 'TAKEDOWN'
+
+export type MarketplaceAppealAction = 'APPROVE' | 'REJECT'
+
+export interface MarketplaceGovernanceAudit {
+  id: number
+  listingId: number
+  actorUserId: number | null
+  actorType: 'PUBLIC' | 'CREATOR' | 'ADMIN'
+  action: string
+  targetType: string
+  targetId: number | null
+  fromStatus: string | null
+  toStatus: string | null
+  reason: string | null
+  createdAt: string
+}
+
+export interface MarketplaceGovernanceQuery<TStatus extends string> {
+  page?: number
+  size?: number
+  status?: TStatus | ''
 }
 
 export interface MarketplacePaymentReview {
@@ -195,12 +275,155 @@ export interface MarketplacePaymentReview {
 
 export type MarketplacePaymentReviewStatus = 'REFUND_REQUIRED' | 'DUPLICATE_PAID' | 'REFUNDED'
 
+export type MembershipPaymentOrderStatus =
+  | 'CREATED'
+  | 'PREPAYING'
+  | 'PREPAY_UNKNOWN'
+  | 'PENDING'
+  | 'EXPIRED'
+  | 'CANCELED'
+  | 'PAID'
+  | 'REFUND_REQUIRED'
+
+export type MembershipPaymentReviewStatus =
+  | 'NONE'
+  | 'PENDING'
+  | 'REFUND_PROCESSING'
+  | 'REFUNDED'
+  | 'REJECTED'
+  | 'CLOSED'
+
+export interface MembershipPaymentAuditLog {
+  id: number
+  adminUserId: number
+  adminEmail: string | null
+  action: string
+  fromStatus: MembershipPaymentReviewStatus
+  toStatus: MembershipPaymentReviewStatus
+  reason: string
+  refundReference: string | null
+  createdAt: string
+}
+
+export interface MembershipPaymentAdminOrder {
+  id: number
+  orderNo: string
+  userId: number
+  userEmail: string | null
+  membershipDays: number
+  listPriceCents: number
+  discountAmountCents: number
+  payableAmountCents: number
+  currency: string
+  provider: string
+  payChannel: string
+  orderStatus: MembershipPaymentOrderStatus
+  providerTransactionId: string | null
+  paymentReviewReason: string | null
+  reviewStatus: MembershipPaymentReviewStatus
+  lastAdminAction: string | null
+  adminActionReason: string | null
+  handledBy: number | null
+  handlerEmail: string | null
+  refundReference: string | null
+  expiresAt: string | null
+  paidAt: string | null
+  closedAt: string | null
+  membershipStartedAt: string | null
+  membershipExpiresAt: string | null
+  reviewStartedAt: string | null
+  reviewResolvedAt: string | null
+  reviewUpdatedAt: string | null
+  createdAt: string
+  updatedAt: string
+  auditLogs: MembershipPaymentAuditLog[]
+}
+
+export interface MembershipPaymentAdminSummary {
+  totalOrders: number
+  refundRequiredOrders: number
+  pendingReviews: number
+  refundProcessingReviews: number
+  refundedReviews: number
+  rejectedReviews: number
+  closedReviews: number
+  duplicatePaymentReviews: number
+  reconciliationFailuresSinceStart: number
+  lastReconciliationFailureAt: string | null
+  observabilityStartedAt: string
+}
+
+export interface MembershipPaymentAdminQuery {
+  page?: number
+  size?: number
+  orderStatus?: MembershipPaymentOrderStatus | ''
+  reviewStatus?: MembershipPaymentReviewStatus | ''
+}
+
 export const adminApi = {
   getPlatformConfig: () =>
     client.get<ApiEnvelope<PlatformConfig>>('/admin/platform-config'),
 
   updatePlatformConfig: (payload: PlatformConfig) =>
     client.put<ApiEnvelope<PlatformConfig>>('/admin/platform-config', payload),
+
+  listResumeReviews: () =>
+    client.get<ApiEnvelope<ResumeReviewAdminRequest[]>>('/admin/resume-reviews'),
+
+  getResumeReview: (requestNo: string) =>
+    client.get<ApiEnvelope<ResumeReviewAdminRequest>>(
+      `/admin/resume-reviews/${encodeURIComponent(requestNo)}`,
+    ),
+
+  listResumeReviewAudits: (requestNo: string) =>
+    client.get<ApiEnvelope<ResumeReviewAudit[]>>(
+      `/admin/resume-reviews/${encodeURIComponent(requestNo)}/audits`,
+    ),
+
+  acceptResumeReview: (requestNo: string, reason: string) =>
+    client.post<ApiEnvelope<ResumeReviewRequest>>(
+      `/admin/resume-reviews/${encodeURIComponent(requestNo)}/accept`,
+      { reason },
+    ),
+
+  completeResumeReview: (requestNo: string, reason: string) =>
+    client.post<ApiEnvelope<ResumeReviewRequest>>(
+      `/admin/resume-reviews/${encodeURIComponent(requestNo)}/complete`,
+      { reason },
+    ),
+
+  returnResumeReview: (requestNo: string, reason: string) =>
+    client.post<ApiEnvelope<ResumeReviewRequest>>(
+      `/admin/resume-reviews/${encodeURIComponent(requestNo)}/return`,
+      { reason },
+    ),
+
+  retryResumeReviewMail: (requestNo: string, reason: string) =>
+    client.post<ApiEnvelope<ResumeReviewRequest>>(
+      `/admin/resume-reviews/${encodeURIComponent(requestNo)}/mail/retry`,
+      { reason },
+    ),
+
+  confirmResumeReviewRefund: (
+    requestNo: string,
+    refundReference: string,
+    reason: string,
+  ) => client.post<ApiEnvelope<ResumeReviewRequest>>(
+    `/admin/resume-reviews/${encodeURIComponent(requestNo)}/refund/confirm`,
+    { refundReference, reason },
+  ),
+
+  createResumeReviewFallbackCode: (validHours: number) =>
+    client.post<ApiEnvelope<ResumeReviewFallbackCode>>(
+      '/admin/resume-reviews/follow-fallback-codes',
+      undefined,
+      { params: { validHours } },
+    ),
+
+  listResumeReviewFallbackCodes: () =>
+    client.get<ApiEnvelope<ResumeReviewFallbackCode[]>>(
+      '/admin/resume-reviews/follow-fallback-codes',
+    ),
 
   listFeedbackSubmissions: () =>
     client.get<ApiEnvelope<FeedbackSubmissionAdmin[]>>('/admin/feedback-submissions'),
@@ -273,11 +496,52 @@ export const adminApi = {
 
   moderateMarketplaceListing: (
     listingId: number,
-    action: 'APPROVE' | 'SUSPEND',
+    action: MarketplaceListingModerationAction,
     reason: string,
   ) => client.patch<ApiEnvelope<AdminMarketListing>>(
     `/admin/marketplace/listings/${listingId}/moderation`,
     { action, reason },
+  ),
+
+  listMarketplaceReports: (
+    params: MarketplaceGovernanceQuery<MarketplaceReportStatus>,
+  ) => client.get<ApiEnvelope<MarketplacePage<MarketplaceReport>>>(
+    '/admin/marketplace/reports',
+    { params },
+  ),
+
+  handleMarketplaceReport: (
+    reportId: number,
+    action: MarketplaceReportAction,
+    reason: string,
+  ) => client.patch<ApiEnvelope<MarketplaceReport>>(
+    `/admin/marketplace/reports/${reportId}`,
+    { action, reason },
+  ),
+
+  listMarketplaceAppeals: (
+    params: MarketplaceGovernanceQuery<MarketplaceAppealStatus>,
+  ) => client.get<ApiEnvelope<MarketplacePage<MarketplaceAppeal>>>(
+    '/admin/marketplace/appeals',
+    { params },
+  ),
+
+  handleMarketplaceAppeal: (
+    appealId: number,
+    action: MarketplaceAppealAction,
+    reason: string,
+  ) => client.patch<ApiEnvelope<MarketplaceAppeal>>(
+    `/admin/marketplace/appeals/${appealId}`,
+    { action, reason },
+  ),
+
+  listMarketplaceGovernanceAudits: (params: {
+    page?: number
+    size?: number
+    listingId?: number
+  }) => client.get<ApiEnvelope<MarketplacePage<MarketplaceGovernanceAudit>>>(
+    '/admin/marketplace/audits',
+    { params },
   ),
 
   listCreatorEarnings: (status = 'PENDING_SETTLEMENT') =>
@@ -315,4 +579,44 @@ export const adminApi = {
     `/admin/marketplace/payment-reviews/${encodeURIComponent(orderNo)}/confirm-refunded`,
     { refundReference, note },
   ),
+
+  listMembershipPaymentOrders: (params: MembershipPaymentAdminQuery) =>
+    client.get<ApiEnvelope<MarketplacePage<MembershipPaymentAdminOrder>>>(
+      '/admin/membership/payment-orders',
+      { params },
+    ),
+
+  getMembershipPaymentOrder: (orderNo: string) =>
+    client.get<ApiEnvelope<MembershipPaymentAdminOrder>>(
+      `/admin/membership/payment-orders/${encodeURIComponent(orderNo)}`,
+    ),
+
+  getMembershipPaymentSummary: () =>
+    client.get<ApiEnvelope<MembershipPaymentAdminSummary>>(
+      '/admin/membership/payment-orders/summary',
+    ),
+
+  startMembershipRefund: (orderNo: string, reason: string, refundReference?: string) =>
+    client.post<ApiEnvelope<MembershipPaymentAdminOrder>>(
+      `/admin/membership/payment-orders/${encodeURIComponent(orderNo)}/refund-processing`,
+      { reason, refundReference: refundReference || undefined },
+    ),
+
+  confirmMembershipRefund: (orderNo: string, reason: string, refundReference: string) =>
+    client.post<ApiEnvelope<MembershipPaymentAdminOrder>>(
+      `/admin/membership/payment-orders/${encodeURIComponent(orderNo)}/confirm-refunded`,
+      { reason, refundReference },
+    ),
+
+  rejectMembershipRefund: (orderNo: string, reason: string) =>
+    client.post<ApiEnvelope<MembershipPaymentAdminOrder>>(
+      `/admin/membership/payment-orders/${encodeURIComponent(orderNo)}/reject`,
+      { reason },
+    ),
+
+  closeMembershipPaymentReview: (orderNo: string, reason: string) =>
+    client.post<ApiEnvelope<MembershipPaymentAdminOrder>>(
+      `/admin/membership/payment-orders/${encodeURIComponent(orderNo)}/close`,
+      { reason },
+    ),
 }

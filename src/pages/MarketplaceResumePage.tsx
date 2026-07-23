@@ -9,6 +9,7 @@ import {
   type MarketplaceContent,
   type MarketplaceListingOffer,
   type MarketplaceOrder,
+  type MarketplaceReportType,
 } from '../api/marketplace'
 import type { ResumeModule } from '../api/resume'
 import { Header } from '../components/layout/Header'
@@ -60,6 +61,15 @@ function getAccessDescription(access: MarketplaceAccess | null): string {
   return descriptions[access.accessStatus]
 }
 
+const REPORT_TYPE_OPTIONS: Array<{ value: MarketplaceReportType; label: string }> = [
+  { value: 'PRIVACY', label: '泄露个人隐私' },
+  { value: 'COPYRIGHT', label: '抄袭或侵权' },
+  { value: 'FRAUD', label: '欺诈或虚假交易' },
+  { value: 'MISLEADING', label: '误导性内容' },
+  { value: 'ILLEGAL', label: '违法违规内容' },
+  { value: 'OTHER', label: '其他问题' },
+]
+
 export default function MarketplaceResumePage() {
   const { slug = '' } = useParams<{ slug: string }>()
   const navigate = useNavigate()
@@ -74,7 +84,15 @@ export default function MarketplaceResumePage() {
   const [paymentOpen, setPaymentOpen] = useState(false)
   const [paymentError, setPaymentError] = useState('')
   const [refreshingOrder, setRefreshingOrder] = useState(false)
+  const [reportOpen, setReportOpen] = useState(false)
+  const [reportType, setReportType] = useState<MarketplaceReportType>('PRIVACY')
+  const [reportDescription, setReportDescription] = useState('')
+  const [reportContact, setReportContact] = useState('')
+  const [reportSubmitting, setReportSubmitting] = useState(false)
+  const [reportError, setReportError] = useState('')
+  const [reportReceiptId, setReportReceiptId] = useState<number | null>(null)
   const pollingRef = useRef(false)
+  const recordedViewRef = useRef<string | null>(null)
 
   const loadAuthorizedContent = useCallback(async () => {
     const { data: response } = await marketplaceApi.content(slug)
@@ -122,6 +140,17 @@ export default function MarketplaceResumePage() {
   useEffect(() => {
     void loadPage()
   }, [loadPage])
+
+  useEffect(() => {
+    if (!slug || recordedViewRef.current === slug) return
+
+    recordedViewRef.current = slug
+    void marketplaceApi.recordView(slug).catch((err: unknown) => {
+      if (import.meta.env.DEV) {
+        console.warn('[marketplace] Failed to record listing view', err instanceof Error ? err.name : 'Error')
+      }
+    })
+  }, [slug])
 
   const handlePaidOrder = useCallback(async (nextOrder: MarketplaceOrder) => {
     setOrder(nextOrder)
@@ -209,6 +238,40 @@ export default function MarketplaceResumePage() {
     }
   }
 
+  const openReportDialog = () => {
+    setReportType('PRIVACY')
+    setReportDescription('')
+    setReportContact('')
+    setReportError('')
+    setReportReceiptId(null)
+    setReportOpen(true)
+  }
+
+  const handleSubmitReport = async () => {
+    if (reportSubmitting) return
+
+    const description = reportDescription.trim()
+    if (description.length < 10) {
+      setReportError('请至少填写 10 个字符，说明具体问题和可核验线索。')
+      return
+    }
+
+    setReportSubmitting(true)
+    setReportError('')
+    try {
+      const { data: response } = await marketplaceApi.submitReport(slug, {
+        type: reportType,
+        description,
+        contact: reportContact.trim() || undefined,
+      })
+      setReportReceiptId(response.data.id)
+    } catch (err: unknown) {
+      setReportError(err instanceof Error ? err.message : '投诉提交失败，请稍后再试')
+    } finally {
+      setReportSubmitting(false)
+    }
+  }
+
   const paymentEnabled = access?.paymentEnabled ?? offer?.paymentEnabled ?? false
   const canView = Boolean(content) || (access ? hasMarketplaceAccess(access) : offer?.accessType === 'FREE')
   const modules = content ? toResumeModules(content) : []
@@ -293,6 +356,13 @@ export default function MarketplaceResumePage() {
                   <li>• 违规内容被平台暂停后，包括历史买家在内的非作者访问都会被阻止。</li>
                   <li>• 支付款项进入平台商户，作者收益由平台记录，作者可申请线下结算。</li>
                 </ul>
+                <button
+                  type="button"
+                  onClick={openReportDialog}
+                  className="mt-4 inline-flex text-sm font-medium text-slate-500 underline decoration-slate-300 underline-offset-4 transition hover:text-red-700"
+                >
+                  举报内容或提交侵权投诉
+                </button>
               </section>
             </aside>
 
@@ -327,6 +397,112 @@ export default function MarketplaceResumePage() {
         onRefresh={() => void handleRefreshOrder()}
         onClose={() => setPaymentOpen(false)}
       />
+
+      {reportOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4" role="presentation">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="marketplace-report-title"
+            className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl sm:p-6"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 id="marketplace-report-title" className="text-xl font-semibold text-slate-950">举报与侵权投诉</h2>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  请提供具体事实或可核验线索。平台只将联系方式用于跟进本次投诉。
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReportOpen(false)}
+                disabled={reportSubmitting}
+                aria-label="关闭投诉表单"
+                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
+              >
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {reportReceiptId !== null ? (
+              <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm leading-6 text-emerald-800" role="status">
+                投诉已提交，受理编号为 #{reportReceiptId}。平台会在后台完成核验和处理。
+              </div>
+            ) : (
+              <div className="mt-6 space-y-4">
+                <div>
+                  <label htmlFor="marketplace-report-type" className="block text-sm font-medium text-slate-800">问题类型</label>
+                  <select
+                    id="marketplace-report-type"
+                    value={reportType}
+                    onChange={(event) => setReportType(event.target.value as MarketplaceReportType)}
+                    className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+                  >
+                    {REPORT_TYPE_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label htmlFor="marketplace-report-description" className="block text-sm font-medium text-slate-800">问题说明</label>
+                  <textarea
+                    id="marketplace-report-description"
+                    rows={5}
+                    minLength={10}
+                    maxLength={1000}
+                    value={reportDescription}
+                    onChange={(event) => setReportDescription(event.target.value)}
+                    placeholder="请说明具体内容、权利归属或其他可核验线索。"
+                    className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm leading-6 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+                  />
+                  <p className="mt-1 text-right text-xs text-slate-400">{reportDescription.length}/1000</p>
+                </div>
+
+                <div>
+                  <label htmlFor="marketplace-report-contact" className="block text-sm font-medium text-slate-800">联系方式（选填）</label>
+                  <input
+                    id="marketplace-report-contact"
+                    type="text"
+                    maxLength={255}
+                    value={reportContact}
+                    onChange={(event) => setReportContact(event.target.value)}
+                    placeholder="邮箱、手机号或其他可联系到你的方式"
+                    className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+                  />
+                </div>
+
+                {reportError ? (
+                  <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">{reportError}</div>
+                ) : null}
+              </div>
+            )}
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setReportOpen(false)}
+                disabled={reportSubmitting}
+                className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                {reportReceiptId !== null ? '完成' : '取消'}
+              </button>
+              {reportReceiptId === null ? (
+                <button
+                  type="button"
+                  onClick={() => void handleSubmitReport()}
+                  disabled={reportSubmitting}
+                  className="rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-wait disabled:opacity-60"
+                >
+                  {reportSubmitting ? '正在提交...' : '提交投诉'}
+                </button>
+              ) : null}
+            </div>
+          </section>
+        </div>
+      ) : null}
     </div>
   )
 }

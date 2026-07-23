@@ -136,7 +136,8 @@ public class ResumeAnalysisController {
             ));
         } catch (Exception e) {
             resumeAnalysisRecordService.save(buildErrorRecord(userId, resumeId, prompt, "流式简历分析失败，请稍后重试"));
-            log.error("[Resume Analysis][Controller] stream crashed: resumeId={}", resumeId, e);
+            log.error("[Resume Analysis][Controller] stream crashed: resumeId={}, errorType={}",
+                    resumeId, e.getClass().getSimpleName());
             sendSseEvent(response, "error", Map.of(
                     "code", ResultCode.INTERNAL_ERROR.getCode(),
                     "message", "流式简历分析失败，请稍后重试"
@@ -221,23 +222,22 @@ public class ResumeAnalysisController {
                 if (value == null) {
                     return;
                 }
-                if ("text".equals(key) || "delta".equals(key) || "message".equals(key)) {
-                    sanitized.put(key, truncateText(String.valueOf(value), 160));
-                    return;
+                if (value instanceof String text) {
+                    sanitized.put(key + "Length", text.length());
+                } else if (value instanceof java.util.Collection<?> collection) {
+                    sanitized.put(key + "Count", collection.size());
+                } else if (value instanceof java.util.Map<?, ?> map) {
+                    sanitized.put(key + "Keys", map.keySet());
+                } else if (value instanceof Number || value instanceof Boolean) {
+                    sanitized.put(key, value);
+                } else {
+                    sanitized.put(key + "Type", value.getClass().getSimpleName());
                 }
-                sanitized.put(key, value);
             });
             return objectMapper.writeValueAsString(sanitized);
         } catch (Exception e) {
             return payload.keySet().toString();
         }
-    }
-
-    private String truncateText(String text, int maxLength) {
-        if (text == null || text.length() <= maxLength) {
-            return text;
-        }
-        return text.substring(0, maxLength) + "...";
     }
 
     private Long getCurrentUserId() {

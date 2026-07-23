@@ -18,6 +18,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.AnnotationTransactionAttributeSource;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -38,6 +41,16 @@ class VipInviteServiceImplTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(redemptionMapper.insert(any(VipInviteRedemption.class)))
+                .thenAnswer(invocation -> {
+                    VipInviteRedemption redemption = invocation.getArgument(0);
+                    if (redemption.getId() == null) {
+                        redemption.setId(88L);
+                    }
+                    return 1;
+                });
+        lenient().when(userMapper.updateMembership(any(User.class))).thenReturn(1);
+        lenient().when(inviteMapper.updateById(any(VipInviteCode.class))).thenReturn(1);
         service = new VipInviteServiceImpl(
                 inviteMapper,
                 redemptionMapper,
@@ -48,11 +61,12 @@ class VipInviteServiceImplTest {
     }
 
     @Test
-    void createsReusableThirtyDayPlanetInviteWithLimits() {
+    void createsReusablePlanetInviteWithConfiguredMembershipDaysAndLimits() {
         CreateVipInviteDTO request = new CreateVipInviteDTO();
         request.setRemark("  七月星球福利  ");
         request.setExpiresInDays(7);
         request.setMaxRedemptions(300);
+        request.setMembershipDays(90);
         when(inviteMapper.insert(any(VipInviteCode.class))).thenAnswer(invocation -> {
             VipInviteCode invite = invocation.getArgument(0);
             invite.setId(9L);
@@ -70,9 +84,28 @@ class VipInviteServiceImplTest {
         assertEquals("七月星球福利", invite.getRemark());
         assertEquals(300, invite.getMaxRedemptions());
         assertEquals(0, invite.getRedeemedCount());
-        assertEquals(30, invite.getMembershipDays());
+        assertEquals(90, invite.getMembershipDays());
         assertTrue(invite.getExpiresAt().isAfter(LocalDateTime.now().plusDays(6)));
         assertEquals(invite.getCode(), result.getCode());
+        assertEquals(90, result.getMembershipDays());
+        verify(membershipAuditService).record(
+                eq(1L), eq("CREATE_VIP_INVITE"), isNull(), isNull(),
+                eq(9L), isNull(), eq("七月星球福利"), contains("权益 90 天")
+        );
+    }
+
+    @Test
+    void defaultsPlanetInviteMembershipToThirtyDays() {
+        when(inviteMapper.insert(any(VipInviteCode.class))).thenAnswer(invocation -> {
+            VipInviteCode invite = invocation.getArgument(0);
+            invite.setId(10L);
+            invite.setCreatedAt(LocalDateTime.now());
+            return 1;
+        });
+
+        var result = service.create(1L, new CreateVipInviteDTO());
+
+        assertEquals(30, result.getMembershipDays());
     }
 
     @Test
@@ -96,7 +129,7 @@ class VipInviteServiceImplTest {
         assertEquals(88L, user.getMembershipOriginId());
         assertNotNull(user.getMembershipExpiresAt());
         assertTrue(user.getMembershipExpiresAt().isAfter(LocalDateTime.now().plusDays(29)));
-        verify(vipInviteRateLimitService).acquireAttempt("user@example.com", "127.0.0.1");
+        verify(vipInviteRateLimitService).acquireAttempt("user:7", "127.0.0.1");
         verify(userMapper).updateMembership(user);
 
         ArgumentCaptor<VipInviteRedemption> redemptionCaptor = ArgumentCaptor.forClass(VipInviteRedemption.class);
@@ -108,6 +141,90 @@ class VipInviteServiceImplTest {
         assertEquals("ACTIVE", invite.getInviteStatus());
         assertEquals("ACTIVE", result.getMembershipStatus());
         assertEquals("VIP_INVITE", result.getMembershipSource());
+    }
+
+    @Test
+    void claimCompletionRedeemsByValidatedInviteIdAndUsesStableUserRateIdentity() {
+        User user = freeUser();
+        user.setEmail(null);
+        VipInviteCode invite = activeInvite(2, 0);
+        when(userMapper.selectByIdForUpdate(7L)).thenReturn(user);
+        when(redemptionMapper.selectCount(any(Wrapper.class))).thenReturn(0L);
+        when(inviteMapper.selectByIdForUpdate(55L)).thenReturn(invite);
+        when(redemptionMapper.insert(any(VipInviteRedemption.class))).thenAnswer(invocation -> {
+            VipInviteRedemption redemption = invocation.getArgument(0);
+            redemption.setId(88L);
+            return 1;
+        });
+
+        var result = service.redeemClaim(7L, 55L);
+
+        assertEquals("ACTIVE", result.getMembershipStatus());
+        assertEquals("VIP_INVITE", user.getMembershipSource());
+        verify(inviteMapper).selectByIdForUpdate(55L);
+        verify(inviteMapper, never()).selectByCodeForUpdate(any());
+        verifyNoInteractions(vipInviteRateLimitService);
+    }
+
+    @Test
+    void claimRedemptionRequiresAnExistingTransactionAtTheSpringBoundary() throws Exception {
+        var method = VipInviteServiceImpl.class
+                .getMethod("redeemClaim", Long.class, Long.class);
+        Transactional transactional = method.getAnnotation(Transactional.class);
+        var transactionAttribute = new AnnotationTransactionAttributeSource()
+                .getTransactionAttribute(method, VipInviteServiceImpl.class);
+
+        assertNotNull(transactional);
+        assertEquals(Propagation.MANDATORY, transactional.propagation());
+        assertNotNull(transactionAttribute);
+        assertEquals(
+                org.springframework.transaction.TransactionDefinition.PROPAGATION_MANDATORY,
+                transactionAttribute.getPropagationBehavior()
+        );
+        assertFalse(transactionAttribute.rollbackOn(
+                new BusinessException(ResultCode.VIP_INVITE_EXHAUSTED)
+        ));
+        assertTrue(transactionAttribute.rollbackOn(
+                new IllegalStateException("database write was lost")
+        ));
+    }
+
+    @Test
+    void missingRedemptionInsertAbortsBeforeMembershipOrQuotaMutation() {
+        when(userMapper.selectByIdForUpdate(7L)).thenReturn(freeUser());
+        when(redemptionMapper.selectCount(any(Wrapper.class))).thenReturn(0L);
+        when(inviteMapper.selectByIdForUpdate(55L)).thenReturn(activeInvite(2, 0));
+        when(redemptionMapper.insert(any(VipInviteRedemption.class))).thenReturn(0);
+
+        assertThrows(IllegalStateException.class, () -> service.redeemClaim(7L, 55L));
+
+        verify(userMapper, never()).updateMembership(any(User.class));
+        verify(inviteMapper, never()).updateById(any(VipInviteCode.class));
+    }
+
+    @Test
+    void missingMembershipUpdateAbortsBeforeQuotaMutation() {
+        when(userMapper.selectByIdForUpdate(7L)).thenReturn(freeUser());
+        when(redemptionMapper.selectCount(any(Wrapper.class))).thenReturn(0L);
+        when(inviteMapper.selectByIdForUpdate(55L)).thenReturn(activeInvite(2, 0));
+        when(userMapper.updateMembership(any(User.class))).thenReturn(0);
+
+        assertThrows(IllegalStateException.class, () -> service.redeemClaim(7L, 55L));
+
+        verify(inviteMapper, never()).updateById(any(VipInviteCode.class));
+    }
+
+    @Test
+    void missingQuotaUpdateFailsTheWholeTransactionalRedemption() {
+        when(userMapper.selectByIdForUpdate(7L)).thenReturn(freeUser());
+        when(redemptionMapper.selectCount(any(Wrapper.class))).thenReturn(0L);
+        when(inviteMapper.selectByIdForUpdate(55L)).thenReturn(activeInvite(2, 0));
+        when(inviteMapper.updateById(any(VipInviteCode.class))).thenReturn(0);
+
+        assertThrows(IllegalStateException.class, () -> service.redeemClaim(7L, 55L));
+
+        verify(redemptionMapper).insert(any(VipInviteRedemption.class));
+        verify(userMapper).updateMembership(any(User.class));
     }
 
     @Test
@@ -135,7 +252,7 @@ class VipInviteServiceImplTest {
         );
 
         assertEquals(ResultCode.VIP_INVITE_USER_ALREADY_REDEEMED.getCode(), exception.getCode());
-        verify(vipInviteRateLimitService).acquireAttempt("user@example.com", "127.0.0.1");
+        verify(vipInviteRateLimitService).acquireAttempt("user:7", "127.0.0.1");
         verifyNoInteractions(inviteMapper);
     }
 

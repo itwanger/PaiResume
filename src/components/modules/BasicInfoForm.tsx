@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { BasicInfoContent } from '../../types'
 import { useModuleContentState } from '../../hooks/useModuleContentState'
 import { normalizeBasicInfoContent } from '../../utils/moduleContent'
@@ -25,6 +25,7 @@ export function BasicInfoForm({ resumeId, moduleId, initialContent }: Props) {
   })
   const [showOptionalFields, setShowOptionalFields] = useState(() => hasOptionalBasicInfoContent(normalizeBasicInfoContent(initialContent)))
   const [photoError, setPhotoError] = useState('')
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState('')
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const update = (field: keyof BasicInfoContent, value: string | boolean) => {
@@ -32,8 +33,23 @@ export function BasicInfoForm({ resumeId, moduleId, initialContent }: Props) {
   }
 
   const hasOptionalFields = hasOptionalBasicInfoContent(content)
-  const normalizedPhotoSource = normalizePhotoSource(content.photo)
+  const normalizedPhotoSource = normalizePhotoSource(photoPreviewUrl || content.photo)
   const usingUploadedPhoto = isUploadedPhotoSource(content.photo)
+
+  useEffect(() => {
+    const persistedPhoto = content.photo?.trim()
+    if (!persistedPhoto || isUploadedPhotoSource(persistedPhoto)) {
+      return
+    }
+
+    setPhotoPreviewUrl(persistedPhoto)
+    setContent((previous) => {
+      if (!previous.photo || isUploadedPhotoSource(previous.photo)) {
+        return previous
+      }
+      return { ...previous, photo: '' }
+    })
+  }, [content.photo, setContent])
 
   const handlePhotoFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -46,6 +62,7 @@ export function BasicInfoForm({ resumeId, moduleId, initialContent }: Props) {
     try {
       setPhotoError('')
       const dataUrl = await readPhotoFileAsDataUrl(file)
+      setPhotoPreviewUrl('')
       update('photo', dataUrl)
       setShowOptionalFields(true)
     } catch (error: unknown) {
@@ -55,7 +72,7 @@ export function BasicInfoForm({ resumeId, moduleId, initialContent }: Props) {
 
   const handlePhotoUrlChange = (value: string) => {
     setPhotoError('')
-    update('photo', value)
+    setPhotoPreviewUrl(value)
     if (value.trim()) {
       setShowOptionalFields(true)
     }
@@ -63,6 +80,7 @@ export function BasicInfoForm({ resumeId, moduleId, initialContent }: Props) {
 
   const clearPhoto = () => {
     setPhotoError('')
+    setPhotoPreviewUrl('')
     update('photo', '')
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
@@ -119,14 +137,14 @@ export function BasicInfoForm({ resumeId, moduleId, initialContent }: Props) {
                 <div>
                   <p className="text-sm font-medium text-gray-700">照片</p>
                   <p className="mt-1 text-xs text-gray-500">
-                    支持本地上传或直接填写图片 URL，建议使用 3:4 证件照比例，大小不超过 {BASIC_INFO_PHOTO_MAX_SIZE_MB}MB。
+                    本地上传仅支持 PNG/JPG；图片 URL 只在本页临时预览，不会保存、导出或公开。建议使用 3:4 证件照比例，大小不超过 {BASIC_INFO_PHOTO_MAX_SIZE_MB}MB。
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept="image/png,image/jpeg,image/webp"
+                    accept="image/png,image/jpeg"
                     onChange={handlePhotoFileChange}
                     className="hidden"
                   />
@@ -137,7 +155,7 @@ export function BasicInfoForm({ resumeId, moduleId, initialContent }: Props) {
                   >
                     选择文件
                   </button>
-                  {content.photo && (
+                  {normalizedPhotoSource && (
                     <button
                       type="button"
                       onClick={clearPhoto}
@@ -153,12 +171,12 @@ export function BasicInfoForm({ resumeId, moduleId, initialContent }: Props) {
                 <label className="mb-1 block text-sm font-medium text-gray-700">图片 URL</label>
                 <input
                   type="text"
-                  value={usingUploadedPhoto ? '' : content.photo}
+                  value={photoPreviewUrl}
                   onChange={(e) => handlePhotoUrlChange(e.target.value)}
-                  placeholder={usingUploadedPhoto ? '当前使用的是已上传照片，可在这里改成 URL' : 'https://example.com/avatar.jpg'}
+                  placeholder={usingUploadedPhoto ? '当前保存的是已上传照片，可在这里临时预览 URL' : 'https://example.com/avatar.jpg'}
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
                 />
-                {usingUploadedPhoto ? (
+                {usingUploadedPhoto && !photoPreviewUrl ? (
                   <p className="mt-1 text-xs text-gray-500">当前使用的是本地上传照片。</p>
                 ) : null}
               </div>
@@ -171,7 +189,7 @@ export function BasicInfoForm({ resumeId, moduleId, initialContent }: Props) {
                     { label: '有边框', value: true },
                   ].map((option) => {
                     const active = content.photoBorder === option.value
-                    const disabled = !content.photo
+                    const disabled = !normalizedPhotoSource
 
                     return (
                       <button

@@ -42,6 +42,21 @@ public class User {
     /** 会员到期时间，永久会员为空 */
     private LocalDateTime membershipExpiresAt;
 
+    /** 最近一次同意服务条款的时间 */
+    private LocalDateTime termsAcceptedAt;
+
+    /** 最近一次同意隐私政策的时间 */
+    private LocalDateTime privacyAcceptedAt;
+
+    private String termsVersion;
+
+    private String privacyVersion;
+
+    private String aiProcessingDisclosureVersion;
+
+    /** 账号注销时间；注销后保留匿名主键用于订单审计 */
+    private LocalDateTime accountDeletedAt;
+
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
 

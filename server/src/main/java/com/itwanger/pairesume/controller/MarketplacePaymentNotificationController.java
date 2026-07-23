@@ -3,7 +3,7 @@ package com.itwanger.pairesume.controller;
 import com.itwanger.pairesume.common.BusinessException;
 import com.itwanger.pairesume.common.ResultCode;
 import com.itwanger.pairesume.payment.PaymentNotificationRequest;
-import com.itwanger.pairesume.service.MarketplaceOrderService;
+import com.itwanger.pairesume.service.impl.PaymentNotificationDispatcher;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
@@ -21,7 +21,7 @@ import java.nio.charset.StandardCharsets;
 public class MarketplacePaymentNotificationController {
     private static final int MAX_NOTIFICATION_BYTES = 64 * 1024;
 
-    private final MarketplaceOrderService marketplaceOrderService;
+    private final PaymentNotificationDispatcher notificationDispatcher;
 
     @PostMapping("/notify")
     public ResponseEntity<Void> notify(
@@ -36,7 +36,7 @@ public class MarketplacePaymentNotificationController {
                 || body.getBytes(StandardCharsets.UTF_8).length > MAX_NOTIFICATION_BYTES) {
             throw new BusinessException(ResultCode.PAYMENT_NOTIFICATION_INVALID);
         }
-        marketplaceOrderService.handleWechatNotification(new PaymentNotificationRequest(
+        notificationDispatcher.dispatch(new PaymentNotificationRequest(
                 serialNumber, nonce, timestamp, signature, body));
         return ResponseEntity.noContent().build();
     }
