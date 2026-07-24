@@ -118,7 +118,7 @@ public class MailServiceImpl implements MailService {
             helper.setTo(recipientEmail);
             helper.setReplyTo(contactEmail);
             helper.setSubject("人工精修请求 " + requestNo);
-            helper.setText("请查收由派简历服务端根据用户锁定快照生成的 PDF。\n"
+            helper.setText("请查收用户确认上传并由派简历私有对象存储校验固化的 PDF。\n"
                     + "请求号：" + requestNo + "\n用户联系邮箱：" + contactEmail);
             helper.addAttachment(fileName, new ByteArrayResource(pdfContent), "application/pdf");
             message.setHeader("Message-ID", messageId);

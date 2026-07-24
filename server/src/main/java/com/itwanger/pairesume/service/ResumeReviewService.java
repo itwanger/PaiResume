@@ -13,9 +13,6 @@ public interface ResumeReviewService {
     ResumeReviewRequestDTO refreshPayment(Long userId, String requestNo);
     void handleVerifiedProviderNotification(ProviderPaymentResult result);
     void reconcileExpiredPayment(Long requestId);
-    ResumeReviewFollowChallengeDTO createFollowChallenge(Long userId);
-    void handleFollowBridgeEvent(String timestamp, String nonce, String signature, String rawBody);
-    void redeemFallbackCode(Long userId, String code);
     List<ResumeReviewAdminRequestDTO> adminList();
     ResumeReviewAdminRequestDTO adminGet(String requestNo);
     List<ResumeReviewAuditDTO> adminAudits(String requestNo);
@@ -25,6 +22,4 @@ public interface ResumeReviewService {
     ResumeReviewRequestDTO adminRetryMail(String requestNo, Long adminId, String reason);
     ResumeReviewRequestDTO adminConfirmRefund(String requestNo, Long adminId,
                                               String refundReference, String reason);
-    ResumeReviewFallbackCodeDTO adminCreateFallbackCode(Long adminId, int validHours);
-    List<ResumeReviewFallbackCodeDTO> adminListFallbackCodes();
 }

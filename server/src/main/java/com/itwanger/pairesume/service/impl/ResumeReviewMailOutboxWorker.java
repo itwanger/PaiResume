@@ -1,5 +1,6 @@
 package com.itwanger.pairesume.service.impl;
 
+import com.itwanger.pairesume.config.ResumeReviewProperties;
 import com.itwanger.pairesume.mapper.ResumeReviewMailOutboxMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -12,9 +13,13 @@ import org.springframework.stereotype.Component;
 public class ResumeReviewMailOutboxWorker {
     private final ResumeReviewMailOutboxMapper outboxMapper;
     private final ResumeReviewMailDeliveryService deliveryService;
+    private final ResumeReviewProperties properties;
 
     @Scheduled(fixedDelayString = "${app.resume-review.mail-outbox-poll-millis:15000}")
     public void deliverDue() {
+        if (!properties.isEnabled()) {
+            return;
+        }
         for (Long id : outboxMapper.selectDueIds()) {
             try {
                 deliveryService.deliverOne(id);

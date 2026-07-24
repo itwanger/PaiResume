@@ -3,7 +3,6 @@ import {
   adminApi,
   type ResumeReviewAudit,
   type ResumeReviewAdminRequest,
-  type ResumeReviewFallbackCode,
 } from '../../api/admin'
 import type { ResumeReviewStatus } from '../../api/resumeReview'
 
@@ -60,8 +59,8 @@ const AUDIT_ACTION_LABELS: Record<string, string> = {
   RETURN_REFUND_REQUIRED: '退回并转人工退款',
   RETURN_AND_RELEASE: '退回申请',
   CONFIRM_REFUND: '确认外部退款',
-  FOLLOW_REWARD_ISSUED: '签发关注奖励',
-  FOLLOW_FALLBACK_REDEEM: '兑换人工兜底码',
+  FOLLOW_REWARD_ISSUED: '历史关注奖励签发（已停用）',
+  FOLLOW_FALLBACK_REDEEM: '历史兜底码兑换（已停用）',
 }
 
 const FILTER_OPTIONS: Array<{ value: ReviewFilter; label: string }> = [
@@ -94,17 +93,9 @@ function formatDate(value: string | null | undefined) {
     : parsed.toLocaleString('zh-CN', { hour12: false })
 }
 
-function displayFallbackStatus(code: ResumeReviewFallbackCode) {
-  if (code.status !== 'ISSUED') return code.status
-  const expiresAt = new Date(code.expiresAt.includes('T') ? code.expiresAt : code.expiresAt.replace(' ', 'T'))
-  return !Number.isNaN(expiresAt.getTime()) && expiresAt.getTime() <= Date.now()
-    ? 'EXPIRED'
-    : 'ISSUED'
-}
-
 function entitlementLabel(request: ResumeReviewAdminRequest) {
   if (request.entitlementType === 'WELCOME_FREE') return '首次免费'
-  if (request.entitlementType === 'FOLLOW_REWARD') return '关注奖励免费'
+  if (request.entitlementType === 'FOLLOW_REWARD') return '历史免费权益（已停用）'
   return `逐次付费 ${formatCents(request.priceCents)}`
 }
 
@@ -118,7 +109,6 @@ function needsAdminAction(request: ResumeReviewAdminRequest) {
 
 export function ResumeReviewAdminPanel() {
   const [reviews, setReviews] = useState<ResumeReviewAdminRequest[]>([])
-  const [fallbackCodes, setFallbackCodes] = useState<ResumeReviewFallbackCode[]>([])
   const [filter, setFilter] = useState<ReviewFilter>('ACTION_REQUIRED')
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
@@ -127,9 +117,6 @@ export function ResumeReviewAdminPanel() {
   const [selectedAuditRequestNo, setSelectedAuditRequestNo] = useState<string | null>(null)
   const [audits, setAudits] = useState<ResumeReviewAudit[]>([])
   const [auditsLoading, setAuditsLoading] = useState(false)
-  const [validHours, setValidHours] = useState('24')
-  const [creatingFallbackCode, setCreatingFallbackCode] = useState(false)
-  const [latestFallbackCode, setLatestFallbackCode] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
@@ -162,13 +149,9 @@ export function ResumeReviewAdminPanel() {
     let canceled = false
     setLoading(true)
     setError('')
-    void Promise.all([
-      adminApi.listResumeReviews(),
-      adminApi.listResumeReviewFallbackCodes(),
-    ]).then(([reviewResponse, codeResponse]) => {
+    void adminApi.listResumeReviews().then((reviewResponse) => {
       if (canceled) return
       setReviews(reviewResponse.data.data)
-      setFallbackCodes(codeResponse.data.data)
     }).catch((loadError: unknown) => {
       if (!canceled) setError(getErrorMessage(loadError, '人工精修工作台加载失败'))
     }).finally(() => {
@@ -183,12 +166,8 @@ export function ResumeReviewAdminPanel() {
     setRefreshing(true)
     setError('')
     try {
-      const [reviewResponse, codeResponse] = await Promise.all([
-        adminApi.listResumeReviews(),
-        adminApi.listResumeReviewFallbackCodes(),
-      ])
+      const reviewResponse = await adminApi.listResumeReviews()
       setReviews(reviewResponse.data.data)
-      setFallbackCodes(codeResponse.data.data)
     } catch (loadError: unknown) {
       setError(getErrorMessage(loadError, '人工精修工作台刷新失败'))
     } finally {
@@ -338,53 +317,11 @@ export function ResumeReviewAdminPanel() {
     }
   }
 
-  async function handleCreateFallbackCode() {
-    const hours = Number(validHours)
-    if (!Number.isInteger(hours) || hours < 1 || hours > 168) {
-      setError('兜底码有效期必须是 1-168 小时之间的整数')
-      return
-    }
-    if (!window.confirm(
-      '确认生成关注验证故障兜底码？\n\n仅在“沉默王二”公众号回调故障且人工核验用户后发放；它不代表系统实时验证了关注。',
-    )) return
-
-    setCreatingFallbackCode(true)
-    setError('')
-    setSuccess('')
-    try {
-      const { data: response } = await adminApi.createResumeReviewFallbackCode(hours)
-      const rawCode = response.data.code
-      if (!rawCode) throw new Error('服务端没有返回一次性兜底码明文')
-      setLatestFallbackCode(rawCode)
-      try {
-        const { data: listResponse } = await adminApi.listResumeReviewFallbackCodes()
-        setFallbackCodes(listResponse.data)
-      } catch {
-        setSuccess('一次性故障兜底码已生成；列表刷新失败，但下方明文仍可复制，请勿再次生成。')
-        return
-      }
-      setSuccess('一次性故障兜底码已生成；关闭或刷新后不能再次查看明文。')
-    } catch (createError: unknown) {
-      setError(getErrorMessage(createError, '故障兜底码生成失败'))
-    } finally {
-      setCreatingFallbackCode(false)
-    }
-  }
-
-  async function copyText(value: string, message: string) {
-    try {
-      await navigator.clipboard.writeText(value)
-      setSuccess(message)
-    } catch {
-      window.prompt('请复制下面的内容', value)
-    }
-  }
-
   if (loading) {
     return (
       <section className="rounded-lg border border-violet-200 bg-white px-6 py-6">
         <h2 className="text-lg font-semibold text-gray-900">人工简历精修工作台</h2>
-        <p className="mt-4 text-sm text-gray-500">正在加载人工精修申请和故障兜底码…</p>
+        <p className="mt-4 text-sm text-gray-500">正在加载人工精修申请…</p>
       </section>
     )
   }
@@ -395,7 +332,7 @@ export function ResumeReviewAdminPanel() {
         <div>
           <h2 className="text-lg font-semibold text-gray-900">人工简历精修工作台</h2>
           <p className="mt-1 max-w-3xl text-sm leading-6 text-gray-500">
-            首次免费，第二次须验证“沉默王二”关注奖励；奖励核销后，第三次及以后每份快照单独付费。接受、完成、退回、邮件重试和退款确认都会写入审计记录。
+            首次免费，第二次及以后每份快照单独付费。接受、完成、退回、邮件重试和退款确认都会写入审计记录。
           </p>
         </div>
         <button
@@ -530,86 +467,6 @@ export function ResumeReviewAdminPanel() {
         ) : null}
       </div>
 
-      <div className="mt-8 border-t border-gray-200 pt-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <h3 className="text-base font-semibold text-gray-900">“沉默王二”关注验证故障兜底码</h3>
-            <p className="mt-1 max-w-3xl text-sm leading-6 text-gray-500">仅当公众号关键词回调故障，且已人工核验用户关注后生成。兜底码只能兑换一次，不代表实时关注验证。</p>
-          </div>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <label className="flex items-center gap-2 text-sm text-gray-600">
-              有效小时
-              <input
-                type="number"
-                min={1}
-                max={168}
-                step={1}
-                value={validHours}
-                onChange={(event) => setValidHours(event.target.value)}
-                className="min-h-11 w-24 rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
-              />
-            </label>
-            <button
-              type="button"
-              onClick={() => void handleCreateFallbackCode()}
-              disabled={creatingFallbackCode}
-              className="min-h-11 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-amber-700 disabled:opacity-50"
-            >
-              {creatingFallbackCode ? '生成中…' : '生成一次性兜底码'}
-            </button>
-          </div>
-        </div>
-
-        {latestFallbackCode ? (
-          <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-4">
-            <p className="text-sm font-semibold text-amber-950">仅本次显示明文，请核验用户后私下发送</p>
-            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-              <code className="min-w-0 flex-1 break-all rounded-lg bg-slate-950 px-3 py-3 text-sm font-semibold text-white">{latestFallbackCode}</code>
-              <button
-                type="button"
-                onClick={() => void copyText(latestFallbackCode, '兜底码已复制')}
-                className="min-h-11 rounded-lg border border-amber-300 bg-white px-4 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100"
-              >
-                复制兜底码
-              </button>
-              <button
-                type="button"
-                onClick={() => setLatestFallbackCode(null)}
-                className="min-h-11 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-              >
-                已妥善保存，隐藏
-              </button>
-            </div>
-          </div>
-        ) : null}
-
-        <div className="mt-4 overflow-x-auto">
-          <table className="min-w-full text-left text-sm">
-            <thead className="border-b border-gray-200 text-xs text-gray-500">
-              <tr>
-                <th className="py-3 pr-4 font-medium">编号</th>
-                <th className="py-3 pr-4 font-medium">末尾提示</th>
-                <th className="py-3 pr-4 font-medium">状态</th>
-                <th className="py-3 font-medium">有效期</th>
-              </tr>
-            </thead>
-            <tbody>
-              {fallbackCodes.map((code) => {
-                const status = displayFallbackStatus(code)
-                return (
-                  <tr key={code.id} className="border-b border-gray-100 last:border-0">
-                    <td className="py-3 pr-4 text-gray-700">#{code.id}</td>
-                    <td className="py-3 pr-4 font-mono text-gray-900">***{code.codeHint}</td>
-                    <td className="py-3 pr-4 text-gray-700">{status === 'ISSUED' ? '未兑换' : status === 'REDEEMED' ? '已兑换' : status === 'EXPIRED' ? '已过期' : status}</td>
-                    <td className="py-3 text-gray-600">{formatDate(code.expiresAt)}</td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-          {fallbackCodes.length === 0 ? <p className="py-5 text-sm text-gray-500">尚未生成故障兜底码。</p> : null}
-        </div>
-      </div>
     </section>
   )
 }

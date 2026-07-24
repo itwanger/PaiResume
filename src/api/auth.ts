@@ -65,6 +65,7 @@ export interface TokenData {
     admin: boolean
     legalConsentRequired: boolean
     marketplaceEnabled: boolean
+    resumeReviewEnabled: boolean
     emailLoginEnabled: boolean
     paicongmingLinked: boolean
     paicongmingSubscribed: boolean

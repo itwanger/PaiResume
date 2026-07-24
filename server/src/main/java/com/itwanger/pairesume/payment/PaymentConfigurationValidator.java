@@ -51,6 +51,12 @@ public class PaymentConfigurationValidator {
                             + "PAYMENT_PROVIDER=mock or wechat-native"
             );
         }
+        if (resumeReviewProperties.isPaidAcceptNewOrders()
+                && !resumeReviewProperties.isEnabled()) {
+            throw new IllegalStateException(
+                    "RESUME_REVIEW_PAID_ACCEPT_NEW_ORDERS requires RESUME_REVIEW_ENABLED=true"
+            );
+        }
         if (resumeReviewProperties.isPaidAcceptNewOrders() && !"wechat-native".equals(provider)) {
             throw new IllegalStateException(
                     "RESUME_REVIEW_PAID_ACCEPT_NEW_ORDERS requires PAYMENT_PROVIDER=wechat-native"

@@ -21,17 +21,20 @@ public class ProductionFlywayGuard implements FlywayConfigurationCustomizer {
     private final String datasourceUsername;
     private final String flywayUsername;
     private final String flywayPassword;
+    private final boolean sharedDatabaseAccountConfirmed;
 
     public ProductionFlywayGuard(
             @Value("${app.environment:unset}") String appEnvironment,
             @Value("${spring.datasource.username:}") String datasourceUsername,
             @Value("${spring.flyway.user:}") String flywayUsername,
-            @Value("${spring.flyway.password:}") String flywayPassword
+            @Value("${spring.flyway.password:}") String flywayPassword,
+            @Value("${app.database.shared-account-confirmed:false}") boolean sharedDatabaseAccountConfirmed
     ) {
         this.appEnvironment = appEnvironment;
         this.datasourceUsername = datasourceUsername;
         this.flywayUsername = flywayUsername;
         this.flywayPassword = flywayPassword;
+        this.sharedDatabaseAccountConfirmed = sharedDatabaseAccountConfirmed;
     }
 
     @Override
@@ -54,9 +57,10 @@ public class ProductionFlywayGuard implements FlywayConfigurationCustomizer {
                     "Production Flyway migrations require FLYWAY_USERNAME and FLYWAY_PASSWORD"
             );
         }
-        if (flywayUsername.equalsIgnoreCase(datasourceUsername)) {
+        if (flywayUsername.equalsIgnoreCase(datasourceUsername)
+                && !sharedDatabaseAccountConfirmed) {
             throw new IllegalStateException(
-                    "Production Flyway and application datasource must use separate database accounts"
+                    "MYSQL_SHARED_ACCOUNT_CONFIRMED=true is required before Flyway reuses the application account"
             );
         }
     }

@@ -15,6 +15,7 @@ public class UserInfoDTO {
     private boolean admin;
     private boolean legalConsentRequired;
     private boolean marketplaceEnabled;
+    private boolean resumeReviewEnabled;
     private boolean emailLoginEnabled;
     private boolean paicongmingLinked;
     private boolean paicongmingSubscribed;

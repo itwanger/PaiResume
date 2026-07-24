@@ -111,6 +111,9 @@ public class AuthServiceImpl implements AuthService {
     @Value("${app.marketplace.enabled:false}")
     private boolean marketplaceEnabled;
 
+    @Value("${app.resume-review.enabled:false}")
+    private boolean resumeReviewEnabled;
+
     @Autowired
     public AuthServiceImpl(UserMapper userMapper, UserAuthIdentityMapper userAuthIdentityMapper,
                            PasswordEncoder passwordEncoder, JwtTokenProvider jwtTokenProvider,
@@ -525,10 +528,18 @@ public class AuthServiceImpl implements AuthService {
                 SET contact_email = CONCAT('deleted-review-', id, '@invalid.local'),
                     snapshot_json = '{}',
                     content_hash = SHA2('{}', 256),
+                    pdf_object_key = NULL,
+                    pdf_object_etag = NULL,
+                    pdf_original_file_name = NULL,
+                    pdf_size_bytes = NULL,
+                    pdf_sha256 = NULL,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE user_id = ?
                   AND request_status IN ('COMPLETED', 'RETURNED', 'REFUNDED')
                 """, userId);
+        // 上传票据不是计费凭证；删除账号时直接删除与用户的对象定位关系。
+        // OSS 中的随机键对象由 staging/final 生命周期规则按披露期限清理。
+        jdbcTemplate.update("DELETE FROM resume_review_upload WHERE user_id = ?", userId);
         if (StringUtils.hasText(normalizedEmail)) {
             jdbcTemplate.update("""
                     UPDATE feedback_submission
@@ -843,7 +854,7 @@ public class AuthServiceImpl implements AuthService {
         var role = user.getRole() != null && user.getRole() == 1 ? "ADMIN" : "USER";
         boolean emailLoginEnabled = StringUtils.hasText(user.getEmail());
         var wechatIdentity = findWechatIdentityByUserId(user.getId());
-        return new UserInfoDTO(
+        UserInfoDTO userInfo = new UserInfoDTO(
                 user.getId(),
                 emailLoginEnabled ? user.getEmail() : null,
                 user.getNickname(),
@@ -859,6 +870,8 @@ public class AuthServiceImpl implements AuthService {
                 wechatIdentity != null,
                 wechatIdentity != null && Boolean.TRUE.equals(wechatIdentity.getSubscribed())
         );
+        userInfo.setResumeReviewEnabled(resumeReviewEnabled);
+        return userInfo;
     }
 
     private String resolveMembershipStatus(User user) {

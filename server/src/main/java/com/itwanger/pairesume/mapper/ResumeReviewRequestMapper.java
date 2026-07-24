@@ -41,7 +41,9 @@ public interface ResumeReviewRequestMapper extends BaseMapper<ResumeReviewReques
     int countAccountDeletionBlockers(@Param("userId") Long userId);
 
     @Update("UPDATE resume_review_request SET contact_email=CONCAT('deleted-review-', id, '@invalid.local'), "
-            + "snapshot_json='{}', content_hash=SHA2('{}', 256), updated_at=NOW() "
+            + "snapshot_json='{}', content_hash=SHA2('{}', 256), "
+            + "pdf_object_key=NULL, pdf_object_etag=NULL, pdf_original_file_name=NULL, "
+            + "pdf_size_bytes=NULL, pdf_sha256=NULL, updated_at=NOW() "
             + "WHERE user_id=#{userId} AND request_status IN ('COMPLETED','RETURNED','REFUNDED')")
     int anonymizeTerminalRequests(@Param("userId") Long userId);
 }

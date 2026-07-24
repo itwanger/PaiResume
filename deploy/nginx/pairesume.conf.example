@@ -3,9 +3,9 @@ map $uri $pai_resume_cache_control {
     ~*\.(?:js|mjs|css|png|jpg|jpeg|gif|svg|webp|ico|woff2?|otf|ttf)$ "public, max-age=604800, immutable";
 }
 
-map $uri $pai_resume_robots_tag {
+map $request_uri $pai_resume_robots_tag {
     default "";
-    ~^/(?:admin|creator|dashboard|editor|forgot-password|legal-consent|login|membership|preview|register|settings|showcases|survey|vip)(?:/|$) "noindex, nofollow";
+    ~^/(?:admin|creator|dashboard|editor|forgot-password|legal-consent|login|membership|preview|register|settings|showcases|survey|vip)(?:/|\?|$) "noindex, nofollow";
 }
 
 server {
@@ -15,14 +15,16 @@ server {
 }
 
 server {
-    listen 443 ssl http2;
+    listen 443 ssl;
+    http2 on;
     server_name resume.paicoding.com;
 
-    ssl_certificate /etc/letsencrypt/live/resume.paicoding.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/resume.paicoding.com/privkey.pem;
+    # 复用现有 paicoding.com 通配符证书；必须先修复 acme.sh install-cert 与 Nginx reload。
+    ssl_certificate /etc/nginx/ssl/paicoding.com.cer;
+    ssl_certificate_key /etc/nginx/ssl/paicoding.com.key;
     ssl_protocols TLSv1.2 TLSv1.3;
 
-    root /opt/pai-resume/current/dist;
+    root /home/www/pairesume/current/dist;
     index index.html;
     client_max_body_size 10m;
 
@@ -34,7 +36,7 @@ server {
     add_header Cache-Control $pai_resume_cache_control always;
     add_header X-Robots-Tag $pai_resume_robots_tag always;
 
-    location /api/ {
+    location ^~ /api/ {
         proxy_pass http://127.0.0.1:8084;
         proxy_http_version 1.1;
         proxy_set_header Host $host;

@@ -15,6 +15,43 @@ class StartupConfigValidatorTest {
     }
 
     @Test
+    void productionAllowsExplicitlyConfirmedSharedRootAccount() {
+        StartupConfigValidator validator = new StartupConfigValidator(
+                "production",
+                "https://resume.paicoding.com",
+                "jwt-secret-that-is-longer-than-thirty-two-characters",
+                "verification-secret-longer-than-thirty-two-characters",
+                "sender@paicoding.com",
+                "smtp-secret",
+                "sender@paicoding.com",
+                "smtp.example.com",
+                true,
+                true,
+                false,
+                true,
+                "https://resume.paicoding.com",
+                "native",
+                TLS_URL,
+                "root",
+                "strong-database-password",
+                true,
+                true,
+                "root",
+                "strong-database-password",
+                "strong-redis-password",
+                "valid-ai-api-key",
+                false,
+                true,
+                604800L,
+                900000L,
+                604800000L,
+                new WechatQrAuthProperties()
+        );
+
+        assertDoesNotThrow(validator::validate);
+    }
+
+    @Test
     void environmentMustBeExplicit() {
         StartupConfigValidator validator = validator(
                 "unset",
@@ -321,6 +358,7 @@ class StartupConfigValidatorTest {
                 datasourceUrl,
                 datasourceUsername,
                 datasourcePassword,
+                false,
                 true,
                 "pai_resume_migrator",
                 "strong-migration-password",

@@ -1,5 +1,7 @@
 package com.itwanger.pairesume.service.impl;
 
+import com.itwanger.pairesume.common.BusinessException;
+import com.itwanger.pairesume.common.ResultCode;
 import com.itwanger.pairesume.config.ResumeReviewProperties;
 import com.itwanger.pairesume.entity.ResumeReviewCreditLedger;
 import com.itwanger.pairesume.entity.ResumeReviewMailOutbox;
@@ -10,6 +12,7 @@ import com.itwanger.pairesume.mapper.ResumeReviewRequestMapper;
 import com.itwanger.pairesume.mapper.ResumeReviewAuditLogMapper;
 import com.itwanger.pairesume.entity.ResumeReviewAuditLog;
 import com.itwanger.pairesume.service.MailService;
+import com.itwanger.pairesume.service.ResumeReviewObjectStorage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -27,12 +30,15 @@ public class ResumeReviewMailDeliveryService {
     private final ResumeReviewRequestMapper requestMapper;
     private final ResumeReviewCreditLedgerMapper ledgerMapper;
     private final ResumeReviewAuditLogMapper auditMapper;
-    private final ResumeReviewPdfRenderer pdfRenderer;
+    private final ResumeReviewObjectStorage objectStorage;
     private final MailService mailService;
     private final ResumeReviewProperties properties;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void deliverOne(Long outboxId) {
+        if (!properties.isEnabled()) {
+            throw new BusinessException(ResultCode.RESUME_REVIEW_DISABLED);
+        }
         if (outboxMapper.claim(outboxId) != 1) return;
         ResumeReviewMailOutbox outbox = outboxMapper.selectByIdForUpdate(outboxId);
         ResumeReviewRequest request = requestMapper.selectByIdForUpdate(outbox.getRequestId());
@@ -47,7 +53,11 @@ public class ResumeReviewMailDeliveryService {
             if (!StringUtils.hasText(properties.getRecipientEmail())) {
                 throw new IllegalStateException("RESUME_REVIEW_RECIPIENT_EMAIL is not configured");
             }
-            byte[] pdf = pdfRenderer.render(request.getSnapshotJson());
+            byte[] pdf = objectStorage.readVerifiedPdf(
+                    request.getPdfObjectKey(),
+                    request.getPdfSizeBytes() == null ? 0L : request.getPdfSizeBytes(),
+                    request.getPdfSha256()
+            );
             mailService.sendResumeReview(properties.getRecipientEmail(), outbox.getMessageId(),
                     request.getRequestNo(), request.getContactEmail(), pdf,
                     "resume-review-" + request.getRequestNo() + ".pdf");
@@ -64,14 +74,25 @@ public class ResumeReviewMailDeliveryService {
             auditMapper.insert(audit(request, "EMAIL_SENT", "EMAIL_PENDING", "EMAILED", null));
         } catch (Exception exception) {
             outbox.setOutboxStatus("FAILED");
-            outbox.setLastErrorType(exception.getClass().getSimpleName());
             int attempts = outbox.getAttemptCount() == null ? 1 : outbox.getAttemptCount();
-            long delayMinutes = Math.min(360, 1L << Math.min(8, attempts));
-            outbox.setNextAttemptAt(LocalDateTime.now().plusMinutes(delayMinutes));
+            boolean attachmentInvalid = exception instanceof BusinessException business
+                    && business.getCode() == ResultCode.RESUME_REVIEW_UPLOAD_INVALID.getCode();
+            boolean attemptsExhausted = attempts >= properties.getMailOutboxMaxAttempts();
+            if (attachmentInvalid || attemptsExhausted) {
+                outbox.setLastErrorType(attachmentInvalid
+                        ? "ATTACHMENT_INVALID" : "AUTOMATIC_RETRIES_EXHAUSTED");
+                outbox.setNextAttemptAt(LocalDateTime.now().plusYears(10));
+            } else {
+                outbox.setLastErrorType(exception.getClass().getSimpleName());
+                long delayMinutes = Math.min(360, 1L << Math.min(8, attempts));
+                outbox.setNextAttemptAt(LocalDateTime.now().plusMinutes(delayMinutes));
+            }
             log.warn("Resume review outbox attempt failed outboxId={}, errorType={}",
-                    outboxId, exception.getClass().getSimpleName());
-            auditMapper.insert(audit(request, "EMAIL_ATTEMPT_FAILED", "EMAIL_PENDING",
-                    "EMAIL_PENDING", exception.getClass().getSimpleName()));
+                    outboxId, outbox.getLastErrorType());
+            auditMapper.insert(audit(request,
+                    attachmentInvalid || attemptsExhausted
+                            ? "EMAIL_AUTOMATIC_RETRY_STOPPED" : "EMAIL_ATTEMPT_FAILED",
+                    "EMAIL_PENDING", "EMAIL_PENDING", outbox.getLastErrorType()));
         } finally {
             outboxMapper.updateById(outbox);
         }

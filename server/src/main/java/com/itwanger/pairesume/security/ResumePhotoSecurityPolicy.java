@@ -13,10 +13,10 @@ import java.util.regex.Pattern;
 /**
  * Server-side trust boundary for resume photos.
  *
- * <p>The browser may preview remote images, but persisted resume data and the
- * server-side PDF renderer must never dereference user-controlled URLs or file
- * paths. Only small, embedded raster images with a matching file signature are
- * accepted.</p>
+ * <p>The browser may preview remote images, but persisted resume data and
+ * server-side publication paths must never dereference user-controlled URLs or
+ * file paths. Only small, embedded raster images with a matching file signature
+ * are accepted.</p>
  */
 public final class ResumePhotoSecurityPolicy {
     public static final int MAX_PHOTO_BYTES = 3 * 1024 * 1024;

@@ -980,12 +980,12 @@ export default function AdminPage() {
                       onChange={(event) => setPlatformConfig((current) => ({ ...current, resumeReviewPriceCents: Number(event.target.value) }))}
                       className="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none transition-colors focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
                     />
-                    <span className="mt-2 block text-xs leading-5 text-gray-500">仅用于关注奖励已核销后的第三次及以后申请，每次按创建订单时的服务端价格快照收费。</span>
+                    <span className="mt-2 block text-xs leading-5 text-gray-500">仅用于第二次及以后的申请，每次按创建订单时的服务端价格快照收费。</span>
                   </label>
                   <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-4 text-sm leading-6 text-gray-600">
                     <p>当前会员价 {formatCents(platformConfig.membershipPriceCents)}，问卷默认优惠 {formatCents(platformConfig.questionnaireCouponAmountCents)}。</p>
                     <p className={platformConfig.resumeReviewPriceCents > 0 ? 'mt-1 text-gray-700' : 'mt-1 font-medium text-amber-700'}>
-                      人工精修单次价 {formatCents(platformConfig.resumeReviewPriceCents)}；价格为 0 时，即使部署环境打开收款开关，也不会接受第三次及以后的付费新单。
+                      人工精修单次价 {formatCents(platformConfig.resumeReviewPriceCents)}；价格为 0 时，即使部署环境打开收款开关，也不会接受第二次及以后的付费新单。
                     </p>
                     <p className="mt-1 text-xs text-gray-500">修改价格只影响之后创建的新订单，不会改写已有申请和订单金额；独立收款开关由部署配置管理。</p>
                   </div>

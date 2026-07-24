@@ -32,15 +32,6 @@ export interface ResumeReviewAudit {
   createdAt: string
 }
 
-export interface ResumeReviewFallbackCode {
-  id: number
-  code: string | null
-  codeHint: string
-  status: 'ISSUED' | 'REDEEMED' | 'EXPIRED' | string
-  expiresAt: string
-  warning: string
-}
-
 export type ResumeReviewAdminRequest = Omit<ResumeReviewRequest, 'codeUrl' | 'qrCodeDataUrl'> & {
   userId: number
   provider: string | null
@@ -412,18 +403,6 @@ export const adminApi = {
     `/admin/resume-reviews/${encodeURIComponent(requestNo)}/refund/confirm`,
     { refundReference, reason },
   ),
-
-  createResumeReviewFallbackCode: (validHours: number) =>
-    client.post<ApiEnvelope<ResumeReviewFallbackCode>>(
-      '/admin/resume-reviews/follow-fallback-codes',
-      undefined,
-      { params: { validHours } },
-    ),
-
-  listResumeReviewFallbackCodes: () =>
-    client.get<ApiEnvelope<ResumeReviewFallbackCode[]>>(
-      '/admin/resume-reviews/follow-fallback-codes',
-    ),
 
   listFeedbackSubmissions: () =>
     client.get<ApiEnvelope<FeedbackSubmissionAdmin[]>>('/admin/feedback-submissions'),

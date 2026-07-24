@@ -67,7 +67,6 @@ public class GlobalExceptionHandler {
         if (code == ResultCode.LOGIN_FAILED.getCode()
                 || code == ResultCode.WECHAT_CHALLENGE_INVALID.getCode()
                 || code == ResultCode.WECHAT_BRIDGE_SIGNATURE_INVALID.getCode()
-                || code == ResultCode.RESUME_REVIEW_FOLLOW_BRIDGE_INVALID.getCode()
                 || code == ResultCode.REFRESH_TOKEN_INVALID.getCode()
                 || code == ResultCode.REFRESH_TOKEN_EXPIRED.getCode()
                 || code == ResultCode.UNAUTHORIZED.getCode()) {
@@ -80,6 +79,7 @@ public class GlobalExceptionHandler {
                 || code == ResultCode.MARKET_ORDER_FORBIDDEN.getCode()
                 || code == ResultCode.MEMBERSHIP_ORDER_FORBIDDEN.getCode()
                 || code == ResultCode.RESUME_REVIEW_FORBIDDEN.getCode()
+                || code == ResultCode.RESUME_REVIEW_UPLOAD_FORBIDDEN.getCode()
                 || code == ResultCode.VIP_INVITE_CLAIM_FORBIDDEN.getCode()
                 || code == ResultCode.MEMBERSHIP_REQUIRED.getCode()
                 || code == ResultCode.AI_MEMBERSHIP_REQUIRED.getCode()
@@ -91,7 +91,8 @@ public class GlobalExceptionHandler {
                 || code == ResultCode.LOGIN_TOO_MANY_ATTEMPTS.getCode()
                 || code == ResultCode.WECHAT_CHALLENGE_RATE_LIMITED.getCode()
                 || code == ResultCode.VIP_INVITE_RATE_LIMITED.getCode()
-                || code == ResultCode.MARKET_REPORT_RATE_LIMITED.getCode()) {
+                || code == ResultCode.MARKET_REPORT_RATE_LIMITED.getCode()
+                || code == ResultCode.RESUME_REVIEW_UPLOAD_RATE_LIMITED.getCode()) {
             return HttpStatus.TOO_MANY_REQUESTS;
         }
         if (code == ResultCode.MAIL_NOT_CONFIGURED.getCode()
@@ -100,6 +101,9 @@ public class GlobalExceptionHandler {
                 || code == ResultCode.WECHAT_GATEWAY_UNAVAILABLE.getCode()
                 || code == ResultCode.PAYMENT_NOT_ENABLED.getCode()
                 || code == ResultCode.RESUME_REVIEW_PAID_NOT_ENABLED.getCode()
+                || code == ResultCode.RESUME_REVIEW_DISABLED.getCode()
+                || code == ResultCode.RESUME_REVIEW_STORAGE_NOT_CONFIGURED.getCode()
+                || code == ResultCode.RESUME_REVIEW_STORAGE_UNAVAILABLE.getCode()
                 || code == ResultCode.MARKETPLACE_DISABLED.getCode()) {
             return HttpStatus.SERVICE_UNAVAILABLE;
         }
@@ -109,6 +113,7 @@ public class GlobalExceptionHandler {
                 || code == ResultCode.MARKET_ORDER_NOT_FOUND.getCode()
                 || code == ResultCode.MEMBERSHIP_ORDER_NOT_FOUND.getCode()
                 || code == ResultCode.RESUME_REVIEW_NOT_FOUND.getCode()
+                || code == ResultCode.RESUME_REVIEW_UPLOAD_NOT_FOUND.getCode()
                 || code == ResultCode.MARKET_REPORT_NOT_FOUND.getCode()
                 || code == ResultCode.MARKET_APPEAL_NOT_FOUND.getCode()
                 || code == ResultCode.CREATOR_EARNING_NOT_FOUND.getCode()) {
@@ -119,7 +124,7 @@ public class GlobalExceptionHandler {
                 || code == ResultCode.WECHAT_IDENTITY_CONFLICT.getCode()
                 || code == ResultCode.WECHAT_CHALLENGE_CONSUMED.getCode()
                 || code == ResultCode.RESUME_REVIEW_ACTIVE_EXISTS.getCode()
-                || code == ResultCode.RESUME_REVIEW_FOLLOW_REWARD_EXISTS.getCode()
+                || code == ResultCode.RESUME_REVIEW_UPLOAD_STATE_INVALID.getCode()
                 || code == ResultCode.RESUME_REVIEW_REFUND_REFERENCE_CONFLICT.getCode()
                 || code == ResultCode.CREATOR_EARNING_ALREADY_SETTLED.getCode()
                 || code == ResultCode.MARKET_GOVERNANCE_ALREADY_HANDLED.getCode()
@@ -127,7 +132,8 @@ public class GlobalExceptionHandler {
             return HttpStatus.CONFLICT;
         }
         if (code == ResultCode.PAYMENT_ORDER_EXPIRED.getCode()
-                || code == ResultCode.WECHAT_CHALLENGE_EXPIRED.getCode()) {
+                || code == ResultCode.WECHAT_CHALLENGE_EXPIRED.getCode()
+                || code == ResultCode.RESUME_REVIEW_UPLOAD_EXPIRED.getCode()) {
             return HttpStatus.GONE;
         }
         return HttpStatus.BAD_REQUEST;

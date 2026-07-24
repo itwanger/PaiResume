@@ -1,25 +1,63 @@
 [Unit]
 Description=PaiResume backend
-After=network-online.target mysql.service redis.service
+After=network-online.target mysqld.service
 Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
 Type=simple
-User=pai-resume
-Group=pai-resume
-WorkingDirectory=/opt/pai-resume/current/server
+# 当前小规模首发复用现有 root 运行约定，不额外创建 Linux 用户。
+# 风险通过只读文件系统、可写目录白名单、内存与调度权重继续收敛。
+User=root
+Group=root
+WorkingDirectory=/home/www/pairesume/current/server
 EnvironmentFile=/etc/pai-resume/pai-resume.env
-ExecStartPre=/opt/pai-resume/bin/production-preflight.sh
-ExecStart=/usr/bin/java -XX:MaxRAMPercentage=75 -jar /opt/pai-resume/current/server/pai-resume-server.jar
+Environment="JAVA_HOME=/usr/lib/jvm/java-17-konajdk-17.0.13-1.oc9"
+# 该 truststore 必须在 JDK 默认 CA 基础上追加 MySQL CA；若只放 MySQL 证书，
+# 会同时破坏 OSS、AI 与邮件等出站 TLS。
+Environment="JAVA_TOOL_OPTIONS=-Djavax.net.ssl.trustStore=/etc/pai-resume/mysql-truststore.jks -Djavax.net.ssl.trustStoreType=JKS -Djavax.net.ssl.trustStorePassword=changeit"
+# 普通 PDF 由浏览器生成；人工精修 PDF 只在私有 OSS 与 JVM 内存间流转，不需要 Node/PDF worker。
+Environment="PATH=/usr/lib/jvm/java-17-konajdk-17.0.13-1.oc9/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/bin"
+ExecStartPre=/usr/bin/test -r /etc/pai-resume/mysql-truststore.jks
+ExecStartPre=/home/www/pairesume/bin/production-preflight.sh
+ExecStart=/usr/lib/jvm/java-17-konajdk-17.0.13-1.oc9/bin/java -Xms128m -Xmx512m -XX:+UseG1GC -XX:+ExitOnOutOfMemoryError -jar /home/www/pairesume/current/server/pai-resume-server.jar
 SuccessExitStatus=143
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=45
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=pai-resume
+LogRateLimitIntervalSec=30s
+LogRateLimitBurst=1000
+MemoryMax=1024M
+MemorySwapMax=0
+TasksMax=128
+Nice=5
+CPUWeight=25
+IOWeight=25
+OOMScoreAdjust=250
+UMask=0027
 NoNewPrivileges=true
+CapabilityBoundingSet=
+AmbientCapabilities=
 PrivateTmp=true
+PrivateDevices=true
 ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=/var/log/pai-resume /tmp
+ProtectHome=read-only
+ProtectClock=true
+ProtectHostname=true
+ProtectKernelLogs=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectProc=invisible
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LockPersonality=true
+SystemCallArchitectures=native
+ReadWritePaths=/var/log/pai-resume
 
 [Install]
 WantedBy=multi-user.target

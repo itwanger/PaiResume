@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   resumeReviewApi,
   type ResumeReviewEligibility,
-  type ResumeReviewFollowChallenge,
   type ResumeReviewRequest,
   type ResumeReviewStatus,
 } from '../../api/resumeReview'
@@ -12,14 +11,20 @@ interface ResumeReviewModalProps {
   resumeId: number
   userId: number
   accountEmail: string | null
-  hasResumeContent: boolean
-  onBeforeSubmit: () => Promise<void>
   onClose: () => void
 }
 
 const REQUEST_POLL_INTERVAL_MS = 4_000
-const FOLLOW_POLL_INTERVAL_MS = 4_000
 const CONTACT_CODE_COOLDOWN_SECONDS = 60
+const MAX_PDF_SIZE_BYTES = 10 * 1024 * 1024
+const PDF_MAGIC = '%PDF-'
+
+type SubmissionStage =
+  | 'idle'
+  | 'requesting-upload'
+  | 'uploading'
+  | 'completing-upload'
+  | 'creating-request'
 
 const TERMINAL_REQUEST_STATUSES = new Set<ResumeReviewStatus>([
   'COMPLETED',
@@ -30,12 +35,12 @@ const TERMINAL_REQUEST_STATUSES = new Set<ResumeReviewStatus>([
 const REQUEST_STATUS_COPY: Record<ResumeReviewStatus, { title: string; description: string; tone: string }> = {
   AWAITING_PAYMENT: {
     title: '等待微信支付',
-    description: '这份简历快照已经锁定。请完成本单支付，系统确认到账后才会发送邮件。',
+    description: '这份 PDF 已经确认提交。请完成本单支付，系统确认到账后才会发送邮件。',
     tone: 'border-amber-200 bg-amber-50 text-amber-950',
   },
   EMAIL_PENDING: {
     title: '正在发送简历',
-    description: '系统正在把服务端生成的 PDF 投递到固定人工审阅邮箱；此状态还不代表邮件已被接收。',
+    description: '系统正在把你确认上传的 PDF 投递到固定人工审阅邮箱；此状态还不代表邮件已被接收。',
     tone: 'border-blue-200 bg-blue-50 text-blue-950',
   },
   EMAILED: {
@@ -104,6 +109,42 @@ function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message.trim() ? error.message : fallback
 }
 
+function formatFileSize(sizeBytes: number) {
+  if (sizeBytes < 1024 * 1024) {
+    return `${Math.max(1, Math.round(sizeBytes / 1024))} KB`
+  }
+  return `${(sizeBytes / (1024 * 1024)).toFixed(2)} MB`
+}
+
+async function validateAndHashPdf(file: File) {
+  if (!file.name.toLowerCase().endsWith('.pdf')) {
+    throw new Error('请选择扩展名为 .pdf 的文件')
+  }
+  if (file.type && file.type.toLowerCase() !== 'application/pdf') {
+    throw new Error('文件 MIME 类型必须是 application/pdf')
+  }
+  if (file.size <= 0) {
+    throw new Error('PDF 文件不能为空')
+  }
+  if (file.size > MAX_PDF_SIZE_BYTES) {
+    throw new Error('PDF 文件不能超过 10MB')
+  }
+  if (!globalThis.crypto?.subtle) {
+    throw new Error('当前浏览器不支持安全文件校验，请升级浏览器后重试')
+  }
+
+  const content = await file.arrayBuffer()
+  const header = new TextDecoder('ascii').decode(content.slice(0, PDF_MAGIC.length))
+  if (header !== PDF_MAGIC) {
+    throw new Error('文件内容不是有效的 PDF')
+  }
+
+  const digest = await globalThis.crypto.subtle.digest('SHA-256', content)
+  return Array.from(new Uint8Array(digest))
+    .map((value) => value.toString(16).padStart(2, '0'))
+    .join('')
+}
+
 function isRequestTerminal(request: ResumeReviewRequest) {
   return TERMINAL_REQUEST_STATUSES.has(request.requestStatus)
 }
@@ -113,57 +154,56 @@ export function ResumeReviewModal({
   resumeId,
   userId,
   accountEmail,
-  hasResumeContent,
-  onBeforeSubmit,
   onClose,
 }: ResumeReviewModalProps) {
   const closeButtonRef = useRef<HTMLButtonElement | null>(null)
   const dialogRef = useRef<HTMLElement | null>(null)
   const requestPollingRef = useRef(false)
-  const followPollingRef = useRef(false)
+  const pdfValidationSequenceRef = useRef(0)
   const [eligibility, setEligibility] = useState<ResumeReviewEligibility | null>(null)
   const [currentRequest, setCurrentRequest] = useState<ResumeReviewRequest | null>(null)
-  const [challenge, setChallenge] = useState<ResumeReviewFollowChallenge | null>(null)
   const [contactEmail, setContactEmail] = useState(accountEmail ?? '')
   const [verificationCode, setVerificationCode] = useState('')
+  const [selectedPdf, setSelectedPdf] = useState<File | null>(null)
+  const [selectedPdfSha256, setSelectedPdfSha256] = useState('')
+  const [validatingPdf, setValidatingPdf] = useState(false)
   const [manualReviewConsent, setManualReviewConsent] = useState(false)
   const [emailDeliveryConsent, setEmailDeliveryConsent] = useState(false)
-  const [fallbackCode, setFallbackCode] = useState('')
   const [loading, setLoading] = useState(false)
-  const [creatingChallenge, setCreatingChallenge] = useState(false)
-  const [refreshingFollow, setRefreshingFollow] = useState(false)
-  const [redeemingFallback, setRedeemingFallback] = useState(false)
   const [sendingCode, setSendingCode] = useState(false)
   const [codeCooldown, setCodeCooldown] = useState(0)
-  const [submitting, setSubmitting] = useState(false)
+  const [submissionStage, setSubmissionStage] = useState<SubmissionStage>('idle')
   const [refreshingRequest, setRefreshingRequest] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
-  const [copied, setCopied] = useState(false)
+  const submitting = submissionStage !== 'idle'
 
   const currentRequestStorageKey = `pai-resume:review-request:${userId}`
   const idempotencyStorageKey = `pai-resume:review-idempotency:${userId}:${resumeId}`
   const accountEmailVerified = Boolean(
     accountEmail && normalizeEmail(contactEmail) === normalizeEmail(accountEmail),
   )
-  const secondReviewNeedsFollow = Boolean(
-    eligibility
-    && !eligibility.welcomeFreeAvailable
-    && !eligibility.followRewardIssued,
-  )
   const paidReviewBlocked = Boolean(
     eligibility
-    && eligibility.nextEntitlement === 'PAID'
-    && (eligibility.priceCents <= 0 || !eligibility.paidReviewAvailable),
+    && (!eligibility.enabled
+      || (!eligibility.welcomeFreeAvailable
+        && (eligibility.priceCents <= 0 || !eligibility.paidReviewAvailable))),
   )
   const canShowApplicationForm = Boolean(
     eligibility
-    && !secondReviewNeedsFollow
     && !paidReviewBlocked,
   )
 
   const entitlementSummary = useMemo(() => {
     if (!eligibility) return null
+    if (!eligibility.enabled) {
+      return {
+        eyebrow: '暂未开放',
+        title: '人工精修暂未开放',
+        description: '当前不会接收新的人工精修申请。',
+        tone: 'border-slate-200 bg-slate-50',
+      }
+    }
     if (eligibility.welcomeFreeAvailable) {
       return {
         eyebrow: '第 1 次',
@@ -172,32 +212,16 @@ export function ResumeReviewModal({
         tone: 'border-emerald-200 bg-emerald-50',
       }
     }
-    if (eligibility.followRewardAvailable) {
-      return {
-        eyebrow: '第 2 次',
-        title: '关注奖励已到账，本次免费',
-        description: '这次免费机会只能使用一次，在收件邮件服务器受理后核销。',
-        tone: 'border-emerald-200 bg-emerald-50',
-      }
-    }
-    if (!eligibility.followRewardIssued) {
-      return {
-        eyebrow: '第 2 次',
-        title: `需先关注“${eligibility.followOfficialAccountName || '沉默王二'}”`,
-        description: '按下方挑战口令完成验证后，可获得一次免费的人工精修机会。',
-        tone: 'border-amber-200 bg-amber-50',
-      }
-    }
     if (eligibility.paidReviewAvailable && eligibility.priceCents > 0) {
       return {
-        eyebrow: '第 3 次及以后',
+        eyebrow: '第 2 次及以后',
         title: `本次需单独支付 ${formatCents(eligibility.priceCents)}`,
-        description: '每次付款只对应当前这一份不可变简历快照，不会自动续费。',
+        description: '每次付款只对应当前确认上传的这一份 PDF，不会自动续费。',
         tone: 'border-blue-200 bg-blue-50',
       }
     }
     return {
-      eyebrow: '第 3 次及以后',
+      eyebrow: '第 2 次及以后',
       title: '付费人工精修暂未开放',
       description: '后台尚未同时配置真实价格和收款开关，目前不会创建订单。',
       tone: 'border-slate-200 bg-slate-50',
@@ -209,18 +233,10 @@ export function ResumeReviewModal({
     window.localStorage.setItem(currentRequestStorageKey, request.requestNo)
   }, [currentRequestStorageKey])
 
-  const loadEligibility = useCallback(async (showRefreshing = false) => {
-    if (showRefreshing) setRefreshingFollow(true)
-    try {
-      const { data: response } = await resumeReviewApi.eligibility()
-      setEligibility(response.data)
-      if (response.data.followRewardAvailable) {
-        setNotice('关注奖励已到账，可以免费提交本次简历。')
-      }
-      return response.data
-    } finally {
-      if (showRefreshing) setRefreshingFollow(false)
-    }
+  const loadEligibility = useCallback(async () => {
+    const { data: response } = await resumeReviewApi.eligibility()
+    setEligibility(response.data)
+    return response.data
   }, [])
 
   useEffect(() => {
@@ -270,6 +286,15 @@ export function ResumeReviewModal({
       canceled = true
     }
   }, [accountEmail, currentRequestStorageKey, loadEligibility, open, updateCurrentRequest])
+
+  useEffect(() => {
+    if (open) return
+    pdfValidationSequenceRef.current += 1
+    setSelectedPdf(null)
+    setSelectedPdfSha256('')
+    setValidatingPdf(false)
+    setSubmissionStage('idle')
+  }, [open])
 
   useEffect(() => {
     if (!open || codeCooldown <= 0) return
@@ -339,80 +364,7 @@ export function ResumeReviewModal({
     return () => window.clearInterval(timer)
   }, [currentRequest, open, refreshCurrentRequest])
 
-  const refreshFollowReward = useCallback(async (silent = false) => {
-    if (followPollingRef.current) return
-    followPollingRef.current = true
-    try {
-      const nextEligibility = await loadEligibility(!silent)
-      if (!nextEligibility.followRewardAvailable && !silent) {
-        setNotice('暂未收到公众号验证，请确认已发送完整挑战口令后再刷新。')
-      }
-      setError('')
-    } catch (refreshError: unknown) {
-      if (!silent) setError(getErrorMessage(refreshError, '刷新关注验证失败'))
-    } finally {
-      followPollingRef.current = false
-    }
-  }, [loadEligibility])
-
-  useEffect(() => {
-    if (!open || !challenge || eligibility?.followRewardAvailable) return
-    const expiresAt = parseServerDate(challenge.expiresAt)
-    if (expiresAt && expiresAt.getTime() <= Date.now()) return
-    const timer = window.setInterval(() => {
-      void refreshFollowReward(true)
-    }, FOLLOW_POLL_INTERVAL_MS)
-    return () => window.clearInterval(timer)
-  }, [challenge, eligibility?.followRewardAvailable, open, refreshFollowReward])
-
   if (!open) return null
-
-  const handleCreateChallenge = async () => {
-    setCreatingChallenge(true)
-    setError('')
-    setNotice('')
-    try {
-      const { data: response } = await resumeReviewApi.createFollowChallenge()
-      setChallenge(response.data)
-      setNotice('挑战已创建。发送完整口令后，本页会自动刷新验证结果。')
-    } catch (createError: unknown) {
-      setError(getErrorMessage(createError, '创建公众号验证挑战失败'))
-    } finally {
-      setCreatingChallenge(false)
-    }
-  }
-
-  const handleCopyChallenge = async () => {
-    if (!challenge) return
-    const message = `简历精修 ${challenge.challengeCode}`
-    try {
-      await navigator.clipboard.writeText(message)
-      setCopied(true)
-      window.setTimeout(() => setCopied(false), 2_000)
-    } catch {
-      setError(`复制失败，请手动发送：${message}`)
-    }
-  }
-
-  const handleRedeemFallback = async () => {
-    if (!fallbackCode.trim()) {
-      setError('请输入二哥人工提供的故障兜底码')
-      return
-    }
-    setRedeemingFallback(true)
-    setError('')
-    setNotice('')
-    try {
-      await resumeReviewApi.redeemFollowFallbackCode(fallbackCode.trim())
-      setFallbackCode('')
-      await loadEligibility()
-      setNotice('人工兜底码已兑换，本次关注奖励可以使用。')
-    } catch (redeemError: unknown) {
-      setError(getErrorMessage(redeemError, '兜底码兑换失败'))
-    } finally {
-      setRedeemingFallback(false)
-    }
-  }
 
   const handleSendContactCode = async () => {
     const normalized = normalizeEmail(contactEmail)
@@ -438,11 +390,45 @@ export function ResumeReviewModal({
     }
   }
 
+  const handlePdfFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null
+    event.target.value = ''
+    const validationSequence = pdfValidationSequenceRef.current + 1
+    pdfValidationSequenceRef.current = validationSequence
+    setSelectedPdf(null)
+    setSelectedPdfSha256('')
+    setError('')
+    setNotice('')
+
+    if (!file) {
+      setValidatingPdf(false)
+      return
+    }
+
+    setValidatingPdf(true)
+    try {
+      const sha256 = await validateAndHashPdf(file)
+      if (pdfValidationSequenceRef.current !== validationSequence) return
+      setSelectedPdf(file)
+      setSelectedPdfSha256(sha256)
+      setNotice('PDF 校验完成，提交时会直传到平台的私有存储。')
+    } catch (pdfError: unknown) {
+      if (pdfValidationSequenceRef.current !== validationSequence) return
+      setError(getErrorMessage(pdfError, 'PDF 文件校验失败'))
+    } finally {
+      if (pdfValidationSequenceRef.current === validationSequence) {
+        setValidatingPdf(false)
+      }
+    }
+  }
+
   const handleSubmit = async () => {
     if (!eligibility || !canShowApplicationForm) return
     const normalized = normalizeEmail(contactEmail)
-    if (!hasResumeContent) {
-      setError('请先完善至少一个简历模块，再提交人工精修')
+    const pdfFile = selectedPdf
+    const pdfSha256 = selectedPdfSha256
+    if (!pdfFile || !pdfSha256 || validatingPdf) {
+      setError('请先选择并完成校验一份不超过 10MB 的 PDF')
       return
     }
     if (!isEmail(normalized)) {
@@ -458,23 +444,51 @@ export function ResumeReviewModal({
       return
     }
 
-    setSubmitting(true)
+    setSubmissionStage('requesting-upload')
     setError('')
-    setNotice('')
+    setNotice('正在申请 PDF 安全上传凭证…')
     try {
-      try {
-        await onBeforeSubmit()
-      } catch (saveError: unknown) {
-        setError(`简历尚未全部保存，本次没有创建快照：${getErrorMessage(saveError, '请重试')}`)
-        return
-      }
-
       const idempotencyKey = window.sessionStorage.getItem(idempotencyStorageKey)
         || createIdempotencyKey()
       window.sessionStorage.setItem(idempotencyStorageKey, idempotencyKey)
+
+      const { data: uploadResponse } = await resumeReviewApi.requestUpload({
+        resumeId,
+        fileName: pdfFile.name,
+        sizeBytes: pdfFile.size,
+        sha256: pdfSha256,
+      })
+      const uploadCredential = uploadResponse.data
+      if (!Number.isFinite(uploadCredential.maxSizeBytes) || uploadCredential.maxSizeBytes <= 0) {
+        throw new Error('服务端 PDF 上传大小配置无效')
+      }
+      if (pdfFile.size > uploadCredential.maxSizeBytes) {
+        throw new Error(`PDF 超过服务端允许的 ${formatFileSize(uploadCredential.maxSizeBytes)} 上限`)
+      }
+
+      setSubmissionStage('uploading')
+      setNotice('正在把 PDF 加密直传到平台的私有存储…')
+      await resumeReviewApi.uploadPdf(uploadCredential, pdfFile)
+
+      setSubmissionStage('completing-upload')
+      setNotice('PDF 已上传，正在由服务端核验文件…')
+      const { data: completedResponse } = await resumeReviewApi.completeUpload(uploadCredential.uploadNo)
+      const completedUpload = completedResponse.data
+      if (
+        completedUpload.status !== 'READY'
+        || completedUpload.uploadNo !== uploadCredential.uploadNo
+        || completedUpload.sizeBytes !== pdfFile.size
+        || completedUpload.sha256.toLowerCase() !== pdfSha256
+      ) {
+        throw new Error('服务端返回的 PDF 校验结果不一致，请重新选择文件')
+      }
+
+      setSubmissionStage('creating-request')
+      setNotice('PDF 已通过核验，正在确认本次人工精修申请…')
       const { data: response } = await resumeReviewApi.create({
         resumeId,
         idempotencyKey,
+        uploadNo: completedUpload.uploadNo,
         contactEmail: normalized,
         verificationCode: accountEmailVerified ? undefined : verificationCode.trim(),
         manualReviewConsent: true,
@@ -483,12 +497,12 @@ export function ResumeReviewModal({
       updateCurrentRequest(response.data)
       window.sessionStorage.removeItem(idempotencyStorageKey)
       setNotice(response.data.requestStatus === 'AWAITING_PAYMENT'
-        ? '简历快照已锁定，请完成本单支付。'
-        : '简历快照已锁定，正在发送给二哥。')
+        ? 'PDF 已确认提交，请完成本单支付。'
+        : 'PDF 已确认提交，正在发送给二哥。')
     } catch (submitError: unknown) {
       setError(getErrorMessage(submitError, '人工精修申请提交失败'))
     } finally {
-      setSubmitting(false)
+      setSubmissionStage('idle')
     }
   }
 
@@ -496,8 +510,11 @@ export function ResumeReviewModal({
     window.localStorage.removeItem(currentRequestStorageKey)
     window.sessionStorage.removeItem(idempotencyStorageKey)
     setCurrentRequest(null)
-    setChallenge(null)
     setVerificationCode('')
+    pdfValidationSequenceRef.current += 1
+    setSelectedPdf(null)
+    setSelectedPdfSha256('')
+    setValidatingPdf(false)
     setManualReviewConsent(false)
     setEmailDeliveryConsent(false)
     setError('')
@@ -533,7 +550,7 @@ export function ResumeReviewModal({
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary-600">人工简历精修</p>
             <h2 id="resume-review-title" className="mt-1 text-xl font-semibold text-slate-950">请二哥帮我改简历</h2>
             <p id="resume-review-description" className="mt-1 text-sm leading-6 text-slate-500">
-              提交前会先保存全部修改，再锁定当前快照并生成 PDF。
+              请选择最终确认的 PDF；文件会直传到平台私有存储，通过核验后再创建申请。
             </p>
           </div>
           <button
@@ -583,24 +600,7 @@ export function ResumeReviewModal({
                 </div>
               ) : null}
 
-              {secondReviewNeedsFollow && eligibility ? (
-                <FollowVerificationPanel
-                  eligibility={eligibility}
-                  challenge={challenge}
-                  creating={creatingChallenge}
-                  refreshing={refreshingFollow}
-                  copied={copied}
-                  fallbackCode={fallbackCode}
-                  redeemingFallback={redeemingFallback}
-                  onCreate={() => void handleCreateChallenge()}
-                  onRefresh={() => void refreshFollowReward(false)}
-                  onCopy={() => void handleCopyChallenge()}
-                  onFallbackCodeChange={setFallbackCode}
-                  onRedeemFallback={() => void handleRedeemFallback()}
-                />
-              ) : null}
-
-              {paidReviewBlocked && !secondReviewNeedsFollow ? (
+              {paidReviewBlocked ? (
                 <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-700">
                   付费人工精修暂未开放。只有后台配置真实价格并开启独立收款开关后，这里才会显示服务端金额和支付入口。
                 </div>
@@ -616,8 +616,19 @@ export function ResumeReviewModal({
                   sendingCode={sendingCode}
                   codeCooldown={codeCooldown}
                   submitting={submitting}
-                  hasResumeContent={hasResumeContent}
+                  submissionStage={submissionStage}
+                  selectedPdf={selectedPdf}
+                  validatingPdf={validatingPdf}
                   eligibility={eligibility}
+                  onPdfFileChange={(event) => void handlePdfFileChange(event)}
+                  onRemovePdf={() => {
+                    pdfValidationSequenceRef.current += 1
+                    setSelectedPdf(null)
+                    setSelectedPdfSha256('')
+                    setValidatingPdf(false)
+                    setError('')
+                    setNotice('')
+                  }}
                   onContactEmailChange={(value) => {
                     setContactEmail(value)
                     setVerificationCode('')
@@ -638,125 +649,6 @@ export function ResumeReviewModal({
   )
 }
 
-interface FollowVerificationPanelProps {
-  eligibility: ResumeReviewEligibility
-  challenge: ResumeReviewFollowChallenge | null
-  creating: boolean
-  refreshing: boolean
-  copied: boolean
-  fallbackCode: string
-  redeemingFallback: boolean
-  onCreate: () => void
-  onRefresh: () => void
-  onCopy: () => void
-  onFallbackCodeChange: (value: string) => void
-  onRedeemFallback: () => void
-}
-
-function FollowVerificationPanel({
-  eligibility,
-  challenge,
-  creating,
-  refreshing,
-  copied,
-  fallbackCode,
-  redeemingFallback,
-  onCreate,
-  onRefresh,
-  onCopy,
-  onFallbackCodeChange,
-  onRedeemFallback,
-}: FollowVerificationPanelProps) {
-  const officialAccountName = challenge?.officialAccountName || eligibility.followOfficialAccountName || '沉默王二'
-  const qrCodeUrl = challenge?.qrCodeUrl || eligibility.followQrCodeUrl
-
-  return (
-    <div className="rounded-2xl border border-amber-200 bg-white px-4 py-5 sm:px-5">
-      <h3 className="text-base font-semibold text-slate-950">验证“沉默王二”公众号关注</h3>
-      <p className="mt-2 text-sm leading-6 text-slate-600">
-        登录扫码使用的是“派聪明”服务号；它与“{officialAccountName}”不是同一个账号，也不等于完成本次关注验证。
-      </p>
-
-      {!challenge ? (
-        <button
-          type="button"
-          onClick={onCreate}
-          disabled={creating}
-          className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 disabled:opacity-50 sm:w-auto"
-        >
-          {creating ? '正在创建验证口令…' : '生成关注验证口令'}
-        </button>
-      ) : (
-        <div className="mt-4 grid gap-4 sm:grid-cols-[176px_1fr] sm:items-center">
-          <div className="mx-auto flex h-44 w-44 items-center justify-center rounded-2xl border border-slate-200 bg-white p-2 shadow-sm sm:mx-0">
-            {qrCodeUrl ? (
-              <img src={qrCodeUrl} alt={`${officialAccountName}公众号二维码`} className="h-full w-full object-contain" />
-            ) : (
-              <p className="px-3 text-center text-xs leading-5 text-slate-500">公众号二维码暂未配置，请在微信中搜索“{officialAccountName}”。</p>
-            )}
-          </div>
-          <div>
-            <p className="text-sm leading-6 text-slate-700">关注后，请向公众号发送下面这条完整消息：</p>
-            <code className="mt-2 block break-all rounded-xl bg-slate-950 px-3 py-3 text-sm font-semibold text-white">
-              简历精修 {challenge.challengeCode}
-            </code>
-            <p className="mt-2 text-xs leading-5 text-slate-500">口令有效期至 {formatServerDate(challenge.expiresAt)}，验证成功后页面会自动刷新。</p>
-            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-              <button
-                type="button"
-                onClick={onCopy}
-                className="min-h-11 rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
-              >
-                {copied ? '已复制完整口令' : '复制完整口令'}
-              </button>
-              <button
-                type="button"
-                onClick={onRefresh}
-                disabled={refreshing}
-                className="min-h-11 rounded-xl bg-primary-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50"
-              >
-                {refreshing ? '正在验证…' : '我已发送，刷新验证'}
-              </button>
-              <button
-                type="button"
-                onClick={onCreate}
-                disabled={creating}
-                className="min-h-11 rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50"
-              >
-                {creating ? '获取中…' : '重新获取口令'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <details className="mt-5 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3">
-        <summary className="cursor-pointer text-sm font-medium text-slate-700">公众号回调故障时的人工兜底</summary>
-        <p className="mt-2 text-xs leading-5 text-slate-500">仅输入二哥人工提供的一次性故障兜底码。此方式不代表系统实时核验了关注状态。</p>
-        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-          <input
-            value={fallbackCode}
-            onChange={(event) => onFallbackCodeChange(event.target.value.toUpperCase())}
-            maxLength={64}
-            autoComplete="off"
-            placeholder="输入人工兜底码"
-            aria-label="人工故障兜底码"
-            className="min-h-11 min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
-          />
-          <button
-            type="button"
-            onClick={onRedeemFallback}
-            disabled={redeemingFallback}
-            className="min-h-11 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
-          >
-            {redeemingFallback ? '兑换中…' : '兑换兜底码'}
-          </button>
-        </div>
-      </details>
-    </div>
-  )
-}
-
 interface ApplicationFormProps {
   contactEmail: string
   accountEmailVerified: boolean
@@ -766,8 +658,12 @@ interface ApplicationFormProps {
   sendingCode: boolean
   codeCooldown: number
   submitting: boolean
-  hasResumeContent: boolean
+  submissionStage: SubmissionStage
+  selectedPdf: File | null
+  validatingPdf: boolean
   eligibility: ResumeReviewEligibility
+  onPdfFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void
+  onRemovePdf: () => void
   onContactEmailChange: (value: string) => void
   onVerificationCodeChange: (value: string) => void
   onManualReviewConsentChange: (value: boolean) => void
@@ -785,8 +681,12 @@ function ApplicationForm({
   sendingCode,
   codeCooldown,
   submitting,
-  hasResumeContent,
+  submissionStage,
+  selectedPdf,
+  validatingPdf,
   eligibility,
+  onPdfFileChange,
+  onRemovePdf,
   onContactEmailChange,
   onVerificationCodeChange,
   onManualReviewConsentChange,
@@ -794,18 +694,58 @@ function ApplicationForm({
   onSendCode,
   onSubmit,
 }: ApplicationFormProps) {
-  const isPaid = eligibility.nextEntitlement === 'PAID'
-  const submitLabel = submitting
-    ? '正在保存并锁定快照…'
-    : isPaid
-      ? `确认并获取支付二维码 · ${formatCents(eligibility.priceCents)}`
-      : '确认提交本次免费精修'
+  const isPaid = !eligibility.welcomeFreeAvailable
+  const submitLabel = submissionStage === 'requesting-upload'
+    ? '正在申请上传凭证…'
+    : submissionStage === 'uploading'
+      ? '正在上传 PDF…'
+      : submissionStage === 'completing-upload'
+        ? '正在核验 PDF…'
+        : submissionStage === 'creating-request'
+          ? '正在确认申请…'
+          : isPaid
+            ? `确认并获取支付二维码 · ${formatCents(eligibility.priceCents)}`
+            : '确认提交本次免费精修'
 
   return (
     <div className="space-y-5 rounded-2xl border border-slate-200 bg-white px-4 py-5 sm:px-5">
       <div>
+        <h3 className="text-base font-semibold text-slate-950">选择简历 PDF</h3>
+        <p className="mt-1 text-sm leading-6 text-slate-500">仅支持不超过 10MB 的 PDF。文件会直接上传到平台的私有 OSS，不会公开，也不能指定外部链接或收件人。</p>
+        <label htmlFor="resume-review-pdf" className="mt-3 block text-sm font-medium text-slate-700">PDF 文件</label>
+        <input
+          id="resume-review-pdf"
+          type="file"
+          accept=".pdf,application/pdf"
+          onChange={onPdfFileChange}
+          disabled={submitting || validatingPdf}
+          className="mt-2 block min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-primary-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary-700 hover:file:bg-primary-100 disabled:cursor-not-allowed disabled:opacity-50"
+        />
+        {validatingPdf ? (
+          <p className="mt-2 text-xs font-medium text-blue-700" role="status">正在校验 PDF 格式并计算 SHA-256…</p>
+        ) : selectedPdf ? (
+          <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium text-emerald-950" title={selectedPdf.name}>{selectedPdf.name}</p>
+              <p className="mt-1 text-xs text-emerald-700">{formatFileSize(selectedPdf.size)} · 已通过 PDF 格式校验</p>
+            </div>
+            <button
+              type="button"
+              onClick={onRemovePdf}
+              disabled={submitting}
+              className="shrink-0 rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-xs font-medium text-emerald-800 transition hover:bg-emerald-100 disabled:opacity-50"
+            >
+              移除
+            </button>
+          </div>
+        ) : (
+          <p className="mt-2 text-xs text-slate-500">提交前必须先选择一份 PDF。</p>
+        )}
+      </div>
+
+      <div>
         <h3 className="text-base font-semibold text-slate-950">联系邮箱</h3>
-        <p className="mt-1 text-sm leading-6 text-slate-500">用于二哥联系你；简历 PDF 只由服务端发送到平台固定审阅邮箱，页面不接受附件、链接或自定义收件人。</p>
+        <p className="mt-1 text-sm leading-6 text-slate-500">用于二哥联系你；核验通过的 PDF 只会发送到平台固定人工审阅邮箱。</p>
       </div>
 
       <div>
@@ -857,7 +797,7 @@ function ApplicationForm({
             onChange={(event) => onManualReviewConsentChange(event.target.checked)}
             className="mt-1 h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
           />
-          <span className="text-sm leading-6 text-slate-700">我同意将当前简历的不可变快照交给二哥进行人工审阅。</span>
+          <span className="text-sm leading-6 text-slate-700">我同意将本次选择并确认的 PDF 交给二哥进行人工审阅。</span>
         </label>
         <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 px-3 py-3 transition hover:border-primary-200">
           <input
@@ -866,23 +806,23 @@ function ApplicationForm({
             onChange={(event) => onEmailDeliveryConsentChange(event.target.checked)}
             className="mt-1 h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
           />
-          <span className="text-sm leading-6 text-slate-700">我同意由服务端生成 PDF，并发送到平台预设的固定人工审阅邮箱；邮件发出后无法远程召回。</span>
+          <span className="text-sm leading-6 text-slate-700">我同意将 PDF 直传到平台私有 OSS，并由服务端核验后发送到预设的固定人工审阅邮箱；邮件发出后无法远程召回。</span>
         </label>
       </fieldset>
 
-      {!hasResumeContent ? (
-        <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800">请先完善至少一个简历模块。</p>
+      {!selectedPdf && !validatingPdf ? (
+        <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800">请先选择并校验一份 PDF。</p>
       ) : null}
 
       <button
         type="button"
         onClick={onSubmit}
-        disabled={submitting || !hasResumeContent}
+        disabled={submitting || validatingPdf || !selectedPdf}
         className="min-h-12 w-full rounded-xl bg-primary-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
       >
         {submitLabel}
       </button>
-      <p className="text-center text-xs leading-5 text-slate-500">点击后先等待全部自动保存成功；保存失败时不会创建快照、扣减次数或生成订单。</p>
+      <p className="text-center text-xs leading-5 text-slate-500">只有 PDF 上传并通过服务端核验后才会创建申请；上传或核验失败不会扣减次数或生成订单。</p>
     </div>
   )
 }
@@ -925,7 +865,7 @@ function RequestStatusPanel({ request, refreshing, onRefresh, onStartNext }: Req
               <img src={request.qrCodeDataUrl} alt="本次人工精修微信支付二维码" className="mx-auto h-56 w-56 rounded-2xl border border-slate-200 bg-white p-2 object-contain shadow-sm" />
               <p className="mt-4 text-sm font-medium text-slate-900">请使用微信扫一扫支付</p>
               <p className="mt-1 text-3xl font-bold tracking-tight text-slate-950">{formatCents(request.priceCents)}</p>
-              <p className="mt-2 text-xs leading-5 text-slate-500">支付有效期至 {formatServerDate(request.paymentExpiresAt)}。每笔订单只对应当前快照。</p>
+              <p className="mt-2 text-xs leading-5 text-slate-500">支付有效期至 {formatServerDate(request.paymentExpiresAt)}。每笔订单只对应当前确认的 PDF。</p>
             </div>
           ) : (
             <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-4 text-sm leading-6 text-blue-800">支付二维码生成中，请先刷新本单状态，不要重复提交。</div>
@@ -948,7 +888,7 @@ function RequestStatusPanel({ request, refreshing, onRefresh, onStartNext }: Req
             {request.entitlementType === 'WELCOME_FREE'
               ? '首次免费'
               : request.entitlementType === 'FOLLOW_REWARD'
-                ? '公众号关注奖励'
+                ? '历史免费权益（已停用）'
                 : `独立付费 ${formatCents(request.priceCents)}`}
           </dd>
         </div>

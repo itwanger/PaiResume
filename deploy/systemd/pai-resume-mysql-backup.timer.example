@@ -1,0 +1,12 @@
+[Unit]
+Description=Run the PaiResume MySQL backup daily
+
+[Timer]
+OnCalendar=*-*-* 03:40:00 Asia/Shanghai
+RandomizedDelaySec=15m
+AccuracySec=1m
+Persistent=true
+Unit=pai-resume-mysql-backup.service
+
+[Install]
+WantedBy=timers.target

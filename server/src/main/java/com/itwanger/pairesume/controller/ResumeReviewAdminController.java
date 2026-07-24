@@ -61,14 +61,4 @@ public class ResumeReviewAdminController {
                 dto.getRefundReference(), dto.getReason()));
     }
 
-    @PostMapping("/follow-fallback-codes")
-    public Result<ResumeReviewFallbackCodeDTO> createFallbackCode(
-            @RequestParam(defaultValue = "24") int validHours) {
-        return Result.success(service.adminCreateFallbackCode(SecurityUtils.getCurrentUserId(), validHours));
-    }
-
-    @GetMapping("/follow-fallback-codes")
-    public Result<List<ResumeReviewFallbackCodeDTO>> listFallbackCodes() {
-        return Result.success(service.adminListFallbackCodes());
-    }
 }

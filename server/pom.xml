@@ -24,6 +24,7 @@
         <knife4j.version>4.5.0</knife4j.version>
         <wechatpay-java.version>0.2.17</wechatpay-java.version>
         <zxing.version>3.5.0</zxing.version>
+        <aliyun-oss.version>3.17.2</aliyun-oss.version>
     </properties>
 
     <dependencies>
@@ -101,6 +102,13 @@
             <groupId>com.google.zxing</groupId>
             <artifactId>javase</artifactId>
             <version>${zxing.version}</version>
+        </dependency>
+
+        <!-- Private object storage for direct resume-review PDF uploads -->
+        <dependency>
+            <groupId>com.aliyun.oss</groupId>
+            <artifactId>aliyun-sdk-oss</artifactId>
+            <version>${aliyun-oss.version}</version>
         </dependency>
 
         <!-- JWT -->

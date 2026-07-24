@@ -1,5 +1,7 @@
 package com.itwanger.pairesume.service.impl;
 
+import com.itwanger.pairesume.common.BusinessException;
+import com.itwanger.pairesume.common.ResultCode;
 import com.itwanger.pairesume.config.ResumeReviewProperties;
 import com.itwanger.pairesume.entity.ResumeReviewCreditLedger;
 import com.itwanger.pairesume.entity.ResumeReviewMailOutbox;
@@ -9,6 +11,7 @@ import com.itwanger.pairesume.mapper.ResumeReviewMailOutboxMapper;
 import com.itwanger.pairesume.mapper.ResumeReviewRequestMapper;
 import com.itwanger.pairesume.mapper.ResumeReviewAuditLogMapper;
 import com.itwanger.pairesume.service.MailService;
+import com.itwanger.pairesume.service.ResumeReviewObjectStorage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -16,6 +19,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -25,19 +29,21 @@ class ResumeReviewMailOutboxWorkerTest {
     @Mock private ResumeReviewRequestMapper requestMapper;
     @Mock private ResumeReviewCreditLedgerMapper ledgerMapper;
     @Mock private ResumeReviewAuditLogMapper auditMapper;
-    @Mock private ResumeReviewPdfRenderer pdfRenderer;
+    @Mock private ResumeReviewObjectStorage objectStorage;
     @Mock private MailService mailService;
     private ResumeReviewMailDeliveryService deliveryService;
+    private ResumeReviewProperties properties;
     private ResumeReviewMailOutbox outbox;
     private ResumeReviewRequest request;
     private ResumeReviewCreditLedger ledger;
 
     @BeforeEach
     void setUp() {
-        ResumeReviewProperties properties = new ResumeReviewProperties();
+        properties = new ResumeReviewProperties();
+        properties.setEnabled(true);
         properties.setRecipientEmail("review@paicoding.com");
         deliveryService = new ResumeReviewMailDeliveryService(outboxMapper, requestMapper, ledgerMapper, auditMapper,
-                pdfRenderer, mailService, properties);
+                objectStorage, mailService, properties);
         outbox = new ResumeReviewMailOutbox();
         outbox.setId(1L);
         outbox.setRequestId(2L);
@@ -48,18 +54,38 @@ class ResumeReviewMailOutboxWorkerTest {
         request.setRequestNo("RR1");
         request.setRequestStatus("EMAIL_PENDING");
         request.setContactEmail("contact@example.net");
-        request.setSnapshotJson("{}");
+        request.setPdfObjectKey("pairesume/resume-review/objects/test.pdf");
+        request.setPdfSizeBytes(1024L);
+        request.setPdfSha256("a".repeat(64));
         ledger = new ResumeReviewCreditLedger();
         ledger.setId(3L);
         ledger.setLedgerStatus("RESERVED");
-        when(outboxMapper.claim(1L)).thenReturn(1);
-        when(outboxMapper.selectByIdForUpdate(1L)).thenReturn(outbox);
-        when(requestMapper.selectByIdForUpdate(2L)).thenReturn(request);
+        lenient().when(outboxMapper.claim(1L)).thenReturn(1);
+        lenient().when(outboxMapper.selectByIdForUpdate(1L)).thenReturn(outbox);
+        lenient().when(requestMapper.selectByIdForUpdate(2L)).thenReturn(request);
+    }
+
+    @Test
+    void disabledFeatureNeitherPollsOutboxNorClaimsDirectDelivery() {
+        properties.setEnabled(false);
+        ResumeReviewMailOutboxWorker worker =
+                new ResumeReviewMailOutboxWorker(outboxMapper, deliveryService, properties);
+
+        worker.deliverDue();
+        BusinessException exception = org.junit.jupiter.api.Assertions.assertThrows(
+                BusinessException.class, () -> deliveryService.deliverOne(1L));
+
+        assertEquals(ResultCode.RESUME_REVIEW_DISABLED.getCode(), exception.getCode());
+        verify(outboxMapper, never()).selectDueIds();
+        verify(outboxMapper, never()).claim(anyLong());
+        verifyNoInteractions(objectStorage, mailService);
     }
 
     @Test
     void smtpAcceptanceAtomicallyMarksRequestAndCreditConsumed() {
-        when(pdfRenderer.render("{}")).thenReturn("%PDF-1.7".getBytes());
+        when(objectStorage.readVerifiedPdf(
+                request.getPdfObjectKey(), request.getPdfSizeBytes(), request.getPdfSha256()))
+                .thenReturn("%PDF-1.7".getBytes());
         when(ledgerMapper.selectByRequestForUpdate(2L)).thenReturn(ledger);
 
         deliveryService.deliverOne(1L);
@@ -74,7 +100,9 @@ class ResumeReviewMailOutboxWorkerTest {
 
     @Test
     void mailFailureSchedulesRetryWithoutConsumingCreditOrChangingRequest() {
-        when(pdfRenderer.render("{}")).thenReturn("%PDF-1.7".getBytes());
+        when(objectStorage.readVerifiedPdf(
+                request.getPdfObjectKey(), request.getPdfSizeBytes(), request.getPdfSha256()))
+                .thenReturn("%PDF-1.7".getBytes());
         doThrow(new IllegalStateException("smtp down")).when(mailService)
                 .sendResumeReview(anyString(), anyString(), anyString(), anyString(), any(), anyString());
 
@@ -83,5 +111,37 @@ class ResumeReviewMailOutboxWorkerTest {
         assertEquals("EMAIL_PENDING", request.getRequestStatus());
         assertEquals("FAILED", outbox.getOutboxStatus());
         verifyNoInteractions(ledgerMapper);
+    }
+
+    @Test
+    void invalidAttachmentStopsAutomaticRetriesForAdminIntervention() {
+        when(objectStorage.readVerifiedPdf(
+                request.getPdfObjectKey(), request.getPdfSizeBytes(), request.getPdfSha256()))
+                .thenThrow(new BusinessException(ResultCode.RESUME_REVIEW_UPLOAD_INVALID));
+
+        deliveryService.deliverOne(1L);
+
+        assertEquals("EMAIL_PENDING", request.getRequestStatus());
+        assertEquals("FAILED", outbox.getOutboxStatus());
+        assertEquals("ATTACHMENT_INVALID", outbox.getLastErrorType());
+        assertTrue(outbox.getNextAttemptAt().isAfter(
+                java.time.LocalDateTime.now().plusYears(9)));
+        verifyNoInteractions(ledgerMapper, mailService);
+    }
+
+    @Test
+    void exhaustedTransientRetriesStopUntilAdminRetriesOrReturnsRequest() {
+        outbox.setAttemptCount(10);
+        when(objectStorage.readVerifiedPdf(
+                request.getPdfObjectKey(), request.getPdfSizeBytes(), request.getPdfSha256()))
+                .thenThrow(new BusinessException(
+                        ResultCode.RESUME_REVIEW_STORAGE_UNAVAILABLE));
+
+        deliveryService.deliverOne(1L);
+
+        assertEquals("AUTOMATIC_RETRIES_EXHAUSTED", outbox.getLastErrorType());
+        assertTrue(outbox.getNextAttemptAt().isAfter(
+                java.time.LocalDateTime.now().plusYears(9)));
+        verifyNoInteractions(ledgerMapper, mailService);
     }
 }

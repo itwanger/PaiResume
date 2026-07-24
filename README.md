@@ -19,7 +19,7 @@ PaiResume 是一个面向中文简历场景的在线简历编辑器，采用前�
 - VIP 支持导出 PDF
 - 提供健康检查与就绪检查接口
 - 提供基础 SEO、CI 质量门禁以及 Nginx、systemd、备份恢复、回滚与生产预检材料
-- 人工简历精修：首次免费、第二次经“沉默王二”公众号关注验证免费一次、第三次及以后逐单付费
+- 人工简历精修：首次免费，第二次及以后逐单付费
 
 ## 技术栈
 
@@ -43,6 +43,7 @@ PaiResume 是一个面向中文简历场景的在线简历编辑器，采用前�
 - MyBatis-Plus
 - MySQL
 - Redis
+- 阿里云 OSS（仅用于人工精修 PDF 私有直传与保留）
 - JWT
 - Knife4j / OpenAPI
 - WebClient
@@ -117,7 +118,7 @@ mvn spring-boot:run
 
 说明：
 
-- 后端使用 Flyway 记录并执行版本化数据库迁移；全新空库和首次接入旧数据库都会从 V5 建立基线，再执行 `V6__ReconcilePaiResumeSchema` 创建或对齐基础结构，随后依次执行 V7 邀请码、V8 会员来源追踪/审计/异常撤销、V9 简历市场、V10 支付生命周期加固、V11 作者收益冻结/退款账务、V12 支付对账租约、V13 会员在线支付订单、V14 市场浏览量、V15 会员支付人工复核、V16 市场治理、V18 账号隐私/注销、V19 派聪明微信身份、V20 人工精修工作流和 V21 匿名邀请码领取凭证迁移。
+- 后端使用 Flyway 记录并执行版本化数据库迁移；全新空库和首次接入旧数据库都会从 V5 建立基线，再执行 `V6__ReconcilePaiResumeSchema` 创建或对齐基础结构，随后依次执行 V7 邀请码、V8 会员来源追踪/审计/异常撤销、V9 简历市场、V10 支付生命周期加固、V11 作者收益冻结/退款账务、V12 支付对账租约、V13 会员在线支付订单、V14 市场浏览量、V15 会员支付人工复核、V16 市场治理、V18 账号隐私/注销、V19 派聪明微信身份、V20 人工精修工作流、V21 匿名邀请码领取凭证、V22 关注奖励流程退役和 V23 人工精修 OSS 直传迁移。
 - 当 `APP_ENV=development` 时，后端启动后会自动确保存在一个测试账号，默认是 `test@example.com / Test123456`，可通过 `DEV_ACCOUNT_EMAIL` 和 `DEV_ACCOUNT_PASSWORD` 覆盖。
 - 同时会自动创建一个管理员账号：`admin@example.com / Admin123456`。
 - 生产环境必须为 Flyway 配置独立的 DDL 迁移账号；应用运行账号只授予业务表所需的最小权限。
@@ -151,12 +152,11 @@ npm run dev
 | `APP_ENV` | 运行环境，默认 `development` |
 | `APP_TIME_ZONE` | 固定为 `Asia/Shanghai`；JVM、Jackson 与 MySQL 会话统一使用该业务时区，其他值会拒绝启动 |
 | `APP_PUBLIC_URL` | 项目公网地址，默认 `https://resume.paicoding.com`；用于验证码邮件中的安全链接 |
-| `APP_PROJECT_ROOT` | 服务端 PDF 导出运行时所在的项目根目录；生产示例为 `/opt/pai-resume/current` |
 | `APP_CORS_ALLOWED_ORIGIN_PATTERNS` | 允许跨域来源 |
 | `SERVER_PORT` | 后端端口，默认 `8084` |
 | `MYSQL_HOST` / `MYSQL_PORT` / `MYSQL_DATABASE` / `MYSQL_USERNAME` / `MYSQL_PASSWORD` | MySQL 连接配置 |
 | `FLYWAY_ENABLED` / `FLYWAY_USERNAME` / `FLYWAY_PASSWORD` | Flyway 开关与独立迁移账号；生产迁移账号负责 DDL，业务账号使用最小权限 |
-| `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` | Redis 连接配置 |
+| `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` / `REDIS_DATABASE` | Redis 连接与逻辑库配置；生产与其他项目复用进程时必须使用独立逻辑库 |
 | `PAICONGMING_WECHAT_LOGIN_ENABLED` / `PAICONGMING_WECHAT_GATEWAY_BASE_URL` / `PAICONGMING_WECHAT_BRIDGE_SECRET` / `PAICONGMING_WECHAT_APP_ID` | 派聪明服务号扫码登录开关、paicoding 内部二维码网关、独立 HMAC 密钥和服务号 AppID；PaiResume 不保存 AppSecret/access_token |
 | `VIP_INVITE_RATE_LIMIT_WINDOW_SECONDS` / `VIP_INVITE_RATE_LIMIT_ACCOUNT_ATTEMPTS` / `VIP_INVITE_RATE_LIMIT_IP_ATTEMPTS` | 邀请码兑换窗口及账号/IP 尝试次数限制 |
 | `VIP_INVITE_CLAIM_TTL_SECONDS` / `VIP_INVITE_CLAIM_RETENTION_DAYS` | 未登录邀请码领取凭证的有效期与失败/过期记录保留期；默认分别为 `600` 秒和 `30` 天 |
@@ -178,8 +178,15 @@ npm run dev
 | `WECHAT_PAY_PRIVATE_KEY` / `WECHAT_PAY_MERCHANT_SERIAL_NUMBER` / `WECHAT_PAY_API_V3_KEY` | 微信支付 API v3 商户密钥、证书序列号与 API v3 Key；只配置在后端 |
 | `WECHAT_PAY_NOTIFY_URL` | 微信支付回调公网 HTTPS 地址，必须精确指向 `/api/public/payments/wechat/notify` |
 | `RESUME_REVIEW_RECIPIENT_EMAIL` / `RESUME_REVIEW_MESSAGE_ID_DOMAIN` | 人工精修服务的固定私密收件箱和稳定邮件 Message-ID 域；生产必填 |
-| `RESUME_REVIEW_FOLLOW_OFFICIAL_ACCOUNT_NAME` / `RESUME_REVIEW_FOLLOW_QR_CODE_URL` / `RESUME_REVIEW_FOLLOW_BRIDGE_ENABLED` / `RESUME_REVIEW_FOLLOW_BRIDGE_HMAC_SECRET` | 独立“沉默王二”公众号关注奖励桥；不能拿派聪明扫码登录状态代替 |
-| `RESUME_REVIEW_PAID_ACCEPT_NEW_ORDERS` / `RESUME_REVIEW_PAYMENT_ACCEPTANCE_CONFIRMED` | 第三次及以后人工精修的新付费单开关与生产验收确认位；价格由管理后台配置，默认 0 时后端拒绝下单 |
+| `RESUME_REVIEW_MAIL_OUTBOX_MAX_ATTEMPTS` | 人工精修邮件自动投递的最大尝试次数，默认 `10`，生产允许 `1` 至 `50`；确定性附件校验失败不继续自动重试 |
+| `RESUME_REVIEW_UPLOAD_RATE_LIMIT_WINDOW_SECONDS` / `RESUME_REVIEW_UPLOAD_RATE_LIMIT_ACCOUNT_ATTEMPTS` / `RESUME_REVIEW_UPLOAD_RATE_LIMIT_IP_ATTEMPTS` | 人工精修上传授权与完成冻结的限流窗口、账号预算和 IP 预算；默认 `900` 秒、每账号 `20` 次、每 IP `200` 次，`authorize` / `complete` 分动作计数且 IP 预算不得小于账号预算 |
+| `RESUME_REVIEW_OSS_ENABLED` / `RESUME_REVIEW_OSS_ENDPOINT` / `RESUME_REVIEW_OSS_BUCKET` | 人工精修 PDF 私有 OSS 开关、HTTPS 地域 endpoint 与私有 Bucket；普通 PDF 导出不使用 OSS |
+| `RESUME_REVIEW_OSS_ACCESS_KEY_ID` / `RESUME_REVIEW_OSS_ACCESS_KEY_SECRET` | 应用 RAM 凭据，用于签发短期上传策略以及校验、复制、读取专用前缀对象；二者不得预置进前端变量或日志，Secret 永不返回浏览器，ID 仅作为短期 POST 表单的非秘密字段按需返回 |
+| `RESUME_REVIEW_OSS_STAGING_PREFIX` / `RESUME_REVIEW_OSS_OBJECT_PREFIX` | 待核验上传与已冻结对象的两个独立、互不包含的相对前缀；仅允许字母、数字、`/`、`_`、`-`，必须以 `/` 结尾且不能含 `//` |
+| `RESUME_REVIEW_OSS_UPLOAD_URL_TTL_MINUTES` / `RESUME_REVIEW_OSS_READY_TTL_MINUTES` / `RESUME_REVIEW_OSS_MAX_PDF_BYTES` / `RESUME_REVIEW_OSS_RETENTION_DAYS` | 短期上传策略、已核验票据、单文件大小和冻结对象保留期；默认分别为 10 分钟、30 分钟、10 MiB、30 天 |
+| `RESUME_REVIEW_OSS_MAX_CONCURRENT_FINALIZATIONS` | OSS 完成冻结的全局并发上限，默认 `4`，生产允许 `1` 至 `16`；超出后立即返回 503，不排队占用数据库连接 |
+| `RESUME_REVIEW_OSS_*_CONFIRMED` | 仅供生产预检的四个确认位；私有桶、精确 CORS、生命周期和 RAM 最小权限完成真实核验并留证后才可设为 `true` |
+| `RESUME_REVIEW_PAID_ACCEPT_NEW_ORDERS` / `RESUME_REVIEW_PAYMENT_ACCEPTANCE_CONFIRMED` | 第二次及以后人工精修的新付费单开关与生产验收确认位；价格由管理后台配置，默认 0 时后端拒绝下单 |
 
 说明：
 
@@ -227,11 +234,15 @@ npm run dev
 
 ### 人工简历精修
 
-- 编辑页提交前会强制完成尚未落盘的自动保存，再由服务端创建不可变快照并渲染 PDF；浏览器不能指定收件地址、附件 URL 或本地路径。
-- 用户需要单独验证联系邮箱，并分别确认人工处理授权与邮件发送授权。PDF 只发送到服务端配置的固定私密收件箱；SMTP 接受后副本无法远程召回。
-- 第一份人工精修免费；第一份邮件被 SMTP 接受时才核销机会，发送失败不扣次数。第二份必须通过独立“沉默王二”公众号桥领取一次关注奖励，不能用派聪明登录关注状态代替。
-- 第三份及以后每份独立下单。服务端只读取管理后台保存的价格；默认价格为 0、独立新单开关默认关闭，任一条件不满足都拒绝创建付费单。
-- 后台可处理邮件重试、接受、完成、退回、退款确认、审计记录和关注桥故障兜底码。已发送的免费单即使退回也不恢复次数；付费退回必须先进入退款复核。
+- 普通“导出 PDF”完全由浏览器使用当前预览数据生成并下载，不经过后端、OSS 或邮件链路，生产环境不需要 Node/PDF worker。
+- 申请人工精修时，用户必须自行选择最终确认的 PDF。浏览器先计算 SHA-256，再取得只允许当前随机 staging 对象、PDF 类型和限定大小的短期上传策略，直接把文件提交到私有 OSS；浏览器只会收到 POST 表单所需的非秘密 AccessKey ID，永远拿不到 AccessKey Secret，也不能指定对象键、外部 URL、本地路径或收件人。
+- 上传完成后，服务端先从 OSS 流式读取 staging 一次，校验大小、类型、完整 SHA-256 与 `%PDF-`，再按源 ETag 在 OSS 内复制到随机冻结对象；全局最多同时执行 `RESUME_REVIEW_OSS_MAX_CONCURRENT_FINALIZATIONS` 路，超出立即返回 503，不排队占用数据库连接。申请只绑定服务端记录的冻结对象键、ETag、文件名、大小和 SHA-256，后续编辑不会覆盖本次文件。staging 不在业务事务中立即删除，以便 OSS 复制成功但数据库事务失败时安全重试，最迟由独立短生命周期规则清理。
+- 邮件 outbox 保持单 worker 顺序处理。每次投递前，服务端从私有 OSS 把不超过配置上限的冻结对象临时读取一次到 JVM 内存并再次校验完整 SHA-256，只发送到配置好的固定私密收件箱，不写服务器本地 PDF。SMTP 接受后副本无法远程召回。
+- 用户需要单独验证联系邮箱，并分别确认人工处理授权、OSS 直传与固定邮箱发送授权。
+- 第一份人工精修免费；第一份邮件被 SMTP 接受时才核销机会，发送失败不扣次数。
+- 第二份及以后每份独立下单。服务端只读取管理后台保存的价格；默认价格为 0、独立新单开关默认关闭，任一条件不满足都拒绝创建付费单。
+- 邮件自动投递遇到确定性附件校验失败时立即停止，其他 OSS/SMTP 故障达到 `RESUME_REVIEW_MAIL_OUTBOX_MAX_ATTEMPTS` 后停止，避免永久故障无限重试；管理员仍可在核明原因后手动重试或退回。
+- 后台可处理邮件重试、接受、完成、退回、退款确认和审计记录。已发送的免费单即使退回也不恢复次数；付费退回必须先进入退款复核。
 
 ### 权限规则
 
@@ -246,7 +257,7 @@ npm run dev
 | PDF 导出 | 不支持 | 支持 |
 | 查看完整优质简历 | 不支持 | 支持 |
 
-AI、PDF 导出和完整优质简历权限必须由服务端实时校验，不能只依赖前端隐藏按钮。会员到期或管理员撤销权益后，下一次请求立即失去对应权限，无需等待重新登录。
+AI 与完整优质简历权限由服务端实时校验。PDF 文件本身在浏览器生成，不存在可绕过的服务端渲染接口；前端仍须基于服务端返回的当前会员状态决定是否展示导出能力。
 
 ### 简历编辑
 
@@ -260,7 +271,7 @@ AI、PDF 导出和完整优质简历权限必须由服务端实时校验，不�
 
 - 当前已启用：Markdown / TXT 导入
 - 当前未启用：Word 导入、PDF 导入
-- 有效 VIP 已支持 PDF 导出，导出文件名会尽量根据姓名、学校、求职意向生成
+- 有效 VIP 已支持浏览器本地生成并下载 PDF，导出文件名会尽量根据姓名、学校、求职意向生成；普通导出不会上传到 OSS
 
 ### 优质简历与会员
 
@@ -319,9 +330,10 @@ AI、PDF 导出和完整优质简历权限必须由服务端实时校验，不�
 ### 人工精修接口
 
 - `GET /api/resume-reviews/eligibility` / `GET /api/resume-reviews/current`：查询下一次权益和恢复当前活动申请
-- `POST /api/resume-reviews/contact-email/code` / `POST /api/resume-reviews`：验证联系邮箱并创建不可变精修快照
-- `POST /api/resume-reviews/follow-challenges`：生成“沉默王二”关注奖励挑战；可信桥回调为 `/api/public/resume-reviews/follow-events`
-- `POST /api/resume-reviews/{requestNo}/payment/refresh`：第三次及以后付费单主动查单
+- `POST /api/resume-reviews/uploads`：为当前账号、当前简历和声明的 PDF 元数据创建短期、单对象 OSS 直传凭证
+- `POST /api/resume-reviews/uploads/{uploadNo}/complete`：由服务端核验 staging 对象并在 OSS 内冻结，成功后返回 `READY`
+- `POST /api/resume-reviews/contact-email/code` / `POST /api/resume-reviews`：验证联系邮箱，并使用同账号、同简历且未过期的 `uploadNo` 创建人工精修申请
+- `POST /api/resume-reviews/{requestNo}/payment/refresh`：第二次及以后付费单主动查单
 - `GET /api/admin/resume-reviews` 及其 `accept`、`complete`、`return`、`mail/retry`、`refund/confirm` 子接口：后台人工处理与退款留痕
 
 ### 简历接口
@@ -412,7 +424,7 @@ AI、PDF 导出和完整优质简历权限必须由服务端实时校验，不�
 ## 上线材料
 
 - [deploy/README.md](deploy/README.md)：三阶段开关、发布顺序、运行时资产、回滚与外部人工验收
-- `scripts/production-preflight.sh`：校验密钥、数据库 TLS、SMTP、法律披露、待发布运行时资产，并按 `free`、`membership`、`marketplace` 三阶段强制核对支付、市场及人工验收开关
+- `scripts/production-preflight.sh`：校验密钥、数据库 TLS、SMTP、OSS 参数与四项配置确认位、法律披露、最小发布资产，并按 `free`、`membership`、`marketplace` 三阶段强制核对支付、市场及人工验收开关
 - `scripts/backup-mysql.sh` / `scripts/restore-mysql.sh`：带 SHA-256 完整性校验的备份与显式确认恢复
 - `scripts/switch-release.sh` / `scripts/smoke-production.sh`：版本切换与上线后冒烟检查
 - `.github/workflows/ci.yml`：前端 lint/构建和后端完整测试

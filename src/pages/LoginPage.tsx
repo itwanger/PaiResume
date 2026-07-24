@@ -310,7 +310,7 @@ export default function LoginPage() {
           </div>
 
           <div className="mt-3 border-l-2 border-amber-300 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
-            本二维码仅用于「派聪明」扫码登录；「沉默王二」公众号的简历精修机会需在申请精修时另行验证。
+            本二维码仅用于「派聪明」扫码登录。
           </div>
 
           <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-3 text-sm leading-6 text-amber-900">

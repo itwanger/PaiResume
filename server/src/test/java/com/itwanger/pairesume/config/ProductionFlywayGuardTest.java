@@ -9,7 +9,7 @@ class ProductionFlywayGuardTest {
 
     @Test
     void environmentMustBeExplicitBeforeMigration() {
-        var guard = new ProductionFlywayGuard("unset", "root", "root", "password");
+        var guard = new ProductionFlywayGuard("unset", "root", "root", "password", false);
 
         assertThrows(IllegalStateException.class, guard::validateBeforeMigration);
     }
@@ -20,7 +20,8 @@ class ProductionFlywayGuardTest {
                 "production",
                 "pai_resume_app",
                 "pai_resume_app",
-                "strong-password"
+                "strong-password",
+                false
         );
 
         assertThrows(IllegalStateException.class, guard::validateBeforeMigration);
@@ -32,7 +33,21 @@ class ProductionFlywayGuardTest {
                 "production",
                 "pai_resume_app",
                 "pai_resume_migrator",
-                "strong-password"
+                "strong-password",
+                false
+        );
+
+        assertDoesNotThrow(guard::validateBeforeMigration);
+    }
+
+    @Test
+    void productionAllowsAnExplicitlyConfirmedSharedAccount() {
+        var guard = new ProductionFlywayGuard(
+                "production",
+                "root",
+                "root",
+                "strong-password",
+                true
         );
 
         assertDoesNotThrow(guard::validateBeforeMigration);

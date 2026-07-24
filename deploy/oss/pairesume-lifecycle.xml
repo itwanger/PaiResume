@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LifecycleConfiguration>
+  <Rule>
+    <ID>pairesume-review-staging-expire</ID>
+    <Prefix>pairesume/resume-review/staging/</Prefix>
+    <Status>Enabled</Status>
+    <Expiration>
+      <Days>1</Days>
+    </Expiration>
+  </Rule>
+  <Rule>
+    <ID>pairesume-review-frozen-expire</ID>
+    <Prefix>pairesume/resume-review/objects/</Prefix>
+    <Status>Enabled</Status>
+    <Expiration>
+      <Days>30</Days>
+    </Expiration>
+  </Rule>
+</LifecycleConfiguration>

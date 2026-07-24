@@ -9,6 +9,8 @@ public class ResumeReviewAdminRequestDTO {
     private Long resumeId;
     private String contactEmail;
     private String contentHash;
+    private String pdfFileName;
+    private Long pdfSizeBytes;
     private String entitlementType;
     private String requestStatus;
     private Integer priceCents;

@@ -7,9 +7,15 @@ server:
 
 app:
   environment: ${APP_ENV:unset}
-  project-root: ${APP_PROJECT_ROOT:}
   # Business DATETIME values use one fixed wall-clock zone on every node.
   time-zone: ${APP_TIME_ZONE:Asia/Shanghai}
+  database:
+    # Reusing one production account is an explicit small-deployment exception.
+    shared-account-confirmed: ${MYSQL_SHARED_ACCOUNT_CONFIRMED:false}
+  redis:
+    # Applied by the StringRedisTemplate key serializer to regular operations
+    # and Lua KEYS. Values and hash fields keep the normal string serializer.
+    key-prefix: "${REDIS_KEY_PREFIX:pairesume:dev:}"
   public-url: ${APP_PUBLIC_URL:https://resume.paicoding.com}
   auth:
     refresh-cookie-name: ${REFRESH_COOKIE_NAME:pai_refresh}
@@ -70,16 +76,36 @@ app:
     report-daily-ip-limit: ${MARKETPLACE_REPORT_DAILY_IP_LIMIT:10}
     report-duplicate-window-hours: ${MARKETPLACE_REPORT_DUPLICATE_WINDOW_HOURS:24}
   resume-review:
-    # 只控制第三次起的人工精修付费新单；回调、查单和邮件重试始终保持可用。
+    # 人工精修总开关默认关闭。关闭时不接受首次免费或付费新请求，
+    # 但历史查单、退款、支付回调和对账继续工作。
+    enabled: ${RESUME_REVIEW_ENABLED:false}
+    # 只控制第二次及以后的人工精修付费新单；历史回调、查单和对账不受影响。
     paid-accept-new-orders: ${RESUME_REVIEW_PAID_ACCEPT_NEW_ORDERS:false}
     payment-order-expire-minutes: ${RESUME_REVIEW_PAYMENT_ORDER_EXPIRE_MINUTES:30}
     recipient-email: ${RESUME_REVIEW_RECIPIENT_EMAIL:}
     message-id-domain: ${RESUME_REVIEW_MESSAGE_ID_DOMAIN:resume.paicoding.com}
-    follow-official-account-name: ${RESUME_REVIEW_FOLLOW_OFFICIAL_ACCOUNT_NAME:沉默王二}
-    follow-qr-code-url: ${RESUME_REVIEW_FOLLOW_QR_CODE_URL:}
-    follow-bridge-enabled: ${RESUME_REVIEW_FOLLOW_BRIDGE_ENABLED:false}
-    follow-bridge-hmac-secret: ${RESUME_REVIEW_FOLLOW_BRIDGE_HMAC_SECRET:}
-    follow-challenge-expire-minutes: ${RESUME_REVIEW_FOLLOW_CHALLENGE_EXPIRE_MINUTES:30}
+    mail-outbox-max-attempts: ${RESUME_REVIEW_MAIL_OUTBOX_MAX_ATTEMPTS:10}
+    upload-rate-limit:
+      window-seconds: ${RESUME_REVIEW_UPLOAD_RATE_LIMIT_WINDOW_SECONDS:900}
+      account-attempt-limit: ${RESUME_REVIEW_UPLOAD_RATE_LIMIT_ACCOUNT_ATTEMPTS:20}
+      ip-attempt-limit: ${RESUME_REVIEW_UPLOAD_RATE_LIMIT_IP_ATTEMPTS:200}
+    oss:
+      enabled: ${RESUME_REVIEW_OSS_ENABLED:false}
+      endpoint: ${RESUME_REVIEW_OSS_ENDPOINT:}
+      bucket: ${RESUME_REVIEW_OSS_BUCKET:}
+      access-key-id: ${RESUME_REVIEW_OSS_ACCESS_KEY_ID:}
+      access-key-secret: ${RESUME_REVIEW_OSS_ACCESS_KEY_SECRET:}
+      staging-prefix: ${RESUME_REVIEW_OSS_STAGING_PREFIX:pairesume/resume-review/staging/}
+      object-prefix: ${RESUME_REVIEW_OSS_OBJECT_PREFIX:pairesume/resume-review/objects/}
+      upload-url-ttl-minutes: ${RESUME_REVIEW_OSS_UPLOAD_URL_TTL_MINUTES:10}
+      ready-ttl-minutes: ${RESUME_REVIEW_OSS_READY_TTL_MINUTES:30}
+      max-pdf-bytes: ${RESUME_REVIEW_OSS_MAX_PDF_BYTES:10485760}
+      max-concurrent-finalizations: ${RESUME_REVIEW_OSS_MAX_CONCURRENT_FINALIZATIONS:4}
+      retention-days: ${RESUME_REVIEW_OSS_RETENTION_DAYS:30}
+      private-bucket-confirmed: ${RESUME_REVIEW_OSS_PRIVATE_BUCKET_CONFIRMED:false}
+      cors-confirmed: ${RESUME_REVIEW_OSS_CORS_CONFIRMED:false}
+      lifecycle-confirmed: ${RESUME_REVIEW_OSS_LIFECYCLE_CONFIRMED:false}
+      ram-policy-confirmed: ${RESUME_REVIEW_OSS_RAM_POLICY_CONFIRMED:false}
   payment:
     provider: ${PAYMENT_PROVIDER:disabled}
     # Deprecated fail-closed compatibility switch. It must stay false; use the
@@ -137,6 +163,7 @@ spring:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
   mail:
     host: ${MAIL_HOST:smtp.qq.com}
     port: ${MAIL_PORT:587}

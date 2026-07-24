@@ -1,6 +1,5 @@
 package com.itwanger.pairesume.service.impl;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.itwanger.pairesume.common.BusinessException;
 import com.itwanger.pairesume.common.ResultCode;
 import com.itwanger.pairesume.config.ResumeReviewProperties;
@@ -8,6 +7,9 @@ import com.itwanger.pairesume.dto.CreateResumeReviewRequestDTO;
 import com.itwanger.pairesume.entity.*;
 import com.itwanger.pairesume.mapper.*;
 import com.itwanger.pairesume.payment.MarketplacePaymentGateway;
+import com.itwanger.pairesume.payment.PaymentProviderState;
+import com.itwanger.pairesume.payment.PaymentPrepayResult;
+import com.itwanger.pairesume.payment.ProviderPaymentResult;
 import com.itwanger.pairesume.payment.QrCodeDataUrlGenerator;
 import com.itwanger.pairesume.service.*;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,18 +17,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.ValueOperations;
 
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
-import java.time.Instant;
 import java.time.LocalDateTime;
-import java.util.HexFormat;
 import java.util.List;
-import com.itwanger.pairesume.payment.PaymentProviderState;
-import com.itwanger.pairesume.payment.ProviderPaymentResult;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -37,22 +30,16 @@ class ResumeReviewServiceImplTest {
     @Mock private ResumeReviewRequestMapper requestMapper;
     @Mock private ResumeReviewCreditLedgerMapper ledgerMapper;
     @Mock private ResumeReviewQuotaIdentityMapper quotaIdentityMapper;
-    @Mock private ResumeReviewFollowRewardMapper rewardMapper;
-    @Mock private ResumeReviewFollowChallengeMapper challengeMapper;
-    @Mock private ResumeReviewFollowFallbackCodeMapper fallbackCodeMapper;
     @Mock private ResumeReviewMailOutboxMapper outboxMapper;
     @Mock private ResumeReviewAuditLogMapper auditMapper;
     @Mock private UserMapper userMapper;
     @Mock private UserAuthIdentityMapper identityMapper;
-    @Mock private ResumeService resumeService;
-    @Mock private ResumeModuleService moduleService;
+    @Mock private ResumeReviewUploadService uploadService;
     @Mock private PlatformConfigService platformConfigService;
     @Mock private VerificationCodeService verificationCodeService;
     @Mock private MailService mailService;
     @Mock private MarketplacePaymentGateway paymentGateway;
     @Mock private QrCodeDataUrlGenerator qrCodeGenerator;
-    @Mock private StringRedisTemplate redisTemplate;
-    @Mock private ValueOperations<String, String> valueOperations;
 
     private ResumeReviewProperties properties;
     private ResumeReviewServiceImpl service;
@@ -60,16 +47,68 @@ class ResumeReviewServiceImplTest {
     @BeforeEach
     void setUp() {
         properties = new ResumeReviewProperties();
-        service = new ResumeReviewServiceImpl(requestMapper, ledgerMapper, quotaIdentityMapper, rewardMapper,
-                challengeMapper, fallbackCodeMapper, outboxMapper, auditMapper, userMapper,
-                identityMapper, resumeService, moduleService, platformConfigService,
+        properties.setEnabled(true);
+        service = new ResumeReviewServiceImpl(requestMapper, ledgerMapper, quotaIdentityMapper,
+                outboxMapper, auditMapper, userMapper,
+                identityMapper, uploadService, platformConfigService,
                 verificationCodeService, mailService, paymentGateway, qrCodeGenerator,
-                properties, new ObjectMapper(), redisTemplate);
+                properties);
         UserAuthIdentity identity = new UserAuthIdentity();
         identity.setProvider("WECHAT_SERVICE");
         identity.setPrincipal("wx-app:openid-stable");
         identity.setStatus(1);
         lenient().when(identityMapper.selectList(any())).thenReturn(List.of(identity));
+        ResumeReviewUpload readyUpload = new ResumeReviewUpload();
+        readyUpload.setId(99L);
+        readyUpload.setUploadNo("RU-upload");
+        readyUpload.setUserId(7L);
+        readyUpload.setResumeId(1L);
+        readyUpload.setFinalObjectKey("pairesume/resume-review/objects/test.pdf");
+        readyUpload.setObjectEtag("etag");
+        readyUpload.setOriginalFileName("resume.pdf");
+        readyUpload.setSizeBytes(1024L);
+        readyUpload.setSha256("a".repeat(64));
+        readyUpload.setUploadStatus("READY");
+        lenient().when(uploadService.requireReadyForCreate(
+                eq(7L), eq("RU-upload"), eq(1L))).thenReturn(readyUpload);
+        lenient().doAnswer(invocation -> {
+            invocation.<ResumeReviewRequest>getArgument(0).setId(123L);
+            return 1;
+        }).when(requestMapper).insert(any(ResumeReviewRequest.class));
+    }
+
+    @Test
+    void disabledFeatureAdvertisesNoEntitlementWithoutReadingQuotaOrPrice() {
+        properties.setEnabled(false);
+
+        var eligibility = service.eligibility(7L);
+
+        assertFalse(eligibility.isEnabled());
+        assertFalse(eligibility.isWelcomeFreeAvailable());
+        assertFalse(eligibility.isPaidReviewAvailable());
+        assertNull(eligibility.getNextEntitlement());
+        assertEquals(0, eligibility.getPriceCents());
+        verifyNoInteractions(ledgerMapper, quotaIdentityMapper, platformConfigService, paymentGateway);
+    }
+
+    @Test
+    void disabledFeatureRejectsAllNewRequestAndReviewMailWrites() {
+        properties.setEnabled(false);
+
+        BusinessException contactCode = assertThrows(BusinessException.class,
+                () -> service.sendContactVerificationCode(
+                        7L, "contact@example.net", "127.0.0.1"));
+        BusinessException create = assertThrows(BusinessException.class,
+                () -> service.create(7L, createDto(), "127.0.0.1"));
+        BusinessException retryMail = assertThrows(BusinessException.class,
+                () -> service.adminRetryMail("RR1", 99L, "retry"));
+
+        assertEquals(ResultCode.RESUME_REVIEW_DISABLED.getCode(), contactCode.getCode());
+        assertEquals(ResultCode.RESUME_REVIEW_DISABLED.getCode(), create.getCode());
+        assertEquals(ResultCode.RESUME_REVIEW_DISABLED.getCode(), retryMail.getCode());
+        verifyNoInteractions(verificationCodeService, mailService, uploadService, outboxMapper);
+        verify(requestMapper, never()).selectIdempotent(anyLong(), anyString());
+        verify(requestMapper, never()).selectByRequestNoForUpdate(anyString());
     }
 
     @Test
@@ -80,6 +119,7 @@ class ResumeReviewServiceImplTest {
 
         var eligibility = service.eligibility(7L);
 
+        assertTrue(eligibility.isEnabled());
         assertTrue(eligibility.isWelcomeFreeAvailable());
         assertEquals("WELCOME_FREE", eligibility.getNextEntitlement());
         assertFalse(eligibility.isPaidReviewAvailable());
@@ -124,30 +164,104 @@ class ResumeReviewServiceImplTest {
     }
 
     @Test
-    void secondRequestCannotSkipFollowRewardAndPayDirectly() {
+    void eligibilityRoutesSecondAndLaterRequestsDirectlyToPayment() {
         when(ledgerMapper.selectActiveEntitlement(startsWith("WELCOME:")))
                 .thenReturn(new ResumeReviewCreditLedger());
+        PlatformConfig config = new PlatformConfig();
+        config.setResumeReviewPriceCents(8800);
+        when(platformConfigService.getConfigEntity()).thenReturn(config);
+        when(paymentGateway.provider()).thenReturn("wechat");
+        properties.setPaidAcceptNewOrders(true);
+
+        var eligibility = service.eligibility(7L);
+
+        assertFalse(eligibility.isWelcomeFreeAvailable());
+        assertTrue(eligibility.isPaidReviewAvailable());
+        assertEquals("PAID", eligibility.getNextEntitlement());
+        assertEquals(8800, eligibility.getPriceCents());
+    }
+
+    @Test
+    void secondRequestCreatesAnIndependentPaidOrder() {
+        when(ledgerMapper.selectActiveEntitlement(startsWith("WELCOME:")))
+                .thenReturn(new ResumeReviewCreditLedger());
+        PlatformConfig config = new PlatformConfig();
+        config.setResumeReviewPriceCents(8800);
+        when(platformConfigService.getConfigEntity()).thenReturn(config);
         User user = new User();
         user.setId(7L);
         user.setStatus(1);
         when(userMapper.selectByIdForUpdate(7L)).thenReturn(user);
-        CreateResumeReviewRequestDTO dto = createDto();
+        when(paymentGateway.provider()).thenReturn("wechat");
+        when(verificationCodeService.consumeResumeReviewContactCode(
+                "contact@example.net", "123456"))
+                .thenReturn(VerificationCodeService.ConsumeResult.VERIFIED);
+        when(paymentGateway.createNativeOrder(any())).thenReturn(new PaymentPrepayResult(
+                "wechat", "prepay-1", "weixin://wxpay/bizpayurl?pr=test",
+                LocalDateTime.now().plusMinutes(30)));
+        when(qrCodeGenerator.generate(anyString())).thenReturn("data:image/png;base64,test");
+        properties.setPaidAcceptNewOrders(true);
 
-        BusinessException exception = assertThrows(BusinessException.class,
-                () -> service.create(7L, dto, "127.0.0.1"));
+        var created = service.create(7L, createDto(), "127.0.0.1");
 
-        assertEquals(ResultCode.RESUME_REVIEW_FOLLOW_REQUIRED.getCode(), exception.getCode());
-        verifyNoInteractions(paymentGateway, verificationCodeService, resumeService);
+        assertEquals("PAID", created.getEntitlementType());
+        assertEquals(8800, created.getPriceCents());
+        assertEquals("AWAITING_PAYMENT", created.getRequestStatus());
+        assertEquals("PENDING", created.getPaymentStatus());
+        assertNotNull(created.getOrderNo());
+        verify(paymentGateway).createNativeOrder(any());
+        verify(uploadService).markConsumed(any(ResumeReviewUpload.class), any());
+        verifyNoInteractions(outboxMapper);
     }
 
     @Test
-    void thirdRequestFailsClosedWhenServerPriceIsZero() {
+    void concurrentIdempotentRetryIsRecheckedAfterUserLock() {
+        ResumeReviewRequest existing = new ResumeReviewRequest();
+        existing.setId(123L);
+        existing.setRequestNo("RR-existing");
+        existing.setUserId(7L);
+        existing.setResumeId(1L);
+        existing.setRequestStatus("EMAIL_PENDING");
+        existing.setEntitlementType("WELCOME_FREE");
+        existing.setPriceCents(0);
+        existing.setContentHash("a".repeat(64));
+        when(requestMapper.selectIdempotent(7L, "idem-1"))
+                .thenReturn(null, existing);
+        User user = new User();
+        user.setId(7L);
+        user.setStatus(1);
+        when(userMapper.selectByIdForUpdate(7L)).thenReturn(user);
+
+        var result = service.create(7L, createDto(), "127.0.0.1");
+
+        assertEquals("RR-existing", result.getRequestNo());
+        verify(requestMapper, times(2)).selectIdempotent(7L, "idem-1");
+        verifyNoInteractions(uploadService, verificationCodeService, paymentGateway);
+        verify(requestMapper, never()).insert(any(ResumeReviewRequest.class));
+    }
+
+    @Test
+    void invalidUploadDoesNotConsumeContactVerificationCode() {
+        User user = new User();
+        user.setId(7L);
+        user.setStatus(1);
+        when(userMapper.selectByIdForUpdate(7L)).thenReturn(user);
+        when(uploadService.requireReadyForCreate(7L, "RU-upload", 1L))
+                .thenThrow(new BusinessException(
+                        ResultCode.RESUME_REVIEW_UPLOAD_EXPIRED));
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> service.create(7L, createDto(), "127.0.0.1"));
+
+        assertEquals(ResultCode.RESUME_REVIEW_UPLOAD_EXPIRED.getCode(),
+                exception.getCode());
+        verifyNoInteractions(verificationCodeService);
+    }
+
+    @Test
+    void secondRequestFailsClosedWhenServerPriceIsZero() {
         when(ledgerMapper.selectActiveEntitlement(startsWith("WELCOME:")))
                 .thenReturn(new ResumeReviewCreditLedger());
-        ResumeReviewFollowReward reward = new ResumeReviewFollowReward();
-        reward.setId(9L);
-        reward.setConsumedRequestId(88L);
-        when(rewardMapper.selectBySubjectForUpdate(anyString())).thenReturn(reward);
         PlatformConfig config = new PlatformConfig();
         config.setResumeReviewPriceCents(0);
         when(platformConfigService.getConfigEntity()).thenReturn(config);
@@ -165,63 +279,44 @@ class ResumeReviewServiceImplTest {
     }
 
     @Test
-    void invalidFollowBridgeSignatureIsRejectedBeforeReplayStateOrDatabase() {
-        enableBridge();
-        String body = "{\"openid\":\"o1\",\"eventId\":\"e1\",\"content\":\"简历精修 ABC\"}";
+    void secondRequestFailsClosedWhenPaidOrderSwitchIsOff() {
+        when(ledgerMapper.selectActiveEntitlement(startsWith("WELCOME:")))
+                .thenReturn(new ResumeReviewCreditLedger());
+        PlatformConfig config = new PlatformConfig();
+        config.setResumeReviewPriceCents(8800);
+        when(platformConfigService.getConfigEntity()).thenReturn(config);
+        User user = new User();
+        user.setId(7L);
+        user.setStatus(1);
+        when(userMapper.selectByIdForUpdate(7L)).thenReturn(user);
 
-        assertThrows(BusinessException.class, () -> service.handleFollowBridgeEvent(
-                String.valueOf(Instant.now().getEpochSecond()), "nonce_1234567890", "00", body));
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> service.create(7L, createDto(), "127.0.0.1"));
 
-        verifyNoInteractions(redisTemplate, challengeMapper);
+        assertEquals(ResultCode.RESUME_REVIEW_PAID_NOT_ENABLED.getCode(), exception.getCode());
+        verifyNoInteractions(paymentGateway, verificationCodeService, uploadService);
     }
 
     @Test
-    void expiredFollowBridgeEventIsRejectedBeforeReplayState() throws Exception {
-        enableBridge();
-        String timestamp = String.valueOf(Instant.now().minusSeconds(301).getEpochSecond());
-        String nonce = "nonce_1234567890";
-        String body = "{}";
-        String signature = sign(timestamp, nonce, body);
+    void secondRequestFailsClosedWhenPaymentProviderIsNotWechat() {
+        when(ledgerMapper.selectActiveEntitlement(startsWith("WELCOME:")))
+                .thenReturn(new ResumeReviewCreditLedger());
+        PlatformConfig config = new PlatformConfig();
+        config.setResumeReviewPriceCents(8800);
+        when(platformConfigService.getConfigEntity()).thenReturn(config);
+        User user = new User();
+        user.setId(7L);
+        user.setStatus(1);
+        when(userMapper.selectByIdForUpdate(7L)).thenReturn(user);
+        when(paymentGateway.provider()).thenReturn("disabled");
+        properties.setPaidAcceptNewOrders(true);
 
-        assertThrows(BusinessException.class,
-                () -> service.handleFollowBridgeEvent(timestamp, nonce, signature, body));
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> service.create(7L, createDto(), "127.0.0.1"));
 
-        verifyNoInteractions(redisTemplate, challengeMapper);
-    }
-
-    @Test
-    void replayedSignedFollowBridgeEventReturnsIdempotentSuccess() throws Exception {
-        enableBridge();
-        String timestamp = String.valueOf(Instant.now().getEpochSecond());
-        String nonce = "nonce_1234567890";
-        String body = "{}";
-        String signature = sign(timestamp, nonce, body);
-        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-        when(valueOperations.setIfAbsent(anyString(), eq("1"), any())).thenReturn(false);
-
-        assertDoesNotThrow(
-                () -> service.handleFollowBridgeEvent(timestamp, nonce, signature, body));
-
-        verifyNoInteractions(challengeMapper, rewardMapper);
-    }
-
-    @Test
-    void transientBridgeProcessingFailureReleasesReplayClaimForTrustedRetry() throws Exception {
-        enableBridge();
-        String timestamp = String.valueOf(Instant.now().getEpochSecond());
-        String nonce = "nonce_1234567890";
-        String body = "{\"openid\":\"openid_123\",\"eventId\":\"event:123\","
-                + "\"content\":\"简历精修 23456789ABCDEFGH\"}";
-        String signature = sign(timestamp, nonce, body);
-        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-        when(valueOperations.setIfAbsent(anyString(), eq("1"), any())).thenReturn(true);
-        when(challengeMapper.selectByEventHash(anyString()))
-                .thenThrow(new IllegalStateException("temporary database failure"));
-
-        assertThrows(BusinessException.class,
-                () -> service.handleFollowBridgeEvent(timestamp, nonce, signature, body));
-
-        verify(redisTemplate).delete(startsWith("resume-review:follow-bridge:replay:"));
+        assertEquals(ResultCode.RESUME_REVIEW_PAID_NOT_ENABLED.getCode(), exception.getCode());
+        verify(paymentGateway, never()).createNativeOrder(any());
+        verifyNoInteractions(verificationCodeService, uploadService);
     }
 
     @Test
@@ -237,7 +332,7 @@ class ResumeReviewServiceImplTest {
 
         assertEquals("RETURNED", request.getRequestStatus());
         assertNull(request.getActiveUserKey());
-        verifyNoInteractions(ledgerMapper, rewardMapper);
+        verifyNoInteractions(ledgerMapper);
     }
 
     @Test
@@ -260,6 +355,7 @@ class ResumeReviewServiceImplTest {
 
     @Test
     void expiredAbandonedPaidOrderIsStillClosedAndReconciled() {
+        properties.setEnabled(false);
         ResumeReviewRequest request = new ResumeReviewRequest();
         request.setId(5L);
         request.setRequestNo("RR5");
@@ -290,6 +386,7 @@ class ResumeReviewServiceImplTest {
     private CreateResumeReviewRequestDTO createDto() {
         CreateResumeReviewRequestDTO dto = new CreateResumeReviewRequestDTO();
         dto.setResumeId(1L);
+        dto.setUploadNo("RU-upload");
         dto.setIdempotencyKey("idem-1");
         dto.setContactEmail("contact@example.net");
         dto.setVerificationCode("123456");
@@ -298,16 +395,4 @@ class ResumeReviewServiceImplTest {
         return dto;
     }
 
-    private void enableBridge() {
-        properties.setFollowBridgeEnabled(true);
-        properties.setFollowBridgeHmacSecret("0123456789abcdef0123456789abcdef");
-    }
-
-    private String sign(String timestamp, String nonce, String body) throws Exception {
-        Mac mac = Mac.getInstance("HmacSHA256");
-        mac.init(new SecretKeySpec(properties.getFollowBridgeHmacSecret()
-                .getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-        return HexFormat.of().formatHex(mac.doFinal(
-                (timestamp + "\n" + nonce + "\n" + body).getBytes(StandardCharsets.UTF_8)));
-    }
 }

@@ -8,7 +8,7 @@ import com.itwanger.pairesume.entity.User;
  */
 public final class LegalConsentPolicy {
 
-    public static final String CURRENT_VERSION = "2026-07-23";
+    public static final String CURRENT_VERSION = "2026-07-24";
 
     private LegalConsentPolicy() {
     }

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
-import { resumeApi } from '../api/resume'
 import { useAuthStore } from '../store/authStore'
 import { useResumeStore } from '../store/resumeStore'
 import { Header } from '../components/layout/Header'
@@ -27,6 +26,7 @@ import { normalizeJobIntentionContent } from '../utils/moduleContent'
 import { getModuleDisplayLabelFromModules } from '../utils/resumeDisplay'
 import {
   DEFAULT_RESUME_PDF_PREVIEW_CONFIG,
+  downloadResumePdf,
   resolveResumePdfAccentPreset,
   resolveResumePdfDensity,
   resolveResumePdfHeadingStyle,
@@ -99,6 +99,7 @@ export default function EditorPage() {
     : requestedViewParam === 'chrome-preview' || requestedViewParam === 'template-selection'
       ? 'template-selection'
       : 'module'
+  const resumeReviewEnabled = user?.resumeReviewEnabled === true
   const initialModuleType = requestedModuleType && requestedModuleType in getDefaultContentMap()
     ? requestedModuleType as ModuleType
     : requestedView === 'module'
@@ -531,21 +532,18 @@ export default function EditorPage() {
     setExporting(true)
     setExportError('')
     try {
-      const { blob, fileName } = await resumeApi.exportPdf(resumeId, {
+      await flushResumeAutoSaves(resumeId)
+      const latestModules = useResumeStore.getState().modules
+      if (latestModules.length === 0) {
+        throw new Error('请先完善简历内容后再导出 PDF')
+      }
+      await downloadResumePdf(latestModules, resumeId, {
         pageMode,
         templateId: pdfPreviewConfig.templateId,
         density: pdfPreviewConfig.density,
         accentPreset: pdfPreviewConfig.accentPreset,
         headingStyle: pdfPreviewConfig.headingStyle,
       })
-      const objectUrl = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = objectUrl
-      link.download = fileName
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      URL.revokeObjectURL(objectUrl)
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : '导出 PDF 失败，请稍后重试'
       if (message.includes('会员')) {
@@ -562,7 +560,11 @@ export default function EditorPage() {
     window.requestAnimationFrame(() => resumeReviewTriggerRef.current?.focus())
   }, [])
 
-  const flushBeforeResumeReview = useCallback(() => flushResumeAutoSaves(resumeId), [resumeId])
+  useEffect(() => {
+    if (!resumeReviewEnabled) {
+      setResumeReviewModalOpen(false)
+    }
+  }, [resumeReviewEnabled])
 
   const renderModuleForm = (moduleId: number, content: Record<string, unknown>) => {
     if (!activeModuleType) return null
@@ -767,25 +769,27 @@ export default function EditorPage() {
             ) : null}
           </div>
 
-          <div className="mb-4 flex justify-end">
-            <button
-              ref={resumeReviewTriggerRef}
-              type="button"
-              onClick={() => setResumeReviewModalOpen(true)}
-              className="group inline-flex min-h-12 w-full items-center justify-center gap-3 rounded-xl border border-primary-200 bg-white px-4 py-2.5 text-left shadow-sm transition hover:border-primary-300 hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 sm:w-auto"
-              aria-haspopup="dialog"
-            >
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-100 text-primary-700 transition group-hover:bg-primary-200" aria-hidden="true">
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L8 18l-4 1 1-4L16.5 3.5z" />
-                </svg>
-              </span>
-              <span>
-                <span className="block text-sm font-semibold text-slate-900">请二哥帮我改简历</span>
-                <span className="block text-xs leading-5 text-slate-500">人工精修 · 按服务端次数规则使用</span>
-              </span>
-            </button>
-          </div>
+          {resumeReviewEnabled ? (
+            <div className="mb-4 flex justify-end">
+              <button
+                ref={resumeReviewTriggerRef}
+                type="button"
+                onClick={() => setResumeReviewModalOpen(true)}
+                className="group inline-flex min-h-12 w-full items-center justify-center gap-3 rounded-xl border border-primary-200 bg-white px-4 py-2.5 text-left shadow-sm transition hover:border-primary-300 hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 sm:w-auto"
+                aria-haspopup="dialog"
+              >
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-100 text-primary-700 transition group-hover:bg-primary-200" aria-hidden="true">
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L8 18l-4 1 1-4L16.5 3.5z" />
+                  </svg>
+                </span>
+                <span>
+                  <span className="block text-sm font-semibold text-slate-900">请二哥帮我改简历</span>
+                  <span className="block text-xs leading-5 text-slate-500">人工精修 · 按服务端次数规则使用</span>
+                </span>
+              </button>
+            </div>
+          ) : null}
 
           {editorView === 'analysis' ? (
             <div className={analysisContainerClassName}>
@@ -995,14 +999,12 @@ export default function EditorPage() {
         onClose={() => setMembershipModalOpen(false)}
       />
 
-      {user ? (
+      {user && resumeReviewEnabled ? (
         <ResumeReviewModal
           open={resumeReviewModalOpen}
           resumeId={resumeId}
           userId={user.id}
           accountEmail={user.email}
-          hasResumeContent={modules.length > 0}
-          onBeforeSubmit={flushBeforeResumeReview}
           onClose={closeResumeReviewModal}
         />
       ) : null}

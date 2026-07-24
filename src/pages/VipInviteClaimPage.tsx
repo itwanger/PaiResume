@@ -844,7 +844,7 @@ export default function VipInviteClaimPage() {
           )}
 
           <div className="mt-7 border-t border-slate-100 pt-5 text-xs leading-5 text-slate-500">
-            <p>「派聪明」仅用于注册、登录和确认领取账号，不等同于人工精修所需的「沉默王二」公众号关注验证。</p>
+            <p>「派聪明」仅用于注册、登录和确认领取账号。</p>
             <div className="mt-3 flex flex-wrap justify-center gap-x-4 gap-y-2">
               <Link to="/terms" className="hover:text-primary-700">服务条款</Link>
               <Link to="/privacy" className="hover:text-primary-700">隐私政策</Link>

@@ -1,9 +1,6 @@
 package com.itwanger.pairesume.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.itwanger.pairesume.common.BusinessException;
 import com.itwanger.pairesume.common.ResultCode;
 import com.itwanger.pairesume.config.ResumeReviewProperties;
@@ -11,26 +8,17 @@ import com.itwanger.pairesume.dto.*;
 import com.itwanger.pairesume.entity.*;
 import com.itwanger.pairesume.mapper.*;
 import com.itwanger.pairesume.payment.*;
-import com.itwanger.pairesume.security.ResumePhotoSecurityPolicy;
 import com.itwanger.pairesume.service.*;
 import com.itwanger.pairesume.util.DateTimeUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.security.SecureRandom;
-import java.time.Duration;
-import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.*;
 
@@ -38,60 +26,51 @@ import java.util.*;
 @Service
 @RequiredArgsConstructor
 public class ResumeReviewServiceImpl implements ResumeReviewService {
-    private static final String REVIEW_CONSENT_VERSION = "resume-review-v1";
-    private static final String EMAIL_CONSENT_VERSION = "resume-review-email-v1";
+    private static final String REVIEW_CONSENT_VERSION = "resume-review-upload-v2";
+    private static final String EMAIL_CONSENT_VERSION = "resume-review-email-v2";
     private static final String PAYMENT_DESCRIPTION = "PaiResume 人工简历精修";
-    private static final SecureRandom RANDOM = new SecureRandom();
-    private static final char[] CODE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ".toCharArray();
 
     private final ResumeReviewRequestMapper requestMapper;
     private final ResumeReviewCreditLedgerMapper ledgerMapper;
     private final ResumeReviewQuotaIdentityMapper quotaIdentityMapper;
-    private final ResumeReviewFollowRewardMapper rewardMapper;
-    private final ResumeReviewFollowChallengeMapper challengeMapper;
-    private final ResumeReviewFollowFallbackCodeMapper fallbackCodeMapper;
     private final ResumeReviewMailOutboxMapper outboxMapper;
     private final ResumeReviewAuditLogMapper auditMapper;
     private final UserMapper userMapper;
     private final UserAuthIdentityMapper identityMapper;
-    private final ResumeService resumeService;
-    private final ResumeModuleService moduleService;
+    private final ResumeReviewUploadService uploadService;
     private final PlatformConfigService platformConfigService;
     private final VerificationCodeService verificationCodeService;
     private final MailService mailService;
     private final MarketplacePaymentGateway paymentGateway;
     private final QrCodeDataUrlGenerator qrCodeGenerator;
     private final ResumeReviewProperties properties;
-    private final ObjectMapper objectMapper;
-    private final StringRedisTemplate redisTemplate;
 
     @Override
     public ResumeReviewEligibilityDTO eligibility(Long userId) {
+        ResumeReviewEligibilityDTO dto = new ResumeReviewEligibilityDTO();
+        dto.setEnabled(properties.isEnabled());
+        if (!properties.isEnabled()) {
+            dto.setWelcomeFreeAvailable(false);
+            dto.setPaidReviewAvailable(false);
+            dto.setNextEntitlement(null);
+            dto.setPriceCents(0);
+            dto.setNotice("人工精修暂未开放");
+            return dto;
+        }
+
         String subject = quotaSubject(userId);
         boolean welcome = ledgerMapper.selectActiveEntitlement("WELCOME:" + subject) == null;
-        ResumeReviewFollowReward reward = rewardMapper.selectBySubject(subject);
-        boolean rewardAvailable = reward != null && reward.getConsumedRequestId() == null;
         PlatformConfig config = platformConfigService.getConfigEntity();
         int price = config.getResumeReviewPriceCents() == null ? 0 : config.getResumeReviewPriceCents();
-        boolean followAlreadyConsumed = reward != null && reward.getConsumedRequestId() != null;
-        boolean paid = followAlreadyConsumed && properties.isPaidAcceptNewOrders()
+        boolean paid = !welcome && properties.isPaidAcceptNewOrders()
                 && price > 0 && "wechat".equals(paymentGateway.provider());
 
-        ResumeReviewEligibilityDTO dto = new ResumeReviewEligibilityDTO();
         dto.setWelcomeFreeAvailable(welcome);
-        dto.setFollowRewardIssued(reward != null);
-        dto.setFollowRewardAvailable(rewardAvailable);
         dto.setPaidReviewAvailable(paid);
-        dto.setNextEntitlement(welcome ? "WELCOME_FREE"
-                : reward == null ? "FOLLOW_REQUIRED"
-                : rewardAvailable ? "FOLLOW_REWARD" : "PAID");
+        dto.setNextEntitlement(welcome ? "WELCOME_FREE" : "PAID");
         dto.setPriceCents(price);
-        dto.setFollowOfficialAccountName(properties.getFollowOfficialAccountName());
-        dto.setFollowQrCodeUrl(properties.getFollowQrCodeUrl());
         dto.setNotice(welcome ? "首次人工精修免费"
-                : reward == null ? "第二次请关注沉默王二公众号领取一次免费机会"
-                : rewardAvailable ? "已获得沉默王二公众号一次关注奖励"
-                : paid ? "本次需单独付费，一份快照对应一个订单"
+                : paid ? "第二次及以后需单独付费，一份快照对应一个订单"
                 : "付费精修暂未开放");
         return dto;
     }
@@ -104,6 +83,7 @@ public class ResumeReviewServiceImpl implements ResumeReviewService {
 
     @Override
     public void sendContactVerificationCode(Long userId, String email, String clientIp) {
+        requireFeatureEnabled();
         String normalized = normalizeEmail(email);
         if (isVerifiedAccountEmail(userId, normalized)) {
             return;
@@ -120,6 +100,7 @@ public class ResumeReviewServiceImpl implements ResumeReviewService {
     @Override
     @Transactional
     public ResumeReviewRequestDTO create(Long userId, CreateResumeReviewRequestDTO dto, String clientIp) {
+        requireFeatureEnabled();
         ResumeReviewRequest idempotent = requestMapper.selectIdempotent(userId, dto.getIdempotencyKey().trim());
         if (idempotent != null) {
             return toDto(idempotent);
@@ -128,6 +109,10 @@ public class ResumeReviewServiceImpl implements ResumeReviewService {
         if (user == null || user.getStatus() == null || user.getStatus() == 0 || user.getAccountDeletedAt() != null) {
             throw new BusinessException(ResultCode.USER_NOT_FOUND);
         }
+        idempotent = requestMapper.selectIdempotent(userId, dto.getIdempotencyKey().trim());
+        if (idempotent != null) {
+            return toDto(idempotent);
+        }
         ResumeReviewRequest active = requestMapper.selectActive(activeUserKey(userId));
         if (active != null) {
             throw new BusinessException(ResultCode.RESUME_REVIEW_ACTIVE_EXISTS);
@@ -135,7 +120,6 @@ public class ResumeReviewServiceImpl implements ResumeReviewService {
 
         String contactEmail = normalizeEmail(dto.getContactEmail());
         String subject = quotaSubject(userId);
-        ResumeReviewFollowReward reward = rewardMapper.selectBySubjectForUpdate(subject);
         String entitlement;
         String entitlementKey;
         int price;
@@ -143,12 +127,6 @@ public class ResumeReviewServiceImpl implements ResumeReviewService {
             entitlement = "WELCOME_FREE";
             entitlementKey = "WELCOME:" + subject;
             price = 0;
-        } else if (reward != null && reward.getConsumedRequestId() == null) {
-            entitlement = "FOLLOW_REWARD";
-            entitlementKey = "FOLLOW:" + reward.getId();
-            price = 0;
-        } else if (reward == null) {
-            throw new BusinessException(ResultCode.RESUME_REVIEW_FOLLOW_REQUIRED);
         } else {
             PlatformConfig config = platformConfigService.getConfigEntity();
             price = config.getResumeReviewPriceCents() == null ? 0 : config.getResumeReviewPriceCents();
@@ -160,12 +138,10 @@ public class ResumeReviewServiceImpl implements ResumeReviewService {
             entitlementKey = null;
         }
 
-        verifyContactEmail(userId, contactEmail, dto.getVerificationCode());
+        ResumeReviewUpload upload = uploadService.requireReadyForCreate(
+                userId, dto.getUploadNo().trim(), dto.getResumeId());
 
-        Resume resume = resumeService.getByIdAndUserId(dto.getResumeId(), userId);
-        List<ResumeModule> modules = moduleService.listByResumeId(dto.getResumeId(), userId);
-        ResumePhotoSecurityPolicy.validateModulesForExport(modules);
-        String snapshot = snapshotJson(resume, modules);
+        verifyContactEmail(userId, contactEmail, dto.getVerificationCode());
 
         ResumeReviewRequest request = new ResumeReviewRequest();
         request.setRequestNo("RR" + compactUuid());
@@ -175,8 +151,16 @@ public class ResumeReviewServiceImpl implements ResumeReviewService {
         request.setIdempotencyKey(dto.getIdempotencyKey().trim());
         request.setActiveUserKey(activeUserKey(userId));
         request.setContactEmail(contactEmail);
-        request.setSnapshotJson(snapshot);
-        request.setContentHash(sha256(snapshot));
+        // snapshot_json remains a non-null legacy column. New requests are
+        // immutable through a server-recorded private OSS object instead.
+        request.setSnapshotJson("{}");
+        request.setContentHash(upload.getSha256());
+        request.setPdfObjectKey(upload.getFinalObjectKey());
+        request.setPdfObjectEtag(upload.getObjectEtag());
+        request.setPdfOriginalFileName(upload.getOriginalFileName());
+        request.setPdfSizeBytes(upload.getSizeBytes());
+        request.setPdfSha256(upload.getSha256());
+        request.setPdfUploadedAt(LocalDateTime.now());
         LocalDateTime now = LocalDateTime.now();
         request.setReviewConsentVersion(REVIEW_CONSENT_VERSION);
         request.setReviewConsentAt(now);
@@ -200,6 +184,7 @@ public class ResumeReviewServiceImpl implements ResumeReviewService {
         } catch (DuplicateKeyException exception) {
             throw new BusinessException(ResultCode.RESUME_REVIEW_ACTIVE_EXISTS);
         }
+        uploadService.markConsumed(upload, request.getId());
 
         ResumeReviewCreditLedger ledger = new ResumeReviewCreditLedger();
         ledger.setUserId(userId);
@@ -208,11 +193,6 @@ public class ResumeReviewServiceImpl implements ResumeReviewService {
         ledger.setLedgerStatus("RESERVED");
         ledger.setActiveEntitlementKey(entitlementKey == null ? "PAID:" + request.getOrderNo() : entitlementKey);
         ledgerMapper.insert(ledger);
-        if ("FOLLOW_REWARD".equals(entitlement)) {
-            reward.setConsumedRequestId(request.getId());
-            reward.setConsumedAt(now);
-            rewardMapper.updateById(reward);
-        }
         audit(request, userId, "USER", "CREATE", null, request.getRequestStatus(), entitlement);
 
         if (price == 0) {
@@ -282,132 +262,6 @@ public class ResumeReviewServiceImpl implements ResumeReviewService {
             return;
         }
         applyProviderResult(request, beforeClose);
-    }
-
-    @Override
-    @Transactional
-    public ResumeReviewFollowChallengeDTO createFollowChallenge(Long userId) {
-        String subject = quotaSubject(userId);
-        if (rewardMapper.selectBySubjectForUpdate(subject) != null) {
-            throw new BusinessException(ResultCode.RESUME_REVIEW_FOLLOW_REWARD_EXISTS);
-        }
-        ResumeReviewFollowChallenge current = challengeMapper.selectActive("FOLLOW:" + userId);
-        LocalDateTime now = LocalDateTime.now();
-        if (current != null && current.getExpiresAt().isAfter(now)) {
-            return challengeDto(current);
-        }
-        if (current != null) {
-            current.setChallengeStatus("EXPIRED");
-            current.setActiveUserKey(null);
-            challengeMapper.updateById(current);
-        }
-        ResumeReviewFollowChallenge challenge = new ResumeReviewFollowChallenge();
-        challenge.setChallengeCode(randomCode(16));
-        challenge.setUserId(userId);
-        challenge.setActiveUserKey("FOLLOW:" + userId);
-        challenge.setChallengeStatus("ACTIVE");
-        challenge.setExpiresAt(now.plusMinutes(properties.getFollowChallengeExpireMinutes()));
-        challengeMapper.insert(challenge);
-        return challengeDto(challenge);
-    }
-
-    @Override
-    @Transactional
-    public void handleFollowBridgeEvent(String timestamp, String nonce, String signature, String rawBody) {
-        String replayKey = verifyAndClaimBridgeEvent(timestamp, nonce, signature, rawBody);
-        if (replayKey == null) {
-            // 同一签名事件已在处理或已处理，向公众号网关幂等返回 2xx。
-            return;
-        }
-        boolean transactionSynchronizationActive =
-                TransactionSynchronizationManager.isSynchronizationActive();
-        if (transactionSynchronizationActive) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCompletion(int status) {
-                    if (status != TransactionSynchronization.STATUS_COMMITTED) {
-                        redisTemplate.delete(replayKey);
-                    }
-                }
-            });
-        }
-        try {
-            JsonNode body = objectMapper.readTree(rawBody);
-            String openid = requiredText(body, "openid");
-            String eventId = requiredText(body, "eventId");
-            String content = requiredText(body, "content").trim();
-            if (!openid.matches("[A-Za-z0-9_-]{1,128}")
-                    || !eventId.matches("[A-Za-z0-9:_-]{1,128}")
-                    || content.length() > 128) {
-                throw new BusinessException(ResultCode.RESUME_REVIEW_FOLLOW_BRIDGE_INVALID);
-            }
-            String prefix = "简历精修 ";
-            if (!content.startsWith(prefix)) {
-                throw new BusinessException(ResultCode.RESUME_REVIEW_FOLLOW_BRIDGE_INVALID);
-            }
-            String challengeCode = content.substring(prefix.length()).trim().toUpperCase(Locale.ROOT);
-            if (!challengeCode.matches("[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{16}")) {
-                throw new BusinessException(ResultCode.RESUME_REVIEW_FOLLOW_CODE_INVALID);
-            }
-            String eventHash = sha256(eventId);
-            if (challengeMapper.selectByEventHash(eventHash) != null) {
-                return;
-            }
-            ResumeReviewFollowChallenge challenge = challengeMapper.selectByCodeForUpdate(challengeCode);
-            if (challenge != null && "REDEEMED".equals(challenge.getChallengeStatus())
-                    && Objects.equals(challenge.getBridgeEventHash(), eventHash)) {
-                return;
-            }
-            if (challenge == null || !"ACTIVE".equals(challenge.getChallengeStatus())
-                    || !challenge.getExpiresAt().isAfter(LocalDateTime.now())) {
-                throw new BusinessException(ResultCode.RESUME_REVIEW_FOLLOW_CODE_INVALID);
-            }
-            User user = userMapper.selectByIdForUpdate(challenge.getUserId());
-            if (user == null || user.getStatus() == null || user.getStatus() == 0 || user.getAccountDeletedAt() != null) {
-                throw new BusinessException(ResultCode.RESUME_REVIEW_FOLLOW_CODE_INVALID);
-            }
-            String subject = quotaSubject(user.getId());
-            issueFollowReward(user.getId(), subject, "WECHAT_BRIDGE", eventHash);
-            challenge.setChallengeStatus("REDEEMED");
-            challenge.setActiveUserKey(null);
-            challenge.setRedeemedAt(LocalDateTime.now());
-            challenge.setBridgeEventHash(eventHash);
-            challenge.setWechatOpenidHash(sha256(openid));
-            challengeMapper.updateById(challenge);
-            audit(null, user.getId(), "BRIDGE", "FOLLOW_REWARD_ISSUED", null, null,
-                    "WECHAT_BRIDGE");
-        } catch (BusinessException exception) {
-            if (!transactionSynchronizationActive) redisTemplate.delete(replayKey);
-            throw exception;
-        } catch (JsonProcessingException exception) {
-            if (!transactionSynchronizationActive) redisTemplate.delete(replayKey);
-            throw new BusinessException(ResultCode.RESUME_REVIEW_FOLLOW_BRIDGE_INVALID);
-        } catch (RuntimeException exception) {
-            if (!transactionSynchronizationActive) redisTemplate.delete(replayKey);
-            throw new BusinessException(ResultCode.INTERNAL_ERROR.getCode(), "公众号事件处理暂时失败");
-        }
-    }
-
-    @Override
-    @Transactional
-    public void redeemFallbackCode(Long userId, String rawCode) {
-        String subject = quotaSubject(userId);
-        if (rewardMapper.selectBySubjectForUpdate(subject) != null) {
-            throw new BusinessException(ResultCode.RESUME_REVIEW_FOLLOW_REWARD_EXISTS);
-        }
-        String normalized = normalizeCode(rawCode);
-        ResumeReviewFollowFallbackCode code = fallbackCodeMapper.selectByHashForUpdate(sha256(normalized));
-        if (code == null || !"ISSUED".equals(code.getCodeStatus())
-                || !code.getExpiresAt().isAfter(LocalDateTime.now())) {
-            throw new BusinessException(ResultCode.RESUME_REVIEW_FOLLOW_CODE_INVALID);
-        }
-        issueFollowReward(userId, subject, "ADMIN_FALLBACK", code.getCodeHash());
-        code.setCodeStatus("REDEEMED");
-        code.setRedeemedBy(userId);
-        code.setRedeemedAt(LocalDateTime.now());
-        fallbackCodeMapper.updateById(code);
-        audit(null, userId, "USER", "FOLLOW_FALLBACK_REDEEM", null, null,
-                "人工故障兜底码，不代表实时关注验证");
     }
 
     @Override
@@ -485,10 +339,10 @@ public class ResumeReviewServiceImpl implements ResumeReviewService {
         } else {
             transition(request, adminId, "RETURN_AND_RELEASE", "RETURNED", reason);
             request.setActiveUserKey(null);
-            // SMTP 接受前才返还免费额度；一旦已投递，邮件副本无法召回，
-            // WELCOME/FOLLOW 必须保持已核销，避免反复发送。
+            // SMTP 接受前才返还首次免费额度；一旦已投递，邮件副本无法召回。
+            // 历史 FOLLOW_REWARD 请求仅释放流水，不再重新签发关注奖励。
             if (Set.of("AWAITING_PAYMENT", "EMAIL_PENDING").contains(originalStatus)) {
-                releaseLedgerAndReward(request);
+                releaseLedger(request);
             }
         }
         requestMapper.updateById(request);
@@ -498,6 +352,7 @@ public class ResumeReviewServiceImpl implements ResumeReviewService {
     @Override
     @Transactional
     public ResumeReviewRequestDTO adminRetryMail(String requestNo, Long adminId, String reason) {
+        requireFeatureEnabled();
         ResumeReviewRequest request = requireForUpdate(requestNo);
         if (!"EMAIL_PENDING".equals(request.getRequestStatus())) {
             throw new BusinessException(ResultCode.RESUME_REVIEW_STATE_INVALID);
@@ -528,33 +383,13 @@ public class ResumeReviewServiceImpl implements ResumeReviewService {
         request.setHandledBy(adminId);
         transition(request, adminId, "CONFIRM_REFUND", "REFUNDED", reason);
         request.setActiveUserKey(null);
-        releaseLedgerAndReward(request);
+        releaseLedger(request);
         try {
             requestMapper.updateById(request);
         } catch (DuplicateKeyException exception) {
             throw new BusinessException(ResultCode.RESUME_REVIEW_REFUND_REFERENCE_CONFLICT);
         }
         return toDto(request);
-    }
-
-    @Override
-    @Transactional
-    public ResumeReviewFallbackCodeDTO adminCreateFallbackCode(Long adminId, int validHours) {
-        int hours = Math.max(1, Math.min(validHours, 168));
-        String raw = "FR-" + randomCode(24);
-        ResumeReviewFollowFallbackCode code = new ResumeReviewFollowFallbackCode();
-        code.setCodeHash(sha256(raw));
-        code.setCodeHint(raw.substring(raw.length() - 6));
-        code.setCodeStatus("ISSUED");
-        code.setCreatedBy(adminId);
-        code.setExpiresAt(LocalDateTime.now().plusHours(hours));
-        fallbackCodeMapper.insert(code);
-        return fallbackDto(code, raw);
-    }
-
-    @Override
-    public List<ResumeReviewFallbackCodeDTO> adminListFallbackCodes() {
-        return fallbackCodeMapper.selectAdminList().stream().map(code -> fallbackDto(code, null)).toList();
     }
 
     private void createNativePrepay(ResumeReviewRequest request, String clientIp) {
@@ -616,7 +451,7 @@ public class ResumeReviewServiceImpl implements ResumeReviewService {
             request.setRequestStatus("RETURNED");
             request.setActiveUserKey(null);
             request.setCodeUrl(null);
-            releaseLedgerAndReward(request);
+            releaseLedger(request);
             audit(request, null, "SYSTEM", "PAYMENT_CANCELED",
                     previousRequestStatus, "RETURNED", result.state().name());
         } else if (result.state() == PaymentProviderState.REFUND_PENDING_VERIFICATION
@@ -709,21 +544,6 @@ public class ResumeReviewServiceImpl implements ResumeReviewService {
         return subject;
     }
 
-    private String snapshotJson(Resume resume, List<ResumeModule> modules) {
-        try {
-            Map<String, Object> root = new LinkedHashMap<>();
-            root.put("snapshotVersion", 1);
-            root.put("resumeTitle", resume.getTitle());
-            root.put("templateId", resume.getTemplateId());
-            root.put("modules", modules);
-            root.put("options", Map.of("templateId",
-                    resume.getTemplateId() == null ? "" : resume.getTemplateId()));
-            return objectMapper.writeValueAsString(root);
-        } catch (Exception exception) {
-            throw new BusinessException(ResultCode.INTERNAL_ERROR.getCode(), "无法锁定简历快照");
-        }
-    }
-
     private void createOutbox(ResumeReviewRequest request) {
         if (outboxMapper.selectByRequestForUpdate(request.getId()) != null) return;
         ResumeReviewMailOutbox outbox = new ResumeReviewMailOutbox();
@@ -744,85 +564,13 @@ public class ResumeReviewServiceImpl implements ResumeReviewService {
         }
     }
 
-    private void releaseLedgerAndReward(ResumeReviewRequest request) {
+    private void releaseLedger(ResumeReviewRequest request) {
         ResumeReviewCreditLedger ledger = ledgerMapper.selectByRequestForUpdate(request.getId());
         if (ledger != null && !"RELEASED".equals(ledger.getLedgerStatus())) {
             ledger.setLedgerStatus("RELEASED");
             ledger.setActiveEntitlementKey(null);
             ledgerMapper.updateById(ledger);
         }
-        if ("FOLLOW_REWARD".equals(request.getEntitlementType())) {
-            ResumeReviewFollowReward reward = rewardMapper.selectBySubjectForUpdate(request.getQuotaSubjectHash());
-            if (reward != null && Objects.equals(reward.getConsumedRequestId(), request.getId())) {
-                reward.setConsumedRequestId(null);
-                reward.setConsumedAt(null);
-                rewardMapper.updateById(reward);
-            }
-        }
-    }
-
-    private void issueFollowReward(Long userId, String subject, String sourceType, String referenceHash) {
-        if (rewardMapper.selectBySubjectForUpdate(subject) != null) {
-            throw new BusinessException(ResultCode.RESUME_REVIEW_FOLLOW_REWARD_EXISTS);
-        }
-        ResumeReviewFollowReward reward = new ResumeReviewFollowReward();
-        reward.setUserId(userId);
-        reward.setQuotaSubjectHash(subject);
-        reward.setSourceType(sourceType);
-        reward.setSourceReferenceHash(referenceHash);
-        reward.setIssuedAt(LocalDateTime.now());
-        try {
-            rewardMapper.insert(reward);
-        } catch (DuplicateKeyException exception) {
-            throw new BusinessException(ResultCode.RESUME_REVIEW_FOLLOW_REWARD_EXISTS);
-        }
-    }
-
-    private String verifyAndClaimBridgeEvent(String timestamp, String nonce, String signature, String rawBody) {
-        if (!properties.isFollowBridgeEnabled()
-                || !StringUtils.hasText(properties.getFollowBridgeHmacSecret())
-                || properties.getFollowBridgeHmacSecret().length() < 32
-                || !StringUtils.hasText(timestamp) || !StringUtils.hasText(nonce)
-                || !nonce.matches("[A-Za-z0-9_-]{16,128}")
-                || !StringUtils.hasText(signature)
-                || rawBody == null || rawBody.getBytes(StandardCharsets.UTF_8).length > 8 * 1024) {
-            throw new BusinessException(ResultCode.RESUME_REVIEW_FOLLOW_BRIDGE_INVALID);
-        }
-        try {
-            long epoch = Long.parseLong(timestamp);
-            if (Math.abs(Instant.now().getEpochSecond() - epoch) > Duration.ofMinutes(5).toSeconds()) {
-                throw new BusinessException(ResultCode.RESUME_REVIEW_FOLLOW_BRIDGE_INVALID);
-            }
-            Mac mac = Mac.getInstance("HmacSHA256");
-            mac.init(new SecretKeySpec(properties.getFollowBridgeHmacSecret()
-                    .getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-            byte[] expected = mac.doFinal((timestamp + "\n" + nonce + "\n" + rawBody)
-                    .getBytes(StandardCharsets.UTF_8));
-            byte[] supplied = HexFormat.of().parseHex(signature.trim().toLowerCase(Locale.ROOT));
-            if (!MessageDigest.isEqual(expected, supplied)) {
-                throw new BusinessException(ResultCode.RESUME_REVIEW_FOLLOW_BRIDGE_INVALID);
-            }
-            String replayKey = "resume-review:follow-bridge:replay:"
-                    + sha256(nonce + ":" + signature).substring(0, 32);
-            Boolean first = redisTemplate.opsForValue().setIfAbsent(
-                    replayKey, "1", Duration.ofMinutes(10));
-            if (!Boolean.TRUE.equals(first)) {
-                return null;
-            }
-            return replayKey;
-        } catch (BusinessException exception) {
-            throw exception;
-        } catch (Exception exception) {
-            throw new BusinessException(ResultCode.RESUME_REVIEW_FOLLOW_BRIDGE_INVALID);
-        }
-    }
-
-    private ResumeReviewFollowChallengeDTO challengeDto(ResumeReviewFollowChallenge challenge) {
-        String instruction = "请关注“" + properties.getFollowOfficialAccountName()
-                + "”公众号并发送：简历精修 " + challenge.getChallengeCode();
-        return new ResumeReviewFollowChallengeDTO(challenge.getChallengeCode(),
-                properties.getFollowOfficialAccountName(), properties.getFollowQrCodeUrl(),
-                instruction, DateTimeUtils.format(challenge.getExpiresAt()));
     }
 
     private ResumeReviewRequest require(String requestNo) {
@@ -864,6 +612,8 @@ public class ResumeReviewServiceImpl implements ResumeReviewService {
         dto.setResumeId(request.getResumeId());
         dto.setContactEmail(request.getContactEmail());
         dto.setContentHash(request.getContentHash());
+        dto.setPdfFileName(request.getPdfOriginalFileName());
+        dto.setPdfSizeBytes(request.getPdfSizeBytes());
         dto.setEntitlementType(request.getEntitlementType());
         dto.setRequestStatus(request.getRequestStatus());
         dto.setPriceCents(request.getPriceCents());
@@ -887,6 +637,8 @@ public class ResumeReviewServiceImpl implements ResumeReviewService {
         dto.setResumeId(request.getResumeId());
         dto.setContactEmail(request.getContactEmail());
         dto.setContentHash(request.getContentHash());
+        dto.setPdfFileName(request.getPdfOriginalFileName());
+        dto.setPdfSizeBytes(request.getPdfSizeBytes());
         dto.setEntitlementType(request.getEntitlementType());
         dto.setRequestStatus(request.getRequestStatus());
         dto.setPriceCents(request.getPriceCents());
@@ -915,32 +667,17 @@ public class ResumeReviewServiceImpl implements ResumeReviewService {
         return dto;
     }
 
-    private ResumeReviewFallbackCodeDTO fallbackDto(ResumeReviewFollowFallbackCode code, String raw) {
-        return new ResumeReviewFallbackCodeDTO(code.getId(), raw, code.getCodeHint(),
-                code.getCodeStatus(), DateTimeUtils.format(code.getExpiresAt()),
-                "此码仅供沉默王二公众号回调故障时人工兜底，不代表实时关注验证；生产应由公众号关键词回调自动签发。");
-    }
-
-    private String requiredText(JsonNode body, String field) {
-        String value = body.path(field).asText(null);
-        if (!StringUtils.hasText(value)) throw new BusinessException(ResultCode.RESUME_REVIEW_FOLLOW_BRIDGE_INVALID);
-        return value;
-    }
-
     private String activeUserKey(Long userId) { return "RESUME_REVIEW:" + userId; }
+    private void requireFeatureEnabled() {
+        if (!properties.isEnabled()) {
+            throw new BusinessException(ResultCode.RESUME_REVIEW_DISABLED);
+        }
+    }
     private String normalizeEmail(String email) {
         if (!StringUtils.hasText(email)) throw new BusinessException(ResultCode.BAD_REQUEST);
         return email.trim().toLowerCase(Locale.ROOT);
     }
-    private String normalizeCode(String code) {
-        return code == null ? "" : code.trim().toUpperCase(Locale.ROOT);
-    }
     private String compactUuid() { return UUID.randomUUID().toString().replace("-", ""); }
-    private String randomCode(int length) {
-        StringBuilder value = new StringBuilder(length);
-        for (int i = 0; i < length; i++) value.append(CODE_ALPHABET[RANDOM.nextInt(CODE_ALPHABET.length)]);
-        return value.toString();
-    }
     private String sha256(String value) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")

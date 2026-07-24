@@ -54,17 +54,6 @@ public class ResumeReviewController {
         return Result.success(service.refreshPayment(SecurityUtils.getCurrentUserId(), requestNo));
     }
 
-    @PostMapping("/follow-challenges")
-    public Result<ResumeReviewFollowChallengeDTO> challenge() {
-        return Result.success(service.createFollowChallenge(SecurityUtils.getCurrentUserId()));
-    }
-
-    @PostMapping("/follow-rewards/redeem-fallback")
-    public Result<Void> redeemFallback(@Valid @RequestBody RedeemResumeReviewFollowCodeDTO dto) {
-        service.redeemFallbackCode(SecurityUtils.getCurrentUserId(), dto.getCode());
-        return Result.success();
-    }
-
     @Data
     public static class ContactEmailDTO {
         @NotBlank @Email @Size(max = 128)

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CORSConfiguration>
+  <CORSRule>
+    <AllowedOrigin>https://resume.paicoding.com</AllowedOrigin>
+    <AllowedMethod>POST</AllowedMethod>
+    <AllowedHeader>Content-Type</AllowedHeader>
+    <ExposeHeader>x-oss-request-id</ExposeHeader>
+    <MaxAgeSeconds>600</MaxAgeSeconds>
+  </CORSRule>
+</CORSConfiguration>

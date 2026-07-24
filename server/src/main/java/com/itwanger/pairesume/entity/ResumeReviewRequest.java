@@ -25,6 +25,13 @@ public class ResumeReviewRequest {
     private String contactEmail;
     private String snapshotJson;
     private String contentHash;
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
+    private String pdfObjectKey;
+    private String pdfObjectEtag;
+    private String pdfOriginalFileName;
+    private Long pdfSizeBytes;
+    private String pdfSha256;
+    private LocalDateTime pdfUploadedAt;
     private String reviewConsentVersion;
     private LocalDateTime reviewConsentAt;
     private String emailConsentVersion;

@@ -1,0 +1,12 @@
+[Unit]
+Description=Check PaiResume local readiness every five minutes
+
+[Timer]
+OnBootSec=2m
+OnUnitActiveSec=5m
+AccuracySec=15s
+RandomizedDelaySec=15s
+Unit=pai-resume-ready-check.service
+
+[Install]
+WantedBy=timers.target

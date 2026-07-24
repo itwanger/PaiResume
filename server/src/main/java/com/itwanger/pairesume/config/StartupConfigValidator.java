@@ -36,6 +36,7 @@ public class StartupConfigValidator {
     private final String datasourceUrl;
     private final String datasourceUsername;
     private final String datasourcePassword;
+    private final boolean sharedDatabaseAccountConfirmed;
     private final boolean flywayEnabled;
     private final String flywayUsername;
     private final String flywayPassword;
@@ -66,6 +67,7 @@ public class StartupConfigValidator {
             @Value("${spring.datasource.url:}") String datasourceUrl,
             @Value("${spring.datasource.username:}") String datasourceUsername,
             @Value("${spring.datasource.password:}") String datasourcePassword,
+            @Value("${app.database.shared-account-confirmed:false}") boolean sharedDatabaseAccountConfirmed,
             @Value("${spring.flyway.enabled:true}") boolean flywayEnabled,
             @Value("${spring.flyway.user:}") String flywayUsername,
             @Value("${spring.flyway.password:}") String flywayPassword,
@@ -95,6 +97,7 @@ public class StartupConfigValidator {
         this.datasourceUrl = datasourceUrl;
         this.datasourceUsername = datasourceUsername;
         this.datasourcePassword = datasourcePassword;
+        this.sharedDatabaseAccountConfirmed = sharedDatabaseAccountConfirmed;
         this.flywayEnabled = flywayEnabled;
         this.flywayUsername = flywayUsername;
         this.flywayPassword = flywayPassword;
@@ -271,11 +274,15 @@ public class StartupConfigValidator {
             );
         }
         if (!StringUtils.hasText(datasourceUsername)
-                || "root".equalsIgnoreCase(datasourceUsername)
                 || !StringUtils.hasText(datasourcePassword)
                 || "123456".equals(datasourcePassword)) {
             throw new IllegalStateException(
-                    "Production MySQL must use a dedicated least-privilege account with a non-default password"
+                    "Production MySQL requires an explicit account with a non-default password"
+            );
+        }
+        if ("root".equalsIgnoreCase(datasourceUsername) && !sharedDatabaseAccountConfirmed) {
+            throw new IllegalStateException(
+                    "MYSQL_SHARED_ACCOUNT_CONFIRMED=true is required before reusing root in production"
             );
         }
         if (!datasourceUrl.contains("useSSL=true")
@@ -293,9 +300,10 @@ public class StartupConfigValidator {
                     "Production Flyway migrations require FLYWAY_USERNAME and FLYWAY_PASSWORD"
             );
         }
-        if (datasourceUsername.equalsIgnoreCase(flywayUsername)) {
+        if (datasourceUsername.equalsIgnoreCase(flywayUsername)
+                && !sharedDatabaseAccountConfirmed) {
             throw new IllegalStateException(
-                    "Production Flyway and application datasource must use separate database accounts"
+                    "MYSQL_SHARED_ACCOUNT_CONFIRMED=true is required before Flyway reuses the application account"
             );
         }
         if (!StringUtils.hasText(redisPassword)) {
