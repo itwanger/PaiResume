@@ -35,6 +35,28 @@ function getNavbarAccountLabel(accountLabel?: string | null): string {
   return `${characters.slice(0, NAVBAR_ACCOUNT_VISIBLE_CHARACTERS - 1).join('')}…`
 }
 
+function VipIcon() {
+  return (
+    <svg
+      className="h-4 w-4 shrink-0 text-amber-500"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+    >
+      <path
+        d="m3.75 7.25 4.5 3.75L12 5l3.75 6 4.5-3.75-1.8 10.5H5.55L3.75 7.25Z"
+        fill="currentColor"
+        fillOpacity={0.16}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={1.8}
+      />
+      <path d="M6 20h12" strokeLinecap="round" strokeWidth={1.8} />
+    </svg>
+  )
+}
+
 function logImportStep(message: string) {
   if (!import.meta.env.DEV) {
     return
@@ -489,11 +511,6 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
                     </div>
                   ) : null}
 
-                  {isVipUser ? (
-                    <span className="hidden rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700 xl:inline-flex">
-                      VIP用户
-                    </span>
-                  ) : null}
                   <div className="relative" ref={accountMenuRef}>
                     <button
                       type="button"
@@ -502,11 +519,12 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
                         setImportMenuOpen(false)
                       }}
                       title={navbarIdentity || undefined}
-                      aria-label={navbarIdentity ? `${navbarIdentity}的账号菜单` : '账号菜单'}
+                      aria-label={isVipUser ? `${navbarIdentity}，VIP用户的账号菜单` : `${navbarIdentity}的账号菜单`}
                       aria-haspopup="menu"
                       aria-expanded={accountMenuOpen}
                       className="inline-flex min-w-0 max-w-40 items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-primary-700"
                     >
+                      {isVipUser ? <VipIcon /> : null}
                       <span className="min-w-0 truncate">{navbarAccountLabel}</span>
                       <svg
                         className={`h-4 w-4 shrink-0 transition-transform ${accountMenuOpen ? 'rotate-180' : ''}`}
@@ -657,19 +675,15 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
                     ) : null}
 
                     <div className="border-t border-gray-100 pt-4">
-                      <div className="flex min-w-0 items-center gap-3 px-3">
+                      <div className="flex min-w-0 items-center gap-2 px-3">
+                        {isVipUser ? <VipIcon /> : null}
                         <span
                           className="min-w-0 flex-1 truncate text-sm font-medium text-gray-800"
                           title={navbarIdentity || undefined}
-                          aria-label={navbarIdentity ? `当前用户：${navbarIdentity}` : '当前用户'}
+                          aria-label={isVipUser ? `当前用户：${navbarIdentity}，VIP用户` : `当前用户：${navbarIdentity}`}
                         >
                           {navbarAccountLabel}
                         </span>
-                        {isVipUser ? (
-                          <span className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
-                            VIP用户
-                          </span>
-                        ) : null}
                       </div>
                       <nav className="mt-3 space-y-1" aria-label="移动端账号菜单">
                         <NavLink
