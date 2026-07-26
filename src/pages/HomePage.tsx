@@ -365,10 +365,10 @@ export default function HomePage() {
                   </button>
                 ) : (
                   <Link
-                    to="/register"
+                    to="/login"
                     className="rounded-lg bg-primary-600 px-5 py-3 text-sm font-medium text-white transition-colors hover:bg-primary-700"
                   >
-                    开始制作简历
+                    扫码开始制作
                   </Link>
                 )}
                 <Link

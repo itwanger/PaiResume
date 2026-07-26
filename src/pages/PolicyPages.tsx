@@ -43,8 +43,8 @@ function PolicyPage({ eyebrow, title, summary, children }: PolicyPageProps) {
             <LogoMark className="h-9 w-9" />
             <span className="font-semibold tracking-tight">派简历</span>
           </Link>
-          <Link to="/register" className="text-sm font-medium text-primary-600 hover:text-primary-700">
-            返回注册
+          <Link to="/login" className="text-sm font-medium text-primary-600 hover:text-primary-700">
+            扫码登录
           </Link>
         </div>
       </header>

@@ -585,14 +585,11 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
                 </div>
               ) : (
                 <div className="flex items-center gap-3 border-l border-gray-200 pl-5">
-                  <NavLink to="/login" className={navigationLinkClass}>
-                    登录
-                  </NavLink>
                   <Link
-                    to="/register"
+                    to="/login"
                     className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-700"
                   >
-                    免费注册
+                    扫码登录
                   </Link>
                 </div>
               )}
@@ -721,15 +718,12 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
                     </div>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-3">
-                    <NavLink to="/login" className={navigationLinkClass}>
-                      登录
-                    </NavLink>
+                  <div>
                     <Link
-                      to="/register"
+                      to="/login"
                       className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-700"
                     >
-                      免费注册
+                      扫码登录
                     </Link>
                   </div>
                 )}

@@ -15,7 +15,6 @@ import { useAuthStore } from '../store/authStore'
 const CLAIM_STORAGE_KEY = 'pai-resume:vip-invite-claim'
 const QR_POLL_INTERVAL_MS = 1_500
 const MAX_INVITE_CODE_LENGTH = 64
-const EMAIL_LOGIN_PATH = '/login?redirect=%2Fvip%2Fclaim&method=email'
 const LEGAL_CONSENT_REQUIRED_CODE = 1123
 const VIP_INVITE_CLAIM_INVALID_CODE = 7020
 const VIP_INVITE_CLAIM_NOT_BOUND_CODE = 7021
@@ -699,20 +698,6 @@ export default function VipInviteClaimPage() {
               className="mt-7"
               aria-busy={creatingClaim}
             >
-              {!isAuthenticated ? (
-                <aside className="mb-5 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
-                  <h2 className="font-semibold">以前用邮箱注册过？请先登录原账号</h2>
-                  <p className="mt-1">
-                    不要直接扫码，否则会创建一个独立微信账号，原账号中的简历和会员不会自动出现在新账号里。
-                  </p>
-                  <Link
-                    to={EMAIL_LOGIN_PATH}
-                    className="mt-2 inline-flex font-semibold text-amber-950 underline underline-offset-2 hover:text-primary-700 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:ring-offset-2"
-                  >
-                    先用邮箱登录，再回来领取
-                  </Link>
-                </aside>
-              ) : null}
               <label htmlFor="vip-invite-code" className="block text-sm font-semibold text-slate-800">
                 VIP 邀请码
               </label>
@@ -777,20 +762,6 @@ export default function VipInviteClaimPage() {
                   这个微信以前绑定过派简历时会登录原微信账号；从未绑定过时会在本次确认协议后创建新的微信账号。
                 </p>
               </div>
-
-              <aside className="mt-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
-                <strong className="font-semibold">以前用邮箱注册过？请先不要扫码。</strong>
-                <p className="mt-1">
-                  直接扫码会创建独立微信账号。请先登录原邮箱账号，再重新输入邀请码，避免简历和会员分到两个账号。
-                </p>
-                <Link
-                  to={EMAIL_LOGIN_PATH}
-                  onClick={restartClaim}
-                  className="mt-2 inline-flex font-semibold text-amber-950 underline underline-offset-2 hover:text-primary-700 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:ring-offset-2"
-                >
-                  清除本次凭证并使用邮箱登录
-                </Link>
-              </aside>
 
               <LegalConsentCheckbox
                 checked={agreementsAccepted}

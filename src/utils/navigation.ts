@@ -35,12 +35,3 @@ export function buildLoginPath(returnTo?: string): string {
   const searchParams = new URLSearchParams({ redirect: returnTo })
   return `/login?${searchParams.toString()}`
 }
-
-export function buildRegisterPath(returnTo?: string): string {
-  if (!returnTo) {
-    return '/register'
-  }
-
-  const searchParams = new URLSearchParams({ redirect: returnTo })
-  return `/register?${searchParams.toString()}`
-}

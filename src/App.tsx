@@ -13,7 +13,6 @@ import {
 const ShowcasePage = lazy(() => import('./pages/ShowcasePage'))
 const SurveyPage = lazy(() => import('./pages/SurveyPage'))
 const LoginPage = lazy(() => import('./pages/LoginPage'))
-const RegisterPage = lazy(() => import('./pages/RegisterPage'))
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 const EditorPage = lazy(() => import('./pages/EditorPage'))
 const ResumeEditorEntryPage = lazy(() => import('./pages/ResumeEditorEntryPage'))
@@ -168,14 +167,7 @@ function App() {
             </GuestRoute>
           )}
         />
-        <Route
-          path="/register"
-          element={(
-            <GuestRoute>
-              <RegisterPage />
-            </GuestRoute>
-          )}
-        />
+        <Route path="/register" element={<Navigate to="/login" replace />} />
         <Route
           path="/forgot-password"
           element={(

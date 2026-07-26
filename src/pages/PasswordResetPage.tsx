@@ -18,7 +18,10 @@ export default function PasswordResetPage() {
   const [error, setError] = useState('')
   const [resendCountdown, setResendCountdown] = useState(0)
   const returnTo = getSafeInternalPath(searchParams.get('redirect'), AUTHENTICATED_HOME_PATH)
-  const loginPath = `/login?${new URLSearchParams({ redirect: returnTo }).toString()}`
+  const loginPath = `/login?${new URLSearchParams({
+    redirect: returnTo,
+    method: 'email',
+  }).toString()}`
 
   useEffect(() => {
     if (resendCountdown <= 0) {
@@ -75,7 +78,11 @@ export default function PasswordResetPage() {
     setLoading(true)
     try {
       await authApi.resetPassword({ email: email.trim(), verificationCode, newPassword })
-      const loginParams = new URLSearchParams({ passwordReset: 'success', redirect: returnTo })
+      const loginParams = new URLSearchParams({
+        passwordReset: 'success',
+        redirect: returnTo,
+        method: 'email',
+      })
       navigate(`/login?${loginParams.toString()}`, { replace: true })
     } catch (resetError: unknown) {
       setError(resetError instanceof Error ? resetError.message : '重置失败，请检查验证码')
