@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { LogoMark } from '../components/branding/LogoMark'
+import { SiteFooter } from '../components/layout/SiteFooter'
 import {
   AI_PROVIDER_NAME,
   AI_PROVIDER_PRIVACY_URL,
@@ -65,6 +66,7 @@ function PolicyPage({ eyebrow, title, summary, children }: PolicyPageProps) {
         </article>
       </main>
 
+      <SiteFooter />
     </div>
   )
 }

@@ -8,6 +8,7 @@ import {
 } from '../api/marketplace'
 import { publicApi, type HomeData } from '../api/public'
 import { Header } from '../components/layout/Header'
+import { SiteFooter } from '../components/layout/SiteFooter'
 import { buildResumeEditorPath } from '../config/site'
 import { useAuthStore } from '../store/authStore'
 import { useResumeStore } from '../store/resumeStore'
@@ -631,6 +632,7 @@ export default function HomePage() {
           </div>
         </section>
       </main>
+      <SiteFooter />
     </div>
   )
 }
