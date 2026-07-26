@@ -22,17 +22,17 @@ import {
 import { LogoMark } from '../branding/LogoMark'
 
 const IMPORT_LOG_PREFIX = '[resume-import]'
-const NAVBAR_EMAIL_VISIBLE_CHARACTERS = 7
+const NAVBAR_ACCOUNT_VISIBLE_CHARACTERS = 7
 
 function getNavbarAccountLabel(accountLabel?: string | null): string {
   const normalizedLabel = accountLabel?.trim() || '用户'
   const characters = Array.from(normalizedLabel)
 
-  if (characters.length <= NAVBAR_EMAIL_VISIBLE_CHARACTERS) {
+  if (characters.length <= NAVBAR_ACCOUNT_VISIBLE_CHARACTERS) {
     return normalizedLabel
   }
 
-  return `${characters.slice(0, NAVBAR_EMAIL_VISIBLE_CHARACTERS - 1).join('')}…`
+  return `${characters.slice(0, NAVBAR_ACCOUNT_VISIBLE_CHARACTERS - 1).join('')}…`
 }
 
 function logImportStep(message: string) {
@@ -55,6 +55,17 @@ function navigationLinkClass({ isActive }: { isActive: boolean }) {
   ].join(' ')
 }
 
+function accountMenuLinkClass({ isActive }: { isActive: boolean }) {
+  return [
+    'flex w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors',
+    isActive
+      ? 'bg-primary-50 text-primary-700'
+      : 'text-gray-600 hover:bg-gray-50 hover:text-primary-700',
+  ].join(' ')
+}
+
+const accountMenuActionClassName = 'flex w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900'
+
 interface HeaderProps {
   enableResumeDrop?: boolean
 }
@@ -71,12 +82,14 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
   const { user, isAuthenticated, initialized, logout } = useAuthStore()
   const { importResume } = useResumeStore()
   const [importMenuOpen, setImportMenuOpen] = useState(false)
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [importingType, setImportingType] = useState<ResumeImportType | null>(null)
   const [importError, setImportError] = useState('')
   const [pendingImport, setPendingImport] = useState<PendingResumeImport | null>(null)
   const [draggingImportFile, setDraggingImportFile] = useState(false)
-  const menuRef = useRef<HTMLDivElement | null>(null)
+  const importMenuRef = useRef<HTMLDivElement | null>(null)
+  const accountMenuRef = useRef<HTMLDivElement | null>(null)
   const importDialogRef = useRef<HTMLDivElement | null>(null)
   const confirmImportButtonRef = useRef<HTMLButtonElement | null>(null)
   const importDialogReturnFocusRef = useRef<HTMLElement | null>(null)
@@ -86,8 +99,8 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
   const resumeImportAvailable = readyAuthenticated && legalConsentAccepted
   const resumeDropEnabled = readyAuthenticated && legalConsentAccepted && enableResumeDrop
   const isVipUser = user?.membershipStatus === 'ACTIVE'
-  const navbarIdentity = user?.email || user?.nickname
-  const navbarEmailLabel = getNavbarAccountLabel(navbarIdentity)
+  const navbarIdentity = user?.nickname?.trim() || '用户'
+  const navbarAccountLabel = getNavbarAccountLabel(navbarIdentity)
   const editorSectionActive = location.pathname === RESUME_EDITOR_ENTRY_PATH
     || location.pathname.startsWith(`${RESUME_EDITOR_ENTRY_PATH}/`)
     || location.pathname.startsWith('/preview/')
@@ -217,26 +230,42 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
   }, [closeImportPreview, importingType, pendingImport])
 
   useEffect(() => {
-    if (!importMenuOpen) {
+    if (!importMenuOpen && !accountMenuOpen && !mobileMenuOpen) {
       return
     }
 
-    const handleClickOutside = (event: MouseEvent) => {
+    const handleClickOutside = (event: PointerEvent) => {
       const target = event.target as Node
 
-      if (menuRef.current && !menuRef.current.contains(target)) {
+      if (importMenuRef.current && !importMenuRef.current.contains(target)) {
         setImportMenuOpen(false)
+      }
+      if (accountMenuRef.current && !accountMenuRef.current.contains(target)) {
+        setAccountMenuOpen(false)
       }
     }
 
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [importMenuOpen])
+    const handleMenuKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setImportMenuOpen(false)
+        setAccountMenuOpen(false)
+        setMobileMenuOpen(false)
+      }
+    }
+
+    document.addEventListener('pointerdown', handleClickOutside)
+    document.addEventListener('keydown', handleMenuKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', handleClickOutside)
+      document.removeEventListener('keydown', handleMenuKeyDown)
+    }
+  }, [accountMenuOpen, importMenuOpen, mobileMenuOpen])
 
   useEffect(() => {
     setMobileMenuOpen(false)
     setImportMenuOpen(false)
-  }, [location.pathname])
+    setAccountMenuOpen(false)
+  }, [location.hash, location.pathname, location.search])
 
   useEffect(() => {
     if (!resumeDropEnabled) {
@@ -301,6 +330,8 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
       dragDepthRef.current = 0
       setDraggingImportFile(false)
       setImportMenuOpen(false)
+      setAccountMenuOpen(false)
+      setMobileMenuOpen(false)
 
       const file = event.dataTransfer?.files?.[0]
       if (!file) {
@@ -334,6 +365,8 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
   }, [handleImportFile, importingType, pendingImport, resumeDropEnabled])
 
   const handleLogout = async () => {
+    setAccountMenuOpen(false)
+    setMobileMenuOpen(false)
     await logout()
     navigate('/', { replace: true })
   }
@@ -351,6 +384,7 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
     logImportStep(`handleImportChange:file-selected:${type}`)
     setImportError('')
     setImportMenuOpen(false)
+    setAccountMenuOpen(false)
     setMobileMenuOpen(false)
     await handleImportFile(file, type)
   }
@@ -377,11 +411,6 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
                 <NavLink to={EXCELLENT_RESUMES_PATH} className={excellentNavigationLinkClass}>
                   优质简历
                 </NavLink>
-                {readyAuthenticated ? (
-                  <NavLink to={AUTHENTICATED_HOME_PATH} end className={navigationLinkClass}>
-                    我的简历
-                  </NavLink>
-                ) : null}
                 {readyAuthenticated && user?.marketplaceEnabled ? (
                   <NavLink to={CREATOR_MARKETPLACE_PATH} className={navigationLinkClass}>
                     创作者中心
@@ -392,11 +421,6 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
                     简历编辑
                   </NavLink>
                 ) : null}
-                {readyAuthenticated && user?.admin ? (
-                  <NavLink to="/admin" className={navigationLinkClass}>
-                    管理后台
-                  </NavLink>
-                ) : null}
               </nav>
 
               {!initialized ? (
@@ -404,10 +428,13 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
               ) : readyAuthenticated ? (
                 <div className="flex min-w-0 items-center gap-3 border-l border-gray-200 pl-5">
                   {resumeImportAvailable ? (
-                    <div className="relative" ref={menuRef}>
+                    <div className="relative" ref={importMenuRef}>
                       <button
                         type="button"
-                        onClick={() => setImportMenuOpen((open) => !open)}
+                        onClick={() => {
+                          setImportMenuOpen((open) => !open)
+                          setAccountMenuOpen(false)
+                        }}
                         disabled={!!importingType}
                         aria-expanded={importMenuOpen}
                         className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 transition-colors hover:border-primary-200 hover:text-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
@@ -467,26 +494,76 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
                       VIP用户
                     </span>
                   ) : null}
-                  <span
-                    className="hidden text-sm text-gray-600 xl:inline"
-                    title={navbarIdentity || undefined}
-                    aria-label={navbarIdentity ? `当前用户：${navbarIdentity}` : '当前用户'}
-                  >
-                    {navbarEmailLabel}
-                  </span>
-                  <Link
-                    to="/settings/account"
-                    className="text-sm text-gray-500 transition-colors hover:text-primary-700"
-                  >
-                    账号
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={() => void handleLogout()}
-                    className="text-sm text-gray-500 transition-colors hover:text-gray-900"
-                  >
-                    退出登录
-                  </button>
+                  <div className="relative" ref={accountMenuRef}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAccountMenuOpen((open) => !open)
+                        setImportMenuOpen(false)
+                      }}
+                      title={navbarIdentity || undefined}
+                      aria-label={navbarIdentity ? `${navbarIdentity}的账号菜单` : '账号菜单'}
+                      aria-haspopup="menu"
+                      aria-expanded={accountMenuOpen}
+                      className="inline-flex min-w-0 max-w-40 items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-primary-700"
+                    >
+                      <span className="min-w-0 truncate">{navbarAccountLabel}</span>
+                      <svg
+                        className={`h-4 w-4 shrink-0 transition-transform ${accountMenuOpen ? 'rotate-180' : ''}`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m6 9 6 6 6-6" />
+                      </svg>
+                    </button>
+
+                    {accountMenuOpen ? (
+                      <div
+                        role="menu"
+                        aria-label="账号菜单"
+                        className="absolute right-0 top-full z-50 mt-2 w-44 rounded-xl border border-gray-200 bg-white p-2 shadow-lg"
+                      >
+                        <NavLink
+                          to={AUTHENTICATED_HOME_PATH}
+                          end
+                          role="menuitem"
+                          onClick={() => setAccountMenuOpen(false)}
+                          className={accountMenuLinkClass}
+                        >
+                          我的简历
+                        </NavLink>
+                        {user?.admin ? (
+                          <NavLink
+                            to="/admin"
+                            role="menuitem"
+                            onClick={() => setAccountMenuOpen(false)}
+                            className={accountMenuLinkClass}
+                          >
+                            管理后台
+                          </NavLink>
+                        ) : null}
+                        <NavLink
+                          to="/settings/account"
+                          role="menuitem"
+                          onClick={() => setAccountMenuOpen(false)}
+                          className={accountMenuLinkClass}
+                        >
+                          账号设置
+                        </NavLink>
+                        <div role="separator" className="my-1 border-t border-gray-100" />
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => void handleLogout()}
+                          className={accountMenuActionClassName}
+                        >
+                          退出登录
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               ) : (
                 <div className="flex items-center gap-3 border-l border-gray-200 pl-5">
@@ -505,7 +582,11 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
 
             <button
               type="button"
-              onClick={() => setMobileMenuOpen((open) => !open)}
+              onClick={() => {
+                setMobileMenuOpen((open) => !open)
+                setImportMenuOpen(false)
+                setAccountMenuOpen(false)
+              }}
               aria-label={mobileMenuOpen ? '收起导航菜单' : '展开导航菜单'}
               aria-expanded={mobileMenuOpen}
               className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition-colors hover:border-primary-200 hover:text-primary-700 lg:hidden"
@@ -529,11 +610,6 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
                 <NavLink to={EXCELLENT_RESUMES_PATH} className={excellentNavigationLinkClass}>
                   优质简历
                 </NavLink>
-                {readyAuthenticated ? (
-                  <NavLink to={AUTHENTICATED_HOME_PATH} end className={navigationLinkClass}>
-                    我的简历
-                  </NavLink>
-                ) : null}
                 {readyAuthenticated && user?.marketplaceEnabled ? (
                   <NavLink to={CREATOR_MARKETPLACE_PATH} className={navigationLinkClass}>
                     创作者中心
@@ -542,11 +618,6 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
                 {readyAuthenticated ? (
                   <NavLink to={RESUME_EDITOR_ENTRY_PATH} className={editorNavigationLinkClass}>
                     简历编辑
-                  </NavLink>
-                ) : null}
-                {readyAuthenticated && user?.admin ? (
-                  <NavLink to="/admin" className={navigationLinkClass}>
-                    管理后台
                   </NavLink>
                 ) : null}
               </nav>
@@ -585,33 +656,54 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
                       </div>
                     ) : null}
 
-                    <div className="flex flex-wrap items-center gap-3 border-t border-gray-100 pt-4">
-                      {isVipUser ? (
-                        <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
-                          VIP用户
+                    <div className="border-t border-gray-100 pt-4">
+                      <div className="flex min-w-0 items-center gap-3 px-3">
+                        <span
+                          className="min-w-0 flex-1 truncate text-sm font-medium text-gray-800"
+                          title={navbarIdentity || undefined}
+                          aria-label={navbarIdentity ? `当前用户：${navbarIdentity}` : '当前用户'}
+                        >
+                          {navbarAccountLabel}
                         </span>
-                      ) : null}
-                      <span
-                        className="min-w-0 flex-1 text-sm text-gray-600"
-                        title={navbarIdentity || undefined}
-                        aria-label={navbarIdentity ? `当前用户：${navbarIdentity}` : '当前用户'}
-                      >
-                        {navbarEmailLabel}
-                      </span>
-                      <Link
-                        to="/settings/account"
-                        onClick={() => setMobileMenuOpen(false)}
-                        className="text-sm text-gray-500 transition-colors hover:text-primary-700"
-                      >
-                        账号设置
-                      </Link>
-                      <button
-                        type="button"
-                        onClick={() => void handleLogout()}
-                        className="text-sm text-gray-500 transition-colors hover:text-gray-900"
-                      >
-                        退出登录
-                      </button>
+                        {isVipUser ? (
+                          <span className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
+                            VIP用户
+                          </span>
+                        ) : null}
+                      </div>
+                      <nav className="mt-3 space-y-1" aria-label="移动端账号菜单">
+                        <NavLink
+                          to={AUTHENTICATED_HOME_PATH}
+                          end
+                          onClick={() => setMobileMenuOpen(false)}
+                          className={accountMenuLinkClass}
+                        >
+                          我的简历
+                        </NavLink>
+                        {user?.admin ? (
+                          <NavLink
+                            to="/admin"
+                            onClick={() => setMobileMenuOpen(false)}
+                            className={accountMenuLinkClass}
+                          >
+                            管理后台
+                          </NavLink>
+                        ) : null}
+                        <NavLink
+                          to="/settings/account"
+                          onClick={() => setMobileMenuOpen(false)}
+                          className={accountMenuLinkClass}
+                        >
+                          账号设置
+                        </NavLink>
+                        <button
+                          type="button"
+                          onClick={() => void handleLogout()}
+                          className={accountMenuActionClassName}
+                        >
+                          退出登录
+                        </button>
+                      </nav>
                     </div>
                   </div>
                 ) : (
