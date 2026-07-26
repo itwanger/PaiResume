@@ -3,12 +3,18 @@ import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import {
   AUTHENTICATED_HOME_PATH,
   buildResumeEditorPath,
-  GITHUB_REPOSITORY_URL,
   RESUME_EDITOR_ENTRY_PATH,
 } from '../../config/site'
 import { useAuthStore } from '../../store/authStore'
 import { useResumeStore } from '../../store/resumeStore'
-import { getResumeImporter, resumeImporters, type ResumeImportType } from '../../utils/importers'
+import {
+  detectResumeImportType,
+  getResumeImporter,
+  resumeImporters,
+  type ImportedResumeData,
+  type ResumeImportType,
+} from '../../utils/importers'
+import { buildResumeImportPreview } from '../../utils/importers/preview'
 import {
   CREATOR_MARKETPLACE_PATH,
   EXCELLENT_RESUMES_PATH,
@@ -16,7 +22,6 @@ import {
 import { LogoMark } from '../branding/LogoMark'
 
 const IMPORT_LOG_PREFIX = '[resume-import]'
-const MARKDOWN_FILE_PATTERN = /\.(md|markdown|txt)$/i
 const NAVBAR_EMAIL_VISIBLE_CHARACTERS = 7
 
 function getNavbarAccountLabel(accountLabel?: string | null): string {
@@ -43,18 +48,6 @@ function isFileDragEvent(event: DragEvent): boolean {
   return Array.from(types ?? []).includes('Files')
 }
 
-function getImportTypeFromFile(file: File): ResumeImportType | null {
-  if (
-    MARKDOWN_FILE_PATTERN.test(file.name)
-    || file.type === 'text/markdown'
-    || file.type === 'text/plain'
-  ) {
-    return 'markdown'
-  }
-
-  return null
-}
-
 function navigationLinkClass({ isActive }: { isActive: boolean }) {
   return [
     'text-sm font-medium transition-colors',
@@ -66,6 +59,12 @@ interface HeaderProps {
   enableResumeDrop?: boolean
 }
 
+interface PendingResumeImport {
+  fileName: string
+  type: ResumeImportType
+  payload: ImportedResumeData
+}
+
 export function Header({ enableResumeDrop = false }: HeaderProps) {
   const navigate = useNavigate()
   const location = useLocation()
@@ -75,8 +74,12 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [importingType, setImportingType] = useState<ResumeImportType | null>(null)
   const [importError, setImportError] = useState('')
+  const [pendingImport, setPendingImport] = useState<PendingResumeImport | null>(null)
   const [draggingImportFile, setDraggingImportFile] = useState(false)
   const menuRef = useRef<HTMLDivElement | null>(null)
+  const importDialogRef = useRef<HTMLDivElement | null>(null)
+  const confirmImportButtonRef = useRef<HTMLButtonElement | null>(null)
+  const importDialogReturnFocusRef = useRef<HTMLElement | null>(null)
   const dragDepthRef = useRef(0)
   const readyAuthenticated = initialized && isAuthenticated
   const legalConsentAccepted = !user?.legalConsentRequired
@@ -113,9 +116,14 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
       setImportingType(currentType)
       const payload = await importer.parse(file)
       logImportStep(`handleImportFile:parse-success:${currentType}`)
-      const resume = await importResume(payload)
-      logImportStep(`handleImportFile:store-import-success:${currentType}`)
-      navigate(buildResumeEditorPath(resume.id))
+      importDialogReturnFocusRef.current = document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null
+      setPendingImport({
+        fileName: file.name,
+        type: currentType,
+        payload,
+      })
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : '导入失败，请稍后再试'
       logImportStep(`handleImportFile:error:${currentType}`)
@@ -124,7 +132,89 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
       logImportStep(`handleImportFile:finish:${currentType}`)
       setImportingType(null)
     }
-  }, [importResume, navigate])
+  }, [])
+
+  const closeImportPreview = useCallback(() => {
+    if (importingType) {
+      return
+    }
+    setPendingImport(null)
+    window.requestAnimationFrame(() => {
+      const returnFocusTarget = importDialogReturnFocusRef.current
+      if (returnFocusTarget?.isConnected) {
+        returnFocusTarget.focus()
+      }
+    })
+  }, [importingType])
+
+  const confirmImport = useCallback(async () => {
+    if (!pendingImport || importingType) {
+      return
+    }
+
+    setImportError('')
+    setImportingType(pendingImport.type)
+
+    try {
+      const resume = await importResume(pendingImport.payload)
+      logImportStep(`confirmImport:store-import-success:${pendingImport.type}`)
+      setPendingImport(null)
+      navigate(buildResumeEditorPath(resume.id))
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '导入失败，请稍后再试'
+      logImportStep(`confirmImport:error:${pendingImport.type}`)
+      setImportError(message)
+    } finally {
+      setImportingType(null)
+    }
+  }, [importResume, importingType, navigate, pendingImport])
+
+  useEffect(() => {
+    if (!pendingImport) {
+      return
+    }
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    window.requestAnimationFrame(() => confirmImportButtonRef.current?.focus())
+
+    const handleDialogKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !importingType) {
+        event.preventDefault()
+        closeImportPreview()
+        return
+      }
+
+      if (event.key === 'Tab') {
+        const focusableElements = Array.from(
+          importDialogRef.current?.querySelectorAll<HTMLElement>(
+            'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+          ) ?? []
+        )
+        const firstElement = focusableElements[0]
+        const lastElement = focusableElements[focusableElements.length - 1]
+
+        if (!firstElement || !lastElement) {
+          event.preventDefault()
+          return
+        }
+
+        if (event.shiftKey && document.activeElement === firstElement) {
+          event.preventDefault()
+          lastElement.focus()
+        } else if (!event.shiftKey && document.activeElement === lastElement) {
+          event.preventDefault()
+          firstElement.focus()
+        }
+      }
+    }
+
+    document.addEventListener('keydown', handleDialogKeyDown)
+    return () => {
+      document.removeEventListener('keydown', handleDialogKeyDown)
+      document.body.style.overflow = previousOverflow
+    }
+  }, [closeImportPreview, importingType, pendingImport])
 
   useEffect(() => {
     if (!importMenuOpen) {
@@ -161,7 +251,7 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
       }
 
       event.preventDefault()
-      if (importingType) {
+      if (importingType || pendingImport) {
         return
       }
       dragDepthRef.current += 1
@@ -175,7 +265,7 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
       }
 
       event.preventDefault()
-      if (importingType) {
+      if (importingType || pendingImport) {
         return
       }
       if (event.dataTransfer) {
@@ -189,7 +279,7 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
       }
 
       event.preventDefault()
-      if (importingType) {
+      if (importingType || pendingImport) {
         return
       }
       dragDepthRef.current = Math.max(0, dragDepthRef.current - 1)
@@ -205,7 +295,7 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
       }
 
       event.preventDefault()
-      if (importingType) {
+      if (importingType || pendingImport) {
         return
       }
       dragDepthRef.current = 0
@@ -218,11 +308,11 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
         return
       }
 
-      const importType = getImportTypeFromFile(file)
+      const importType = detectResumeImportType(file)
       logImportStep(importType ? `dragImport:drop:${importType}` : 'dragImport:drop:unsupported')
 
       if (!importType) {
-        setImportError('当前仅支持拖拽导入 Markdown / TXT 简历文件')
+        setImportError('仅支持 Markdown、TXT、DOCX 或文本型 PDF 简历文件')
         return
       }
 
@@ -241,7 +331,7 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
       window.removeEventListener('dragleave', handleDragLeave)
       window.removeEventListener('drop', handleDrop)
     }
-  }, [handleImportFile, importingType, resumeDropEnabled])
+  }, [handleImportFile, importingType, pendingImport, resumeDropEnabled])
 
   const handleLogout = async () => {
     await logout()
@@ -302,14 +392,6 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
                     简历编辑
                   </NavLink>
                 ) : null}
-                <a
-                  href={GITHUB_REPOSITORY_URL}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-sm font-medium text-gray-600 transition-colors hover:text-primary-700"
-                >
-                  GitHub
-                </a>
                 {readyAuthenticated && user?.admin ? (
                   <NavLink to="/admin" className={navigationLinkClass}>
                     管理后台
@@ -462,14 +544,6 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
                     简历编辑
                   </NavLink>
                 ) : null}
-                <a
-                  href={GITHUB_REPOSITORY_URL}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-sm font-medium text-gray-600 transition-colors hover:text-primary-700"
-                >
-                  GitHub
-                </a>
                 {readyAuthenticated && user?.admin ? (
                   <NavLink to="/admin" className={navigationLinkClass}>
                     管理后台
@@ -572,15 +646,122 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M12 11v8m0-8l-3 3m3-3l3 3" />
                 </svg>
               </div>
-              <h2 className="text-2xl font-semibold text-slate-900">松开即可导入 Markdown 简历</h2>
+              <h2 className="text-2xl font-semibold text-slate-900">松开即可导入简历</h2>
               <p className="mt-3 text-sm leading-6 text-slate-500">
-                支持 `.md`、`.markdown`、`.txt`
+                支持 `.md`、`.markdown`、`.txt`、`.docx` 和文本型 `.pdf`
                 {importingType ? '，当前正在处理上一份文件，请稍候。' : '，直接把文件拖到页面任意位置就行。'}
               </p>
             </div>
           </div>
         </div>
       )}
+
+      {pendingImport ? (() => {
+        const preview = buildResumeImportPreview(pendingImport.payload)
+        const contactItems = [
+          preview.name && `姓名：${preview.name}`,
+          preview.phone && `手机：${preview.phone}`,
+          preview.email && `邮箱：${preview.email}`,
+        ].filter(Boolean)
+
+        return (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm">
+            <div
+              ref={importDialogRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="resume-import-preview-title"
+              aria-describedby="resume-import-preview-description"
+              className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl sm:p-7"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="text-sm font-medium text-sky-600">导入前确认</div>
+                  <h2 id="resume-import-preview-title" className="mt-1 text-xl font-semibold text-slate-900">
+                    核对识别结果
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeImportPreview}
+                  disabled={!!importingType}
+                  aria-label="关闭导入确认"
+                  className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <p id="resume-import-preview-description" className="mt-3 text-sm leading-6 text-slate-500">
+                Word 表格和双栏 PDF 的阅读顺序可能存在差异。请先核对标题、联系方式和识别到的模块，确认后才会创建简历。
+              </p>
+
+              <dl className="mt-5 space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm">
+                <div>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">源文件</dt>
+                  <dd className="mt-1 break-all font-medium text-slate-700">{pendingImport.fileName}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">简历标题</dt>
+                  <dd className="mt-1 font-medium text-slate-900">{preview.title}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">基本信息</dt>
+                  <dd className="mt-1 text-slate-700">
+                    {contactItems.length > 0 ? contactItems.join(' · ') : '未识别到姓名、手机或邮箱，请谨慎确认'}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                    已识别模块（{preview.moduleLabels.length}）
+                  </dt>
+                  <dd className="mt-2 max-h-48 space-y-2 overflow-y-auto pr-1">
+                    {preview.moduleOutline.map((module, index) => (
+                      <div
+                        key={`${module.label}-${index}`}
+                        className="rounded-lg border border-slate-200 bg-white px-3 py-2"
+                      >
+                        <div className="text-xs font-medium text-slate-700">{module.label}</div>
+                        <div className="mt-0.5 line-clamp-2 text-xs leading-5 text-slate-500">
+                          {module.summary || '已识别该模块，请进入编辑器继续核对内容'}
+                        </div>
+                      </div>
+                    ))}
+                  </dd>
+                </div>
+              </dl>
+
+              {importError ? (
+                <div role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                  {importError}
+                </div>
+              ) : null}
+
+              <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={closeImportPreview}
+                  disabled={!!importingType}
+                  className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  取消，不创建
+                </button>
+                <button
+                  ref={confirmImportButtonRef}
+                  type="button"
+                  onClick={() => void confirmImport()}
+                  disabled={!!importingType}
+                  className="rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {importingType ? '正在创建…' : '确认并创建简历'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })() : null}
     </>
   )
 }

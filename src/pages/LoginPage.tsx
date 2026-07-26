@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { authApi, type WechatChallengeCreateData } from '../api/auth'
+import { LegalConsentCheckbox } from '../components/auth/LegalConsentCheckbox'
 import { LogoMark } from '../components/branding/LogoMark'
 import { AUTHENTICATED_HOME_PATH } from '../config/site'
 import { useAuthStore } from '../store/authStore'
@@ -10,7 +11,7 @@ const REMEMBERED_EMAIL_KEY = 'rememberedEmail'
 const LEGACY_REMEMBERED_PASSWORD_KEY = 'rememberedPassword'
 const QR_POLL_INTERVAL_MS = 1_500
 
-type QrLoginPhase = 'loading' | 'pending' | 'exchanging' | 'expired' | 'consumed' | 'error'
+type QrLoginPhase = 'idle' | 'loading' | 'pending' | 'exchanging' | 'expired' | 'consumed' | 'error'
 
 type QrDisplayData = Pick<
   WechatChallengeCreateData,
@@ -87,7 +88,8 @@ export default function LoginPage() {
     passwordResetSucceeded || emailLoginPreferred,
   )
 
-  const [qrPhase, setQrPhase] = useState<QrLoginPhase>('loading')
+  const [agreementsAccepted, setAgreementsAccepted] = useState(false)
+  const [qrPhase, setQrPhase] = useState<QrLoginPhase>('idle')
   const [qrDisplay, setQrDisplay] = useState<QrDisplayData | null>(null)
   const [qrError, setQrError] = useState('')
   const [qrRefreshKey, setQrRefreshKey] = useState(0)
@@ -97,6 +99,10 @@ export default function LoginPage() {
   } | null>(null)
 
   useEffect(() => {
+    if (!agreementsAccepted) {
+      return
+    }
+
     let cancelled = false
     let pollTimer: number | null = null
 
@@ -148,7 +154,11 @@ export default function LoginPage() {
           setQrPhase('exchanging')
           setQrError('')
           try {
-            await completeWechatLogin(challenge.challengeId, challenge.pollToken)
+            await completeWechatLogin(
+              challenge.challengeId,
+              challenge.pollToken,
+              agreementsAccepted,
+            )
             if (!cancelled) {
               navigate(returnTo, { replace: true })
             }
@@ -209,7 +219,7 @@ export default function LoginPage() {
       cancelled = true
       stopPolling()
     }
-  }, [completeWechatLogin, navigate, qrRefreshKey, returnTo])
+  }, [agreementsAccepted, completeWechatLogin, navigate, qrRefreshKey, returnTo])
 
   const handleEmailSubmit = async (event: FormEvent) => {
     event.preventDefault()
@@ -241,6 +251,16 @@ export default function LoginPage() {
     setQrRefreshKey((value) => value + 1)
   }
 
+  const handleAgreementsAcceptedChange = (checked: boolean) => {
+    setAgreementsAccepted(checked)
+    if (!checked) {
+      challengeRequestRef.current = null
+      setQrDisplay(null)
+      setQrPhase('idle')
+      setQrError('')
+    }
+  }
+
   const qrUnavailable = qrPhase === 'expired' || qrPhase === 'consumed' || qrPhase === 'error'
 
   return (
@@ -260,6 +280,13 @@ export default function LoginPage() {
             </p>
           </div>
 
+          <LegalConsentCheckbox
+            checked={agreementsAccepted}
+            onChange={handleAgreementsAcceptedChange}
+            disabled={qrPhase === 'exchanging'}
+            className="mt-5 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3"
+          />
+
           <div className="mt-5 flex flex-col items-center">
             <div
               className="relative flex h-56 w-56 items-center justify-center overflow-hidden border border-gray-200 bg-gray-50 p-2"
@@ -272,6 +299,10 @@ export default function LoginPage() {
                   className={`h-full w-full object-contain ${qrUnavailable ? 'opacity-20' : ''}`}
                   draggable={false}
                 />
+              ) : qrPhase === 'idle' ? (
+                <div className="px-5 text-center text-sm leading-6 text-gray-500">
+                  请先阅读并勾选上方协议，随后生成登录二维码
+                </div>
               ) : (
                 <div className="flex flex-col items-center gap-3 text-gray-400">
                   <LoadingSpinner />
@@ -304,6 +335,7 @@ export default function LoginPage() {
               {qrPhase === 'pending' && qrDisplay && (
                 <span>等待扫码·剩余 {formatExpiry(qrDisplay.expiresIn)}</span>
               )}
+              {qrPhase === 'idle' && <span>勾选协议后即可扫码登录</span>}
               {qrPhase === 'loading' && <span>正在连接派聪明服务号…</span>}
               {qrPhase === 'exchanging' && <span>请稍候，登录即将完成</span>}
             </div>
@@ -327,7 +359,7 @@ export default function LoginPage() {
               使用原邮箱账号登录
             </button>
             <p className="mt-1 text-xs">
-              从未注册过的用户可以直接扫码，创建账号后再确认服务条款与隐私政策。
+              从未注册过的用户勾选上方协议并扫码后，会创建一个新的微信账号。
             </p>
           </div>
 

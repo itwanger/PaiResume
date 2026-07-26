@@ -14,6 +14,7 @@ public interface ResumeReviewService {
     void handleVerifiedProviderNotification(ProviderPaymentResult result);
     void reconcileExpiredPayment(Long requestId);
     List<ResumeReviewAdminRequestDTO> adminList();
+    long adminActionCount();
     ResumeReviewAdminRequestDTO adminGet(String requestNo);
     List<ResumeReviewAuditDTO> adminAudits(String requestNo);
     ResumeReviewRequestDTO adminAccept(String requestNo, Long adminId, String reason);

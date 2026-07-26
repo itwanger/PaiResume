@@ -14,6 +14,10 @@ type ReviewFilter =
 
 type ReviewAction = 'ACCEPT' | 'COMPLETE' | 'RETURN' | 'RETRY_MAIL'
 
+interface ResumeReviewAdminPanelProps {
+  onActionCountChanged: () => Promise<void>
+}
+
 const ACTIVE_STATUSES = new Set<ResumeReviewStatus>([
   'AWAITING_PAYMENT',
   'EMAIL_PENDING',
@@ -107,12 +111,15 @@ function needsAdminAction(request: ResumeReviewAdminRequest) {
       && (request.mailStatus === 'FAILED' || request.mailStatus === null))
 }
 
-export function ResumeReviewAdminPanel() {
+export function ResumeReviewAdminPanel({
+  onActionCountChanged,
+}: ResumeReviewAdminPanelProps) {
   const [reviews, setReviews] = useState<ResumeReviewAdminRequest[]>([])
   const [filter, setFilter] = useState<ReviewFilter>('ACTION_REQUIRED')
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [workspaceLoaded, setWorkspaceLoaded] = useState(false)
   const [workingRequestNo, setWorkingRequestNo] = useState<string | null>(null)
   const [selectedAuditRequestNo, setSelectedAuditRequestNo] = useState<string | null>(null)
   const [audits, setAudits] = useState<ResumeReviewAudit[]>([])
@@ -148,12 +155,17 @@ export function ResumeReviewAdminPanel() {
   useEffect(() => {
     let canceled = false
     setLoading(true)
+    setWorkspaceLoaded(false)
     setError('')
     void adminApi.listResumeReviews().then((reviewResponse) => {
       if (canceled) return
       setReviews(reviewResponse.data.data)
+      setWorkspaceLoaded(true)
     }).catch((loadError: unknown) => {
-      if (!canceled) setError(getErrorMessage(loadError, '人工精修工作台加载失败'))
+      if (!canceled) {
+        setWorkspaceLoaded(false)
+        setError(getErrorMessage(loadError, '人工精修工作台加载失败'))
+      }
     }).finally(() => {
       if (!canceled) setLoading(false)
     })
@@ -164,11 +176,15 @@ export function ResumeReviewAdminPanel() {
 
   async function refreshWorkspace() {
     setRefreshing(true)
+    setWorkspaceLoaded(false)
     setError('')
     try {
       const reviewResponse = await adminApi.listResumeReviews()
       setReviews(reviewResponse.data.data)
+      await onActionCountChanged().catch(() => undefined)
+      setWorkspaceLoaded(true)
     } catch (loadError: unknown) {
+      setWorkspaceLoaded(false)
       setError(getErrorMessage(loadError, '人工精修工作台刷新失败'))
     } finally {
       setRefreshing(false)
@@ -238,6 +254,7 @@ export function ResumeReviewAdminPanel() {
             ? adminApi.returnResumeReview(request.requestNo, reason)
             : adminApi.retryResumeReviewMail(request.requestNo, reason))
       replaceReview({ ...request, ...actionResponse.data.data })
+      void onActionCountChanged().catch(() => undefined)
       try {
         const { data: detailResponse } = await adminApi.getResumeReview(request.requestNo)
         replaceReview(detailResponse.data)
@@ -281,6 +298,7 @@ export function ResumeReviewAdminPanel() {
         reason,
       )
       replaceReview({ ...request, ...actionResponse.data.data, refundReference })
+      void onActionCountChanged().catch(() => undefined)
       try {
         const { data: detailResponse } = await adminApi.getResumeReview(request.requestNo)
         replaceReview(detailResponse.data)
@@ -317,11 +335,29 @@ export function ResumeReviewAdminPanel() {
     }
   }
 
-  if (loading) {
+  if (loading || refreshing) {
     return (
       <section className="rounded-lg border border-violet-200 bg-white px-6 py-6">
         <h2 className="text-lg font-semibold text-gray-900">人工简历精修工作台</h2>
         <p className="mt-4 text-sm text-gray-500">正在加载人工精修申请…</p>
+      </section>
+    )
+  }
+
+  if (!workspaceLoaded) {
+    return (
+      <section className="rounded-lg border border-red-200 bg-white px-6 py-6">
+        <h2 className="text-lg font-semibold text-gray-900">人工简历精修工作台</h2>
+        <div role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error || '人工精修工作台加载失败，请重试。'}
+        </div>
+        <button
+          type="button"
+          onClick={() => void refreshWorkspace()}
+          className="mt-4 min-h-11 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700"
+        >
+          重新加载
+        </button>
       </section>
     )
   }

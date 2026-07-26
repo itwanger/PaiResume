@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   adminApi,
   type AdminMarketListing,
@@ -25,9 +26,28 @@ import {
   type MarketplaceReviewStatus,
 } from '../api/marketplace'
 import { resumeApi, type ResumeListItem } from '../api/resume'
+import { AdminOverview } from '../components/admin/AdminOverview'
+import {
+  filterAdminUsers,
+  getUserAdminLabel,
+} from '../components/admin/adminData'
+import {
+  ADMIN_DATA_SECTION_LABELS,
+  ADMIN_VIEW_LOAD_SECTIONS,
+  getAdminViewFailedSections,
+  getAdminViewLoadState,
+  OVERVIEW_LOAD_SECTIONS,
+  type AdminDataSection,
+} from '../components/admin/adminLoadPlan'
+import {
+  AdminShell,
+} from '../components/admin/AdminShell'
+import {
+  type AdminView,
+  isAdminView,
+} from '../components/admin/adminNavigation'
 import { MarketplaceGovernancePanel } from '../components/admin/MarketplaceGovernancePanel'
 import { ResumeReviewAdminPanel } from '../components/admin/ResumeReviewAdminPanel'
-import { Header } from '../components/layout/Header'
 
 function formatCents(value: number) {
   return `¥${(value / 100).toFixed(2)}`
@@ -130,6 +150,9 @@ function formatMembershipSnapshot(
 }
 
 export default function AdminPage() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const requestedView = searchParams.get('view')
+  const activeView: AdminView = isAdminView(requestedView) ? requestedView : 'overview'
   const [platformConfig, setPlatformConfig] = useState<PlatformConfig>({
     membershipPriceCents: 6600,
     questionnaireCouponAmountCents: 1000,
@@ -142,17 +165,22 @@ export default function AdminPage() {
   const [selectedInviteId, setSelectedInviteId] = useState<number | null>(null)
   const [membershipAuditLogs, setMembershipAuditLogs] = useState<MembershipAdminAuditLog[]>([])
   const [users, setUsers] = useState<UserAdmin[]>([])
+  const [userSearch, setUserSearch] = useState('')
+  const [userMembershipFilter, setUserMembershipFilter] = useState<'' | 'ACTIVE' | 'FREE'>('')
   const [showcases, setShowcases] = useState<ResumeShowcaseAdmin[]>([])
   const [marketListings, setMarketListings] = useState<AdminMarketListing[]>([])
   const [marketListingPage, setMarketListingPage] = useState(1)
   const [marketListingTotalPages, setMarketListingTotalPages] = useState(1)
   const [marketListingTotal, setMarketListingTotal] = useState(0)
+  const [pendingMarketListingCount, setPendingMarketListingCount] = useState(0)
   const [marketPublicationFilter, setMarketPublicationFilter] = useState<'' | 'PUBLISHED' | 'UNPUBLISHED'>('')
   const [marketModerationFilter, setMarketModerationFilter] = useState<'' | 'APPROVED' | 'SUSPENDED'>('')
   const [marketReviewFilter, setMarketReviewFilter] = useState<'' | MarketplaceReviewStatus>('PENDING')
   const [governanceAuditRefreshKey, setGovernanceAuditRefreshKey] = useState(0)
   const [pendingCreatorEarnings, setPendingCreatorEarnings] = useState<CreatorEarning[]>([])
+  const [pendingCreatorEarningCount, setPendingCreatorEarningCount] = useState(0)
   const [paymentReviews, setPaymentReviews] = useState<MarketplacePaymentReview[]>([])
+  const [marketplacePaymentIssueCount, setMarketplacePaymentIssueCount] = useState(0)
   const [paymentCloseWork, setPaymentCloseWork] = useState<MarketplacePaymentReview[]>([])
   const [paymentReviewFilter, setPaymentReviewFilter] = useState<'' | MarketplacePaymentReviewStatus>('')
   const [paymentOrderLookup, setPaymentOrderLookup] = useState('')
@@ -168,7 +196,12 @@ export default function AdminPage() {
   const [resumes, setResumes] = useState<ResumeListItem[]>([])
   const [showcaseForm, setShowcaseForm] = useState(EMPTY_SHOWCASE_FORM)
   const [inviteForm, setInviteForm] = useState(EMPTY_INVITE_FORM)
-  const [loading, setLoading] = useState(true)
+  const [loadedSections, setLoadedSections] = useState<Set<AdminDataSection>>(new Set())
+  const [loadingSections, setLoadingSections] = useState<Set<AdminDataSection>>(new Set())
+  const [failedSections, setFailedSections] = useState<Set<AdminDataSection>>(new Set())
+  const [overviewLastUpdatedAt, setOverviewLastUpdatedAt] = useState<Date | null>(null)
+  const [pendingGovernanceCount, setPendingGovernanceCount] = useState(0)
+  const [pendingResumeReviewCount, setPendingResumeReviewCount] = useState(0)
   const [savingConfig, setSavingConfig] = useState(false)
   const [submittingShowcase, setSubmittingShowcase] = useState(false)
   const [creatingInvite, setCreatingInvite] = useState(false)
@@ -187,107 +220,274 @@ export default function AdminPage() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
-  useEffect(() => {
-    void loadAll()
-    void Promise.all([
-      refreshMembershipPaymentOrders(1, 'REFUND_REQUIRED', ''),
-      refreshMembershipPaymentSummary(),
-    ]).catch((err: unknown) => {
-      setError(err instanceof Error ? err.message : '会员支付复核数据加载失败')
-    })
-  }, [])
+  const handleAdminNavigate = (view: AdminView) => {
+    const nextSearchParams = new URLSearchParams(searchParams)
+    if (view === 'overview') {
+      nextSearchParams.delete('view')
+    } else {
+      nextSearchParams.set('view', view)
+    }
+    setSearchParams(nextSearchParams)
+  }
 
   const showcaseOptions = useMemo(() => resumes.map((resume) => ({
     label: resume.title,
     value: String(resume.id),
   })), [resumes])
 
-  async function loadAll() {
-    setLoading(true)
-    setError('')
-    try {
-      const [
-        platformConfigRes,
-        feedbackRes,
-        couponRes,
-        inviteRes,
-        userRes,
-        membershipAuditRes,
-        showcaseRes,
-        resumesRes,
-        marketplaceListingRes,
-        creatorEarningRes,
-        paymentReviewRes,
-        paymentCloseWorkRes,
-      ] = await Promise.all([
-        adminApi.getPlatformConfig(),
-        adminApi.listFeedbackSubmissions(),
-        adminApi.listCoupons(),
-        adminApi.listVipInvites(),
-        adminApi.listUsers(),
-        adminApi.listMembershipAuditLogs(),
-        adminApi.listShowcases(),
-        resumeApi.list(),
-        adminApi.listMarketplaceListings({ page: 1, size: 20, reviewStatus: 'PENDING' }),
-        adminApi.listCreatorEarnings(),
-        adminApi.listMarketplacePaymentReviews(),
-        adminApi.listMarketplaceCloseWork(),
-      ])
+  const markSectionLoading = useCallback((section: AdminDataSection) => {
+    setLoadingSections((current) => {
+      const next = new Set(current)
+      next.add(section)
+      return next
+    })
+    setFailedSections((current) => {
+      const next = new Set(current)
+      next.delete(section)
+      return next
+    })
+  }, [])
 
-      setPlatformConfig(platformConfigRes.data.data)
-      setFeedbacks(feedbackRes.data.data)
-      setCoupons(couponRes.data.data)
-      setVipInvites(inviteRes.data.data)
-      setUsers(userRes.data.data)
-      setMembershipAuditLogs(membershipAuditRes.data.data)
-      setShowcases(showcaseRes.data.data)
-      setResumes(resumesRes.data.data)
-      setMarketListings(getMarketplacePageItems(marketplaceListingRes.data.data))
-      setMarketListingPage(marketplaceListingRes.data.data.page)
-      setMarketListingTotal(marketplaceListingRes.data.data.total)
-      setMarketListingTotalPages(Math.max(1, getMarketplaceTotalPages(marketplaceListingRes.data.data)))
-      setPendingCreatorEarnings(creatorEarningRes.data.data)
-      setPaymentReviews(paymentReviewRes.data.data)
-      setPaymentCloseWork(paymentCloseWorkRes.data.data)
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : '后台数据加载失败'
-      setError(message)
+  const markSectionLoaded = useCallback((section: AdminDataSection) => {
+    setLoadedSections((current) => {
+      const next = new Set(current)
+      next.add(section)
+      return next
+    })
+    setFailedSections((current) => {
+      const next = new Set(current)
+      next.delete(section)
+      return next
+    })
+  }, [])
+
+  const markSectionFailed = useCallback((section: AdminDataSection) => {
+    setLoadedSections((current) => {
+      const next = new Set(current)
+      next.delete(section)
+      return next
+    })
+    setFailedSections((current) => {
+      const next = new Set(current)
+      next.add(section)
+      return next
+    })
+  }, [])
+
+  const markSectionFinished = useCallback((section: AdminDataSection) => {
+    setLoadingSections((current) => {
+      const next = new Set(current)
+      next.delete(section)
+      return next
+    })
+  }, [])
+
+  const runSectionLoad = useCallback(async (
+    section: AdminDataSection,
+    load: () => Promise<void>,
+  ) => {
+    markSectionLoading(section)
+    try {
+      await load()
+      markSectionLoaded(section)
+    } catch (loadError) {
+      markSectionFailed(section)
+      throw loadError
     } finally {
-      setLoading(false)
+      markSectionFinished(section)
     }
-  }
+  }, [markSectionFailed, markSectionFinished, markSectionLoaded, markSectionLoading])
+
+  const loadSection = useCallback(async (section: AdminDataSection) => {
+    await runSectionLoad(section, async () => {
+      switch (section) {
+        case 'platformConfig': {
+          const response = await adminApi.getPlatformConfig()
+          setPlatformConfig(response.data.data)
+          return
+        }
+        case 'feedbacks': {
+          const response = await adminApi.listFeedbackSubmissions()
+          setFeedbacks(response.data.data)
+          return
+        }
+        case 'coupons': {
+          const response = await adminApi.listCoupons()
+          setCoupons(response.data.data)
+          return
+        }
+        case 'vipInvites': {
+          const response = await adminApi.listVipInvites()
+          setVipInvites(response.data.data)
+          return
+        }
+        case 'users': {
+          const response = await adminApi.listUsers()
+          setUsers(response.data.data)
+          return
+        }
+        case 'membershipAuditLogs': {
+          const response = await adminApi.listMembershipAuditLogs()
+          setMembershipAuditLogs(response.data.data)
+          return
+        }
+        case 'showcases': {
+          const response = await adminApi.listShowcases()
+          setShowcases(response.data.data)
+          return
+        }
+        case 'resumes': {
+          const response = await resumeApi.list()
+          setResumes(response.data.data)
+          return
+        }
+        case 'marketListings': {
+          const response = await adminApi.listMarketplaceListings({
+            page: 1,
+            size: 20,
+            reviewStatus: 'PENDING',
+          })
+          const payload = response.data.data
+          setMarketListings(getMarketplacePageItems(payload))
+          setMarketListingPage(payload.page)
+          setMarketListingTotal(payload.total)
+          setPendingMarketListingCount(payload.total)
+          setMarketListingTotalPages(Math.max(1, getMarketplaceTotalPages(payload)))
+          return
+        }
+        case 'creatorEarnings': {
+          const response = await adminApi.listCreatorEarnings()
+          setPendingCreatorEarnings(response.data.data)
+          return
+        }
+        case 'creatorEarningCount': {
+          const response = await adminApi.getCreatorEarningCount()
+          setPendingCreatorEarningCount(response.data.data)
+          return
+        }
+        case 'paymentReviews': {
+          const response = await adminApi.listMarketplacePaymentReviews()
+          setPaymentReviews(response.data.data)
+          return
+        }
+        case 'marketPaymentIssues': {
+          const response = await adminApi.getMarketplacePaymentReviewCount()
+          setMarketplacePaymentIssueCount(response.data.data)
+          return
+        }
+        case 'paymentCloseWork': {
+          const response = await adminApi.listMarketplaceCloseWork()
+          setPaymentCloseWork(response.data.data)
+          return
+        }
+        case 'membershipSummary': {
+          const response = await adminApi.getMembershipPaymentSummary()
+          setMembershipPaymentSummary(response.data.data)
+          return
+        }
+        case 'membershipOrders': {
+          const response = await adminApi.listMembershipPaymentOrders({
+            page: 1,
+            size: 20,
+            orderStatus: 'REFUND_REQUIRED',
+            reviewStatus: '',
+          })
+          setMembershipPaymentOrders(response.data.data.records)
+          setMembershipPaymentPage(response.data.data.page)
+          setMembershipPaymentTotal(response.data.data.total)
+          setMembershipPaymentTotalPages(Math.max(1, response.data.data.totalPages))
+          return
+        }
+        case 'governance': {
+          const [reportResponse, appealResponse] = await Promise.all([
+            adminApi.listMarketplaceReports({ page: 1, size: 1, status: 'OPEN' }),
+            adminApi.listMarketplaceAppeals({ page: 1, size: 1, status: 'OPEN' }),
+          ])
+          setPendingGovernanceCount(
+            reportResponse.data.data.total + appealResponse.data.data.total,
+          )
+          return
+        }
+        case 'resumeReviewActionCount': {
+          const response = await adminApi.getResumeReviewActionCount()
+          setPendingResumeReviewCount(response.data.data)
+          return
+        }
+      }
+    })
+  }, [runSectionLoad])
+
+  const loadView = useCallback(async (view: AdminView) => {
+    setError('')
+    const sections = ADMIN_VIEW_LOAD_SECTIONS[view]
+    await Promise.allSettled(sections.map((section) => loadSection(section)))
+    if (view === 'overview') {
+      setOverviewLastUpdatedAt(new Date())
+    }
+  }, [loadSection])
+
+  const retryFailedSections = useCallback(async () => {
+    await Promise.allSettled(Array.from(failedSections).map((section) => loadSection(section)))
+  }, [failedSections, loadSection])
+
+  useEffect(() => {
+    setError('')
+    setSuccess('')
+    window.scrollTo({ top: 0 })
+    void loadView(activeView)
+  }, [activeView, loadView])
+
+  useEffect(() => {
+    if (requestedView === null || isAdminView(requestedView)) return
+    const nextSearchParams = new URLSearchParams(searchParams)
+    nextSearchParams.delete('view')
+    setSearchParams(nextSearchParams, { replace: true })
+  }, [requestedView, searchParams, setSearchParams])
 
   async function refreshFeedbacks() {
-    const { data: res } = await adminApi.listFeedbackSubmissions()
-    setFeedbacks(res.data)
+    await runSectionLoad('feedbacks', async () => {
+      const { data: res } = await adminApi.listFeedbackSubmissions()
+      setFeedbacks(res.data)
+    })
   }
 
   async function refreshUsers() {
-    const { data: res } = await adminApi.listUsers()
-    setUsers(res.data)
+    await runSectionLoad('users', async () => {
+      const { data: res } = await adminApi.listUsers()
+      setUsers(res.data)
+    })
   }
 
   async function refreshMembershipAuditLogs() {
-    const { data: res } = await adminApi.listMembershipAuditLogs()
-    setMembershipAuditLogs(res.data)
+    await runSectionLoad('membershipAuditLogs', async () => {
+      const { data: res } = await adminApi.listMembershipAuditLogs()
+      setMembershipAuditLogs(res.data)
+    })
   }
 
   async function refreshShowcases() {
-    const { data: res } = await adminApi.listShowcases()
-    setShowcases(res.data)
+    await runSectionLoad('showcases', async () => {
+      const { data: res } = await adminApi.listShowcases()
+      setShowcases(res.data)
+    })
   }
 
   async function refreshCoupons() {
-    const { data: res } = await adminApi.listCoupons()
-    setCoupons(res.data)
+    await runSectionLoad('coupons', async () => {
+      const { data: res } = await adminApi.listCoupons()
+      setCoupons(res.data)
+    })
   }
 
   async function refreshVipInvites() {
-    const { data: res } = await adminApi.listVipInvites()
-    setVipInvites(res.data)
+    await runSectionLoad('vipInvites', async () => {
+      const { data: res } = await adminApi.listVipInvites()
+      setVipInvites(res.data)
+    })
   }
 
   async function refreshInviteRedemptions(inviteId: number) {
+    setInviteRedemptions([])
     const { data: res } = await adminApi.listVipInviteRedemptions(inviteId)
     setInviteRedemptions(res.data)
   }
@@ -300,17 +500,22 @@ export default function AdminPage() {
   ) {
     setMarketListingsLoading(true)
     try {
-      const { data: res } = await adminApi.listMarketplaceListings({
-        page,
-        size: 20,
-        publicationStatus,
-        moderationStatus,
-        reviewStatus,
+      await runSectionLoad('marketListings', async () => {
+        const { data: res } = await adminApi.listMarketplaceListings({
+          page,
+          size: 20,
+          publicationStatus,
+          moderationStatus,
+          reviewStatus,
+        })
+        setMarketListings(getMarketplacePageItems(res.data))
+        setMarketListingPage(res.data.page)
+        setMarketListingTotal(res.data.total)
+        if (reviewStatus === 'PENDING' && !publicationStatus && !moderationStatus) {
+          setPendingMarketListingCount(res.data.total)
+        }
+        setMarketListingTotalPages(Math.max(1, getMarketplaceTotalPages(res.data)))
       })
-      setMarketListings(getMarketplacePageItems(res.data))
-      setMarketListingPage(res.data.page)
-      setMarketListingTotal(res.data.total)
-      setMarketListingTotalPages(Math.max(1, getMarketplaceTotalPages(res.data)))
     } finally {
       setMarketListingsLoading(false)
     }
@@ -319,8 +524,16 @@ export default function AdminPage() {
   async function refreshPendingCreatorEarnings() {
     setCreatorEarningsLoading(true)
     try {
-      const { data: res } = await adminApi.listCreatorEarnings()
-      setPendingCreatorEarnings(res.data)
+      await Promise.all([
+        runSectionLoad('creatorEarnings', async () => {
+          const { data: res } = await adminApi.listCreatorEarnings()
+          setPendingCreatorEarnings(res.data)
+        }),
+        runSectionLoad('creatorEarningCount', async () => {
+          const { data: res } = await adminApi.getCreatorEarningCount()
+          setPendingCreatorEarningCount(res.data)
+        }),
+      ])
     } finally {
       setCreatorEarningsLoading(false)
     }
@@ -331,18 +544,29 @@ export default function AdminPage() {
   ) {
     setPaymentReviewsLoading(true)
     try {
-      const { data: res } = await adminApi.listMarketplacePaymentReviews(status)
-      setPaymentReviews(res.data)
+      await runSectionLoad('paymentReviews', async () => {
+        const { data: res } = await adminApi.listMarketplacePaymentReviews(status)
+        setPaymentReviews(res.data)
+      })
     } finally {
       setPaymentReviewsLoading(false)
     }
   }
 
+  async function refreshMarketplacePaymentIssueCount() {
+    await runSectionLoad('marketPaymentIssues', async () => {
+      const { data: response } = await adminApi.getMarketplacePaymentReviewCount()
+      setMarketplacePaymentIssueCount(response.data)
+    })
+  }
+
   async function refreshMarketplaceCloseWork() {
     setPaymentCloseWorkLoading(true)
     try {
-      const { data: res } = await adminApi.listMarketplaceCloseWork()
-      setPaymentCloseWork(res.data)
+      await runSectionLoad('paymentCloseWork', async () => {
+        const { data: res } = await adminApi.listMarketplaceCloseWork()
+        setPaymentCloseWork(res.data)
+      })
     } finally {
       setPaymentCloseWorkLoading(false)
     }
@@ -355,16 +579,18 @@ export default function AdminPage() {
   ) {
     setMembershipPaymentsLoading(true)
     try {
-      const { data: res } = await adminApi.listMembershipPaymentOrders({
-        page,
-        size: 20,
-        orderStatus,
-        reviewStatus,
+      await runSectionLoad('membershipOrders', async () => {
+        const { data: res } = await adminApi.listMembershipPaymentOrders({
+          page,
+          size: 20,
+          orderStatus,
+          reviewStatus,
+        })
+        setMembershipPaymentOrders(res.data.records)
+        setMembershipPaymentPage(res.data.page)
+        setMembershipPaymentTotal(res.data.total)
+        setMembershipPaymentTotalPages(Math.max(1, res.data.totalPages))
       })
-      setMembershipPaymentOrders(res.data.records)
-      setMembershipPaymentPage(res.data.page)
-      setMembershipPaymentTotal(res.data.total)
-      setMembershipPaymentTotalPages(Math.max(1, res.data.totalPages))
     } finally {
       setMembershipPaymentsLoading(false)
     }
@@ -373,8 +599,10 @@ export default function AdminPage() {
   async function refreshMembershipPaymentSummary() {
     setMembershipPaymentSummaryLoading(true)
     try {
-      const { data: res } = await adminApi.getMembershipPaymentSummary()
-      setMembershipPaymentSummary(res.data)
+      await runSectionLoad('membershipSummary', async () => {
+        const { data: res } = await adminApi.getMembershipPaymentSummary()
+        setMembershipPaymentSummary(res.data)
+      })
     } finally {
       setMembershipPaymentSummaryLoading(false)
     }
@@ -438,6 +666,10 @@ export default function AdminPage() {
   }
 
   const handleSaveConfig = async () => {
+    if (!platformConfigLoaded) {
+      setError('平台配置尚未成功读取，已阻止保存默认值')
+      return
+    }
     const priceFields = [
       ['会员价格', platformConfig.membershipPriceCents],
       ['问卷优惠金额', platformConfig.questionnaireCouponAmountCents],
@@ -517,10 +749,11 @@ export default function AdminPage() {
   }
 
   const handleMembership = async (user: UserAdmin, action: 'grant' | 'revoke') => {
+    const userLabel = getUserAdminLabel(user)
     const reason = requestRequiredReason(
       action === 'grant'
-        ? `请输入为 ${user.email} 手工开通永久 VIP 的原因（必填）`
-        : `请输入撤销 ${user.email} VIP 权益的原因（必填）`,
+        ? `请输入为 ${userLabel} 手工开通永久 VIP 的原因（必填）`
+        : `请输入撤销 ${userLabel} VIP 权益的原因（必填）`,
     )
     if (!reason) {
       return
@@ -542,7 +775,8 @@ export default function AdminPage() {
   }
 
   const handleExtendMembership = async (user: UserAdmin) => {
-    const rawDays = window.prompt(`给 ${user.email} 延期多少天？`, '30')
+    const userLabel = getUserAdminLabel(user)
+    const rawDays = window.prompt(`给 ${userLabel} 延期多少天？`, '30')
     if (!rawDays) {
       return
     }
@@ -551,7 +785,7 @@ export default function AdminPage() {
       setError('延期天数必须是 1-3650 之间的整数')
       return
     }
-    const reason = requestRequiredReason(`请输入为 ${user.email} 延期 ${days} 天的原因（必填）`)
+    const reason = requestRequiredReason(`请输入为 ${userLabel} 延期 ${days} 天的原因（必填）`)
     if (!reason) {
       return
     }
@@ -560,7 +794,7 @@ export default function AdminPage() {
     try {
       await adminApi.extendMembership(user.id, days, reason)
       await Promise.all([refreshUsers(), refreshMembershipAuditLogs()])
-      setSuccess(`已为 ${user.email} 延期 ${days} 天`)
+      setSuccess(`已为 ${userLabel} 延期 ${days} 天`)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : '会员延期失败')
     }
@@ -809,7 +1043,10 @@ export default function AdminPage() {
       if (paymentOrderLookupResult?.orderNo === review.orderNo) {
         setPaymentOrderLookupResult(response.data)
       }
-      await refreshMarketplacePaymentReviews()
+      await Promise.all([
+        refreshMarketplacePaymentReviews(),
+        refreshMarketplacePaymentIssueCount(),
+      ])
       setSuccess(`订单 ${review.orderNo} 的外部退款结果已登记`)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : '退款结果登记失败')
@@ -930,31 +1167,165 @@ export default function AdminPage() {
     })
   }
 
+  const usersLoaded = loadedSections.has('users')
+  const invitesLoaded = loadedSections.has('vipInvites')
+  const showcasesLoaded = loadedSections.has('showcases')
+  const feedbacksLoaded = loadedSections.has('feedbacks')
+  const marketListingsLoaded = loadedSections.has('marketListings')
+  const creatorEarningCountLoaded = loadedSections.has('creatorEarningCount')
+  const marketPaymentIssuesLoaded = loadedSections.has('marketPaymentIssues')
+  const membershipSummaryLoaded = loadedSections.has('membershipSummary')
+  const governanceLoaded = loadedSections.has('governance')
+  const resumeReviewActionCountLoaded = loadedSections.has('resumeReviewActionCount')
+  const platformConfigLoaded = loadedSections.has('platformConfig')
+  const activeViewLoadState = getAdminViewLoadState(
+    activeView,
+    loadedSections,
+    loadingSections,
+    failedSections,
+  )
+  const activeViewLoading = activeViewLoadState === 'loading'
+  const activeViewFailedSections = getAdminViewFailedSections(activeView, failedSections)
+  const failedSectionLabels = Array.from(failedSections).map(
+    (section) => ADMIN_DATA_SECTION_LABELS[section],
+  )
+  const retryingFailedSections = Array.from(failedSections).some((section) => loadingSections.has(section))
+  const overviewDataComplete = OVERVIEW_LOAD_SECTIONS.every((section) => loadedSections.has(section))
+  const activeMemberCount = usersLoaded
+    ? users.filter((user) => user.membershipStatus === 'ACTIVE').length
+    : null
+  const filteredUsers = useMemo(() => {
+    return filterAdminUsers(users, userSearch, userMembershipFilter)
+  }, [userMembershipFilter, userSearch, users])
+  const activeInviteCount = invitesLoaded ? vipInvites.filter(isInvitePublishable).length : null
+  const publishedShowcaseCount = showcasesLoaded
+    ? showcases.filter((showcase) => showcase.publishStatus === 'PUBLISHED').length
+    : null
+  const pendingFeedbackCount = feedbacksLoaded
+    ? feedbacks.filter((feedback) => feedback.reviewStatus === 'PENDING').length
+    : null
+  const membershipPaymentIssueCount = membershipSummaryLoaded && membershipPaymentSummary
+    ? membershipPaymentSummary.pendingReviews + membershipPaymentSummary.refundProcessingReviews
+    : null
+  const adminBadges: Partial<Record<AdminView, number>> = {
+    'marketplace-listings': marketListingsLoaded ? pendingMarketListingCount : undefined,
+    'marketplace-governance': governanceLoaded ? pendingGovernanceCount : undefined,
+    'creator-earnings': creatorEarningCountLoaded ? pendingCreatorEarningCount : undefined,
+    'marketplace-payments': marketPaymentIssuesLoaded ? marketplacePaymentIssueCount : undefined,
+    'membership-payments': membershipPaymentIssueCount ?? undefined,
+    'resume-reviews': resumeReviewActionCountLoaded ? pendingResumeReviewCount : undefined,
+    surveys: pendingFeedbackCount ?? undefined,
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Header enableResumeDrop />
+    <AdminShell
+      activeView={activeView}
+      badges={adminBadges}
+    >
+      <div className="admin-workspace space-y-6">
+        {failedSectionLabels.length ? (
+          <div role="alert" className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+            <span className="leading-5">
+              部分后台数据加载失败：{failedSectionLabels.join('、')}。对应模块不会用 0 或默认价格冒充真实数据。
+            </span>
+            <button
+              type="button"
+              onClick={() => void retryFailedSections()}
+              disabled={retryingFailedSections}
+              className="shrink-0 rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs font-semibold text-amber-800 transition hover:bg-amber-100 disabled:cursor-wait disabled:opacity-60"
+            >
+              {retryingFailedSections ? '重试中…' : '重试失败模块'}
+            </button>
+          </div>
+        ) : null}
+        {error ? (
+          <div role="alert" className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-sm">
+            <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-100 text-xs font-bold" aria-hidden="true">!</span>
+            <span className="leading-5">{error}</span>
+          </div>
+        ) : null}
+        {success ? (
+          <div role="status" className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 shadow-sm">
+            <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold" aria-hidden="true">✓</span>
+            <span className="leading-5">{success}</span>
+          </div>
+        ) : null}
 
-      <main className="mx-auto max-w-7xl space-y-8 px-4 py-8 sm:px-6 lg:px-8">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900">管理后台</h1>
-          <p className="mt-2 text-sm text-gray-500">统一管理会员、人工简历精修、优质简历、用户公开简历审核和作者收益结算。</p>
-        </div>
-
-        {error ? <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
-        {success ? <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{success}</div> : null}
-
-        {loading ? (
-          <div className="text-sm text-gray-500">加载中...</div>
+        {activeViewLoading ? (
+          <div className="space-y-5" aria-label="正在加载管理数据">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              {[0, 1, 2, 3].map((item) => (
+                <div key={item} className="h-32 animate-pulse rounded-2xl border border-slate-200 bg-white shadow-sm">
+                  <div className="m-5 h-3 w-20 rounded bg-slate-100" />
+                  <div className="mx-5 mt-5 h-8 w-16 rounded bg-slate-100" />
+                </div>
+              ))}
+            </div>
+            <div className="h-72 animate-pulse rounded-2xl border border-slate-200 bg-white shadow-sm" />
+          </div>
+        ) : activeViewFailedSections.length ? (
+          <section role="alert" className="rounded-2xl border border-red-200 bg-white px-6 py-10 text-center shadow-sm">
+            <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-red-50 text-lg font-bold text-red-600" aria-hidden="true">
+              !
+            </div>
+            <h2 className="mt-4 text-lg font-semibold text-slate-950">当前模块数据加载失败</h2>
+            <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-600">
+              {activeViewFailedSections.map((section) => ADMIN_DATA_SECTION_LABELS[section]).join('、')}
+              暂不可用。为避免把旧数据或空数组误当成真实结果，本页的查看与写操作已暂停。
+            </p>
+            <button
+              type="button"
+              onClick={() => void loadView(activeView)}
+              className="mt-5 rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+            >
+              重新加载当前模块
+            </button>
+          </section>
         ) : (
           <>
-            <section className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
-              <div className="rounded-lg border border-gray-200 bg-white px-6 py-6">
+            {activeView === 'overview' ? (
+              <AdminOverview
+                activeInviteCount={activeInviteCount}
+                activeMemberCount={activeMemberCount}
+                dataComplete={overviewDataComplete}
+                failedSections={failedSectionLabels}
+                lastUpdatedAt={overviewLastUpdatedAt}
+                marketplacePaymentIssueCount={marketPaymentIssuesLoaded ? marketplacePaymentIssueCount : null}
+                membershipPaymentIssueCount={membershipPaymentIssueCount}
+                pendingCreatorEarningCount={creatorEarningCountLoaded ? pendingCreatorEarningCount : null}
+                pendingFeedbackCount={pendingFeedbackCount}
+                pendingGovernanceCount={governanceLoaded ? pendingGovernanceCount : null}
+                pendingListingCount={marketListingsLoaded ? pendingMarketListingCount : null}
+                pendingResumeReviewCount={resumeReviewActionCountLoaded ? pendingResumeReviewCount : null}
+                publishedShowcaseCount={publishedShowcaseCount}
+                refreshing={activeViewLoading}
+                totalUserCount={usersLoaded ? users.length : null}
+                reconciliationFailureCount={
+                  membershipSummaryLoaded
+                    ? membershipPaymentSummary?.reconciliationFailuresSinceStart ?? 0
+                    : null
+                }
+                lastReconciliationFailureAt={membershipPaymentSummary?.lastReconciliationFailureAt ?? null}
+                onNavigate={handleAdminNavigate}
+                onRefresh={() => void loadView('overview')}
+              />
+            ) : null}
+            {activeView === 'platform-config' || activeView === 'showcases' ? (
+              <section className={activeView === 'platform-config' ? 'max-w-3xl' : ''}>
+                {activeView === 'platform-config' ? (
+                  <div className="rounded-lg border border-gray-200 bg-white px-6 py-6">
                 <h2 className="text-lg font-semibold text-gray-900">平台配置</h2>
+                {!platformConfigLoaded ? (
+                  <div role="alert" className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
+                    当前配置读取失败。为防止把前端默认值误写入服务端，表单已锁定；请先重新加载后台数据。
+                  </div>
+                ) : null}
                 <div className="mt-5 space-y-4">
                   <label className="block">
                     <span className="mb-2 block text-sm font-medium text-gray-700">会员价格（分）</span>
                     <input
                       type="number"
+                      disabled={!platformConfigLoaded}
                       value={platformConfig.membershipPriceCents}
                       onChange={(event) => setPlatformConfig((current) => ({ ...current, membershipPriceCents: Number(event.target.value) }))}
                       className="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none transition-colors focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
@@ -964,6 +1335,7 @@ export default function AdminPage() {
                     <span className="mb-2 block text-sm font-medium text-gray-700">问卷优惠金额（分）</span>
                     <input
                       type="number"
+                      disabled={!platformConfigLoaded}
                       value={platformConfig.questionnaireCouponAmountCents}
                       onChange={(event) => setPlatformConfig((current) => ({ ...current, questionnaireCouponAmountCents: Number(event.target.value) }))}
                       className="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none transition-colors focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
@@ -976,6 +1348,7 @@ export default function AdminPage() {
                       min={0}
                       step={1}
                       required
+                      disabled={!platformConfigLoaded}
                       value={platformConfig.resumeReviewPriceCents}
                       onChange={(event) => setPlatformConfig((current) => ({ ...current, resumeReviewPriceCents: Number(event.target.value) }))}
                       className="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none transition-colors focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
@@ -992,18 +1365,20 @@ export default function AdminPage() {
                   <button
                     type="button"
                     onClick={() => void handleSaveConfig()}
-                    disabled={savingConfig}
+                    disabled={savingConfig || !platformConfigLoaded}
                     className="rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-700 disabled:opacity-50"
                   >
                     {savingConfig ? '保存中...' : '保存配置'}
                   </button>
                 </div>
-              </div>
+                  </div>
+                ) : null}
 
-              <div className="rounded-lg border border-gray-200 bg-white px-6 py-6">
+                {activeView === 'showcases' ? (
+                  <div className="rounded-lg border border-gray-200 bg-white px-6 py-6">
                 <div className="flex items-center justify-between gap-4">
                   <div>
-                    <h2 className="text-lg font-semibold text-gray-900">优质简历管理</h2>
+                    <h2 className="text-lg font-semibold text-gray-900">官方精选简历</h2>
                     <p className="mt-1 text-sm text-gray-500">从管理员自己的脱敏简历中挑选内容，发布到优质简历菜单；完整内容仅 VIP 可见。</p>
                   </div>
                 </div>
@@ -1031,7 +1406,7 @@ export default function AdminPage() {
                     />
                   </label>
                   <label className="block">
-                    <span className="mb-2 block text-sm font-medium text-gray-700">分数标签</span>
+                    <span className="mb-2 block text-sm font-medium text-gray-700">展示标签</span>
                     <input
                       value={showcaseForm.scoreLabel}
                       onChange={(event) => setShowcaseForm((current) => ({ ...current, scoreLabel: event.target.value }))}
@@ -1075,8 +1450,8 @@ export default function AdminPage() {
                       onChange={(event) => setShowcaseForm((current) => ({ ...current, publishStatus: event.target.value }))}
                       className="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none transition-colors focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
                     >
-                      <option value="DRAFT">DRAFT</option>
-                      <option value="PUBLISHED">PUBLISHED</option>
+                      <option value="DRAFT">草稿</option>
+                      <option value="PUBLISHED">已发布</option>
                     </select>
                   </label>
                 </div>
@@ -1104,7 +1479,7 @@ export default function AdminPage() {
                     <thead>
                       <tr className="text-left text-gray-500">
                         <th className="py-3 pr-4 font-medium">slug</th>
-                        <th className="py-3 pr-4 font-medium">分数标签</th>
+                        <th className="py-3 pr-4 font-medium">展示标签</th>
                         <th className="py-3 pr-4 font-medium">状态</th>
                         <th className="py-3 pr-4 font-medium">排序</th>
                         <th className="py-3 font-medium">操作</th>
@@ -1115,7 +1490,15 @@ export default function AdminPage() {
                         <tr key={showcase.id}>
                           <td className="py-3 pr-4">{showcase.slug}</td>
                           <td className="py-3 pr-4">{showcase.scoreLabel}</td>
-                          <td className="py-3 pr-4">{showcase.publishStatus}</td>
+                          <td className="py-3 pr-4">
+                            <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
+                              showcase.publishStatus === 'PUBLISHED'
+                                ? 'bg-emerald-50 text-emerald-700'
+                                : 'bg-slate-100 text-slate-600'
+                            }`}>
+                              {showcase.publishStatus === 'PUBLISHED' ? '已发布' : '草稿'}
+                            </span>
+                          </td>
                           <td className="py-3 pr-4">{showcase.displayOrder}</td>
                           <td className="py-3">
                             <button
@@ -1131,12 +1514,19 @@ export default function AdminPage() {
                     </tbody>
                   </table>
                 </div>
-              </div>
-            </section>
+                  </div>
+                ) : null}
+              </section>
+            ) : null}
 
-            <ResumeReviewAdminPanel />
+            {activeView === 'resume-reviews' ? (
+              <ResumeReviewAdminPanel
+                onActionCountChanged={() => loadSection('resumeReviewActionCount')}
+              />
+            ) : null}
 
-            <section className="rounded-lg border border-blue-200 bg-white px-6 py-6">
+            {activeView === 'marketplace-listings' ? (
+              <section className="rounded-lg border border-blue-200 bg-white px-6 py-6">
               <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900">投稿审核与上下架</h2>
@@ -1365,21 +1755,29 @@ export default function AdminPage() {
                   </button>
                 </div>
               </div>
-            </section>
+              </section>
+            ) : null}
 
-            <MarketplaceGovernancePanel
-              auditRefreshKey={governanceAuditRefreshKey}
-              onListingsChanged={async () => {
-                await refreshMarketplaceListings()
-              }}
-            />
+            {activeView === 'marketplace-governance' ? (
+              <MarketplaceGovernancePanel
+                auditRefreshKey={governanceAuditRefreshKey}
+                onListingsChanged={async () => {
+                  await refreshMarketplaceListings()
+                }}
+                onPendingCountChanged={() => loadSection('governance')}
+              />
+            ) : null}
 
-            <section className="rounded-lg border border-amber-200 bg-white px-6 py-6">
+            {activeView === 'creator-earnings' ? (
+              <section className="rounded-lg border border-amber-200 bg-white px-6 py-6">
               <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900">作者收益线下结算</h2>
                   <p className="mt-1 text-sm leading-6 text-gray-500">
                     这里只显示作者已主动申请的待结算收益。完成实际转账后，再填写转账流水或备注并确认结算。
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-amber-700">
+                    待结算共 {pendingCreatorEarningCount} 条，当前列表最多展示最早 200 条。
                   </p>
                 </div>
                 <button
@@ -1453,9 +1851,11 @@ export default function AdminPage() {
                   暂无作者申请线下结算。
                 </p>
               )}
-            </section>
+              </section>
+            ) : null}
 
-            <section className="rounded-lg border border-orange-200 bg-white px-6 py-6">
+            {activeView === 'membership-payments' ? (
+              <section className="rounded-lg border border-orange-200 bg-white px-6 py-6">
               <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900">会员支付复核</h2>
@@ -1778,14 +2178,19 @@ export default function AdminPage() {
                   </div>
                 </div>
               ) : null}
-            </section>
+              </section>
+            ) : null}
 
-            <section className="rounded-lg border border-red-200 bg-white px-6 py-6">
+            {activeView === 'marketplace-payments' ? (
+              <section className="rounded-lg border border-red-200 bg-white px-6 py-6">
               <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900">支付异常人工复核</h2>
                   <p className="mt-1 max-w-3xl text-sm leading-6 text-gray-500">
                     展示需要人工核对的无效成交付款和重复支付。本页面不会发起退款，只用于在商户平台实际退款完成后登记核验结果。
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-red-700">
+                    当前待复核异常共 {marketplacePaymentIssueCount} 条；复核列表每次最多展示 200 条。
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-3">
@@ -2067,9 +2472,11 @@ export default function AdminPage() {
                     : '当前没有需要人工复核的异常支付订单。'}
                 </p>
               )}
-            </section>
+              </section>
+            ) : null}
 
-            <section className="rounded-lg border border-emerald-200 bg-white px-6 py-6">
+            {activeView === 'vip-invites' ? (
+              <section className="rounded-lg border border-emerald-200 bg-white px-6 py-6">
               <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-start">
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900">知识星球 VIP 邀请码</h2>
@@ -2267,9 +2674,11 @@ export default function AdminPage() {
                   )}
                 </div>
               ) : null}
-            </section>
+              </section>
+            ) : null}
 
-            <section className="rounded-lg border border-gray-200 bg-white px-6 py-6">
+            {activeView === 'surveys' ? (
+              <section className="rounded-lg border border-gray-200 bg-white px-6 py-6">
               <h2 className="text-lg font-semibold text-gray-900">问卷审核</h2>
               <div className="mt-5 space-y-4">
                 {feedbacks.map((feedback) => (
@@ -2345,17 +2754,20 @@ export default function AdminPage() {
                   </article>
                 ))}
               </div>
-            </section>
+              </section>
+            ) : null}
 
-            <section className="grid gap-6 xl:grid-cols-2">
-              <div className="rounded-lg border border-gray-200 bg-white px-6 py-6">
+            {activeView === 'surveys' || activeView === 'members' ? (
+              <section>
+                {activeView === 'surveys' ? (
+                  <div className="rounded-lg border border-gray-200 bg-white px-6 py-6">
                 <h2 className="text-lg font-semibold text-gray-900">优惠码列表</h2>
                 <div className="mt-5 overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200 text-sm">
                     <thead>
                       <tr className="text-left text-gray-500">
                         <th className="py-3 pr-4 font-medium">优惠码</th>
-                        <th className="py-3 pr-4 font-medium">邮箱</th>
+                        <th className="py-3 pr-4 font-medium">账号</th>
                         <th className="py-3 pr-4 font-medium">面额</th>
                         <th className="py-3 font-medium">状态</th>
                       </tr>
@@ -2372,10 +2784,39 @@ export default function AdminPage() {
                     </tbody>
                   </table>
                 </div>
-              </div>
+                  </div>
+                ) : null}
 
-              <div className="rounded-lg border border-gray-200 bg-white px-6 py-6">
-                <h2 className="text-lg font-semibold text-gray-900">用户会员管理</h2>
+                {activeView === 'members' ? (
+                  <div className="rounded-lg border border-gray-200 bg-white px-6 py-6">
+                <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900">用户会员管理</h2>
+                    <p className="mt-1 text-sm text-gray-500">
+                      共 {users.length} 个账号，其中 {activeMemberCount} 个有效 VIP。
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <input
+                      type="search"
+                      value={userSearch}
+                      onChange={(event) => setUserSearch(event.target.value)}
+                      placeholder="搜索邮箱或昵称"
+                      aria-label="搜索用户"
+                      className="w-full min-w-0 rounded-lg border border-gray-300 px-3 py-2 text-sm sm:w-56"
+                    />
+                    <select
+                      value={userMembershipFilter}
+                      onChange={(event) => setUserMembershipFilter(event.target.value as '' | 'ACTIVE' | 'FREE')}
+                      aria-label="筛选会员状态"
+                      className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                    >
+                      <option value="">全部会员状态</option>
+                      <option value="ACTIVE">有效 VIP</option>
+                      <option value="FREE">普通用户</option>
+                    </select>
+                  </div>
+                </div>
                 <div className="mt-5 overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200 text-sm">
                     <thead>
@@ -2387,15 +2828,30 @@ export default function AdminPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 text-gray-700">
-                      {users.map((user) => (
+                      {filteredUsers.map((user) => (
                         <tr key={user.id}>
                           <td className="py-3 pr-4">
-                            <div className="font-medium text-gray-900">{user.email}</div>
+                            <div className="font-medium text-gray-900">{getUserAdminLabel(user)}</div>
+                            <div className="mt-1 text-xs text-gray-400">
+                              {user.email ? `用户 #${user.id}` : `微信扫码账号 · 用户 #${user.id}`}
+                            </div>
                             <div className="mt-1 text-xs text-gray-500">{user.createdAt}</div>
                           </td>
-                          <td className="py-3 pr-4">{user.role}</td>
                           <td className="py-3 pr-4">
-                            <div>{user.membershipStatus}</div>
+                            <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
+                              user.role === 'ADMIN'
+                                ? 'bg-violet-50 text-violet-700'
+                                : 'bg-slate-100 text-slate-600'
+                            }`}>
+                              {user.role === 'ADMIN' ? '管理员' : '用户'}
+                            </span>
+                          </td>
+                          <td className="py-3 pr-4">
+                            <div className={`font-medium ${
+                              user.membershipStatus === 'ACTIVE' ? 'text-emerald-700' : 'text-slate-500'
+                            }`}>
+                              {user.membershipStatus === 'ACTIVE' ? '有效 VIP' : '普通用户'}
+                            </div>
                             <div className="mt-1 text-xs text-gray-500">
                               {user.membershipExpiresAt ?? (user.membershipStatus === 'ACTIVE' ? '永久' : '-')}
                             </div>
@@ -2434,11 +2890,19 @@ export default function AdminPage() {
                       ))}
                     </tbody>
                   </table>
+                  {!filteredUsers.length ? (
+                    <div className="border-t border-gray-100 px-4 py-12 text-center text-sm text-gray-500">
+                      当前筛选条件下没有用户。
+                    </div>
+                  ) : null}
                 </div>
-              </div>
-            </section>
+                  </div>
+                ) : null}
+              </section>
+            ) : null}
 
-            <section className="rounded-lg border border-gray-200 bg-white px-6 py-6">
+            {activeView === 'audit-logs' ? (
+              <section className="rounded-lg border border-gray-200 bg-white px-6 py-6">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900">最近会员管理审计日志</h2>
@@ -2514,10 +2978,11 @@ export default function AdminPage() {
               ) : (
                 <p className="mt-4 text-sm text-gray-500">暂无会员管理审计记录。</p>
               )}
-            </section>
+              </section>
+            ) : null}
           </>
         )}
-      </main>
-    </div>
+      </div>
+    </AdminShell>
   )
 }

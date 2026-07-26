@@ -45,6 +45,19 @@ class MarketplaceOrderServiceImplTest {
     @InjectMocks private MarketplaceOrderServiceImpl service;
 
     @Test
+    void paymentReviewCountUsesAnExactCountQueryInsteadOfTheCappedQueue() {
+        when(orderMapper.selectCount(org.mockito.ArgumentMatchers.any())).thenReturn(431L);
+
+        assertEquals(431L, service.countPaymentReviews(null));
+    }
+
+    @Test
+    void paymentReviewCountRejectsUnknownStatus() {
+        assertThrows(BusinessException.class, () -> service.countPaymentReviews("PAID"));
+        verify(orderMapper, never()).selectCount(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
     void refreshRateClaimPreventsRepeatedProviderQueries() {
         ResumeViewOrder order = new ResumeViewOrder();
         order.setId(10L);

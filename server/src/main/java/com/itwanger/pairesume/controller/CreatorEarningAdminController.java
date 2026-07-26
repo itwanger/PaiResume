@@ -34,6 +34,14 @@ public class CreatorEarningAdminController {
         return Result.success(creatorEarningService.listAdminEarnings(status));
     }
 
+    @Operation(summary = "精确统计指定状态的作者收益")
+    @GetMapping("/count")
+    public Result<Long> count(
+            @RequestParam(defaultValue = "PENDING_SETTLEMENT") String status
+    ) {
+        return Result.success(creatorEarningService.countAdminEarnings(status));
+    }
+
     @Operation(summary = "确认线下转账并将收益标记为已结算")
     @PostMapping("/{id}/settle")
     public Result<CreatorEarningDTO> settle(

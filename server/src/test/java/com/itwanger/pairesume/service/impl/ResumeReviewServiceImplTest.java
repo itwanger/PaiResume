@@ -142,6 +142,14 @@ class ResumeReviewServiceImplTest {
     }
 
     @Test
+    void adminActionCountUsesTheUncappedDatabaseCount() {
+        when(requestMapper.countAdminActionQueue()).thenReturn(356L);
+
+        assertEquals(356L, service.adminActionCount());
+        verify(requestMapper, never()).selectAdminQueue();
+    }
+
+    @Test
     void bindingAnotherLoginMethodKeepsTheExistingQuotaSubject() {
         UserAuthIdentity wechat = new UserAuthIdentity();
         wechat.setProvider("WECHAT_SERVICE");

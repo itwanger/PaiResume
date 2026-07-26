@@ -84,6 +84,20 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
         return showcase;
     }
 
+    @Override
+    public void unpublishDeletedResume(Long resumeId) {
+        ResumeShowcase showcase = resumeShowcaseMapper.selectOne(
+                new LambdaQueryWrapper<ResumeShowcase>()
+                        .eq(ResumeShowcase::getResumeId, resumeId)
+                        .last("LIMIT 1")
+        );
+        if (showcase == null || "DRAFT".equals(showcase.getPublishStatus())) {
+            return;
+        }
+        showcase.setPublishStatus("DRAFT");
+        resumeShowcaseMapper.updateById(showcase);
+    }
+
     private void applyUpsert(ResumeShowcase showcase, Long adminUserId, ResumeShowcaseUpsertDTO dto) {
         Resume resume = resumeMapper.selectById(dto.getResumeId());
         if (resume == null || resume.getStatus() == 0 || !adminUserId.equals(resume.getUserId())) {

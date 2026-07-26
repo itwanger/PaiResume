@@ -270,6 +270,11 @@ public class ResumeReviewServiceImpl implements ResumeReviewService {
     }
 
     @Override
+    public long adminActionCount() {
+        return requestMapper.countAdminActionQueue();
+    }
+
+    @Override
     public ResumeReviewAdminRequestDTO adminGet(String requestNo) {
         return toAdminDto(require(requestNo));
     }

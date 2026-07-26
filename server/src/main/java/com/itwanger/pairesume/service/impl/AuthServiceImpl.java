@@ -394,12 +394,7 @@ public class AuthServiceImpl implements AuthService {
         if (user.getAccountDeletedAt() != null || user.getStatus() == null || user.getStatus() == 0) {
             throw new BusinessException(ResultCode.ACCOUNT_ALREADY_DELETED);
         }
-        LocalDateTime acceptedAt = LocalDateTime.now();
-        user.setTermsAcceptedAt(acceptedAt);
-        user.setPrivacyAcceptedAt(acceptedAt);
-        user.setTermsVersion(LegalConsentPolicy.CURRENT_VERSION);
-        user.setPrivacyVersion(LegalConsentPolicy.CURRENT_VERSION);
-        user.setAiProcessingDisclosureVersion(LegalConsentPolicy.CURRENT_VERSION);
+        applyCurrentLegalConsent(user, LocalDateTime.now());
         userMapper.updateById(user);
         return buildUserInfo(user);
     }
@@ -617,6 +612,24 @@ public class AuthServiceImpl implements AuthService {
             String openId,
             LocalDateTime subscribedAt
     ) {
+        return loginOrRegisterPaicongming(appId, openId, subscribedAt, false, false);
+    }
+
+    @Override
+    @Transactional
+    public TokenDTO loginOrRegisterPaicongming(
+            String appId,
+            String openId,
+            LocalDateTime subscribedAt,
+            boolean termsAccepted,
+            boolean privacyAccepted
+    ) {
+        if (termsAccepted != privacyAccepted) {
+            throw new BusinessException(
+                    ResultCode.BAD_REQUEST.getCode(),
+                    "请完整阅读并同意服务条款与隐私政策"
+            );
+        }
         String principal = wechatPrincipal(appId, openId);
         var identity = findWechatIdentity(principal);
         User user;
@@ -629,6 +642,9 @@ public class AuthServiceImpl implements AuthService {
             user.setRole(0);
             user.setStatus(1);
             user.setMembershipStatus("FREE");
+            if (termsAccepted) {
+                applyCurrentLegalConsent(user, LocalDateTime.now());
+            }
             userMapper.insert(user);
 
             identity = new UserAuthIdentity();
@@ -656,10 +672,22 @@ public class AuthServiceImpl implements AuthService {
             identity.setSubscribedAt(subscribedAt);
             identity.setUnsubscribedAt(null);
             identity.setSubscriptionUpdatedAt(subscribedAt);
+            if (termsAccepted) {
+                applyCurrentLegalConsent(user, LocalDateTime.now());
+                userMapper.updateById(user);
+            }
         }
         identity.setLastLoginAt(LocalDateTime.now());
         userAuthIdentityMapper.updateById(identity);
         return generateTokenPair(user);
+    }
+
+    private void applyCurrentLegalConsent(User user, LocalDateTime acceptedAt) {
+        user.setTermsAcceptedAt(acceptedAt);
+        user.setPrivacyAcceptedAt(acceptedAt);
+        user.setTermsVersion(LegalConsentPolicy.CURRENT_VERSION);
+        user.setPrivacyVersion(LegalConsentPolicy.CURRENT_VERSION);
+        user.setAiProcessingDisclosureVersion(LegalConsentPolicy.CURRENT_VERSION);
     }
 
     @Override

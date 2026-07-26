@@ -9,6 +9,7 @@ import com.itwanger.pairesume.entity.Resume;
 import com.itwanger.pairesume.mapper.ResumeMapper;
 import com.itwanger.pairesume.service.ResumeMarketplaceService;
 import com.itwanger.pairesume.service.ResumeService;
+import com.itwanger.pairesume.service.ResumeShowcaseService;
 import com.itwanger.pairesume.vo.ResumeListVO;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -21,16 +22,19 @@ public class ResumeServiceImpl implements ResumeService {
 
     private final ResumeMapper resumeMapper;
     private final ResumeMarketplaceService resumeMarketplaceService;
+    private final ResumeShowcaseService resumeShowcaseService;
 
     @Value("${resume.max-count-per-user:20}")
     private int maxResumeCountPerUser;
 
     public ResumeServiceImpl(
             ResumeMapper resumeMapper,
-            ResumeMarketplaceService resumeMarketplaceService
+            ResumeMarketplaceService resumeMarketplaceService,
+            ResumeShowcaseService resumeShowcaseService
     ) {
         this.resumeMapper = resumeMapper;
         this.resumeMarketplaceService = resumeMarketplaceService;
+        this.resumeShowcaseService = resumeShowcaseService;
     }
 
     @Override
@@ -92,10 +96,12 @@ public class ResumeServiceImpl implements ResumeService {
     @Override
     @Transactional
     public void delete(Long userId, Long resumeId) {
-        var resume = getAndVerifyOwnership(resumeId, userId);
-        resume.setStatus(0);
-        resumeMapper.updateById(resume);
+        getAndVerifyOwnership(resumeId, userId);
+        if (resumeMapper.deleteById(resumeId) != 1) {
+            throw new BusinessException(ResultCode.RESUME_NOT_FOUND);
+        }
         resumeMarketplaceService.unpublishDeletedResume(resumeId, userId);
+        resumeShowcaseService.unpublishDeletedResume(resumeId);
     }
 
     @Override

@@ -20,6 +20,16 @@ export interface ResumeModule {
   updatedAt: string
 }
 
+export interface ResumeImportPayload {
+  title?: string
+  templateId?: string
+  modules: Array<{
+    moduleType: string
+    content: Record<string, unknown>
+    sortOrder?: number
+  }>
+}
+
 export interface AiFieldOptimizeRequest {
   fieldType: 'project_description' | 'responsibility'
   index?: number
@@ -300,6 +310,9 @@ export const resumeApi = {
 
   create: (data?: { title?: string; templateId?: string }) =>
     client.post<ApiEnvelope<ResumeListItem>>('/resumes', data || {}),
+
+  importResume: (data: ResumeImportPayload) =>
+    client.post<ApiEnvelope<ResumeListItem>>('/resumes/import', data),
 
   update: (id: number, data: { title: string }) =>
     client.put<ApiEnvelope<ResumeListItem>>(`/resumes/${id}`, data),

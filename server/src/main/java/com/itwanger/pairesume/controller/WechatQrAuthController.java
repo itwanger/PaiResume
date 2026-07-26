@@ -4,6 +4,7 @@ import com.itwanger.pairesume.common.Result;
 import com.itwanger.pairesume.dto.TokenDTO;
 import com.itwanger.pairesume.dto.UserInfoDTO;
 import com.itwanger.pairesume.dto.WechatChallengeCreateDTO;
+import com.itwanger.pairesume.dto.LegalConsentDTO;
 import com.itwanger.pairesume.dto.WechatChallengeRequestDTO;
 import com.itwanger.pairesume.dto.WechatChallengeStatusDTO;
 import com.itwanger.pairesume.dto.WechatReauthProofDTO;
@@ -66,9 +67,10 @@ public class WechatQrAuthController {
     public Result<TokenDTO> exchangeLoginChallenge(
             @PathVariable String challengeId,
             @RequestHeader(WechatQrAuthService.POLL_TOKEN_HEADER) String pollToken,
+            @Valid @RequestBody(required = false) LegalConsentDTO dto,
             HttpServletResponse response
     ) {
-        TokenDTO token = wechatQrAuthService.exchangeLoginChallenge(challengeId, pollToken);
+        TokenDTO token = wechatQrAuthService.exchangeLoginChallenge(challengeId, pollToken, dto);
         response.addHeader(HttpHeaders.SET_COOKIE, buildRefreshCookie(token.getRefreshToken()));
         return Result.success(token);
     }

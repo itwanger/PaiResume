@@ -34,6 +34,14 @@ public class MarketplacePaymentReviewAdminController {
         return Result.success(marketplaceOrderService.listPaymentReviews(status));
     }
 
+    @Operation(summary = "精确统计待人工退款或重复支付订单")
+    @GetMapping("/count")
+    public Result<Long> count(
+            @RequestParam(required = false) String status
+    ) {
+        return Result.success(marketplaceOrderService.countPaymentReviews(status));
+    }
+
     @Operation(summary = "查询仍待支付平台关闭确认的失效销售订单（最多 200 条）")
     @GetMapping("/close-work")
     public Result<List<MarketplacePaymentReviewDTO>> closeWork() {

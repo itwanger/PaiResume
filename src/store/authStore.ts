@@ -9,7 +9,11 @@ interface AuthState {
   initialized: boolean
   restoring: boolean
   login: (email: string, password: string) => Promise<void>
-  completeWechatLogin: (challengeId: string, pollToken: string) => Promise<void>
+  completeWechatLogin: (
+    challengeId: string,
+    pollToken: string,
+    agreementsAccepted: boolean,
+  ) => Promise<void>
   register: (
     email: string,
     password: string,
@@ -75,8 +79,14 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ user: tokenData.userInfo, isAuthenticated: true, initialized: true })
   },
 
-  completeWechatLogin: async (challengeId, pollToken) => {
-    const { data: res } = await authApi.exchangeWechatChallenge(challengeId, pollToken)
+  completeWechatLogin: async (challengeId, pollToken, agreementsAccepted) => {
+    if (!agreementsAccepted) {
+      throw new Error('请先阅读并同意服务条款与隐私政策')
+    }
+    const { data: res } = await authApi.exchangeWechatChallenge(challengeId, pollToken, {
+      termsAccepted: true,
+      privacyAccepted: true,
+    })
     const tokenData = res.data
     setAccessToken(tokenData.accessToken)
     set({ user: tokenData.userInfo, isAuthenticated: true, initialized: true })

@@ -503,7 +503,7 @@ function formatMonth(value: string) {
   if (!value) return ''
   const [year, month] = value.split('-')
   if (!year || !month) return value
-  return `${year}年-${Number(month)}月`
+  return `${year}年${Number(month)}月`
 }
 
 function formatMonthRange(start: string, end: string) {

@@ -82,12 +82,7 @@ public class CreatorEarningServiceImpl implements CreatorEarningService {
     @Override
     @Transactional(readOnly = true)
     public List<CreatorEarningDTO> listAdminEarnings(String status) {
-        CreatorEarningStatus requestedStatus;
-        try {
-            requestedStatus = CreatorEarningStatus.valueOf(status.trim().toUpperCase());
-        } catch (RuntimeException exception) {
-            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "收益状态不合法");
-        }
+        CreatorEarningStatus requestedStatus = parseStatus(status);
         return earningMapper.selectList(new LambdaQueryWrapper<CreatorEarning>()
                         .eq(CreatorEarning::getEarningStatus, requestedStatus.name())
                         .orderByAsc(CreatorEarning::getCreatedAt)
@@ -95,6 +90,15 @@ public class CreatorEarningServiceImpl implements CreatorEarningService {
                 .stream()
                 .map(this::toDto)
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countAdminEarnings(String status) {
+        CreatorEarningStatus requestedStatus = parseStatus(status);
+        Long count = earningMapper.selectCount(new LambdaQueryWrapper<CreatorEarning>()
+                .eq(CreatorEarning::getEarningStatus, requestedStatus.name()));
+        return count == null ? 0 : count;
     }
 
     @Override
@@ -174,6 +178,14 @@ public class CreatorEarningServiceImpl implements CreatorEarningService {
         return earningMapper.selectCount(new LambdaQueryWrapper<CreatorEarning>()
                 .eq(CreatorEarning::getSellerUserId, sellerUserId)
                 .eq(CreatorEarning::getEarningStatus, status.name()));
+    }
+
+    private CreatorEarningStatus parseStatus(String status) {
+        try {
+            return CreatorEarningStatus.valueOf(status.trim().toUpperCase());
+        } catch (RuntimeException exception) {
+            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "收益状态不合法");
+        }
     }
 
     private CreatorEarning requireForUpdate(Long earningId) {

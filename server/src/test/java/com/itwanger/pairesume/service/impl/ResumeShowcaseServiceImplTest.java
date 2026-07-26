@@ -21,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -94,5 +95,32 @@ class ResumeShowcaseServiceImplTest {
         assertEquals("classic-blue", detail.getTemplateId());
         assertSame(module, detail.getModules().get(0));
         verify(membershipService).isActiveMember(7L);
+    }
+
+    @Test
+    void deletingSourceResumeMovesPublishedShowcaseBackToDraft() {
+        ResumeShowcase showcase = new ResumeShowcase();
+        showcase.setId(11L);
+        showcase.setResumeId(21L);
+        showcase.setPublishStatus("PUBLISHED");
+        when(resumeShowcaseMapper.selectOne(any())).thenReturn(showcase);
+
+        resumeShowcaseService.unpublishDeletedResume(21L);
+
+        assertEquals("DRAFT", showcase.getPublishStatus());
+        verify(resumeShowcaseMapper).updateById(showcase);
+    }
+
+    @Test
+    void deletingResumeWithoutPublishedShowcaseDoesNotWrite() {
+        ResumeShowcase showcase = new ResumeShowcase();
+        showcase.setId(11L);
+        showcase.setResumeId(21L);
+        showcase.setPublishStatus("DRAFT");
+        when(resumeShowcaseMapper.selectOne(any())).thenReturn(showcase);
+
+        resumeShowcaseService.unpublishDeletedResume(21L);
+
+        verify(resumeShowcaseMapper, never()).updateById(any(ResumeShowcase.class));
     }
 }

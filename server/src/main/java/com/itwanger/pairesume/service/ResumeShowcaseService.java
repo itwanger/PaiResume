@@ -17,4 +17,6 @@ public interface ResumeShowcaseService {
     ResumeShowcase create(Long adminUserId, ResumeShowcaseUpsertDTO dto);
 
     ResumeShowcase update(Long showcaseId, Long adminUserId, ResumeShowcaseUpsertDTO dto);
+
+    void unpublishDeletedResume(Long resumeId);
 }

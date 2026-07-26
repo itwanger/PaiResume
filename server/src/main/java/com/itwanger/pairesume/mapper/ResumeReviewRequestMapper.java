@@ -36,6 +36,12 @@ public interface ResumeReviewRequestMapper extends BaseMapper<ResumeReviewReques
     @Select("SELECT * FROM resume_review_request ORDER BY created_at DESC, id DESC LIMIT 300")
     List<ResumeReviewRequest> selectAdminQueue();
 
+    @Select("SELECT COUNT(*) FROM resume_review_request r "
+            + "LEFT JOIN resume_review_mail_outbox o ON o.request_id=r.id "
+            + "WHERE r.request_status IN ('EMAILED','ACCEPTED','REFUND_REQUIRED') OR "
+            + "(r.request_status='EMAIL_PENDING' AND (o.outbox_status='FAILED' OR o.id IS NULL))")
+    long countAdminActionQueue();
+
     @Select("SELECT COUNT(*) FROM resume_review_request WHERE user_id=#{userId} AND request_status IN "
             + "('AWAITING_PAYMENT','EMAIL_PENDING','EMAILED','ACCEPTED','REFUND_REQUIRED')")
     int countAccountDeletionBlockers(@Param("userId") Long userId);

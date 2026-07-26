@@ -144,9 +144,26 @@ public class MarketplaceOrderServiceImpl implements MarketplaceOrderService {
 
     @Override
     public List<MarketplacePaymentReviewDTO> listPaymentReviews(String status) {
-        LambdaQueryWrapper<ResumeViewOrder> query = new LambdaQueryWrapper<ResumeViewOrder>()
+        LambdaQueryWrapper<ResumeViewOrder> query = paymentReviewStatusQuery(status)
                 .orderByAsc(ResumeViewOrder::getPaidAt)
                 .last("LIMIT 200");
+        return orderMapper.selectList(query).stream().map(this::toReviewDto).toList();
+    }
+
+    @Override
+    public long countPaymentReviews(String status) {
+        LambdaQueryWrapper<ResumeViewOrder> query = paymentReviewStatusQuery(status);
+        Long count = orderMapper.selectCount(query);
+        return count == null ? 0 : count;
+    }
+
+    @Override
+    public List<MarketplacePaymentReviewDTO> listOutstandingCloseWork() {
+        return orderMapper.selectOutstandingCloseWork().stream().map(this::toReviewDto).toList();
+    }
+
+    private LambdaQueryWrapper<ResumeViewOrder> paymentReviewStatusQuery(String status) {
+        LambdaQueryWrapper<ResumeViewOrder> query = new LambdaQueryWrapper<>();
         if (StringUtils.hasText(status)) {
             String normalized = status.trim().toUpperCase(Locale.ROOT);
             if (!MarketplaceOrderStatus.REFUND_REQUIRED.name().equals(normalized)
@@ -154,18 +171,13 @@ public class MarketplaceOrderServiceImpl implements MarketplaceOrderService {
                     && !MarketplaceOrderStatus.REFUNDED.name().equals(normalized)) {
                 throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "支付复核状态不合法");
             }
-            query.eq(ResumeViewOrder::getOrderStatus, normalized);
-        } else {
-            query.in(ResumeViewOrder::getOrderStatus,
-                    MarketplaceOrderStatus.REFUND_REQUIRED.name(),
-                    MarketplaceOrderStatus.DUPLICATE_PAID.name());
+            return query.eq(ResumeViewOrder::getOrderStatus, normalized);
         }
-        return orderMapper.selectList(query).stream().map(this::toReviewDto).toList();
-    }
-
-    @Override
-    public List<MarketplacePaymentReviewDTO> listOutstandingCloseWork() {
-        return orderMapper.selectOutstandingCloseWork().stream().map(this::toReviewDto).toList();
+        return query.in(
+                ResumeViewOrder::getOrderStatus,
+                MarketplaceOrderStatus.REFUND_REQUIRED.name(),
+                MarketplaceOrderStatus.DUPLICATE_PAID.name()
+        );
     }
 
     @Override

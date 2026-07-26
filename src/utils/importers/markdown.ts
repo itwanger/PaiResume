@@ -41,7 +41,7 @@ const SECTION_TITLE_SET = new Set<string>([
 ])
 const DESCRIPTION_LABELS = ['项目简介', '项目介绍', '项目描述']
 const TECH_STACK_LABELS = ['技术栈']
-const RESPONSIBILITY_LABELS = ['核心职责', '主要成果', '职责']
+const RESPONSIBILITY_LABELS = ['核心职责', '主要职责', '工作职责', '项目职责', '工作内容', '主要成果', '职责']
 const ROLE_KEYWORD_PATTERN = /(工程师|开发|实习生|实习|架构师|测试|运维|设计|产品|顾问|经理|负责人|研究员)/
 const ROLE_MODIFIER_PATTERN = /(Java|Go|Golang|Python|前端|后端|全栈|客户端|服务端|算法|测试|运维|数据|产品|设计|开发|工程|AI|大模型|Android|iOS|Web|Node|C\+\+)/
 
@@ -117,7 +117,7 @@ function splitSectionEntries(lines: string[]): SectionEntry[] {
 }
 
 function stripListMarker(line: string): string {
-  return line.replace(/^[-*+]\s+/, '').replace(/^\d+[.、)]\s+/, '').trim()
+  return line.replace(/^[-*+•·]\s*/, '').replace(/^\d+[.、)]\s+/, '').trim()
 }
 
 function buildLabelPattern(label: string): RegExp {
@@ -195,7 +195,7 @@ function collectListItems(
       continue
     }
 
-    if (/^[-*+]\s+/.test(line) || /^\d+[.、)]\s+/.test(line)) {
+    if (/^[-*+•·]\s*/.test(line) || /^\d+[.、)]\s+/.test(line)) {
       collecting = true
       items.push(cleanInlineText(stripListMarker(line)))
       continue
@@ -253,7 +253,7 @@ function normalizeMonthValue(value: string): string {
     return ''
   }
 
-  const yearMonthMatch = trimmed.match(/(\d{4})[./年-]\s*(\d{1,2})/)
+  const yearMonthMatch = trimmed.match(/(\d{4})(?:[./-]|年-?)\s*(\d{1,2})/)
   if (yearMonthMatch) {
     return `${yearMonthMatch[1]}-${yearMonthMatch[2].padStart(2, '0')}`
   }
@@ -267,7 +267,7 @@ function normalizeMonthValue(value: string): string {
 }
 
 function extractDateRange(value: string): { startDate: string; endDate: string; matchedText: string } {
-  const dateToken = '(?:\\d{4}[./-]\\d{1,2}|\\d{4}年\\d{1,2}月?|\\d{4}年|\\d{4}|至今|现在)'
+  const dateToken = '(?:\\d{4}[./-]\\d{1,2}|\\d{4}年-?\\d{1,2}月?|\\d{4}年|\\d{4}|至今|现在)'
   const match = value.match(new RegExp(`(${dateToken})\\s*(?:-|~|～|至|—|–)\\s*(${dateToken})`))
   if (!match) {
     return { startDate: '', endDate: '', matchedText: '' }
@@ -281,14 +281,23 @@ function extractDateRange(value: string): { startDate: string; endDate: string; 
 }
 
 function splitProjectTitleAndRole(value: string): { projectName: string; role: string } {
-  const tokens = cleanInlineText(value).split(/\s+/).filter(Boolean)
+  const normalizedValue = cleanInlineText(value)
+  const pipeSegments = normalizedValue.split(/[|｜]/).map((segment) => segment.trim()).filter(Boolean)
+  if (pipeSegments.length >= 2) {
+    return {
+      projectName: pipeSegments[0],
+      role: pipeSegments.slice(1).join(' '),
+    }
+  }
+
+  const tokens = normalizedValue.split(/\s+/).filter(Boolean)
   if (tokens.length < 2) {
-    return { projectName: cleanInlineText(value), role: '' }
+    return { projectName: normalizedValue, role: '' }
   }
 
   const lastToken = tokens[tokens.length - 1]
   if (!ROLE_KEYWORD_PATTERN.test(lastToken)) {
-    return { projectName: cleanInlineText(value), role: '' }
+    return { projectName: normalizedValue, role: '' }
   }
 
   let roleStart = tokens.length - 1
@@ -297,7 +306,7 @@ function splitProjectTitleAndRole(value: string): { projectName: string; role: s
   }
 
   return {
-    projectName: tokens.slice(0, roleStart).join(' ').trim(),
+    projectName: tokens.slice(0, roleStart).join(' ').replace(/\s*[-—–~]\s*$/, '').trim(),
     role: tokens.slice(roleStart).join(' ').trim(),
   }
 }
@@ -308,14 +317,19 @@ function parseBasicInfoSection(lines: string[]): Record<string, unknown> | null 
     return null
   }
 
+  const rawEmail = values['邮箱'] || ''
+  const rawPhone = values['电话'] || values['手机号'] || ''
+  const email = rawEmail.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0] || rawEmail
+  const phone = rawPhone.match(/(?:\+?86[-\s]?)?1[3-9]\d{9}/)?.[0] || rawPhone
+
   return {
     name: values['姓名'] || '',
-    email: values['邮箱'] || '',
+    email,
     jobIntention: values['求职意向'] || '',
     targetCity: values['意向城市'] || '',
     salaryRange: values['期望薪资'] || '',
     expectedEntryDate: values['到岗时间'] || values['到岗日期'] || '',
-    phone: values['电话'] || values['手机号'] || '',
+    phone,
     wechat: values['微信'] || '',
     isPartyMember: /党员/u.test(values['政治面貌'] || ''),
     photo: '',
@@ -401,7 +415,7 @@ function parseInternshipHeading(value: string): Record<string, string> {
 function parseExperienceSection(moduleType: 'internship' | 'work_experience', lines: string[]): ImportedResumeModule[] {
   return splitSectionEntries(lines)
     .filter((entry) => entry.heading)
-    .map((entry) => {
+    .map<ImportedResumeModule>((entry) => {
       const heading = parseInternshipHeading(entry.heading)
       const stopLabels = [...DESCRIPTION_LABELS, ...TECH_STACK_LABELS, ...RESPONSIBILITY_LABELS]
       const responsibilities = collectListItems(
@@ -432,7 +446,7 @@ function parseExperienceSection(moduleType: 'internship' | 'work_experience', li
 function parseProjectSection(lines: string[]): ImportedResumeModule[] {
   return splitSectionEntries(lines)
     .filter((entry) => entry.heading)
-    .map((entry) => {
+    .map<ImportedResumeModule>((entry) => {
       const dateRange = extractDateRange(entry.heading)
       const title = cleanInlineText(entry.heading.replace(dateRange.matchedText, '').replace(/^写法\d+\s+/, '').trim())
       const { projectName, role } = splitProjectTitleAndRole(title)
@@ -467,6 +481,81 @@ function parseSkillSection(lines: string[]): ImportedResumeModule[] {
   }]
 }
 
+function parsePaperSection(lines: string[]): ImportedResumeModule[] {
+  return splitSectionEntries(lines)
+    .filter((entry) => entry.heading || entry.lines.some((line) => line.trim()))
+    .map<ImportedResumeModule>((entry) => {
+      const values = parseKeyValueList(entry.lines)
+      const dateRange = extractDateRange(values['时间'] || entry.heading)
+      const publishTime = normalizeMonthValue(values['发表时间'] || values['发布时间'] || values['时间'] || dateRange.startDate)
+      const journalName = values['期刊'] || values['期刊名称'] || entry.heading.replace(dateRange.matchedText, '').trim()
+
+      return {
+        moduleType: 'paper',
+        content: {
+          journalType: values['期刊类型'] || values['类型'] || '',
+          journalName,
+          publishTime,
+          content: values['内容'] || values['论文内容'] || collectListItems(entry.lines).join('\n'),
+        },
+      }
+    })
+    .filter((module) => Boolean((module.content.journalName as string) || (module.content.content as string)))
+}
+
+function parseResearchSection(lines: string[]): ImportedResumeModule[] {
+  return splitSectionEntries(lines)
+    .filter((entry) => entry.heading || entry.lines.some((line) => line.trim()))
+    .map<ImportedResumeModule>((entry) => {
+      const values = parseKeyValueList(entry.lines)
+      const dateRange = extractDateRange(values['时间'] || entry.heading)
+      const projectName = values['项目名称'] || entry.heading.replace(dateRange.matchedText, '').trim()
+
+      return {
+        moduleType: 'research',
+        content: {
+          projectName,
+          projectCycle: values['项目周期'] || values['时间'] || dateRange.matchedText,
+          background: values['项目背景'] || values['背景'] || '',
+          workContent: values['工作内容'] || values['研究内容'] || '',
+          achievements: values['研究成果'] || values['成果'] || collectListItems(entry.lines).join('\n'),
+        },
+      }
+    })
+    .filter((module) => Boolean((module.content.projectName as string) || (module.content.achievements as string)))
+}
+
+function parseAwardSection(lines: string[]): ImportedResumeModule[] {
+  const entries = splitSectionEntries(lines)
+  const values = entries.flatMap((entry) => {
+    const contentLines = entry.heading
+      ? [entry.heading, ...entry.lines]
+      : entry.lines
+    return contentLines
+      .map((line) => stripListMarker(line.trim()))
+      .filter(Boolean)
+  })
+
+  return values.map<ImportedResumeModule>((value) => {
+    const dateRange = extractDateRange(value)
+    const suffixTime = value.match(/[（(]([^()（）]+)[)）]\s*$/)?.[1] || ''
+    const normalizedTime = normalizeMonthValue(dateRange.startDate || suffixTime)
+    const awardName = cleanInlineText(
+      value
+        .replace(dateRange.matchedText, '')
+        .replace(/[（(][^()（）]+[)）]\s*$/, '')
+    )
+
+    return {
+      moduleType: 'award',
+      content: {
+        awardName,
+        awardTime: normalizedTime,
+      },
+    }
+  }).filter((module) => Boolean(module.content.awardName))
+}
+
 export function parseMarkdownResume(markdown: string, fileName = '导入简历.md'): ImportedResumeData {
   const sections = splitIntoSections(markdown)
   const modules: ImportedResumeModule[] = []
@@ -476,6 +565,9 @@ export function parseMarkdownResume(markdown: string, fileName = '导入简历.m
   const workExperiences = parseExperienceSection('work_experience', sections.get('工作经历') || [])
   const projects = parseProjectSection(sections.get('项目经历') || [])
   const skills = parseSkillSection(sections.get('专业技能') || [])
+  const papers = parsePaperSection(sections.get('论文期刊') || [])
+  const research = parseResearchSection(sections.get('科研经历') || [])
+  const awards = parseAwardSection(sections.get('获奖情况') || [])
 
   if (basicInfo) {
     modules.push({ moduleType: 'basic_info', content: basicInfo })
@@ -486,6 +578,9 @@ export function parseMarkdownResume(markdown: string, fileName = '导入简历.m
   modules.push(...projects)
   modules.push(...workExperiences)
   modules.push(...skills)
+  modules.push(...papers)
+  modules.push(...research)
+  modules.push(...awards)
 
   for (const award of education.awards) {
     modules.push({

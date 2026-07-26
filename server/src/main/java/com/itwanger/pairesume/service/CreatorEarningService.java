@@ -12,6 +12,8 @@ public interface CreatorEarningService {
 
     List<CreatorEarningDTO> listAdminEarnings(String status);
 
+    long countAdminEarnings(String status);
+
     CreatorEarningDTO requestSettlement(Long earningId, Long sellerUserId);
 
     CreatorEarningDTO markSettled(Long earningId, Long adminUserId, String settlementNote);

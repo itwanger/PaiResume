@@ -8,6 +8,7 @@ import com.itwanger.pairesume.dto.TokenDTO;
 import com.itwanger.pairesume.dto.UserInfoDTO;
 import com.itwanger.pairesume.dto.WechatBridgeEventDTO;
 import com.itwanger.pairesume.dto.WechatChallengeCreateDTO;
+import com.itwanger.pairesume.dto.LegalConsentDTO;
 import com.itwanger.pairesume.dto.WechatChallengeStatusDTO;
 import com.itwanger.pairesume.dto.WechatReauthProofDTO;
 import com.itwanger.pairesume.service.AuthService;
@@ -153,12 +154,37 @@ public class WechatQrAuthServiceImpl implements WechatQrAuthService {
 
     @Override
     public TokenDTO exchangeLoginChallenge(String challengeId, String pollToken) {
+        return exchangeLoginChallenge(challengeId, pollToken, null);
+    }
+
+    @Override
+    public TokenDTO exchangeLoginChallenge(
+            String challengeId,
+            String pollToken,
+            LegalConsentDTO dto
+    ) {
+        boolean termsAccepted = dto != null && dto.isTermsAccepted();
+        boolean privacyAccepted = dto != null && dto.isPrivacyAccepted();
+        if (dto != null && (!termsAccepted || !privacyAccepted)) {
+            throw new BusinessException(
+                    ResultCode.BAD_REQUEST.getCode(),
+                    "请完整阅读并同意服务条款与隐私政策"
+            );
+        }
         ClaimedIdentity claimed = claim(PURPOSE_LOGIN, null, challengeId, pollToken);
         try {
             String[] principal = splitPrincipal(claimed.principal());
-            TokenDTO token = authService.loginOrRegisterPaicongming(
-                    principal[0], principal[1], claimed.subscribedAt()
-            );
+            TokenDTO token = dto == null
+                    ? authService.loginOrRegisterPaicongming(
+                            principal[0], principal[1], claimed.subscribedAt()
+                    )
+                    : authService.loginOrRegisterPaicongming(
+                            principal[0],
+                            principal[1],
+                            claimed.subscribedAt(),
+                            termsAccepted,
+                            privacyAccepted
+                    );
             bindVipClaimWithoutBlockingLogin(claimed, challengeId, token);
             finish(challengeId, claimed.claimId());
             return token;

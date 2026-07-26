@@ -17,6 +17,7 @@ type GovernanceTab = 'REPORTS' | 'APPEALS' | 'AUDITS'
 interface MarketplaceGovernancePanelProps {
   auditRefreshKey: number
   onListingsChanged: () => Promise<void>
+  onPendingCountChanged: () => Promise<void>
 }
 
 interface PaginationProps {
@@ -111,6 +112,7 @@ function Pagination({
 export function MarketplaceGovernancePanel({
   auditRefreshKey,
   onListingsChanged,
+  onPendingCountChanged,
 }: MarketplaceGovernancePanelProps) {
   const [activeTab, setActiveTab] = useState<GovernanceTab>('REPORTS')
   const [reports, setReports] = useState<MarketplaceReport[]>([])
@@ -130,6 +132,9 @@ export function MarketplaceGovernancePanel({
   const [auditListingIdInput, setAuditListingIdInput] = useState('')
   const [auditListingId, setAuditListingId] = useState<number | null>(null)
   const [workspaceLoading, setWorkspaceLoading] = useState(true)
+  const [workspaceLoaded, setWorkspaceLoaded] = useState(false)
+  const [workspaceReloadKey, setWorkspaceReloadKey] = useState(0)
+  const [failedTabs, setFailedTabs] = useState<Set<GovernanceTab>>(() => new Set())
   const [reportsLoading, setReportsLoading] = useState(false)
   const [appealsLoading, setAppealsLoading] = useState(false)
   const [auditsLoading, setAuditsLoading] = useState(false)
@@ -140,6 +145,7 @@ export function MarketplaceGovernancePanel({
   useEffect(() => {
     let cancelled = false
     setWorkspaceLoading(true)
+    setWorkspaceLoaded(false)
     setError('')
     setSuccess('')
     void Promise.all([
@@ -167,8 +173,11 @@ export function MarketplaceGovernancePanel({
       setAuditTotalPages(Math.max(1, auditData.totalPages))
       setAuditListingIdInput('')
       setAuditListingId(null)
+      setFailedTabs(new Set())
+      setWorkspaceLoaded(true)
     }).catch((loadError: unknown) => {
       if (!cancelled) {
+        setWorkspaceLoaded(false)
         setError(getErrorMessage(loadError, '市场治理数据加载失败'))
       }
     }).finally(() => {
@@ -177,7 +186,23 @@ export function MarketplaceGovernancePanel({
     return () => {
       cancelled = true
     }
-  }, [auditRefreshKey])
+  }, [auditRefreshKey, workspaceReloadKey])
+
+  function markTabLoaded(tab: GovernanceTab) {
+    setFailedTabs((current) => {
+      if (!current.has(tab)) return current
+      const next = new Set(current)
+      next.delete(tab)
+      return next
+    })
+  }
+
+  function markTabFailed(tab: GovernanceTab) {
+    setFailedTabs((current) => {
+      if (current.has(tab)) return current
+      return new Set(current).add(tab)
+    })
+  }
 
   async function loadReports(page: number, status: '' | MarketplaceReportStatus) {
     setReportsLoading(true)
@@ -191,6 +216,10 @@ export function MarketplaceGovernancePanel({
       setReportPage(response.data.page)
       setReportTotal(response.data.total)
       setReportTotalPages(Math.max(1, response.data.totalPages))
+      markTabLoaded('REPORTS')
+    } catch (loadError: unknown) {
+      markTabFailed('REPORTS')
+      throw loadError
     } finally {
       setReportsLoading(false)
     }
@@ -208,6 +237,10 @@ export function MarketplaceGovernancePanel({
       setAppealPage(response.data.page)
       setAppealTotal(response.data.total)
       setAppealTotalPages(Math.max(1, response.data.totalPages))
+      markTabLoaded('APPEALS')
+    } catch (loadError: unknown) {
+      markTabFailed('APPEALS')
+      throw loadError
     } finally {
       setAppealsLoading(false)
     }
@@ -225,6 +258,10 @@ export function MarketplaceGovernancePanel({
       setAuditPage(response.data.page)
       setAuditTotal(response.data.total)
       setAuditTotalPages(Math.max(1, response.data.totalPages))
+      markTabLoaded('AUDITS')
+    } catch (loadError: unknown) {
+      markTabFailed('AUDITS')
+      throw loadError
     } finally {
       setAuditsLoading(false)
     }
@@ -287,6 +324,7 @@ export function MarketplaceGovernancePanel({
         loadReports(reportPage, reportStatus),
         loadAudits(1, auditListingId),
         action === 'TAKEDOWN' ? onListingsChanged() : Promise.resolve(),
+        onPendingCountChanged().catch(() => undefined),
       ])
       setSuccess(`举报 #${report.id} 已${actionLabel}`)
     } catch (actionError: unknown) {
@@ -315,6 +353,7 @@ export function MarketplaceGovernancePanel({
         loadAppeals(appealPage, appealStatus),
         loadAudits(1, auditListingId),
         approving ? onListingsChanged() : Promise.resolve(),
+        onPendingCountChanged().catch(() => undefined),
       ])
       setSuccess(`申诉 #${appeal.id} 已${approving ? '通过' : '驳回'}`)
     } catch (actionError: unknown) {
@@ -346,6 +385,40 @@ export function MarketplaceGovernancePanel({
     { id: 'AUDITS', label: '治理审计记录', count: auditTotal },
   ]
 
+  if (workspaceLoading) {
+    return (
+      <section className="rounded-lg border border-violet-200 bg-white px-6 py-6">
+        <h2 className="text-lg font-semibold text-gray-900">市场治理工作台</h2>
+        <p className="mt-4 text-sm text-gray-500">正在加载市场治理数据...</p>
+      </section>
+    )
+  }
+
+  if (!workspaceLoaded) {
+    return (
+      <section className="rounded-lg border border-red-200 bg-white px-6 py-6">
+        <h2 className="text-lg font-semibold text-gray-900">市场治理工作台</h2>
+        <div role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error || '市场治理数据加载失败，请重试。'}
+        </div>
+        <button
+          type="button"
+          onClick={() => setWorkspaceReloadKey((current) => current + 1)}
+          className="mt-4 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+        >
+          重新加载
+        </button>
+      </section>
+    )
+  }
+
+  const activeTabLoading = activeTab === 'REPORTS'
+    ? reportsLoading
+    : activeTab === 'APPEALS'
+      ? appealsLoading
+      : auditsLoading
+  const activeTabFailed = failedTabs.has(activeTab)
+
   return (
     <section className="rounded-lg border border-violet-200 bg-white px-6 py-6">
       <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
@@ -362,10 +435,10 @@ export function MarketplaceGovernancePanel({
             if (activeTab === 'APPEALS') runAppealLoad(appealPage, appealStatus)
             if (activeTab === 'AUDITS') runAuditLoad(auditPage, auditListingId)
           }}
-          disabled={workspaceLoading || reportsLoading || appealsLoading || auditsLoading}
+          disabled={reportsLoading || appealsLoading || auditsLoading}
           className="w-fit rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:border-gray-300 hover:text-gray-900 disabled:cursor-wait disabled:opacity-50"
         >
-          {workspaceLoading || reportsLoading || appealsLoading || auditsLoading ? '刷新中...' : '刷新当前列表'}
+          {reportsLoading || appealsLoading || auditsLoading ? '刷新中...' : '刷新当前列表'}
         </button>
       </div>
 
@@ -398,11 +471,28 @@ export function MarketplaceGovernancePanel({
         ))}
       </div>
 
-      {workspaceLoading ? (
-        <p className="mt-5 text-sm text-gray-500">正在加载市场治理数据...</p>
+      {activeTabLoading ? (
+        <p className="mt-5 text-sm text-gray-500">正在加载当前列表...</p>
       ) : null}
 
-      {!workspaceLoading && activeTab === 'REPORTS' ? (
+      {!activeTabLoading && activeTabFailed ? (
+        <div className="mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-4">
+          <p className="text-sm text-red-700">当前列表加载失败，已隐藏处理操作，请重试。</p>
+          <button
+            type="button"
+            onClick={() => {
+              if (activeTab === 'REPORTS') runReportLoad(reportPage, reportStatus)
+              if (activeTab === 'APPEALS') runAppealLoad(appealPage, appealStatus)
+              if (activeTab === 'AUDITS') runAuditLoad(auditPage, auditListingId)
+            }}
+            className="mt-3 rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700"
+          >
+            重试当前列表
+          </button>
+        </div>
+      ) : null}
+
+      {!activeTabLoading && !activeTabFailed && activeTab === 'REPORTS' ? (
         <div className="mt-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-gray-500">待处理举报按最早提交优先排列。</p>
@@ -518,7 +608,7 @@ export function MarketplaceGovernancePanel({
         </div>
       ) : null}
 
-      {!workspaceLoading && activeTab === 'APPEALS' ? (
+      {!activeTabLoading && !activeTabFailed && activeTab === 'APPEALS' ? (
         <div className="mt-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-gray-500">通过申诉前，系统会校验申诉针对的版本和当前状态是否仍然一致。</p>
@@ -624,7 +714,7 @@ export function MarketplaceGovernancePanel({
         </div>
       ) : null}
 
-      {!workspaceLoading && activeTab === 'AUDITS' ? (
+      {!activeTabLoading && !activeTabFailed && activeTab === 'AUDITS' ? (
         <div className="mt-5">
           <div className="flex flex-wrap items-end gap-3">
             <label className="block">

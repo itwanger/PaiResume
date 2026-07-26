@@ -39,6 +39,11 @@ export interface WechatChallengeCreateParams {
   claimToken?: string
 }
 
+export interface WechatChallengeExchangeParams {
+  termsAccepted: boolean
+  privacyAccepted: boolean
+}
+
 export interface WechatChallengeStatusData {
   challengeId: string
   status: WechatChallengeStatus
@@ -84,10 +89,14 @@ export const authApi = {
       headers: { 'X-Wechat-Poll-Token': pollToken },
     }),
 
-  exchangeWechatChallenge: (challengeId: string, pollToken: string) =>
+  exchangeWechatChallenge: (
+    challengeId: string,
+    pollToken: string,
+    params?: WechatChallengeExchangeParams,
+  ) =>
     client.post<ApiEnvelope<TokenData>>(
       `/auth/wechat/challenges/${encodeURIComponent(challengeId)}/exchange`,
-      undefined,
+      params,
       { headers: { 'X-Wechat-Poll-Token': pollToken } },
     ),
 

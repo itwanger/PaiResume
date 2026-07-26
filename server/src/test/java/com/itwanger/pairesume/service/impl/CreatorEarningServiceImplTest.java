@@ -160,6 +160,19 @@ class CreatorEarningServiceImplTest {
     }
 
     @Test
+    void adminPendingSettlementCountIsNotLimitedToTheFirstTwoHundredRows() {
+        when(earningMapper.selectCount(any())).thenReturn(237L);
+
+        assertEquals(237L, service.countAdminEarnings("PENDING_SETTLEMENT"));
+    }
+
+    @Test
+    void adminEarningCountRejectsUnknownStatus() {
+        assertThrows(BusinessException.class, () -> service.countAdminEarnings("unknown"));
+        verify(earningMapper, never()).selectCount(any());
+    }
+
+    @Test
     void latePayoutRefundDebtBlocksOtherAvailableWithdrawals() {
         CreatorEarning earning = earning(CreatorEarningStatus.AVAILABLE);
         CreatorWallet wallet = wallet(1000L, 0L, 500L);

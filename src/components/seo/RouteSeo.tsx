@@ -72,6 +72,11 @@ const EXACT_ROUTES: Record<string, RouteSeoConfig> = {
     description: '使用知识星球邀请码和派聪明服务号扫码，领取派简历 VIP 会员权益。',
     indexable: false,
   },
+  '/admin': {
+    title: '运营控制台 - 派简历',
+    description: '派简历内部运营管理、审核、支付复核与安全审计工作台。',
+    indexable: false,
+  },
 }
 
 function getRouteSeo(pathname: string): RouteSeoConfig {

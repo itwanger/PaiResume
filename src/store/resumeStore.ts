@@ -77,16 +77,15 @@ export const useResumeStore = create<ResumeState>((set) => ({
   },
 
   importResume: async ({ title, modules }) => {
-    const { data: resumeRes } = await resumeApi.create({ title })
-    const newResume = resumeRes.data
-
-    for (const [index, module] of modules.entries()) {
-      await resumeApi.addModule(newResume.id, {
+    const { data: response } = await resumeApi.importResume({
+      title,
+      modules: modules.map((module, sortOrder) => ({
         moduleType: module.moduleType,
         content: module.content,
-        sortOrder: index,
-      })
-    }
+        sortOrder,
+      })),
+    })
+    const newResume = response.data
 
     set((state) => ({ resumeList: sortResumeList([newResume, ...state.resumeList]) }))
     return newResume

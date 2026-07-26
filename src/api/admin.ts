@@ -140,8 +140,8 @@ export interface FeedbackSubmissionAdmin {
 
 export interface UserAdmin {
   id: number
-  email: string
-  nickname: string
+  email: string | null
+  nickname: string | null
   role: string
   membershipStatus: string
   membershipGrantedAt: string | null
@@ -361,6 +361,9 @@ export const adminApi = {
   listResumeReviews: () =>
     client.get<ApiEnvelope<ResumeReviewAdminRequest[]>>('/admin/resume-reviews'),
 
+  getResumeReviewActionCount: () =>
+    client.get<ApiEnvelope<number>>('/admin/resume-reviews/count'),
+
   getResumeReview: (requestNo: string) =>
     client.get<ApiEnvelope<ResumeReviewAdminRequest>>(
       `/admin/resume-reviews/${encodeURIComponent(requestNo)}`,
@@ -528,6 +531,11 @@ export const adminApi = {
       params: { status },
     }),
 
+  getCreatorEarningCount: (status = 'PENDING_SETTLEMENT') =>
+    client.get<ApiEnvelope<number>>('/admin/creator-earnings/count', {
+      params: { status },
+    }),
+
   settleCreatorEarning: (earningId: number, settlementNote: string) =>
     client.post<ApiEnvelope<CreatorEarning>>(
       `/admin/creator-earnings/${earningId}/settle`,
@@ -537,6 +545,12 @@ export const adminApi = {
   listMarketplacePaymentReviews: (status?: '' | MarketplacePaymentReviewStatus) =>
     client.get<ApiEnvelope<MarketplacePaymentReview[]>>(
       '/admin/marketplace/payment-reviews',
+      { params: status ? { status } : undefined },
+    ),
+
+  getMarketplacePaymentReviewCount: (status?: '' | MarketplacePaymentReviewStatus) =>
+    client.get<ApiEnvelope<number>>(
+      '/admin/marketplace/payment-reviews/count',
       { params: status ? { status } : undefined },
     ),
 

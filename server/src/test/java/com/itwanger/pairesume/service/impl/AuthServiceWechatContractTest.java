@@ -7,6 +7,7 @@ import com.itwanger.pairesume.entity.User;
 import com.itwanger.pairesume.entity.UserAuthIdentity;
 import com.itwanger.pairesume.mapper.UserAuthIdentityMapper;
 import com.itwanger.pairesume.mapper.UserMapper;
+import com.itwanger.pairesume.security.LegalConsentPolicy;
 import com.itwanger.pairesume.security.JwtTokenProvider;
 import com.itwanger.pairesume.service.LoginRateLimitService;
 import com.itwanger.pairesume.service.MailService;
@@ -32,6 +33,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -100,6 +102,113 @@ class AuthServiceWechatContractTest {
         assertTrue(token.getUserInfo().isPaicongmingSubscribed());
         assertTrue(token.getUserInfo().isLegalConsentRequired());
         verify(passwordEncoder, never()).encode(anyString());
+    }
+
+    @Test
+    void qrOnlyRegistrationCanRecordCurrentLegalConsentBeforeMintingTokens() {
+        AuthServiceImpl service = service();
+        AtomicReference<UserAuthIdentity> insertedIdentity = new AtomicReference<>();
+        when(identityMapper.selectOne(any())).thenAnswer(invocation -> insertedIdentity.get());
+        when(userMapper.insert(any(User.class))).thenAnswer(invocation -> {
+            User user = invocation.getArgument(0);
+            user.setId(7L);
+            return 1;
+        });
+        when(identityMapper.insert(any(UserAuthIdentity.class))).thenAnswer(invocation -> {
+            UserAuthIdentity identity = invocation.getArgument(0);
+            identity.setId(11L);
+            insertedIdentity.set(identity);
+            return 1;
+        });
+        when(jwtTokenProvider.generateAccessToken(eq(7L), isNull(), eq("USER"), anyString()))
+                .thenReturn("access-token");
+        when(jwtTokenProvider.generateRefreshToken(eq(7L), anyString())).thenReturn("refresh-token");
+        when(jwtTokenProvider.getJtiFromToken("refresh-token")).thenReturn("refresh-jti");
+        doReturn(1L).when(redisTemplate)
+                .execute(any(RedisScript.class), anyList(), any(Object[].class));
+        ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
+
+        var token = service.loginOrRegisterPaicongming(
+                "wx1234567890abcdef",
+                "openid_1234567890",
+                LocalDateTime.now(),
+                true,
+                true
+        );
+
+        verify(userMapper).insert(userCaptor.capture());
+        User insertedUser = userCaptor.getValue();
+        assertEquals(LegalConsentPolicy.CURRENT_VERSION, insertedUser.getTermsVersion());
+        assertEquals(LegalConsentPolicy.CURRENT_VERSION, insertedUser.getPrivacyVersion());
+        assertEquals(
+                LegalConsentPolicy.CURRENT_VERSION,
+                insertedUser.getAiProcessingDisclosureVersion()
+        );
+        assertNotNull(insertedUser.getTermsAcceptedAt());
+        assertEquals(insertedUser.getTermsAcceptedAt(), insertedUser.getPrivacyAcceptedAt());
+        assertFalse(token.getUserInfo().isLegalConsentRequired());
+    }
+
+    @Test
+    void existingWechatAccountCanRefreshCurrentLegalConsentBeforeMintingTokens() {
+        AuthServiceImpl service = service();
+        User user = qrOnlyUser();
+        user.setNickname("微信用户");
+        user.setAvatar("");
+        user.setRole(0);
+        user.setMembershipStatus("FREE");
+        UserAuthIdentity identity = new UserAuthIdentity();
+        identity.setId(11L);
+        identity.setUserId(7L);
+        identity.setProvider("WECHAT_SERVICE");
+        identity.setPrincipal("wx1234567890abcdef:openid_1234567890");
+        identity.setStatus(1);
+        identity.setSubscribed(true);
+        when(identityMapper.selectOne(any())).thenReturn(identity);
+        when(userMapper.selectById(7L)).thenReturn(user);
+        when(jwtTokenProvider.generateAccessToken(eq(7L), isNull(), eq("USER"), anyString()))
+                .thenReturn("access-token");
+        when(jwtTokenProvider.generateRefreshToken(eq(7L), anyString())).thenReturn("refresh-token");
+        when(jwtTokenProvider.getJtiFromToken("refresh-token")).thenReturn("refresh-jti");
+        doReturn(1L).when(redisTemplate)
+                .execute(any(RedisScript.class), anyList(), any(Object[].class));
+
+        var token = service.loginOrRegisterPaicongming(
+                "wx1234567890abcdef",
+                "openid_1234567890",
+                LocalDateTime.now(),
+                true,
+                true
+        );
+
+        verify(userMapper).updateById(user);
+        assertEquals(LegalConsentPolicy.CURRENT_VERSION, user.getTermsVersion());
+        assertEquals(LegalConsentPolicy.CURRENT_VERSION, user.getPrivacyVersion());
+        assertEquals(
+                LegalConsentPolicy.CURRENT_VERSION,
+                user.getAiProcessingDisclosureVersion()
+        );
+        assertFalse(token.getUserInfo().isLegalConsentRequired());
+    }
+
+    @Test
+    void partialLegalConsentIsRejectedBeforeWechatAccountLookup() {
+        AuthServiceImpl service = service();
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> service.loginOrRegisterPaicongming(
+                        "wx1234567890abcdef",
+                        "openid_1234567890",
+                        LocalDateTime.now(),
+                        true,
+                        false
+                )
+        );
+
+        assertEquals(ResultCode.BAD_REQUEST.getCode(), exception.getCode());
+        verify(identityMapper, never()).selectOne(any());
+        verify(userMapper, never()).insert(any(User.class));
     }
 
     @Test

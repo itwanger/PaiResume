@@ -3,6 +3,7 @@ package com.itwanger.pairesume.service;
 import com.itwanger.pairesume.dto.TokenDTO;
 import com.itwanger.pairesume.dto.UserInfoDTO;
 import com.itwanger.pairesume.dto.WechatChallengeCreateDTO;
+import com.itwanger.pairesume.dto.LegalConsentDTO;
 import com.itwanger.pairesume.dto.WechatChallengeStatusDTO;
 import com.itwanger.pairesume.dto.WechatReauthProofDTO;
 
@@ -16,6 +17,12 @@ public interface WechatQrAuthService {
     WechatChallengeStatusDTO pollLoginChallenge(String challengeId, String pollToken);
 
     TokenDTO exchangeLoginChallenge(String challengeId, String pollToken);
+
+    TokenDTO exchangeLoginChallenge(
+            String challengeId,
+            String pollToken,
+            LegalConsentDTO dto
+    );
 
     WechatChallengeCreateDTO createBindChallenge(Long userId, String clientIp);
 

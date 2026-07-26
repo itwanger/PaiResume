@@ -208,12 +208,12 @@ npm run dev
 ### 认证
 
 - 默认使用派聪明服务号临时参数二维码扫码注册/登录；AppSecret 和 access_token 只由 paicoding 持有，PaiResume 通过双向 HMAC 网关生成二维码并接收可信事件
-- 纯扫码账号不伪造邮箱或密码；首次扫码后仍须确认当前服务条款、隐私政策和 AI 第三方处理说明
+- 纯扫码账号不伪造邮箱或密码；二维码生成前须主动确认当前服务条款、隐私政策和 AI 第三方处理说明，扫码兑换时在登录事务内记录当前协议版本，不再二次跳转
 - 邮箱注册/登录保留为兼容入口，邮箱注册需要验证码
 - 注册时必须确认当前版本的服务条款、隐私政策和 AI 第三方处理说明；旧账号需补签后才能继续调用受保护接口
 - 支持邮箱验证码找回密码，重置后立即撤销旧刷新会话和旧访问令牌
 - 邮箱账号用当前密码二次确认注销；纯扫码账号必须重新扫描派聪明并使用 5 分钟内的一次性凭证。未完成订单、人工精修、待退款或作者余额未结清时会阻止注销
-- 未登录的知识星球成员统一从 `/vip/claim` 输入邀请码：这一步只创建短期领取凭证，不生成匿名账号、不占用名额；随后通过派聪明扫码注册/登录、确认当前协议，再原子核销邀请码并开通 VIP
+- 未登录的知识星球成员统一从 `/vip/claim` 输入邀请码：这一步只创建短期领取凭证，不生成匿名账号、不占用名额；随后先确认当前协议，再通过派聪明扫码注册/登录并原子核销邀请码、开通 VIP
 - 已有邮箱账号必须先使用邮箱登录，再回到 `/vip/claim` 输入邀请码直接领取；未绑定过派聪明时直接扫码会创建独立微信账号，系统不会自动合并两个账号
 - `accessToken` 只保存在页面内存；生产环境的 `refreshToken` 只存在于 `HttpOnly + Secure + SameSite=Strict` Cookie，本地 HTTP 开发才允许关闭 `Secure`
 - 遇到明确的 401 时，前端会串行轮换刷新 Token；普通 403 不触发刷新
@@ -324,7 +324,7 @@ AI 与完整优质简历权限由服务端实时校验。PDF 文件本身在浏�
 - `POST /api/auth/password-reset/confirm`：校验验证码并重置密码、撤销旧会话
 - `POST /api/auth/legal-consent`：确认当前协议版本
 - `DELETE /api/auth/account`：请求体同时校验当前密码和固定确认语“注销账号”后注销
-- `POST /api/auth/wechat/challenges` / `GET .../{challengeId}` / `POST .../{challengeId}/exchange`：派聪明扫码登录挑战、轮询与一次性换票；创建挑战时可传短期 `claimToken`，但二维码中不包含邀请码或领取令牌
+- `POST /api/auth/wechat/challenges` / `GET .../{challengeId}` / `POST .../{challengeId}/exchange`：派聪明扫码登录挑战、轮询与一次性换票；创建挑战时可传短期 `claimToken`，兑换时可提交 `termsAccepted` 与 `privacyAccepted`，但二维码中不包含邀请码或领取令牌
 - `POST /api/auth/wechat/reauth-challenges`：纯扫码账号注销前的短期身份复核
 
 ### 人工精修接口

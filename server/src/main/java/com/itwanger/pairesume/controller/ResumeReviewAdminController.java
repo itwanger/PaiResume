@@ -20,6 +20,11 @@ public class ResumeReviewAdminController {
         return Result.success(service.adminList());
     }
 
+    @GetMapping("/count")
+    public Result<Long> count() {
+        return Result.success(service.adminActionCount());
+    }
+
     @GetMapping("/{requestNo}")
     public Result<ResumeReviewAdminRequestDTO> get(@PathVariable String requestNo) {
         return Result.success(service.adminGet(requestNo));

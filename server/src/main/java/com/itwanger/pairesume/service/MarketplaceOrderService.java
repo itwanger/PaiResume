@@ -19,6 +19,8 @@ public interface MarketplaceOrderService {
 
     java.util.List<MarketplacePaymentReviewDTO> listPaymentReviews(String status);
 
+    long countPaymentReviews(String status);
+
     java.util.List<MarketplacePaymentReviewDTO> listOutstandingCloseWork();
 
     MarketplacePaymentReviewDTO getPaymentReview(String orderNo);

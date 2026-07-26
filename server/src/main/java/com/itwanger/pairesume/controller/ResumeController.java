@@ -4,8 +4,10 @@ import com.itwanger.pairesume.common.Result;
 import com.itwanger.pairesume.dto.ModuleCreateDTO;
 import com.itwanger.pairesume.dto.ModuleUpdateDTO;
 import com.itwanger.pairesume.dto.ResumeCreateDTO;
+import com.itwanger.pairesume.dto.ResumeImportDTO;
 import com.itwanger.pairesume.dto.ResumeUpdateDTO;
 import com.itwanger.pairesume.entity.ResumeModule;
+import com.itwanger.pairesume.service.ResumeImportService;
 import com.itwanger.pairesume.service.ResumeModuleService;
 import com.itwanger.pairesume.service.ResumeService;
 import com.itwanger.pairesume.util.SecurityUtils;
@@ -24,10 +26,16 @@ public class ResumeController {
 
     private final ResumeService resumeService;
     private final ResumeModuleService moduleService;
+    private final ResumeImportService resumeImportService;
 
-    public ResumeController(ResumeService resumeService, ResumeModuleService moduleService) {
+    public ResumeController(
+            ResumeService resumeService,
+            ResumeModuleService moduleService,
+            ResumeImportService resumeImportService
+    ) {
         this.resumeService = resumeService;
         this.moduleService = moduleService;
+        this.resumeImportService = resumeImportService;
     }
 
     @Operation(summary = "获取简历列表")
@@ -40,6 +48,12 @@ public class ResumeController {
     @PostMapping
     public Result<ResumeListVO> create(@RequestBody ResumeCreateDTO dto) {
         return Result.success(resumeService.create(getCurrentUserId(), dto));
+    }
+
+    @Operation(summary = "原子导入简历及全部模块")
+    @PostMapping("/import")
+    public Result<ResumeListVO> importResume(@Valid @RequestBody ResumeImportDTO dto) {
+        return Result.success(resumeImportService.importResume(getCurrentUserId(), dto));
     }
 
     @Operation(summary = "更新简历信息")

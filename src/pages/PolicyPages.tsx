@@ -65,17 +65,6 @@ function PolicyPage({ eyebrow, title, summary, children }: PolicyPageProps) {
         </article>
       </main>
 
-      <footer className="border-t border-slate-200 bg-white">
-        <nav
-          className="mx-auto flex max-w-4xl flex-wrap gap-x-5 gap-y-2 px-4 py-6 text-xs text-slate-500 sm:px-6"
-          aria-label="协议与支持"
-        >
-          <Link to="/privacy" className="hover:text-primary-600">隐私政策</Link>
-          <Link to="/terms" className="hover:text-primary-600">服务条款</Link>
-          <Link to="/refund-policy" className="hover:text-primary-600">退款规则</Link>
-          <Link to="/customer-service" className="hover:text-primary-600">客服说明</Link>
-        </nav>
-      </footer>
     </div>
   )
 }

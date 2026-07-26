@@ -38,6 +38,15 @@ public interface AuthService {
     /** 由签名微信事件确认后登录或创建派聪明扫码账号。 */
     TokenDTO loginOrRegisterPaicongming(String appId, String openId, LocalDateTime subscribedAt);
 
+    /** 由签名微信事件确认后登录或创建派聪明扫码账号，并可同时记录当前协议的明确同意。 */
+    TokenDTO loginOrRegisterPaicongming(
+            String appId,
+            String openId,
+            LocalDateTime subscribedAt,
+            boolean termsAccepted,
+            boolean privacyAccepted
+    );
+
     /** 将派聪明微信身份绑定到当前已登录账号。 */
     UserInfoDTO bindPaicongming(Long userId, String appId, String openId, LocalDateTime subscribedAt);
 

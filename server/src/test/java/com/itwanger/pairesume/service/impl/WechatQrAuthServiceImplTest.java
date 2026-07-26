@@ -6,6 +6,7 @@ import com.itwanger.pairesume.common.ResultCode;
 import com.itwanger.pairesume.config.WechatQrAuthProperties;
 import com.itwanger.pairesume.dto.TokenDTO;
 import com.itwanger.pairesume.dto.UserInfoDTO;
+import com.itwanger.pairesume.dto.LegalConsentDTO;
 import com.itwanger.pairesume.service.AuthService;
 import com.itwanger.pairesume.service.VipInviteClaimService;
 import com.itwanger.pairesume.wechat.WechatBridgeSigner;
@@ -324,6 +325,68 @@ class WechatQrAuthServiceImplTest {
         assertEquals("refresh", result.getRefreshToken());
         verify(authService).loginOrRegisterPaicongming(
                 eq("wx1234567890abcdef"), eq("openid_1234567890"), any()
+        );
+    }
+
+    @Test
+    void loginExchangeCanRecordExplicitLegalConsentInTheWechatLoginTransaction() {
+        String challengeId = "A".repeat(43);
+        String pollToken = "B".repeat(43);
+        long subscribedAt = Instant.now().toEpochMilli();
+        doAnswer(invocation -> {
+            RedisScript<?> script = invocation.getArgument(0);
+            if (String.class.equals(script.getResultType())) {
+                return "OK:wx1234567890abcdef:openid_1234567890:" + subscribedAt;
+            }
+            return 1L;
+        }).when(redisTemplate).execute(any(RedisScript.class), anyList(), any(Object[].class));
+        UserInfoDTO info = new UserInfoDTO(
+                7L, null, "微信用户", "", "USER", "FREE", null, null,
+                false, false, false, false, true, true
+        );
+        TokenDTO token = new TokenDTO("access", "refresh", 900L, info);
+        when(authService.loginOrRegisterPaicongming(
+                eq("wx1234567890abcdef"),
+                eq("openid_1234567890"),
+                any(),
+                eq(true),
+                eq(true)
+        )).thenReturn(token);
+        LegalConsentDTO consent = new LegalConsentDTO();
+        consent.setTermsAccepted(true);
+        consent.setPrivacyAccepted(true);
+
+        TokenDTO result = service.exchangeLoginChallenge(challengeId, pollToken, consent);
+
+        assertFalse(result.getUserInfo().isLegalConsentRequired());
+        verify(authService).loginOrRegisterPaicongming(
+                eq("wx1234567890abcdef"),
+                eq("openid_1234567890"),
+                any(),
+                eq(true),
+                eq(true)
+        );
+    }
+
+    @Test
+    void partialLegalConsentIsRejectedBeforeTheChallengeIsClaimed() {
+        LegalConsentDTO consent = new LegalConsentDTO();
+        consent.setTermsAccepted(true);
+        consent.setPrivacyAccepted(false);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> service.exchangeLoginChallenge(
+                        "A".repeat(43), "B".repeat(43), consent
+                )
+        );
+
+        assertEquals(ResultCode.BAD_REQUEST.getCode(), exception.getCode());
+        verify(redisTemplate, never()).execute(
+                any(RedisScript.class), anyList(), any(Object[].class)
+        );
+        verify(authService, never()).loginOrRegisterPaicongming(
+                any(), any(), any(), any(Boolean.class), any(Boolean.class)
         );
     }
 

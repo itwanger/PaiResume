@@ -8,7 +8,7 @@ import {
 } from '../api/marketplace'
 import { publicApi, type HomeData } from '../api/public'
 import { Header } from '../components/layout/Header'
-import { buildResumeEditorPath, GITHUB_REPOSITORY_URL } from '../config/site'
+import { buildResumeEditorPath } from '../config/site'
 import { useAuthStore } from '../store/authStore'
 import { useResumeStore } from '../store/resumeStore'
 import { buildMarketplaceListingPath, EXCELLENT_RESUMES_PATH } from '../utils/navigation'
@@ -376,15 +376,6 @@ export default function HomePage() {
                 >
                   浏览优质简历
                 </Link>
-                <a
-                  href={GITHUB_REPOSITORY_URL}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 px-1 py-3 text-sm font-medium text-gray-500 transition-colors hover:text-gray-900"
-                >
-                  GitHub源码获取
-                  <span aria-hidden="true">↗</span>
-                </a>
                 {user?.admin ? (
                   <Link
                     to="/admin"
