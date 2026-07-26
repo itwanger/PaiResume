@@ -19,10 +19,16 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
 public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
+    private static final String ACCESS_TYPE_FREE = "FREE";
+    private static final String ACCESS_TYPE_VIP = "VIP";
+    private static final Set<String> ALLOWED_ACCESS_TYPES = Set.of(ACCESS_TYPE_FREE, ACCESS_TYPE_VIP);
+
     private final ResumeShowcaseMapper resumeShowcaseMapper;
     private final ResumeMapper resumeMapper;
     private final ResumeModuleMapper resumeModuleMapper;
@@ -39,19 +45,19 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
     }
 
     @Override
-    public ShowcaseDetailDTO getPublishedDetail(String slug, Long userId) {
-        if (!membershipService.isActiveMember(userId)) {
+    public ShowcaseDetailDTO getPublicPublishedDetail(String slug) {
+        ResumeShowcase showcase = findPublishedShowcase(slug);
+        if (!isFreeAccess(showcase)) {
             throw new BusinessException(ResultCode.SHOWCASE_MEMBERSHIP_REQUIRED);
         }
+        return toDetailDto(showcase);
+    }
 
-        ResumeShowcase showcase = resumeShowcaseMapper.selectOne(
-                new LambdaQueryWrapper<ResumeShowcase>()
-                        .eq(ResumeShowcase::getSlug, slug)
-                        .eq(ResumeShowcase::getPublishStatus, "PUBLISHED")
-                        .last("LIMIT 1")
-        );
-        if (showcase == null) {
-            throw new BusinessException(ResultCode.SHOWCASE_NOT_FOUND);
+    @Override
+    public ShowcaseDetailDTO getPublishedDetail(String slug, Long userId) {
+        ResumeShowcase showcase = findPublishedShowcase(slug);
+        if (!isFreeAccess(showcase) && !membershipService.isActiveMember(userId)) {
+            throw new BusinessException(ResultCode.SHOWCASE_MEMBERSHIP_REQUIRED);
         }
         return toDetailDto(showcase);
     }
@@ -120,6 +126,36 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
         showcase.setTags(dto.getTags());
         showcase.setDisplayOrder(dto.getDisplayOrder());
         showcase.setPublishStatus(dto.getPublishStatus().trim().toUpperCase());
+        showcase.setAccessType(normalizeAccessTypeForWrite(dto.getAccessType()));
+    }
+
+    private ResumeShowcase findPublishedShowcase(String slug) {
+        ResumeShowcase showcase = resumeShowcaseMapper.selectOne(
+                new LambdaQueryWrapper<ResumeShowcase>()
+                        .eq(ResumeShowcase::getSlug, slug)
+                        .eq(ResumeShowcase::getPublishStatus, "PUBLISHED")
+                        .last("LIMIT 1")
+        );
+        if (showcase == null) {
+            throw new BusinessException(ResultCode.SHOWCASE_NOT_FOUND);
+        }
+        return showcase;
+    }
+
+    private boolean isFreeAccess(ResumeShowcase showcase) {
+        String accessType = showcase.getAccessType();
+        return accessType != null
+                && ACCESS_TYPE_FREE.equals(accessType.trim().toUpperCase(Locale.ROOT));
+    }
+
+    private String normalizeAccessTypeForWrite(String accessType) {
+        String normalized = accessType == null
+                ? ""
+                : accessType.trim().toUpperCase(Locale.ROOT);
+        if (!ALLOWED_ACCESS_TYPES.contains(normalized)) {
+            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "访问类型只能是 FREE 或 VIP");
+        }
+        return normalized;
     }
 
     private ShowcaseCardDTO toCardDto(ResumeShowcase showcase) {

@@ -158,14 +158,7 @@ function App() {
         <Route path="/refund-policy" element={<RefundPolicyPage />} />
         <Route path="/customer-service" element={<CustomerServicePage />} />
         <Route path="/vip/claim" element={<VipInviteClaimPage />} />
-        <Route
-          path="/showcases/:slug"
-          element={(
-            <VipRoute>
-              <ShowcasePage />
-            </VipRoute>
-          )}
-        />
+        <Route path="/showcases/:slug" element={<ShowcasePage />} />
         <Route path="/survey" element={<SurveyPage />} />
         <Route
           path="/login"

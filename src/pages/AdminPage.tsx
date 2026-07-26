@@ -14,6 +14,7 @@ import {
   type MarketplacePaymentReview,
   type MarketplacePaymentReviewStatus,
   type PlatformConfig,
+  type ResumeShowcaseAccessType,
   type ResumeShowcaseAdmin,
   type UserAdmin,
   type VipInviteAdmin,
@@ -64,6 +65,7 @@ const EMPTY_SHOWCASE_FORM = {
   scoreLabel: '',
   summary: '',
   tags: '',
+  accessType: 'VIP' as ResumeShowcaseAccessType,
   displayOrder: '0',
   publishStatus: 'DRAFT',
 }
@@ -1135,6 +1137,7 @@ export default function AdminPage() {
         scoreLabel: showcaseForm.scoreLabel.trim(),
         summary: showcaseForm.summary.trim(),
         tags: showcaseForm.tags.split(',').map((item) => item.trim()).filter(Boolean),
+        accessType: showcaseForm.accessType,
         displayOrder: Number(showcaseForm.displayOrder),
         publishStatus: showcaseForm.publishStatus,
       }
@@ -1162,6 +1165,7 @@ export default function AdminPage() {
       scoreLabel: showcase.scoreLabel,
       summary: showcase.summary,
       tags: (showcase.tags ?? []).join(', '),
+      accessType: showcase.accessType ?? 'VIP',
       displayOrder: String(showcase.displayOrder),
       publishStatus: showcase.publishStatus,
     })
@@ -1379,7 +1383,9 @@ export default function AdminPage() {
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <h2 className="text-lg font-semibold text-gray-900">官方精选简历</h2>
-                    <p className="mt-1 text-sm text-gray-500">从管理员自己的脱敏简历中挑选内容，发布到优质简历菜单；完整内容仅 VIP 可见。</p>
+                    <p className="mt-1 text-sm text-gray-500">
+                      从管理员自己的脱敏简历中挑选内容，发布到优质简历菜单；每条可设置为公开查看，或付费查看（由 VIP 权益解锁）。
+                    </p>
                   </div>
                 </div>
 
@@ -1434,7 +1440,7 @@ export default function AdminPage() {
                   />
                 </label>
 
-                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <div className="mt-4 grid gap-4 md:grid-cols-3">
                   <label className="block">
                     <span className="mb-2 block text-sm font-medium text-gray-700">标签（逗号分隔）</span>
                     <input
@@ -1442,6 +1448,20 @@ export default function AdminPage() {
                       onChange={(event) => setShowcaseForm((current) => ({ ...current, tags: event.target.value }))}
                       className="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none transition-colors focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
                     />
+                  </label>
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-gray-700">查看权限</span>
+                    <select
+                      value={showcaseForm.accessType}
+                      onChange={(event) => setShowcaseForm((current) => ({
+                        ...current,
+                        accessType: event.target.value as ResumeShowcaseAccessType,
+                      }))}
+                      className="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none transition-colors focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
+                    >
+                      <option value="FREE">公开查看</option>
+                      <option value="VIP">付费查看（VIP 权益）</option>
+                    </select>
                   </label>
                   <label className="block">
                     <span className="mb-2 block text-sm font-medium text-gray-700">发布状态</span>
@@ -1480,6 +1500,7 @@ export default function AdminPage() {
                       <tr className="text-left text-gray-500">
                         <th className="py-3 pr-4 font-medium">slug</th>
                         <th className="py-3 pr-4 font-medium">展示标签</th>
+                        <th className="py-3 pr-4 font-medium">查看权限</th>
                         <th className="py-3 pr-4 font-medium">状态</th>
                         <th className="py-3 pr-4 font-medium">排序</th>
                         <th className="py-3 font-medium">操作</th>
@@ -1490,6 +1511,15 @@ export default function AdminPage() {
                         <tr key={showcase.id}>
                           <td className="py-3 pr-4">{showcase.slug}</td>
                           <td className="py-3 pr-4">{showcase.scoreLabel}</td>
+                          <td className="py-3 pr-4">
+                            <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
+                              showcase.accessType === 'FREE'
+                                ? 'bg-emerald-50 text-emerald-700'
+                                : 'bg-violet-50 text-violet-700'
+                            }`}>
+                              {showcase.accessType === 'FREE' ? '公开查看' : '付费查看（VIP 权益）'}
+                            </span>
+                          </td>
                           <td className="py-3 pr-4">
                             <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
                               showcase.publishStatus === 'PUBLISHED'

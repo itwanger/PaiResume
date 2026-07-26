@@ -285,7 +285,7 @@ export default function HomePage() {
             if (import.meta.env.DEV) {
               console.error('[home] Failed to load marketplace listings', 'RequestError')
             }
-            setError('用户公开简历暂时加载失败，平台精选仍可正常查看。')
+            setError('用户公开简历暂时加载失败，已有优质简历仍可正常查看。')
           }
         }
       } catch {
@@ -440,15 +440,9 @@ export default function HomePage() {
           <div className="mx-auto max-w-[1536px] px-4 py-16 sm:px-6 lg:px-8">
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
-                <div className="text-sm font-medium text-primary-700">
-                  {marketplaceEnabled ? '免费公开 · 付费精选' : '平台精选 · VIP 查看'}
-                </div>
+                <div className="text-sm font-medium text-primary-700">岗位简历参考</div>
                 <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">优质简历库</h2>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  {marketplaceEnabled
-                    ? '按岗位查看优质简历，免费内容直接阅读，付费内容先看预览、按需解锁。'
-                    : '按岗位查看平台精选简历，登录并开通 VIP 后查看完整内容。用户公开市场将按上线阶段另行开放。'}
-                </p>
+                <p className="mt-2 text-sm leading-6 text-slate-500">按岗位浏览优质简历，先看缩略展示，点击后查看详情。</p>
               </div>
               <Link to={EXCELLENT_RESUMES_PATH} className="hidden text-sm font-medium text-primary-700 transition hover:text-primary-800 sm:inline-flex">
                 查看全部简历&nbsp;→
@@ -463,15 +457,15 @@ export default function HomePage() {
                 {showcases.map((showcase, index) => {
                   const paid = showcase.source === 'MARKETPLACE_PAID'
                   const official = showcase.source === 'OFFICIAL'
-                  const priceLabel = paid ? formatCurrency(showcase.priceCents) : official ? 'VIP 精选' : '免费公开'
-                  const actionLabel = paid
-                    ? `${priceLabel} 解锁完整简历`
-                    : official ? 'VIP 查看完整简历' : '免费查看完整简历'
+                  const priceLabel = paid ? formatCurrency(showcase.priceCents) : '免费公开'
+                  const actionLabel = official
+                    ? '查看简历'
+                    : paid
+                      ? `${priceLabel} 解锁完整简历`
+                      : '免费查看完整简历'
                   const badgeClassName = paid
                     ? 'bg-amber-50 text-amber-700 ring-amber-200'
-                    : official
-                      ? 'bg-primary-50 text-primary-700 ring-primary-200'
-                      : 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+                    : 'bg-emerald-50 text-emerald-700 ring-emerald-200'
 
                   return (
                     <motion.div
@@ -499,9 +493,11 @@ export default function HomePage() {
                           aria-hidden="true"
                           className="pointer-events-none absolute inset-x-5 bottom-5 translate-y-3 opacity-0 transition duration-300 ease-out group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100 motion-reduce:transform-none motion-reduce:transition-none"
                         >
-                          <div className={`inline-flex px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${badgeClassName}`}>
-                            {priceLabel}
-                          </div>
+                          {!official ? (
+                            <div className={`inline-flex px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${badgeClassName}`}>
+                              {priceLabel}
+                            </div>
+                          ) : null}
                           <p className="mt-3 text-sm leading-6 text-slate-700">{showcase.summary}</p>
                           <div className="mt-4 flex items-center justify-between bg-primary-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-primary-950/20">
                             <span>{actionLabel}</span>
@@ -513,9 +509,11 @@ export default function HomePage() {
                       <div className="flex flex-1 flex-col p-5">
                         <div className="flex items-start justify-between gap-4">
                           <h3 className="min-w-0 text-lg font-semibold leading-7 text-slate-900">{showcase.title}</h3>
-                          <span className={`shrink-0 px-3 py-1 text-sm font-semibold ring-1 ring-inset ${badgeClassName}`}>
-                            {priceLabel}
-                          </span>
+                          {!official ? (
+                            <span className={`shrink-0 px-3 py-1 text-sm font-semibold ring-1 ring-inset ${badgeClassName}`}>
+                              {priceLabel}
+                            </span>
+                          ) : null}
                         </div>
                         <p aria-hidden="true" className="mt-3 max-h-12 overflow-hidden text-sm leading-6 text-slate-500 md:hidden">
                           {showcase.summary}
@@ -528,10 +526,8 @@ export default function HomePage() {
                             </span>
                           ))}
                         </div>
-                        <div className="mt-auto flex items-center justify-between border-t border-slate-100 pt-4 text-sm font-medium text-slate-500 md:mt-5">
-                          {showcase.viewCount === undefined ? (
-                            <span>平台精选</span>
-                          ) : (
+                        <div className={`mt-auto flex items-center border-t border-slate-100 pt-4 text-sm font-medium text-slate-500 md:mt-5 ${showcase.viewCount === undefined ? 'justify-end' : 'justify-between'}`}>
+                          {showcase.viewCount !== undefined ? (
                             <span className="inline-flex items-center gap-1.5">
                               <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" aria-hidden="true">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M2.75 12s3.25-5.25 9.25-5.25S21.25 12 21.25 12 18 17.25 12 17.25 2.75 12 2.75 12Z" />
@@ -539,9 +535,9 @@ export default function HomePage() {
                               </svg>
                               {formatViewCount(showcase.viewCount)}
                             </span>
-                          )}
+                          ) : null}
                           <span className="text-primary-700 transition-transform duration-200 group-hover:translate-x-1 group-focus-visible:translate-x-1 motion-reduce:transform-none" aria-hidden="true">
-                            {paid ? '查看详情' : official ? 'VIP 查看' : '免费查看'} →
+                            {official ? '查看简历' : paid ? '查看详情' : '免费查看'} →
                           </span>
                         </div>
                       </div>

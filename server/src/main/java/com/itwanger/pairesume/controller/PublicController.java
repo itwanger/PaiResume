@@ -4,6 +4,7 @@ import com.itwanger.pairesume.common.Result;
 import com.itwanger.pairesume.dto.FeedbackSubmissionCreateDTO;
 import com.itwanger.pairesume.dto.HomeDTO;
 import com.itwanger.pairesume.dto.ShowcaseCardDTO;
+import com.itwanger.pairesume.dto.ShowcaseDetailDTO;
 import com.itwanger.pairesume.service.FeedbackSubmissionService;
 import com.itwanger.pairesume.service.PublicHomeService;
 import com.itwanger.pairesume.service.ResumeShowcaseService;
@@ -35,6 +36,12 @@ public class PublicController {
     @GetMapping("/showcases")
     public Result<List<ShowcaseCardDTO>> showcases() {
         return Result.success(resumeShowcaseService.listPublishedShowcases());
+    }
+
+    @Operation(summary = "查看公开优质简历详情")
+    @GetMapping("/showcases/{slug}")
+    public Result<ShowcaseDetailDTO> showcaseDetail(@PathVariable String slug) {
+        return Result.success(resumeShowcaseService.getPublicPublishedDetail(slug));
     }
 
     @Operation(summary = "提交公开问卷")

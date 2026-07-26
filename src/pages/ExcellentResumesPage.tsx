@@ -9,11 +9,8 @@ import {
 } from '../api/marketplace'
 import { publicApi, type ShowcaseCard } from '../api/public'
 import { Header } from '../components/layout/Header'
-import { useAuthStore } from '../store/authStore'
 import {
-  buildLoginPath,
   buildMarketplaceListingPath,
-  buildMembershipPath,
   buildShowcasePath,
 } from '../utils/navigation'
 
@@ -57,7 +54,6 @@ function ResumeLayoutThumbnail({ accent = 'primary' }: { accent?: 'primary' | 'e
 
 export default function ExcellentResumesPage() {
   const navigate = useNavigate()
-  const { initialized, isAuthenticated, user } = useAuthStore()
   const [showcases, setShowcases] = useState<ShowcaseCard[]>([])
   const [showcaseLoading, setShowcaseLoading] = useState(true)
   const [showcaseError, setShowcaseError] = useState('')
@@ -81,7 +77,7 @@ export default function ExcellentResumesPage() {
         setMarketplaceEnabled(response.data.marketplaceEnabled)
       } catch (err: unknown) {
         setMarketplaceEnabled(false)
-        setShowcaseError(err instanceof Error ? err.message : '官方精选加载失败')
+        setShowcaseError(err instanceof Error ? err.message : '优质简历加载失败')
       } finally {
         setShowcaseLoading(false)
       }
@@ -123,18 +119,7 @@ export default function ExcellentResumesPage() {
   }, [loadMarketplace, marketplaceEnabled])
 
   const openShowcase = (showcase: ShowcaseCard) => {
-    if (!initialized) return
-
-    const showcasePath = buildShowcasePath(showcase.slug)
-    if (!isAuthenticated) {
-      navigate(buildLoginPath(showcasePath))
-      return
-    }
-    if (user?.membershipStatus !== 'ACTIVE') {
-      navigate(buildMembershipPath(showcasePath))
-      return
-    }
-    navigate(showcasePath)
+    navigate(buildShowcasePath(showcase.slug))
   }
 
   const handleSearch = (event: FormEvent<HTMLFormElement>) => {
@@ -142,90 +127,30 @@ export default function ExcellentResumesPage() {
     setSubmittedQuery(searchInput.trim())
   }
 
-  const officialActionLabel = !initialized
-    ? '账号加载中...'
-    : !isAuthenticated
-      ? '登录后查看'
-      : user?.membershipStatus === 'ACTIVE'
-        ? '查看完整简历'
-        : '开通 VIP 查看'
-
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <Header />
 
       <main>
-        <section className="border-b border-slate-200 bg-white">
-          <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
-            <div className="max-w-3xl">
-              <div className="inline-flex items-center gap-2 border border-primary-200 bg-primary-50 px-3 py-1.5 text-xs font-medium text-primary-700">
-                <span>官方精选</span>
-                {marketplaceEnabled ? (
-                  <>
-                    <span className="h-1 w-1 rounded-full bg-primary-400" />
-                    <span>用户公开市场</span>
-                  </>
-                ) : null}
-              </div>
-              <h1 className="mt-5 text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">优质简历</h1>
-              <p className="mt-4 text-base leading-7 text-slate-600">
-                {marketplaceEnabled
-                  ? '官方精选适合对照结构与写法，由 VIP 权益解锁；用户公开简历由作者自主选择免费或付费，购买后在内容正常展示期间当前账号可持续查看。'
-                  : '当前阶段仅开放平台官方精选，适合对照简历结构、项目表达与排版方式，由 VIP 权益解锁。用户公开市场将在审核与支付验收完成后另行开放。'}
-              </p>
-            </div>
-
-            <div className="mt-8 grid gap-3 sm:grid-cols-3">
-              <div className="border border-slate-200 bg-slate-50 px-4 py-4">
-                <div className="text-2xl font-semibold text-slate-950">{showcases.length}</div>
-                <div className="mt-1 text-sm text-slate-500">官方精选</div>
-              </div>
-              <div className="border border-slate-200 bg-slate-50 px-4 py-4">
-                <div className="text-2xl font-semibold text-slate-950">{marketplaceEnabled ? '免费 / 付费' : 'VIP 权益'}</div>
-                <div className="mt-1 text-sm text-slate-500">{marketplaceEnabled ? '作者自主设置浏览方式' : '服务端校验完整内容权限'}</div>
-              </div>
-              <div className="border border-slate-200 bg-slate-50 px-4 py-4">
-                <div className="text-2xl font-semibold text-slate-950">{marketplaceEnabled ? '一次购买' : '持续更新'}</div>
-                <div className="mt-1 text-sm text-slate-500">{marketplaceEnabled ? '正常展示期间持续查看' : '平台审核后公开展示'}</div>
-              </div>
-            </div>
-
-            {marketplaceEnabled ? (
-              <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
-                VIP 只免平台官方精选，不免其他用户发布的付费简历；付费款项进入平台商户，作者收益由平台记录，作者可申请线下结算。
-              </div>
-            ) : null}
-          </div>
-        </section>
-
         <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="text-sm font-medium text-primary-700">PaiResume 官方</p>
-              <h2 className="mt-1 text-2xl font-bold text-slate-950">官方精选 · VIP 查看</h2>
-            </div>
-            <p className="text-sm text-slate-500">管理员筛选、持续更新</p>
-          </div>
+          <h1 className="sr-only">优质简历</h1>
 
           {showcaseError ? (
-            <div className="mt-5 border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">{showcaseError}</div>
+            <div className="border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">{showcaseError}</div>
           ) : null}
 
           {showcaseLoading ? (
-            <div className="mt-6 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
               {Array.from({ length: 3 }).map((_, index) => (
                 <div key={index} className="h-[520px] animate-pulse border border-slate-200 bg-white" />
               ))}
             </div>
           ) : showcases.length ? (
-            <div className="mt-6 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
               {showcases.map((showcase) => (
                 <article key={showcase.id} className="group flex flex-col overflow-hidden border border-slate-200 bg-white transition hover:border-primary-200 hover:shadow-lg hover:shadow-slate-200/60">
                   <div className="relative border-b border-slate-100 bg-slate-100 px-8 py-7">
                     <ResumeLayoutThumbnail />
-                    <span className="absolute right-4 top-4 inline-flex items-center gap-1.5 bg-slate-950 px-2.5 py-1 text-xs font-medium text-white">
-                      VIP
-                    </span>
                   </div>
                   <div className="flex flex-1 flex-col p-5">
                     <div className="flex items-start justify-between gap-4">
@@ -244,17 +169,16 @@ export default function ExcellentResumesPage() {
                     <button
                       type="button"
                       onClick={() => openShowcase(showcase)}
-                      disabled={!initialized}
-                      className="mt-6 inline-flex w-full items-center justify-center gap-2 bg-primary-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-700 disabled:cursor-wait disabled:opacity-60"
+                      className="mt-6 inline-flex w-full items-center justify-center gap-2 bg-primary-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-700"
                     >
-                      {officialActionLabel}
+                      查看简历
                     </button>
                   </div>
                 </article>
               ))}
             </div>
           ) : (
-            <div className="mt-6 border border-dashed border-slate-300 bg-white px-6 py-12 text-center text-sm text-slate-500">官方精选正在整理中。</div>
+            <div className="border border-dashed border-slate-300 bg-white px-6 py-12 text-center text-sm text-slate-500">优质简历正在整理中。</div>
           )}
         </section>
 

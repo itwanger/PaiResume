@@ -150,6 +150,8 @@ export interface UserAdmin {
   createdAt: string
 }
 
+export type ResumeShowcaseAccessType = 'FREE' | 'VIP'
+
 export interface ResumeShowcaseAdmin {
   id: number
   resumeId: number
@@ -157,6 +159,7 @@ export interface ResumeShowcaseAdmin {
   scoreLabel: string
   summary: string
   tags: string[] | null
+  accessType: ResumeShowcaseAccessType
   displayOrder: number
   publishStatus: string
   createdAt: string
@@ -169,6 +172,7 @@ export interface ResumeShowcasePayload {
   scoreLabel: string
   summary: string
   tags: string[]
+  accessType: ResumeShowcaseAccessType
   displayOrder: number
   publishStatus: string
 }

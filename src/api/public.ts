@@ -1,4 +1,5 @@
 import client, { type ApiEnvelope } from './client'
+import type { ShowcaseDetail } from './showcase'
 
 export interface ShowcaseCard {
   id: number
@@ -46,6 +47,9 @@ export const publicApi = {
 
   showcases: () =>
     client.get<ApiEnvelope<ShowcaseCard[]>>('/public/showcases'),
+
+  showcaseDetail: (slug: string) =>
+    client.get<ApiEnvelope<ShowcaseDetail>>(`/public/showcases/${encodeURIComponent(slug)}`),
 
   submitFeedback: (payload: FeedbackSubmissionPayload) =>
     client.post('/public/feedback-submissions', payload),

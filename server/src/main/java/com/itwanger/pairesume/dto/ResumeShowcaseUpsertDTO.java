@@ -27,4 +27,7 @@ public class ResumeShowcaseUpsertDTO {
 
     @NotBlank(message = "发布状态不能为空")
     private String publishStatus;
+
+    @NotBlank(message = "访问类型不能为空")
+    private String accessType;
 }

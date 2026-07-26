@@ -93,6 +93,14 @@ function getRouteSeo(pathname: string): RouteSeoConfig {
     }
   }
 
+  if (/^\/showcases\/[^/]+$/.test(pathname)) {
+    return {
+      title: '优质简历详情 - 派简历',
+      description: '查看优质简历的内容组织、项目表达与排版方式。',
+      indexable: true,
+    }
+  }
+
   return {
     title: '个人工作台 - 派简历',
     description: DEFAULT_DESCRIPTION,

@@ -10,6 +10,8 @@ import java.util.List;
 public interface ResumeShowcaseService {
     List<ShowcaseCardDTO> listPublishedShowcases();
 
+    ShowcaseDetailDTO getPublicPublishedDetail(String slug);
+
     ShowcaseDetailDTO getPublishedDetail(String slug, Long userId);
 
     List<ResumeShowcase> listAdminShowcases();

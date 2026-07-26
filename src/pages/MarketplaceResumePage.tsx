@@ -352,7 +352,7 @@ export default function MarketplaceResumePage() {
                 <h2 className="font-semibold text-slate-900">查看与结算说明</h2>
                 <ul className="mt-3 space-y-2">
                   <li>• 付费简历购买一次后，内容正常展示期间当前账号可持续查看。</li>
-                  <li>• VIP 仅覆盖平台官方精选，不免用户发布的付费简历。</li>
+                  <li>• VIP 仅覆盖平台设置为付费查看的优质简历，不免用户发布的付费简历。</li>
                   <li>• 违规内容被平台暂停后，包括历史买家在内的非作者访问都会被阻止。</li>
                   <li>• 支付款项进入平台商户，作者收益由平台记录，作者可申请线下结算。</li>
                 </ul>

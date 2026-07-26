@@ -32,6 +32,8 @@ public class ResumeShowcase {
 
     private String publishStatus;
 
+    private String accessType;
+
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
 
