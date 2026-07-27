@@ -19,13 +19,14 @@ import {
   CREATOR_MARKETPLACE_PATH,
   EXCELLENT_RESUMES_PATH,
 } from '../../utils/navigation'
+import { getAccountDisplayName } from '../../utils/accountIdentity'
 import { LogoMark } from '../branding/LogoMark'
 
 const IMPORT_LOG_PREFIX = '[resume-import]'
 const NAVBAR_ACCOUNT_VISIBLE_CHARACTERS = 7
 
 function getNavbarAccountLabel(accountLabel?: string | null): string {
-  const normalizedLabel = accountLabel?.trim() || '用户'
+  const normalizedLabel = accountLabel?.trim() || ''
   const characters = Array.from(normalizedLabel)
 
   if (characters.length <= NAVBAR_ACCOUNT_VISIBLE_CHARACTERS) {
@@ -121,7 +122,7 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
   const resumeImportAvailable = readyAuthenticated && legalConsentAccepted
   const resumeDropEnabled = readyAuthenticated && legalConsentAccepted && enableResumeDrop
   const isVipUser = user?.membershipStatus === 'ACTIVE'
-  const navbarIdentity = user?.nickname?.trim() || '用户'
+  const navbarIdentity = user ? getAccountDisplayName(user) : ''
   const navbarAccountLabel = getNavbarAccountLabel(navbarIdentity)
   const editorSectionActive = location.pathname === RESUME_EDITOR_ENTRY_PATH
     || location.pathname.startsWith(`${RESUME_EDITOR_ENTRY_PATH}/`)
