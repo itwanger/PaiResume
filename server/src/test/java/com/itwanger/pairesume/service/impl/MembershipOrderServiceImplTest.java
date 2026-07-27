@@ -19,6 +19,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -63,6 +64,20 @@ class MembershipOrderServiceImplTest {
         assertEquals(MembershipOrderStatus.CANCELED.name(), dto.getOrderStatus());
         verify(paymentGateway).closeOrder(pending.getOrderNo());
         verify(paymentGateway, times(2)).queryOrder(pending.getOrderNo());
+    }
+
+    @Test
+    void activeOrderEndpointReturnsServerSnapshotOrNull() {
+        MembershipPaymentOrder active = order(MembershipOrderStatus.PENDING);
+        when(localService.getActive(7L)).thenReturn(active, null);
+
+        var restored = service.getActiveOrder(7L);
+        var missing = service.getActiveOrder(7L);
+
+        assertEquals("ANNUAL", restored.getPlanCode());
+        assertEquals("年卡", restored.getPlanName());
+        assertEquals("FIXED_DAYS", restored.getEntitlementType());
+        assertNull(missing);
     }
 
     @Test
@@ -129,7 +144,8 @@ class MembershipOrderServiceImplTest {
         when(paymentProperties.isMembershipAcceptNewOrders()).thenReturn(true);
         when(paymentGateway.provider()).thenReturn("wechat");
         when(localService.findOrCreate(
-                7L, "member-key-123", null, "wechat", "WECHAT_NATIVE"))
+                7L, "member-key-123", "ANNUAL", null,
+                "wechat", "WECHAT_NATIVE"))
                 .thenReturn(expired);
         when(localService.cancelExpiredCreated(5L)).thenReturn(true);
         when(localService.getById(5L)).thenReturn(canceled);
@@ -150,7 +166,8 @@ class MembershipOrderServiceImplTest {
 
         assertEquals(ResultCode.PAYMENT_NOT_ENABLED.getCode(), exception.getCode());
         verify(localService, never()).findOrCreate(
-                7L, "member-key-123", null, "wechat", "WECHAT_NATIVE");
+                7L, "member-key-123", "ANNUAL", null,
+                "wechat", "WECHAT_NATIVE");
         verify(paymentGateway, never()).provider();
     }
 
@@ -231,6 +248,9 @@ class MembershipOrderServiceImplTest {
         order.setOrderNo("PM-test-order");
         order.setUserId(7L);
         order.setActiveOrderKey("MEMBERSHIP:7");
+        order.setPlanCode("ANNUAL");
+        order.setPlanNameSnapshot("年卡");
+        order.setEntitlementType("FIXED_DAYS");
         order.setMembershipDays(30);
         order.setListPriceCents(6600);
         order.setDiscountAmountCents(0);

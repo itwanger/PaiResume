@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
+import { resumeApi } from '../api/resume'
 import { useResumeStore } from '../store/resumeStore'
 import {
   generateResumePdfPreviewAsset,
-  type ResumePdfPreviewMeta,
   resolveResumePdfAccentPreset,
   resolveResumePdfDensity,
   resolveResumePdfHeadingStyle,
@@ -15,27 +15,18 @@ import {
   type ResumePdfTemplateId,
 } from '../utils/resumePdf'
 
-const CHROME_PREVIEW_RESIZE_MESSAGE_TYPE = 'pai-resume:chrome-preview-resize'
-const STANDARD_PAGE_GAP_PX = 24
-const PDF_VIEWER_TOOLBAR_HEIGHT_PX = 64
-const PREVIEW_VERTICAL_BUFFER_PX = 32
-const FALLBACK_STANDARD_PREVIEW_HEIGHT_PX = 1160
-const FALLBACK_CONTINUOUS_PREVIEW_HEIGHT_PX = 760
-
 export default function ChromePreviewPage() {
   const { id } = useParams<{ id: string }>()
   const [searchParams] = useSearchParams()
   const resumeId = Number(id)
   const { modules, loading, fetchModules } = useResumeStore()
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
-  const [previewMeta, setPreviewMeta] = useState<ResumePdfPreviewMeta | null>(null)
   const [pdfLoading, setPdfLoading] = useState(false)
   const [pdfError, setPdfError] = useState('')
-  const [containerWidth, setContainerWidth] = useState(0)
+  const [resumeTitle, setResumeTitle] = useState('')
+  const [resumeTitleReady, setResumeTitleReady] = useState(false)
   const activeUrlRef = useRef<string | null>(null)
   const requestIdRef = useRef(0)
-  const containerRef = useRef<HTMLDivElement | null>(null)
-  const reportedHeightRef = useRef(0)
   const refreshToken = searchParams.get('refresh') ?? ''
   const pageMode: ResumePdfPageMode = searchParams.get('pageMode') === 'continuous'
     ? 'continuous'
@@ -57,9 +48,45 @@ export default function ChromePreviewPage() {
   }, [fetchModules, resumeId])
 
   useEffect(() => {
+    if (!resumeId) {
+      setResumeTitle('')
+      setResumeTitleReady(true)
+      return
+    }
+
+    let cancelled = false
+    setResumeTitle('')
+    setResumeTitleReady(false)
+
+    void resumeApi.list()
+      .then(({ data: response }) => {
+        if (!cancelled) {
+          setResumeTitle(response.data.find((resume) => resume.id === resumeId)?.title ?? '')
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setResumeTitle('')
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setResumeTitleReady(true)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [resumeId])
+
+  useEffect(() => {
+    if (!resumeTitleReady) {
+      return
+    }
+
     if (modules.length === 0) {
       setPdfUrl(null)
-      setPreviewMeta(null)
       setPdfLoading(false)
       setPdfError('')
       if (activeUrlRef.current) {
@@ -75,8 +102,15 @@ export default function ChromePreviewPage() {
     setPdfLoading(true)
     setPdfError('')
 
-    void generateResumePdfPreviewAsset(modules, { pageMode, templateId, density, accentPreset, headingStyle })
-      .then(({ blob, previewMeta }) => {
+    void generateResumePdfPreviewAsset(modules, {
+      pageMode,
+      documentTitle: resumeTitle,
+      templateId,
+      density,
+      accentPreset,
+      headingStyle,
+    })
+      .then(({ blob }) => {
         if (cancelled || requestId !== requestIdRef.current) {
           return
         }
@@ -87,7 +121,6 @@ export default function ChromePreviewPage() {
         }
         activeUrlRef.current = nextUrl
         setPdfUrl(nextUrl)
-        setPreviewMeta(previewMeta)
         setPdfLoading(false)
       })
       .catch((error: unknown) => {
@@ -95,7 +128,6 @@ export default function ChromePreviewPage() {
           return
         }
 
-        setPreviewMeta(null)
         setPdfLoading(false)
         setPdfError(error instanceof Error ? error.message : 'PDF 预览生成失败')
       })
@@ -103,7 +135,7 @@ export default function ChromePreviewPage() {
     return () => {
       cancelled = true
     }
-  }, [accentPreset, density, headingStyle, modules, pageMode, refreshToken, templateId])
+  }, [accentPreset, density, headingStyle, modules, pageMode, refreshToken, resumeTitle, resumeTitleReady, templateId])
 
   useEffect(() => () => {
     if (activeUrlRef.current) {
@@ -111,34 +143,9 @@ export default function ChromePreviewPage() {
     }
   }, [])
 
-  useEffect(() => {
-    const element = containerRef.current
-    if (!element || typeof ResizeObserver === 'undefined') {
-      return
-    }
-
-    const observer = new ResizeObserver((entries) => {
-      const entry = entries[0]
-      if (!entry) {
-        return
-      }
-
-      setContainerWidth(Math.floor(entry.contentRect.width))
-    })
-
-    observer.observe(element)
-    setContainerWidth(Math.floor(element.getBoundingClientRect().width))
-
-    return () => observer.disconnect()
-  }, [])
-
   const iframeTitle = useMemo(
     () => (pageMode === 'continuous' ? '简历模板预览 - 智能一页' : '简历模板预览 - 标准 PDF'),
     [pageMode]
-  )
-  const previewPath = useMemo(
-    () => `${window.location.pathname}${window.location.search}`,
-    []
   )
   const pdfViewerUrl = useMemo(() => {
     if (!pdfUrl) {
@@ -147,47 +154,9 @@ export default function ChromePreviewPage() {
 
     return `${pdfUrl}#view=FitH`
   }, [pdfUrl])
-  const previewHeight = useMemo(() => {
-    if (!previewMeta) {
-      return pageMode === 'standard'
-        ? FALLBACK_STANDARD_PREVIEW_HEIGHT_PX
-        : FALLBACK_CONTINUOUS_PREVIEW_HEIGHT_PX
-    }
-
-    const effectiveContainerWidth = containerWidth > 0 ? containerWidth : window.innerWidth
-    const effectivePageWidth = previewMeta.pageWidth > 0 ? previewMeta.pageWidth : 595.28
-    const scaledPageHeights = previewMeta.pageHeights.map((pageHeight) => (
-      effectiveContainerWidth * pageHeight / effectivePageWidth
-    ))
-    const totalPageHeight = scaledPageHeights.reduce((sum, pageHeight) => sum + pageHeight, 0)
-    const pageGap = pageMode === 'standard' && previewMeta.pageCount > 1
-      ? STANDARD_PAGE_GAP_PX * (previewMeta.pageCount - 1)
-      : 0
-
-    return Math.ceil(totalPageHeight + pageGap + PREVIEW_VERTICAL_BUFFER_PX + PDF_VIEWER_TOOLBAR_HEIGHT_PX)
-  }, [containerWidth, pageMode, previewMeta])
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || window.parent === window) {
-      return
-    }
-
-    const nextHeight = Math.max(previewHeight, 520)
-    if (reportedHeightRef.current === nextHeight) {
-      return
-    }
-
-    reportedHeightRef.current = nextHeight
-    window.parent.postMessage({
-      type: CHROME_PREVIEW_RESIZE_MESSAGE_TYPE,
-      previewPath,
-      height: nextHeight,
-    }, window.location.origin)
-  }, [previewHeight, previewPath])
-
   if (loading && modules.length === 0) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-white text-gray-400">
+      <div className="flex h-[100dvh] items-center justify-center bg-white text-gray-400">
         正在加载简历...
       </div>
     )
@@ -195,7 +164,7 @@ export default function ChromePreviewPage() {
 
   if (pdfError) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-white p-6">
+      <div className="flex h-[100dvh] items-center justify-center bg-white p-6">
         <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
           {pdfError}
         </div>
@@ -205,20 +174,19 @@ export default function ChromePreviewPage() {
 
   if (!pdfUrl || pdfLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-white text-gray-400">
+      <div className="flex h-[100dvh] items-center justify-center bg-white text-gray-400">
         正在生成模板预览...
       </div>
     )
   }
 
   return (
-    <div ref={containerRef} className="w-full overflow-hidden bg-white">
+    <div className="h-[100dvh] w-full overflow-hidden bg-white">
       <iframe
         title={iframeTitle}
         src={pdfViewerUrl ?? undefined}
         scrolling="no"
-        className="block w-full border-0 bg-white"
-        style={{ height: `${previewHeight}px` }}
+        className="block h-full w-full border-0 bg-white"
       />
     </div>
   )

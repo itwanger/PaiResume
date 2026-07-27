@@ -22,6 +22,9 @@ public class MembershipPaymentOrder {
     private String activeOrderKey;
     private Long couponCodeId;
     private String couponCodeSnapshot;
+    private String planCode;
+    private String planNameSnapshot;
+    private String entitlementType;
     private Integer membershipDays;
     private Integer listPriceCents;
     private Integer discountAmountCents;

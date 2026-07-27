@@ -20,6 +20,23 @@ export interface PlatformConfig {
   resumeReviewPriceCents: number
 }
 
+export type MembershipPlanEntitlementType = 'FIXED_DAYS' | 'PERMANENT'
+
+export interface MembershipPlanAdmin {
+  code: string
+  name: string
+  entitlementType: MembershipPlanEntitlementType
+  membershipDays: number | null
+  priceCents: number | null
+  enabled: boolean
+  recommended: boolean
+}
+
+export interface UpdateMembershipPlanPayload {
+  priceCents: number | null
+  enabled: boolean
+}
+
 export interface ResumeReviewAudit {
   id: number
   requestNo: string
@@ -305,7 +322,10 @@ export interface MembershipPaymentAdminOrder {
   orderNo: string
   userId: number
   userEmail: string | null
-  membershipDays: number
+  planCode: string
+  planName: string
+  entitlementType: MembershipPlanEntitlementType
+  membershipDays: number | null
   listPriceCents: number
   discountAmountCents: number
   payableAmountCents: number
@@ -361,6 +381,15 @@ export const adminApi = {
 
   updatePlatformConfig: (payload: PlatformConfig) =>
     client.put<ApiEnvelope<PlatformConfig>>('/admin/platform-config', payload),
+
+  listMembershipPlans: () =>
+    client.get<ApiEnvelope<MembershipPlanAdmin[]>>('/admin/membership-plans'),
+
+  updateMembershipPlan: (code: string, payload: UpdateMembershipPlanPayload) =>
+    client.put<ApiEnvelope<MembershipPlanAdmin>>(
+      `/admin/membership-plans/${encodeURIComponent(code)}`,
+      payload,
+    ),
 
   listResumeReviews: () =>
     client.get<ApiEnvelope<ResumeReviewAdminRequest[]>>('/admin/resume-reviews'),

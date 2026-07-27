@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useParams, useSearchParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { useResumeStore } from '../store/resumeStore'
 import { Header } from '../components/layout/Header'
@@ -23,6 +23,7 @@ import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { flushResumeAutoSaves } from '../hooks/useAutoSave'
 import { SINGLETON_MODULES, type ModuleType } from '../types'
 import { normalizeJobIntentionContent } from '../utils/moduleContent'
+import { buildMembershipPath } from '../utils/navigation'
 import { getModuleDisplayLabelFromModules } from '../utils/resumeDisplay'
 import {
   DEFAULT_RESUME_PDF_PREVIEW_CONFIG,
@@ -63,14 +64,18 @@ interface DeleteDialogState {
 
 export default function EditorPage() {
   const { id } = useParams<{ id: string }>()
+  const location = useLocation()
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const user = useAuthStore((state) => state.user)
-  const { modules, loading, fetchModules, addModule, deleteModule } = useResumeStore()
+  const { resumeList, modules, loading, fetchModules, addModule, deleteModule } = useResumeStore()
   const [activeModuleType, setActiveModuleType] = useState<ModuleType | null>(null)
   const [aiModuleId, setAiModuleId] = useState<number | null>(null)
   const [editorView, setEditorView] = useState<EditorView>('module')
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState('')
+  const [membershipNavigationError, setMembershipNavigationError] = useState('')
+  const [membershipNavigationPending, setMembershipNavigationPending] = useState(false)
   const [membershipModalOpen, setMembershipModalOpen] = useState(false)
   const [resumeReviewModalOpen, setResumeReviewModalOpen] = useState(false)
   const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState | null>(null)
@@ -86,12 +91,14 @@ export default function EditorPage() {
   const previewToggleRef = useRef<HTMLButtonElement | null>(null)
   const mobilePreviewToggleRef = useRef<HTMLButtonElement | null>(null)
   const resumeReviewTriggerRef = useRef<HTMLButtonElement | null>(null)
+  const membershipNavigationPendingRef = useRef(false)
   const compactPreviewDialogRef = useRef<HTMLElement | null>(null)
   const mobileModuleTriggerRef = useRef<HTMLButtonElement | null>(null)
   const mobileModuleDialogRef = useRef<HTMLDivElement | null>(null)
   const [pdfPreviewConfig, setPdfPreviewConfig] = useState<ResumePdfPreviewConfig>(DEFAULT_RESUME_PDF_PREVIEW_CONFIG)
 
   const resumeId = Number(id)
+  const resumeTitle = resumeList.find((resume) => resume.id === resumeId)?.title
   const requestedModuleType = searchParams.get('moduleType')
   const requestedViewParam = searchParams.get('view')
   const requestedView: EditorView = requestedViewParam === 'analysis'
@@ -277,17 +284,42 @@ export default function EditorPage() {
     setSearchParams(nextParams, { replace: true })
   }, [activeModuleType, setSearchParams])
 
+  const openAnalysisMembershipPage = useCallback(async (replace = false) => {
+    if (membershipNavigationPendingRef.current) {
+      return
+    }
+    membershipNavigationPendingRef.current = true
+    setMembershipNavigationPending(true)
+    setMembershipNavigationError('')
+
+    const nextParams = new URLSearchParams(location.search)
+    if (activeModuleType) {
+      nextParams.set('moduleType', activeModuleType)
+    }
+    nextParams.set('view', 'analysis')
+    const query = nextParams.toString()
+    const returnTo = `${location.pathname}${query ? `?${query}` : ''}${location.hash}`
+    try {
+      await flushResumeAutoSaves(resumeId)
+      navigate(buildMembershipPath(returnTo), { replace })
+    } catch (err: unknown) {
+      setMembershipNavigationError(
+        err instanceof Error ? err.message : '简历保存失败，请重试',
+      )
+    } finally {
+      membershipNavigationPendingRef.current = false
+      setMembershipNavigationPending(false)
+    }
+  }, [activeModuleType, location.hash, location.pathname, location.search, navigate, resumeId])
+
   useEffect(() => {
     if (!user || isVip || requestedView !== 'analysis') {
       return
     }
 
     setAiModuleId(null)
-    setEditorView('module')
-    setActiveModuleType((current) => current ?? 'basic_info')
-    setMembershipModalOpen(true)
-    updateEditorLocation('module', activeModuleType ?? 'basic_info')
-  }, [activeModuleType, isVip, requestedView, updateEditorLocation, user])
+    void openAnalysisMembershipPage(true)
+  }, [isVip, openAnalysisMembershipPage, requestedView, user])
 
   useEffect(() => {
     if (user && !isVip) {
@@ -391,13 +423,13 @@ export default function EditorPage() {
   const openAnalysisView = useCallback(() => {
     if (!isVip) {
       setAiModuleId(null)
-      setMembershipModalOpen(true)
+      void openAnalysisMembershipPage()
       return
     }
     setAiModuleId(null)
     setEditorView('analysis')
     updateEditorLocation('analysis')
-  }, [isVip, updateEditorLocation])
+  }, [isVip, openAnalysisMembershipPage, updateEditorLocation])
 
   const openAiOptimize = useCallback((moduleId: number) => {
     if (!isVip) {
@@ -539,6 +571,7 @@ export default function EditorPage() {
       }
       await downloadResumePdf(latestModules, resumeId, {
         pageMode,
+        documentTitle: resumeTitle,
         templateId: pdfPreviewConfig.templateId,
         density: pdfPreviewConfig.density,
         accentPreset: pdfPreviewConfig.accentPreset,
@@ -553,7 +586,7 @@ export default function EditorPage() {
     } finally {
       setExporting(false)
     }
-  }, [modules.length, pdfPreviewConfig.accentPreset, pdfPreviewConfig.density, pdfPreviewConfig.headingStyle, pdfPreviewConfig.templateId, resumeId, user?.membershipStatus])
+  }, [modules.length, pdfPreviewConfig.accentPreset, pdfPreviewConfig.density, pdfPreviewConfig.headingStyle, pdfPreviewConfig.templateId, resumeId, resumeTitle, user?.membershipStatus])
 
   const closeResumeReviewModal = useCallback(() => {
     setResumeReviewModalOpen(false)
@@ -730,6 +763,12 @@ export default function EditorPage() {
         />
 
         <main className="min-w-0 flex-1 px-3 py-4 sm:px-5 sm:py-5 lg:px-6 lg:py-6 xl:px-8">
+          {membershipNavigationError ? (
+            <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {membershipNavigationError}
+            </div>
+          ) : null}
+
           <div className="mb-4 flex items-center justify-between gap-3 md:hidden">
             <button
               ref={mobileModuleTriggerRef}
@@ -801,10 +840,11 @@ export default function EditorPage() {
                   <p className="mt-2 text-sm leading-6 text-gray-600">开通 VIP 后可使用 AI 分析与优化。</p>
                   <button
                     type="button"
-                    onClick={() => setMembershipModalOpen(true)}
+                    onClick={() => void openAnalysisMembershipPage()}
+                    disabled={membershipNavigationPending}
                     className="mt-5 rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-700"
                   >
-                    查看 VIP 开通方式
+                    {membershipNavigationPending ? '正在保存...' : '查看会员方案'}
                   </button>
                 </div>
               )}

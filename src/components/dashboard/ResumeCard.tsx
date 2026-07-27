@@ -67,10 +67,13 @@ export function ResumeCard({ resume, onDelete, onRename }: ResumeCardProps) {
   return (
     <div
       onClick={() => navigate(buildResumeEditorPath(resume.id))}
-      className="bg-white rounded-xl border border-gray-200 p-5 cursor-pointer hover:border-primary-300 hover:shadow-md transition-all group"
+      className="group flex h-full min-h-64 cursor-pointer flex-col rounded-xl border border-gray-200 bg-white p-5 transition-all hover:border-primary-300 hover:shadow-md"
     >
       <div className="flex items-start justify-between mb-4">
-        <h3 className="font-semibold text-gray-900 group-hover:text-primary-600 transition-colors">
+        <h3
+          className="min-w-0 truncate font-semibold text-gray-900 transition-colors group-hover:text-primary-600"
+          title={resume.title}
+        >
           {resume.title}
         </h3>
         <div className="flex items-center gap-1">
@@ -95,7 +98,7 @@ export function ResumeCard({ resume, onDelete, onRename }: ResumeCardProps) {
         </div>
       </div>
 
-      <div className={`relative mb-4 h-36 w-full overflow-hidden rounded-2xl border ${theme.frame}`}>
+      <div className={`relative mb-4 h-36 w-full shrink-0 overflow-hidden rounded-2xl border ${theme.frame}`}>
         <div className={`absolute -left-6 bottom-3 h-16 w-16 rounded-full blur-2xl ${theme.glow}`} />
         <div className={`absolute -right-5 top-2 h-20 w-20 rounded-full blur-2xl ${theme.glow}`} />
         <div className="absolute inset-x-3 top-3 flex items-center justify-between">
@@ -156,7 +159,7 @@ export function ResumeCard({ resume, onDelete, onRename }: ResumeCardProps) {
         </div>
       </div>
 
-      <div className="flex items-center justify-between text-xs text-gray-400">
+      <div className="mt-auto flex items-center justify-between text-xs text-gray-400">
         <span>模板: {templateLabel}</span>
         <span>更新于 {formatDate(resume.updatedAt)}</span>
       </div>

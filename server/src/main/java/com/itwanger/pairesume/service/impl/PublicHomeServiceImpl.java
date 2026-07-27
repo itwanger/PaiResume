@@ -6,6 +6,7 @@ import com.itwanger.pairesume.service.FeedbackSubmissionService;
 import com.itwanger.pairesume.service.PlatformConfigService;
 import com.itwanger.pairesume.service.PublicHomeService;
 import com.itwanger.pairesume.service.ResumeShowcaseService;
+import com.itwanger.pairesume.service.MembershipPlanService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class PublicHomeServiceImpl implements PublicHomeService {
     private final PlatformConfigService platformConfigService;
+    private final MembershipPlanService membershipPlanService;
     private final ResumeShowcaseService resumeShowcaseService;
     private final FeedbackSubmissionService feedbackSubmissionService;
     private final MarketplaceFeatureProperties marketplaceFeatureProperties;
@@ -21,7 +23,12 @@ public class PublicHomeServiceImpl implements PublicHomeService {
     public HomeDTO getHome() {
         HomeDTO dto = new HomeDTO();
         var config = platformConfigService.getConfig();
-        dto.setMembershipPriceCents(config.getMembershipPriceCents());
+        var annualPlan = membershipPlanService.listPlans().stream()
+                .filter(plan -> "ANNUAL".equals(plan.getCode()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("ANNUAL membership plan is missing"));
+        dto.setMembershipPriceCents(
+                annualPlan.isEnabled() ? annualPlan.getPriceCents() : null);
         dto.setQuestionnaireCouponAmountCents(config.getQuestionnaireCouponAmountCents());
         dto.setMarketplaceEnabled(marketplaceFeatureProperties.isEnabled());
         dto.setShowcases(resumeShowcaseService.listPublishedShowcases());

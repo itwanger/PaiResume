@@ -18,7 +18,6 @@ public class MarketplacePaymentProperties {
     private boolean marketplaceAcceptNewOrders = false;
     private int orderExpireMinutes = 15;
     private int membershipOrderExpireMinutes = 30;
-    private int membershipPaymentDays = 365;
     private int platformFeeBasisPoints = 0;
     private int creatorEarningHoldDays = 7;
     private int paidOrderReconciliationIntervalMinutes = 360;

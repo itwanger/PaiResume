@@ -6,16 +6,20 @@ import com.itwanger.pairesume.common.ResultCode;
 import com.itwanger.pairesume.dto.CouponQuoteDTO;
 import com.itwanger.pairesume.dto.UserAdminDTO;
 import com.itwanger.pairesume.entity.User;
+import com.itwanger.pairesume.entity.MembershipPlan;
 import com.itwanger.pairesume.mapper.UserMapper;
 import com.itwanger.pairesume.service.CouponService;
 import com.itwanger.pairesume.service.MembershipService;
 import com.itwanger.pairesume.service.MembershipAuditService;
+import com.itwanger.pairesume.service.MembershipPlanService;
+import com.itwanger.pairesume.payment.MembershipPlanCode;
 import com.itwanger.pairesume.payment.MarketplacePaymentGateway;
 import com.itwanger.pairesume.payment.MarketplacePaymentProperties;
 import com.itwanger.pairesume.util.DateTimeUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -26,16 +30,30 @@ public class MembershipServiceImpl implements MembershipService {
     private final CouponService couponService;
     private final UserMapper userMapper;
     private final MembershipAuditService membershipAuditService;
+    private final MembershipPlanService membershipPlanService;
     private final MarketplacePaymentProperties paymentProperties;
     private final MarketplacePaymentGateway paymentGateway;
 
     @Override
-    public CouponQuoteDTO quote(Long userId, String couponCode) {
+    public CouponQuoteDTO quote(Long userId, String planCode, String couponCode) {
         User user = getUser(userId);
-        CouponQuoteDTO quote = couponService.quoteForUser(couponCode, user.getEmail());
+        MembershipPlan plan = membershipPlanService.requirePurchasable(planCode);
+        if (StringUtils.hasText(couponCode)
+                && !MembershipPlanCode.ANNUAL.name().equals(plan.getPlanCode())) {
+            throw new BusinessException(
+                    ResultCode.COUPON_INVALID.getCode(), "优惠码当前仅适用于年卡");
+        }
+        CouponQuoteDTO quote = couponService.quoteForUser(
+                couponCode, user.getEmail(), plan.getPriceCents());
+        quote.setPlanCode(plan.getPlanCode());
+        quote.setPlanName(plan.getDisplayName());
+        quote.setEntitlementType(plan.getEntitlementType());
+        quote.setMembershipDays(plan.getMembershipDays());
+        quote.setPriceCents(plan.getPriceCents());
+        quote.setEnabled(Boolean.TRUE.equals(plan.getEnabled()));
+        quote.setRecommended(Boolean.TRUE.equals(plan.getRecommended()));
         quote.setPaymentEnabled(paymentProperties.isMembershipAcceptNewOrders()
                 && !"disabled".equals(paymentGateway.provider()));
-        quote.setMembershipDays(paymentProperties.getMembershipPaymentDays());
         return quote;
     }
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   RESUME_PDF_TEMPLATES,
   type ResumePdfAccentPreset,
@@ -22,12 +22,12 @@ interface ChromePreviewFrameProps {
 
 const visibleTemplates = RESUME_PDF_TEMPLATES.filter((template) => template.id !== 'compact')
 
-const accentPresetOptions: Array<{ value: ResumePdfAccentPreset; label: string }> = [
-  { value: 'auto', label: '跟随模板' },
-  { value: 'blue', label: '蓝调' },
-  { value: 'slate', label: '石墨' },
-  { value: 'warm', label: '暖棕' },
-  { value: 'emerald', label: '森绿' },
+const accentPresetOptions: Array<{ value: ResumePdfAccentPreset; label: string; swatchClassName: string }> = [
+  { value: 'auto', label: '跟随模板', swatchClassName: 'bg-gradient-to-br from-blue-500 via-slate-500 to-amber-500' },
+  { value: 'blue', label: '蓝调', swatchClassName: 'bg-blue-600' },
+  { value: 'slate', label: '石墨', swatchClassName: 'bg-slate-700' },
+  { value: 'warm', label: '暖棕', swatchClassName: 'bg-amber-700' },
+  { value: 'emerald', label: '森绿', swatchClassName: 'bg-emerald-600' },
 ]
 
 const headingStyleOptions: Array<{ value: ResumePdfHeadingStyle; label: string }> = [
@@ -36,10 +36,6 @@ const headingStyleOptions: Array<{ value: ResumePdfHeadingStyle; label: string }
   { value: 'filled', label: '色块标题' },
   { value: 'bar', label: '侧边强调' },
 ]
-const CHROME_PREVIEW_RESIZE_MESSAGE_TYPE = 'pai-resume:chrome-preview-resize'
-const DEFAULT_STANDARD_PREVIEW_HEIGHT = 1160
-const DEFAULT_CONTINUOUS_PREVIEW_HEIGHT = 760
-
 function MiniLine({ className }: { className: string }) {
   return <div className={`h-1.5 rounded-full ${className}`} />
 }
@@ -82,7 +78,7 @@ function TemplateTonePreview({
   highlights,
   isActive,
 }: {
-  templateId: Exclude<ResumePdfTemplateId, 'compact'>
+  templateId: ResumePdfTemplateId
   name: string
   summary: string
   highlights: string[]
@@ -357,30 +353,37 @@ function TemplateTonePreview({
 
 function InlinePillGroup<T extends string>({
   label,
+  ariaLabel,
   value,
   options,
   onChange,
 }: {
   label?: string
+  ariaLabel: string
   value: T
   options: Array<{ value: T; label: string }>
   onChange: (nextValue: T) => void
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div
+      role="group"
+      aria-label={ariaLabel}
+      className="flex flex-wrap items-center gap-2"
+    >
       {label ? <span className="text-xs font-medium text-slate-500">{label}</span> : null}
-      <div className="inline-flex items-center rounded-xl bg-slate-100 p-1">
+      <div className="inline-flex items-stretch divide-x divide-slate-200 overflow-hidden rounded-lg border border-slate-200 bg-white">
         {options.map((option) => {
           const isActive = value === option.value
           return (
             <button
               key={option.value}
               type="button"
+              aria-pressed={isActive}
               onClick={() => onChange(option.value)}
-              className={`rounded-lg px-3 py-2 text-xs font-medium transition ${
+              className={`relative min-h-9 px-3 py-2 text-xs font-medium transition focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500 ${
                 isActive
-                  ? 'bg-primary-50 text-primary-700 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700'
+                  ? 'bg-primary-50 text-primary-700 after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-primary-600'
+                  : 'bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900'
               }`}
             >
               {option.label}
@@ -389,6 +392,47 @@ function InlinePillGroup<T extends string>({
         })}
       </div>
     </div>
+  )
+}
+
+function CompactOptionGrid<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string
+  value: T
+  options: Array<{ value: T; label: string; swatchClassName?: string }>
+  onChange: (nextValue: T) => void
+}) {
+  return (
+    <fieldset>
+      <legend className="mb-2 text-xs font-medium text-slate-500">{label}</legend>
+      <div className="grid grid-cols-2 gap-2">
+        {options.map((option) => {
+          const isActive = value === option.value
+          return (
+            <button
+              key={option.value}
+              type="button"
+              aria-pressed={isActive}
+              onClick={() => onChange(option.value)}
+              className={`flex min-h-10 items-center justify-center gap-2 rounded-lg border px-2 py-2 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${
+                isActive
+                  ? 'border-primary-500 bg-primary-50 text-primary-700'
+                  : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900'
+              }`}
+            >
+              {option.swatchClassName ? (
+                <span className={`h-3 w-3 shrink-0 rounded-full ${option.swatchClassName}`} aria-hidden="true" />
+              ) : null}
+              <span>{option.label}</span>
+            </button>
+          )
+        })}
+      </div>
+    </fieldset>
   )
 }
 
@@ -404,8 +448,7 @@ export function ChromePreviewFrame({
 }: ChromePreviewFrameProps) {
   const [refreshKey, setRefreshKey] = useState(0)
   const [pageMode, setPageMode] = useState<ResumePdfPageMode>('standard')
-  const [previewHeight, setPreviewHeight] = useState<number | null>(null)
-  const previewIframeRef = useRef<HTMLIFrameElement | null>(null)
+  const [controlTab, setControlTab] = useState<'templates' | 'styles'>('templates')
   const previewPath = useMemo(() => {
     const params = new URLSearchParams({
       pageMode,
@@ -418,9 +461,6 @@ export function ChromePreviewFrame({
 
     return `/preview/${resumeId}?${params.toString()}`
   }, [config.accentPreset, config.density, config.headingStyle, config.templateId, pageMode, refreshKey, resumeId])
-  const effectivePreviewHeight = previewHeight ?? (
-    pageMode === 'standard' ? DEFAULT_STANDARD_PREVIEW_HEIGHT : DEFAULT_CONTINUOUS_PREVIEW_HEIGHT
-  )
   const updateConfig = (patch: Partial<ResumePdfPreviewConfig>) => {
     onConfigChange({
       ...config,
@@ -441,138 +481,24 @@ export function ChromePreviewFrame({
     }
   }, [isVip, pageMode])
 
-  useEffect(() => {
-    setPreviewHeight(null)
-  }, [previewPath])
-
-  useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) {
-        return
-      }
-
-      const payload = event.data as {
-        type?: string
-        previewPath?: string
-        height?: number
-      } | null
-      if (!payload || payload.type !== CHROME_PREVIEW_RESIZE_MESSAGE_TYPE || payload.previewPath !== previewPath) {
-        return
-      }
-
-      if (typeof payload.height === 'number' && Number.isFinite(payload.height) && payload.height > 0) {
-        setPreviewHeight(Math.ceil(payload.height))
-      }
-    }
-
-    window.addEventListener('message', handleMessage)
-    return () => window.removeEventListener('message', handleMessage)
-  }, [previewPath])
-
-  useEffect(() => {
-    const iframe = previewIframeRef.current
-    if (!iframe) {
-      return
-    }
-
-    let frameResizeObserver: ResizeObserver | null = null
-    let nestedResizeObserver: ResizeObserver | null = null
-    let mutationObserver: MutationObserver | null = null
-
-    const updateHeightFromFrame = () => {
-      const frameDocument = iframe.contentDocument
-      if (!frameDocument) {
-        return
-      }
-
-      const nextHeight = Math.max(
-        frameDocument.body?.scrollHeight ?? 0,
-        frameDocument.documentElement?.scrollHeight ?? 0
-      )
-      if (nextHeight > 0) {
-        setPreviewHeight(nextHeight)
-      }
-    }
-
-    const attachNestedObserver = () => {
-      nestedResizeObserver?.disconnect()
-      const nestedFrame = iframe.contentDocument?.querySelector('iframe')
-      if (!nestedFrame || typeof ResizeObserver === 'undefined') {
-        return
-      }
-
-      nestedResizeObserver = new ResizeObserver(() => {
-        updateHeightFromFrame()
-      })
-      nestedResizeObserver.observe(nestedFrame)
-    }
-
-    const bindFrameObservers = () => {
-      const frameDocument = iframe.contentDocument
-      if (!frameDocument) {
-        return
-      }
-
-      updateHeightFromFrame()
-      attachNestedObserver()
-
-      if (typeof ResizeObserver !== 'undefined') {
-        frameResizeObserver?.disconnect()
-        frameResizeObserver = new ResizeObserver(() => {
-          updateHeightFromFrame()
-          attachNestedObserver()
-        })
-
-        if (frameDocument.body) {
-          frameResizeObserver.observe(frameDocument.body)
-        }
-        if (frameDocument.documentElement) {
-          frameResizeObserver.observe(frameDocument.documentElement)
-        }
-      }
-
-      mutationObserver?.disconnect()
-      mutationObserver = new MutationObserver(() => {
-        updateHeightFromFrame()
-        attachNestedObserver()
-      })
-      mutationObserver.observe(frameDocument, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-      })
-    }
-
-    const handleLoad = () => {
-      bindFrameObservers()
-    }
-
-    iframe.addEventListener('load', handleLoad)
-    bindFrameObservers()
-
-    return () => {
-      iframe.removeEventListener('load', handleLoad)
-      frameResizeObserver?.disconnect()
-      nestedResizeObserver?.disconnect()
-      mutationObserver?.disconnect()
-    }
-  }, [previewPath])
-
   return (
-    <div className="mx-auto w-full max-w-7xl">
-      <div className="border-b border-slate-200 bg-white px-2 pb-5">
-        <div className="flex flex-wrap items-center justify-between gap-4 py-3">
-          <div className="flex flex-wrap items-center gap-5">
+    <div className="mx-auto w-full max-w-[1600px] overflow-hidden border border-slate-200 bg-white shadow-sm">
+      <div className="relative z-20 border-b border-slate-200 bg-white px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <InlinePillGroup
+              ariaLabel="PDF 页面模式"
               value={pageMode}
               options={[
-                { value: 'standard', label: '标准 PDF' },
-                { value: 'continuous', label: isVip ? '智能一页' : '智能一页 · VIP' },
+                { value: 'standard', label: '标准 PDF（可能分页）' },
+                { value: 'continuous', label: isVip ? '智能一页（内容无损）' : '智能一页（内容无损）· VIP' },
               ]}
               onChange={selectPageMode}
             />
+            <span className="hidden h-5 w-px bg-slate-200 sm:block" aria-hidden="true" />
             <InlinePillGroup
-              label="密度"
+              label="内容密度"
+              ariaLabel="内容密度"
               value={config.density}
               options={[
                 { value: 'normal', label: '标准' },
@@ -580,36 +506,14 @@ export function ChromePreviewFrame({
               ]}
               onChange={(nextDensity) => updateConfig({ density: nextDensity })}
             />
-            <InlinePillGroup
-              label="主题色"
-              value={config.accentPreset}
-              options={accentPresetOptions}
-              onChange={(nextValue) => updateConfig({ accentPreset: nextValue })}
-            />
-            <InlinePillGroup
-              label="标题样式"
-              value={config.headingStyle}
-              options={headingStyleOptions}
-              onChange={(nextValue) => updateConfig({ headingStyle: nextValue })}
-            />
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {onExportPdf && (
-              <Button
-                type="button"
-                onClick={() => onExportPdf(pageMode)}
-                loading={exporting}
-                className="shrink-0"
-              >
-                导出 PDF
-              </Button>
-            )}
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setRefreshKey((current) => current + 1)}
               title="刷新预览"
               aria-label="刷新预览"
-              className="inline-flex items-center justify-center rounded border border-slate-300 bg-white p-2 text-slate-500 transition hover:border-primary-200 hover:text-primary-700"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:border-primary-200 hover:text-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
             >
               <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -621,68 +525,139 @@ export function ChromePreviewFrame({
               rel="noreferrer"
               title="在新标签打开预览"
               aria-label="在新标签打开预览"
-              className="inline-flex items-center justify-center rounded border border-slate-300 bg-white p-2 text-slate-500 transition hover:border-primary-200 hover:text-primary-700"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:border-primary-200 hover:text-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
             >
               <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10v-4M14 4h6m0 0v6m0-6L10 14" />
               </svg>
             </a>
+            {onExportPdf ? (
+              <Button
+                type="button"
+                onClick={() => onExportPdf(pageMode)}
+                loading={exporting}
+                className="shrink-0"
+              >
+                导出 PDF
+              </Button>
+            ) : null}
           </div>
         </div>
-        {exportError && (
-          <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        {exportError ? (
+          <div role="alert" className="mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {exportError}
           </div>
-        )}
+        ) : null}
       </div>
-      <div
-        className="grid grid-cols-1 bg-white xl:grid-cols-[280px_minmax(0,1fr)]"
-        style={{ minHeight: `${effectivePreviewHeight}px` }}
-      >
-        <aside className="border-b border-slate-200 pb-4 xl:border-b-0 xl:pb-0 xl:pr-3">
-          <div className="grid gap-3 py-2 sm:grid-cols-2 lg:grid-cols-3 xl:flex xl:flex-col">
-            {visibleTemplates.map((template) => {
-              const isActive = config.templateId === template.id
-              return (
-                <button
-                  key={template.id}
-                  type="button"
-                  onClick={() => updateConfig({ templateId: template.id })}
-                  className="w-full rounded-xl py-2 text-left transition"
-                >
-                  <div
-                    className={`rounded-xl transition ${
-                      isActive
-                        ? 'ring-2 ring-primary-500'
-                        : 'hover:ring-1 hover:ring-slate-200'
-                    }`}
-                  >
-                    <TemplateTonePreview
-                      templateId={template.id as Exclude<ResumePdfTemplateId, 'compact'>}
-                      name={template.name}
-                      summary={template.previewSummary}
-                      highlights={template.previewHighlights}
-                      isActive={isActive}
-                    />
-                  </div>
-                </button>
-              )
-            })}
+
+      <div className="grid bg-slate-100 lg:h-[calc(100vh-12rem)] lg:min-h-[500px] lg:grid-cols-[232px_minmax(0,1fr)] lg:overflow-hidden">
+        <aside className="border-b border-slate-200 bg-white lg:overflow-y-auto lg:border-b-0 lg:border-r">
+          <div className="sticky top-0 z-10 border-b border-slate-200 bg-white p-3">
+            <div className="grid grid-cols-2 rounded-lg bg-slate-100 p-1" aria-label="预览设置">
+              <button
+                type="button"
+                aria-pressed={controlTab === 'templates'}
+                onClick={() => setControlTab('templates')}
+                className={`rounded-md px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${
+                  controlTab === 'templates'
+                    ? 'bg-white text-slate-900 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                模板
+              </button>
+              <button
+                type="button"
+                aria-pressed={controlTab === 'styles'}
+                onClick={() => setControlTab('styles')}
+                className={`rounded-md px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${
+                  controlTab === 'styles'
+                    ? 'bg-white text-slate-900 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                样式
+              </button>
+            </div>
+          </div>
+
+          <div className="p-3">
+            {controlTab === 'templates' ? (
+              <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-2 lg:grid lg:grid-cols-2 lg:overflow-visible">
+                {visibleTemplates.map((template) => {
+                  const isActive = config.templateId === template.id
+                  return (
+                    <button
+                      key={template.id}
+                      type="button"
+                      aria-pressed={isActive}
+                      aria-label={`选择${template.name}模板`}
+                      onClick={() => updateConfig({ templateId: template.id })}
+                      className={`w-36 shrink-0 rounded-xl border bg-white p-2 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 lg:w-auto ${
+                        isActive
+                          ? 'border-primary-500 ring-1 ring-primary-500'
+                          : 'border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="h-[74px] overflow-hidden rounded-lg bg-slate-50" aria-hidden="true">
+                        <div className="pointer-events-none w-[182%] origin-top-left scale-[0.55]">
+                          <TemplateTonePreview
+                            templateId={template.id}
+                            name={template.name}
+                            summary={template.previewSummary}
+                            highlights={template.previewHighlights}
+                            isActive={false}
+                          />
+                        </div>
+                      </div>
+                      <div className="mt-2 flex items-center justify-between gap-1">
+                        <span className="truncate text-xs font-medium text-slate-700">{template.name}</span>
+                        {isActive ? (
+                          <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary-600 text-[10px] text-white" aria-hidden="true">
+                            ✓
+                          </span>
+                        ) : null}
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-1">
+                <CompactOptionGrid
+                  label="主题色"
+                  value={config.accentPreset}
+                  options={accentPresetOptions}
+                  onChange={(nextValue) => updateConfig({ accentPreset: nextValue })}
+                />
+                <CompactOptionGrid
+                  label="标题样式"
+                  value={config.headingStyle}
+                  options={headingStyleOptions}
+                  onChange={(nextValue) => updateConfig({ headingStyle: nextValue })}
+                />
+              </div>
+            )}
           </div>
         </aside>
-        <div className="bg-white xl:border-l xl:border-slate-200">
-          <div>
-            <iframe
-              key={previewPath}
-              ref={previewIframeRef}
-              title="简历模板预览"
-              src={previewPath}
-              scrolling="no"
-              className="block w-full border-0 bg-white"
-              style={{ height: `${effectivePreviewHeight}px` }}
-            />
+
+        <section
+          aria-label="PDF 预览区域"
+          tabIndex={0}
+          className="h-[72dvh] min-h-[420px] overflow-hidden bg-slate-100 p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500 sm:p-5 lg:h-auto lg:min-h-0"
+        >
+          <div className="mx-auto h-full w-full max-w-[980px]">
+            <div className="h-full overflow-hidden border border-slate-200 bg-white shadow-[0_12px_32px_rgba(15,23,42,0.12)]">
+              <iframe
+                key={previewPath}
+                title="简历模板预览"
+                src={previewPath}
+                scrolling="no"
+                className="block h-full w-full border-0 bg-white"
+              />
+            </div>
           </div>
-        </div>
+        </section>
       </div>
     </div>
   )

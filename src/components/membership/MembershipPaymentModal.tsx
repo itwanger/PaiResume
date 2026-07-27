@@ -22,6 +22,10 @@ function formatCountdown(totalSeconds: number): string {
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
 }
 
+function formatEntitlement(membershipDays: number | null): string {
+  return membershipDays === null ? '终身' : `${membershipDays} 天`
+}
+
 function getStatusLabel(status: MembershipOrderStatus): string {
   const labels: Record<MembershipOrderStatus, string> = {
     CREATED: '订单已创建',
@@ -101,6 +105,8 @@ export function MembershipPaymentModal({
   const active = ACTIVE_STATUSES.includes(orderStatus) && !locallyTimedOut
   const showPaymentCode = active && order.payableAmountCents > 0
   const canRefresh = !paid && !canceled && !refundRequired
+  const planName = order.planName || 'VIP 会员'
+  const entitlementLabel = formatEntitlement(order.membershipDays)
 
   const copyCodeUrl = async () => {
     if (!order.codeUrl) return
@@ -133,7 +139,7 @@ export function MembershipPaymentModal({
                       ? '支付时间已结束'
                       : prepayUnknown
                         ? '支付订单状态待确认'
-                        : `开通 ${order.membershipDays} 天 VIP`}
+                        : `开通 ${planName}`}
             </h2>
           </div>
           <button
@@ -156,7 +162,7 @@ export function MembershipPaymentModal({
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M5 13l4 4L19 7" />
                 </svg>
               </div>
-              <p className="mt-4 text-lg font-semibold text-emerald-950">支付成功，已开通 {order.membershipDays} 天 VIP</p>
+              <p className="mt-4 text-lg font-semibold text-emerald-950">支付成功，已开通 {planName}</p>
               <p className="mt-2 text-sm leading-6 text-emerald-800">
                 {order.membershipExpiresAt
                   ? `会员有效期至 ${new Date(order.membershipExpiresAt).toLocaleString('zh-CN')}，正在刷新账号权益并返回原页面。`
@@ -228,8 +234,12 @@ export function MembershipPaymentModal({
 
           <dl className="mt-6 space-y-3 rounded-xl bg-slate-50 p-4 text-sm">
             <div className="flex items-center justify-between gap-4">
+              <dt className="text-slate-500">会员方案</dt>
+              <dd className="font-medium text-slate-900">{planName}</dd>
+            </div>
+            <div className="flex items-center justify-between gap-4">
               <dt className="text-slate-500">会员期限</dt>
-              <dd className="font-medium text-slate-900">{order.membershipDays} 天</dd>
+              <dd className="font-medium text-slate-900">{entitlementLabel}</dd>
             </div>
             <div className="flex items-center justify-between gap-4">
               <dt className="text-slate-500">订单原价</dt>

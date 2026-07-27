@@ -10,7 +10,9 @@ import com.itwanger.pairesume.entity.FeedbackSubmission;
 import com.itwanger.pairesume.mapper.CouponCodeMapper;
 import com.itwanger.pairesume.service.CouponService;
 import com.itwanger.pairesume.service.MailService;
+import com.itwanger.pairesume.service.MembershipPlanService;
 import com.itwanger.pairesume.service.PlatformConfigService;
+import com.itwanger.pairesume.payment.MembershipPlanCode;
 import com.itwanger.pairesume.util.DateTimeUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -30,10 +32,16 @@ public class CouponServiceImpl implements CouponService {
     private final CouponCodeMapper couponCodeMapper;
     private final PlatformConfigService platformConfigService;
     private final MailService mailService;
+    private final MembershipPlanService membershipPlanService;
 
     @Override
     public CouponQuoteDTO quote(String couponCode) {
-        CouponQuoteDTO dto = createBaseQuote();
+        return quote(couponCode, currentAnnualPrice());
+    }
+
+    @Override
+    public CouponQuoteDTO quote(String couponCode, int listPriceCents) {
+        CouponQuoteDTO dto = createBaseQuote(listPriceCents);
 
         if (!StringUtils.hasText(couponCode)) {
             return dto;
@@ -47,7 +55,16 @@ public class CouponServiceImpl implements CouponService {
 
     @Override
     public CouponQuoteDTO quoteForUser(String couponCode, String recipientEmail) {
-        CouponQuoteDTO quote = createBaseQuote();
+        return quoteForUser(couponCode, recipientEmail, currentAnnualPrice());
+    }
+
+    @Override
+    public CouponQuoteDTO quoteForUser(
+            String couponCode,
+            String recipientEmail,
+            int listPriceCents
+    ) {
+        CouponQuoteDTO quote = createBaseQuote(listPriceCents);
         if (!StringUtils.hasText(couponCode)) {
             return quote;
         }
@@ -62,8 +79,10 @@ public class CouponServiceImpl implements CouponService {
         return quote;
     }
 
-    private CouponQuoteDTO createBaseQuote() {
-        int listPrice = platformConfigService.getConfigEntity().getMembershipPriceCents();
+    private CouponQuoteDTO createBaseQuote(int listPrice) {
+        if (listPrice <= 0) {
+            throw new BusinessException(ResultCode.INTERNAL_ERROR.getCode(), "会员价格配置错误");
+        }
         CouponQuoteDTO dto = new CouponQuoteDTO();
         dto.setListPrice(listPrice);
         dto.setDiscountAmount(0);
@@ -71,6 +90,11 @@ public class CouponServiceImpl implements CouponService {
         dto.setCouponStatus("NOT_APPLIED");
         dto.setPaymentEnabled(false);
         return dto;
+    }
+
+    private int currentAnnualPrice() {
+        return membershipPlanService.requirePurchasable(
+                MembershipPlanCode.ANNUAL.name()).getPriceCents();
     }
 
     private void applyCoupon(CouponQuoteDTO quote, CouponCode coupon) {

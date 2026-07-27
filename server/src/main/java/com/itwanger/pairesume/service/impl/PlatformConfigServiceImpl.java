@@ -22,7 +22,10 @@ public class PlatformConfigServiceImpl implements PlatformConfigService {
     @Override
     public PlatformConfigDTO updateConfig(Long adminUserId, PlatformConfigDTO dto) {
         PlatformConfig config = getConfigEntity();
-        config.setMembershipPriceCents(dto.getMembershipPriceCents());
+        // membership_price_cents is now a read-only compatibility mirror of
+        // membership_plan.ANNUAL. It is synchronized only by
+        // MembershipPlanServiceImpl so this legacy endpoint cannot create a
+        // second purchase-price source.
         config.setQuestionnaireCouponAmountCents(dto.getQuestionnaireCouponAmountCents());
         config.setResumeReviewPriceCents(dto.getResumeReviewPriceCents());
         config.setUpdatedBy(adminUserId);

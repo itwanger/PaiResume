@@ -6,6 +6,7 @@ import {
   type CouponAdmin,
   type FeedbackSubmissionAdmin,
   type MembershipAdminAuditLog,
+  type MembershipPlanAdmin,
   type MembershipPaymentAdminOrder,
   type MembershipPaymentAdminSummary,
   type MembershipPaymentOrderStatus,
@@ -54,6 +55,13 @@ function formatCents(value: number) {
   return `¥${(value / 100).toFixed(2)}`
 }
 
+function formatMembershipEntitlement(
+  entitlementType: MembershipPlanAdmin['entitlementType'],
+  membershipDays: number | null,
+) {
+  return entitlementType === 'PERMANENT' ? '终身' : `${membershipDays ?? '-'} 天`
+}
+
 function getCreatorEarningIncome(earning: CreatorEarning) {
   return earning.walletCreditCents
 }
@@ -82,6 +90,7 @@ const MEMBERSHIP_AUDIT_ACTION_LABELS: Record<string, string> = {
   GRANT_MEMBERSHIP: '手工开通 VIP',
   EXTEND_MEMBERSHIP: '延长 VIP',
   REVOKE_MEMBERSHIP: '手工撤销 VIP',
+  UPDATE_MEMBERSHIP_PLAN: '更新会员方案',
   INVALIDATE_VIP_INVITE: '作废邀请码',
   REVOKE_VIP_INVITE_REDEMPTION: '撤销异常邀请码兑换',
 }
@@ -160,6 +169,7 @@ export default function AdminPage() {
     questionnaireCouponAmountCents: 1000,
     resumeReviewPriceCents: 0,
   })
+  const [membershipPlans, setMembershipPlans] = useState<MembershipPlanAdmin[]>([])
   const [feedbacks, setFeedbacks] = useState<FeedbackSubmissionAdmin[]>([])
   const [coupons, setCoupons] = useState<CouponAdmin[]>([])
   const [vipInvites, setVipInvites] = useState<VipInviteAdmin[]>([])
@@ -205,6 +215,7 @@ export default function AdminPage() {
   const [pendingGovernanceCount, setPendingGovernanceCount] = useState(0)
   const [pendingResumeReviewCount, setPendingResumeReviewCount] = useState(0)
   const [savingConfig, setSavingConfig] = useState(false)
+  const [savingMembershipPlanCode, setSavingMembershipPlanCode] = useState<string | null>(null)
   const [submittingShowcase, setSubmittingShowcase] = useState(false)
   const [creatingInvite, setCreatingInvite] = useState(false)
   const [marketListingsLoading, setMarketListingsLoading] = useState(false)
@@ -304,8 +315,12 @@ export default function AdminPage() {
     await runSectionLoad(section, async () => {
       switch (section) {
         case 'platformConfig': {
-          const response = await adminApi.getPlatformConfig()
-          setPlatformConfig(response.data.data)
+          const [configResponse, plansResponse] = await Promise.all([
+            adminApi.getPlatformConfig(),
+            adminApi.listMembershipPlans(),
+          ])
+          setPlatformConfig(configResponse.data.data)
+          setMembershipPlans(plansResponse.data.data)
           return
         }
         case 'feedbacks': {
@@ -697,6 +712,38 @@ export default function AdminPage() {
     }
   }
 
+  const handleSaveMembershipPlan = async (plan: MembershipPlanAdmin) => {
+    if (
+      plan.priceCents !== null
+      && (!Number.isInteger(plan.priceCents) || plan.priceCents <= 0)
+    ) {
+      setError(`${plan.name}价格必须是大于 0 的整数（单位：分）`)
+      return
+    }
+    if (plan.enabled && plan.priceCents === null) {
+      setError(`请先填写${plan.name}价格`)
+      return
+    }
+
+    setSavingMembershipPlanCode(plan.code)
+    setError('')
+    setSuccess('')
+    try {
+      const { data: res } = await adminApi.updateMembershipPlan(plan.code, {
+        priceCents: plan.priceCents,
+        enabled: plan.enabled,
+      })
+      setMembershipPlans((current) => current.map((item) => (
+        item.code === res.data.code ? res.data : item
+      )))
+      setSuccess(`${res.data.name}已更新`)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : '会员方案更新失败')
+    } finally {
+      setSavingMembershipPlanCode(null)
+    }
+  }
+
   const handleApprove = async (feedback: FeedbackSubmissionAdmin) => {
     const reviewNote = window.prompt('审核备注（可选）', feedback.reviewNote ?? '') ?? ''
     try {
@@ -854,13 +901,12 @@ export default function AdminPage() {
       `【二哥编程星球专属｜派简历 ${invite.membershipDays} 天 VIP】`,
       '',
       `派简历网站：${publicOrigin}`,
-      `新用户扫码领取：${publicOrigin}/vip/claim`,
-      `已注册用户兑换：${publicOrigin}/membership`,
+      `领取入口：${publicOrigin}/vip/claim`,
       `VIP 邀请码：${invite.code}`,
       '',
       '使用方法：',
-      '1. 新用户打开“新用户扫码领取”，输入邀请码并使用派聪明扫码完成注册、登录和领取；',
-      '2. 已经注册的用户，登录后进入 VIP 页面兑换。',
+      '1. 打开领取入口并输入邀请码；',
+      '2. 未登录用户使用派聪明扫码注册领取，已登录用户直接领取。',
       '',
       `兑换成功后，从兑换成功的时间开始获得完整 ${invite.membershipDays} 天 VIP。`,
       '普通用户可以编辑、保存和导入简历，也可以查看公开的优质简历。',
@@ -1315,65 +1361,117 @@ export default function AdminPage() {
               />
             ) : null}
             {activeView === 'platform-config' || activeView === 'showcases' ? (
-              <section className={activeView === 'platform-config' ? 'max-w-3xl' : ''}>
+              <section className={activeView === 'platform-config' ? 'max-w-5xl' : ''}>
                 {activeView === 'platform-config' ? (
-                  <div className="rounded-lg border border-gray-200 bg-white px-6 py-6">
-                <h2 className="text-lg font-semibold text-gray-900">平台配置</h2>
-                {!platformConfigLoaded ? (
-                  <div role="alert" className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
-                    当前配置读取失败。为防止把前端默认值误写入服务端，表单已锁定；请先重新加载后台数据。
-                  </div>
-                ) : null}
-                <div className="mt-5 space-y-4">
-                  <label className="block">
-                    <span className="mb-2 block text-sm font-medium text-gray-700">会员价格（分）</span>
-                    <input
-                      type="number"
-                      disabled={!platformConfigLoaded}
-                      value={platformConfig.membershipPriceCents}
-                      onChange={(event) => setPlatformConfig((current) => ({ ...current, membershipPriceCents: Number(event.target.value) }))}
-                      className="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none transition-colors focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="mb-2 block text-sm font-medium text-gray-700">问卷优惠金额（分）</span>
-                    <input
-                      type="number"
-                      disabled={!platformConfigLoaded}
-                      value={platformConfig.questionnaireCouponAmountCents}
-                      onChange={(event) => setPlatformConfig((current) => ({ ...current, questionnaireCouponAmountCents: Number(event.target.value) }))}
-                      className="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none transition-colors focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="mb-2 block text-sm font-medium text-gray-700">人工精修单次价格（分）</span>
-                    <input
-                      type="number"
-                      min={0}
-                      step={1}
-                      required
-                      disabled={!platformConfigLoaded}
-                      value={platformConfig.resumeReviewPriceCents}
-                      onChange={(event) => setPlatformConfig((current) => ({ ...current, resumeReviewPriceCents: Number(event.target.value) }))}
-                      className="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none transition-colors focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
-                    />
-                    <span className="mt-2 block text-xs leading-5 text-gray-500">第二次及以后按订单价格快照收费。</span>
-                  </label>
-                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-4 text-sm leading-6 text-gray-600">
-                    <p className={platformConfig.resumeReviewPriceCents > 0 ? 'text-gray-700' : 'font-medium text-amber-700'}>
-                      精修价格为 0 时不接受付费新单。
-                    </p>
-                    <p className="mt-1 text-xs text-gray-500">价格仅影响新订单；收款开关由部署配置独立控制。</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => void handleSaveConfig()}
-                    disabled={savingConfig || !platformConfigLoaded}
-                    className="rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-700 disabled:opacity-50"
-                  >
-                    {savingConfig ? '保存中...' : '保存配置'}
-                  </button>
-                </div>
+                  <div className="space-y-6">
+                    {!platformConfigLoaded ? (
+                      <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
+                        当前配置读取失败，请重新加载。
+                      </div>
+                    ) : null}
+
+                    <div className="rounded-lg border border-gray-200 bg-white px-6 py-6">
+                      <div className="flex flex-wrap items-end justify-between gap-3">
+                        <div>
+                          <h2 className="text-lg font-semibold text-gray-900">会员方案</h2>
+                          <p className="mt-1 text-sm text-gray-500">价格单位为分，关闭的方案会显示“待开放”。</p>
+                        </div>
+                      </div>
+                      <div className="mt-5 grid gap-4 md:grid-cols-2">
+                        {membershipPlans.map((plan) => (
+                          <div key={plan.code} className="rounded-lg border border-gray-200 p-4">
+                            <div className="flex items-start justify-between gap-4">
+                              <div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <h3 className="font-semibold text-gray-900">{plan.name}</h3>
+                                  {plan.recommended ? (
+                                    <span className="rounded-full bg-primary-50 px-2 py-0.5 text-xs font-medium text-primary-700">推荐</span>
+                                  ) : null}
+                                </div>
+                                <p className="mt-1 text-sm text-gray-500">
+                                  {plan.entitlementType === 'PERMANENT' ? '永久有效' : `${plan.membershipDays ?? '-'} 天`}
+                                </p>
+                              </div>
+                              <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                                <input
+                                  type="checkbox"
+                                  checked={plan.enabled}
+                                  disabled={!platformConfigLoaded || savingMembershipPlanCode === plan.code}
+                                  onChange={(event) => setMembershipPlans((current) => current.map((item) => (
+                                    item.code === plan.code ? { ...item, enabled: event.target.checked } : item
+                                  )))}
+                                  className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                                />
+                                开放
+                              </label>
+                            </div>
+                            <label className="mt-4 block">
+                              <span className="mb-2 block text-sm font-medium text-gray-700">价格（分）</span>
+                              <input
+                                type="number"
+                                min={1}
+                                step={1}
+                                value={plan.priceCents ?? ''}
+                                disabled={!platformConfigLoaded || savingMembershipPlanCode === plan.code}
+                                onChange={(event) => {
+                                  const nextPrice = event.target.value === '' ? null : Number(event.target.value)
+                                  setMembershipPlans((current) => current.map((item) => (
+                                    item.code === plan.code ? { ...item, priceCents: nextPrice } : item
+                                  )))
+                                }}
+                                placeholder="未设置"
+                                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none transition-colors focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => void handleSaveMembershipPlan(plan)}
+                              disabled={!platformConfigLoaded || savingMembershipPlanCode !== null}
+                              className="mt-4 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-700 disabled:opacity-50"
+                            >
+                              {savingMembershipPlanCode === plan.code ? '保存中...' : '保存'}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border border-gray-200 bg-white px-6 py-6">
+                      <h2 className="text-lg font-semibold text-gray-900">其他价格</h2>
+                      <div className="mt-5 space-y-4">
+                        <label className="block">
+                          <span className="mb-2 block text-sm font-medium text-gray-700">问卷优惠金额（分）</span>
+                          <input
+                            type="number"
+                            disabled={!platformConfigLoaded}
+                            value={platformConfig.questionnaireCouponAmountCents}
+                            onChange={(event) => setPlatformConfig((current) => ({ ...current, questionnaireCouponAmountCents: Number(event.target.value) }))}
+                            className="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none transition-colors focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="mb-2 block text-sm font-medium text-gray-700">人工精修单次价格（分）</span>
+                          <input
+                            type="number"
+                            min={0}
+                            step={1}
+                            required
+                            disabled={!platformConfigLoaded}
+                            value={platformConfig.resumeReviewPriceCents}
+                            onChange={(event) => setPlatformConfig((current) => ({ ...current, resumeReviewPriceCents: Number(event.target.value) }))}
+                            className="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none transition-colors focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => void handleSaveConfig()}
+                          disabled={savingConfig || !platformConfigLoaded}
+                          className="rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-700 disabled:opacity-50"
+                        >
+                          {savingConfig ? '保存中...' : '保存配置'}
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 ) : null}
 
@@ -1988,7 +2086,10 @@ export default function AdminPage() {
                           </td>
                           <td className="py-4 pr-4">
                             <div className="font-semibold text-gray-900">{formatCents(order.payableAmountCents)}</div>
-                            <div className="mt-1 text-xs text-gray-500">原价 {formatCents(order.listPriceCents)} · {order.membershipDays} 天</div>
+                            <div className="mt-1 text-xs text-gray-500">
+                              {order.planName} · {formatMembershipEntitlement(order.entitlementType, order.membershipDays)}
+                            </div>
+                            <div className="mt-1 text-xs text-gray-400">原价 {formatCents(order.listPriceCents)}</div>
                             <div className="mt-1 text-xs text-gray-400">{order.provider} · {order.currency}</div>
                           </td>
                           <td className="py-4 pr-4">
@@ -2099,13 +2200,24 @@ export default function AdminPage() {
 
                   <div className="mt-4 grid gap-3 rounded-lg border border-gray-200 bg-white p-4 text-xs leading-6 text-gray-600 md:grid-cols-2 lg:grid-cols-3">
                     <div>用户：{selectedMembershipPaymentOrder.userEmail || `#${selectedMembershipPaymentOrder.userId}`}</div>
+                    <div>
+                      方案：{selectedMembershipPaymentOrder.planName} · {formatMembershipEntitlement(
+                        selectedMembershipPaymentOrder.entitlementType,
+                        selectedMembershipPaymentOrder.membershipDays,
+                      )}
+                    </div>
                     <div>实付：{formatCents(selectedMembershipPaymentOrder.payableAmountCents)}</div>
                     <div>支付交易号：<span className="break-all">{selectedMembershipPaymentOrder.providerTransactionId || '未记录'}</span></div>
                     <div>支付时间：{selectedMembershipPaymentOrder.paidAt || '-'}</div>
                     <div>复核原因：{selectedMembershipPaymentOrder.paymentReviewReason || '-'}</div>
                     <div>退款流水：{selectedMembershipPaymentOrder.refundReference || '-'}</div>
                     <div>权益起点：{selectedMembershipPaymentOrder.membershipStartedAt || '本单未发放'}</div>
-                    <div>权益终点：{selectedMembershipPaymentOrder.membershipExpiresAt || '本单未发放'}</div>
+                    <div>
+                      权益终点：{selectedMembershipPaymentOrder.entitlementType === 'PERMANENT'
+                        && selectedMembershipPaymentOrder.membershipStartedAt
+                        ? '永久'
+                        : selectedMembershipPaymentOrder.membershipExpiresAt || '本单未发放'}
+                    </div>
                     <div>最近处理：{selectedMembershipPaymentOrder.reviewUpdatedAt || '-'}</div>
                   </div>
 

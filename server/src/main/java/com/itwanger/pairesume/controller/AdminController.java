@@ -22,9 +22,26 @@ public class AdminController {
     private final FeedbackSubmissionService feedbackSubmissionService;
     private final CouponService couponService;
     private final MembershipService membershipService;
+    private final MembershipPlanService membershipPlanService;
     private final ResumeShowcaseService resumeShowcaseService;
     private final VipInviteService vipInviteService;
     private final MembershipAuditService membershipAuditService;
+
+    @Operation(summary = "获取会员方案配置")
+    @GetMapping("/membership-plans")
+    public Result<List<MembershipPlanDTO>> listMembershipPlans() {
+        return Result.success(membershipPlanService.listPlans());
+    }
+
+    @Operation(summary = "更新会员方案价格或启用状态")
+    @PutMapping("/membership-plans/{code}")
+    public Result<MembershipPlanDTO> updateMembershipPlan(
+            @PathVariable String code,
+            @Valid @RequestBody UpdateMembershipPlanDTO dto
+    ) {
+        return Result.success(membershipPlanService.updatePlan(
+                code, dto, SecurityUtils.getCurrentUserId()));
+    }
 
     @Operation(summary = "获取平台配置")
     @GetMapping("/platform-config")

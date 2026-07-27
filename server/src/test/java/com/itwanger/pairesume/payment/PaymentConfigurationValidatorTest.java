@@ -16,33 +16,7 @@ class PaymentConfigurationValidatorTest {
         assertFalse(new MarketplacePaymentProperties().isAcceptNewOrders());
         assertFalse(new MarketplacePaymentProperties().isMembershipAcceptNewOrders());
         assertFalse(new MarketplacePaymentProperties().isMarketplaceAcceptNewOrders());
-        assertEquals(365, new MarketplacePaymentProperties().getMembershipPaymentDays());
         assertEquals(7, new MarketplacePaymentProperties().getCreatorEarningHoldDays());
-    }
-
-    @Test
-    void membershipDurationMustStayWithinSupportedRange() {
-        MarketplacePaymentProperties properties = new MarketplacePaymentProperties();
-        properties.setMembershipPaymentDays(0);
-        assertThrows(IllegalStateException.class, () -> validator(properties).validate());
-
-        properties.setMembershipPaymentDays(365);
-        assertDoesNotThrow(() -> validator(properties).validate());
-
-        properties.setMembershipPaymentDays(3651);
-        assertThrows(IllegalStateException.class, () -> validator(properties).validate());
-    }
-
-    @Test
-    void productionMembershipPlanMustRemainAnnual() {
-        MarketplacePaymentProperties properties = new MarketplacePaymentProperties();
-        properties.setMembershipPaymentDays(30);
-
-        assertThrows(IllegalStateException.class,
-                () -> validator(properties, "production").validate());
-
-        properties.setMembershipPaymentDays(365);
-        assertDoesNotThrow(() -> validator(properties, "production").validate());
     }
 
     @Test

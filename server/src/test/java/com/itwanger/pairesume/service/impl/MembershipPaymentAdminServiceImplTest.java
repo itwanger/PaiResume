@@ -142,6 +142,26 @@ class MembershipPaymentAdminServiceImplTest {
         verify(auditLogMapper, never()).insert(any(MembershipPaymentOrderAuditLog.class));
     }
 
+    @Test
+    void lifetimeOrderWithStartedAtStillRequiresEntitlementRecalculationBeforeRefund() {
+        MembershipPaymentOrder order = reviewOrder(MembershipPaymentReviewStatus.PENDING);
+        order.setPlanCode("LIFETIME");
+        order.setPlanNameSnapshot("终身会员");
+        order.setEntitlementType("PERMANENT");
+        order.setMembershipDays(null);
+        order.setMembershipStartedAt(LocalDateTime.now().minusDays(2));
+        order.setMembershipExpiresAt(null);
+        when(orderMapper.selectByOrderNoForUpdate(order.getOrderNo())).thenReturn(order);
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> service.startRefund(
+                        order.getOrderNo(), 99L, "准备退款", "refund-lifetime"));
+
+        assertEquals(ResultCode.MEMBERSHIP_PAYMENT_REVIEW_STATE_INVALID.getCode(),
+                exception.getCode());
+        verify(orderMapper, never()).updateById(any(MembershipPaymentOrder.class));
+    }
+
     private MembershipPaymentOrder reviewOrder(MembershipPaymentReviewStatus reviewStatus) {
         MembershipPaymentOrder order = new MembershipPaymentOrder();
         order.setId(5L);

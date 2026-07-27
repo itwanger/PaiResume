@@ -2,10 +2,12 @@ package com.itwanger.pairesume.controller;
 
 import com.itwanger.pairesume.common.Result;
 import com.itwanger.pairesume.dto.CouponQuoteDTO;
+import com.itwanger.pairesume.dto.MembershipPlanDTO;
 import com.itwanger.pairesume.dto.MembershipQuoteRequestDTO;
 import com.itwanger.pairesume.dto.RedeemVipInviteDTO;
 import com.itwanger.pairesume.dto.VipInviteRedemptionDTO;
 import com.itwanger.pairesume.service.MembershipService;
+import com.itwanger.pairesume.service.MembershipPlanService;
 import com.itwanger.pairesume.service.VipInviteService;
 import com.itwanger.pairesume.util.SecurityUtils;
 import jakarta.validation.Valid;
@@ -15,19 +17,32 @@ import lombok.RequiredArgsConstructor;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @Tag(name = "会员接口")
 @RestController
 @RequestMapping("/membership")
 @RequiredArgsConstructor
 public class MembershipController {
     private final MembershipService membershipService;
+    private final MembershipPlanService membershipPlanService;
     private final VipInviteService vipInviteService;
+
+    @Operation(summary = "获取会员方案")
+    @GetMapping("/plans")
+    public Result<List<MembershipPlanDTO>> listPlans() {
+        return Result.success(membershipPlanService.listPlans());
+    }
 
     @Operation(summary = "会员价格报价")
     @PostMapping("/quote")
-    public Result<CouponQuoteDTO> quote(@RequestBody(required = false) MembershipQuoteRequestDTO dto) {
+    public Result<CouponQuoteDTO> quote(
+            @Valid @RequestBody(required = false) MembershipQuoteRequestDTO dto
+    ) {
         return Result.success(membershipService.quote(
-                SecurityUtils.getCurrentUserId(), dto == null ? null : dto.getCouponCode()));
+                SecurityUtils.getCurrentUserId(),
+                dto == null ? null : dto.getPlanCode(),
+                dto == null ? null : dto.getCouponCode()));
     }
 
     @Operation(summary = "兑换 VIP 邀请码")

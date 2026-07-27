@@ -45,14 +45,14 @@ export function ModuleSidebar({
   const basicInfoContent = findBasicInfoContent(modules)
   const asideClassName = variant === 'drawer'
     ? 'h-full w-full overflow-y-auto bg-white'
-    : 'sticky top-[65px] hidden min-h-[calc(100vh-65px)] max-h-[calc(100vh-65px)] w-56 shrink-0 self-start overflow-y-auto border-r border-gray-200 bg-white md:block'
+    : 'sticky top-[65px] hidden min-h-[calc(100vh-65px)] max-h-[calc(100vh-65px)] w-44 shrink-0 self-start overflow-y-auto border-r border-gray-200 bg-white md:block'
 
   return (
     <aside
       className={asideClassName}
       aria-label={variant === 'drawer' ? '移动端模块导航' : '编辑器模块导航'}
     >
-      <div className="p-4">
+      <div className={variant === 'drawer' ? 'p-4' : 'p-3'}>
         <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">模块</h2>
         <nav className="space-y-1">
           {ALL_MODULE_TYPES.map((type) => {
@@ -80,17 +80,24 @@ export function ModuleSidebar({
                       onAddModule(type)
                     }
                   }}
-                  className={`flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-3 py-2 text-left ${
+                  aria-label={exists && count > 1 ? `${moduleLabel}，共 ${count} 项` : undefined}
+                  className={`flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2.5 py-2 text-left ${
                     isActive ? 'font-medium' : ''
                   }`}
                 >
-                  <span className="text-base">{MODULE_ICONS[type]}</span>
+                  <span className="relative flex h-5 w-5 shrink-0 items-center justify-center text-base" aria-hidden="true">
+                    {MODULE_ICONS[type]}
+                    {count > 1 ? (
+                      <span
+                        className={`absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-semibold leading-none text-white ring-2 ring-white ${
+                          isActive ? 'bg-primary-600' : 'bg-slate-500'
+                        }`}
+                      >
+                        {count}
+                      </span>
+                    ) : null}
+                  </span>
                   <span className="flex-1 truncate">{moduleLabel}</span>
-                  {count > 1 && (
-                    <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">
-                      {count}
-                    </span>
-                  )}
                 </button>
 
                 {canRemove ? (
@@ -102,7 +109,7 @@ export function ModuleSidebar({
                       event.stopPropagation()
                       onRemoveModuleType(type)
                     }}
-                    className="mr-2 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-gray-300 transition-colors hover:bg-red-50 hover:text-red-500"
+                    className="mr-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-gray-300 transition-colors hover:bg-red-50 hover:text-red-500"
                     title={`删除${moduleLabel}`}
                     aria-label={`删除${moduleLabel}`}
                   >
@@ -114,7 +121,7 @@ export function ModuleSidebar({
                   <button
                     type="button"
                     onClick={() => onAddModule(type)}
-                    className="mr-2 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-gray-300 transition-colors hover:bg-primary-50 hover:text-primary-600"
+                    className="mr-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-gray-300 transition-colors hover:bg-primary-50 hover:text-primary-600"
                     title={`添加${moduleLabel}`}
                     aria-label={`添加${moduleLabel}`}
                   >

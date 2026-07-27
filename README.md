@@ -118,7 +118,7 @@ mvn spring-boot:run
 
 说明：
 
-- 后端使用 Flyway 记录并执行版本化数据库迁移；全新空库和首次接入旧数据库都会从 V5 建立基线，再执行 `V6__ReconcilePaiResumeSchema` 创建或对齐基础结构，随后依次执行 V7 邀请码、V8 会员来源追踪/审计/异常撤销、V9 简历市场、V10 支付生命周期加固、V11 作者收益冻结/退款账务、V12 支付对账租约、V13 会员在线支付订单、V14 市场浏览量、V15 会员支付人工复核、V16 市场治理、V18 账号隐私/注销、V19 派聪明微信身份、V20 人工精修工作流、V21 匿名邀请码领取凭证、V22 关注奖励流程退役、V23 人工精修 OSS 直传和 V24 优质简历访问属性迁移。
+- 后端使用 Flyway 记录并执行版本化数据库迁移；全新空库和首次接入旧数据库都会从 V5 建立基线，再执行 `V6__ReconcilePaiResumeSchema` 创建或对齐基础结构，随后依次执行 V7 邀请码、V8 会员来源追踪/审计/异常撤销、V9 简历市场、V10 支付生命周期加固、V11 作者收益冻结/退款账务、V12 支付对账租约、V13 会员在线支付订单、V14 市场浏览量、V15 会员支付人工复核、V16 市场治理、V18 账号隐私/注销、V19 派聪明微信身份、V20 人工精修工作流、V21 匿名邀请码领取凭证、V22 关注奖励流程退役、V23 人工精修 OSS 直传、V24 优质简历访问属性和 V25 多会员方案迁移。
 - 当 `APP_ENV=development` 时，后端启动后会自动确保存在一个测试账号，默认是 `test@example.com / Test123456`，可通过 `DEV_ACCOUNT_EMAIL` 和 `DEV_ACCOUNT_PASSWORD` 覆盖。
 - 同时会自动创建一个管理员账号：`admin@example.com / Admin123456`。
 - 生产环境必须为 Flyway 配置独立的 DDL 迁移账号；应用运行账号只授予业务表所需的最小权限。
@@ -171,7 +171,7 @@ npm run dev
 | `MEMBERSHIP_PAYMENT_ACCEPTANCE_CONFIRMED` / `MARKETPLACE_PAYMENT_ACCEPTANCE_CONFIRMED` / `MARKETPLACE_GOVERNANCE_DUTY_CONFIRMED` | 生产预检用人工验收确认位；只有对应清单留存真实证据后才可设为 `true` |
 | `PAYMENT_ACCEPTANCE_ENVIRONMENT_CONFIRMED` | 仅隔离预发布环境执行真实小额支付验收时设为 `true`，正式开放态不依赖该临时确认位 |
 | `PAYMENT_ORDER_EXPIRE_MINUTES` / `MARKETPLACE_PLATFORM_FEE_BPS` | 市场订单有效期与平台费率（基点）；平台费默认 `0` |
-| `MEMBERSHIP_ORDER_EXPIRE_MINUTES` / `MEMBERSHIP_PAYMENT_DAYS` | 会员订单固定支付时限（必须为 `30` 分钟）与年费会员的权益天数（默认 `365` 天）；两者均保存为订单快照 |
+| `MEMBERSHIP_ORDER_EXPIRE_MINUTES` | 会员订单固定支付时限（必须为 `30` 分钟）；方案编码、权益类型、期限和价格从 `membership_plan` 保存为订单快照 |
 | `MARKETPLACE_EARNING_HOLD_DAYS` | 作者收益退款观察期，默认 `7` 天；生产必须至少为 `1`，仅开发/E2E 可设为 `0` |
 | `MARKETPLACE_PAID_RECONCILIATION_INTERVAL_MINUTES` / `MARKETPLACE_PAID_DUE_RECONCILIATION_RETRY_MINUTES` | 冻结期内已支付订单的稀疏查单间隔（默认 360 分钟）与到期最终验真失败后的重试间隔（默认 5 分钟） |
 | `WECHAT_PAY_APP_ID` / `WECHAT_PAY_MERCHANT_ID` | 微信支付 AppID 与商户号 |
@@ -280,7 +280,7 @@ AI 与需要 VIP 权益解锁的优质简历权限由服务端实时校验。PDF
 - 管理员可逐条设置“公开查看”或“付费查看（VIP 权益）”；列表不提前显示访问属性，用户点击后由详情接口判定
 - 公开简历允许游客和登录用户直接查看；需要 VIP 权益的简历会引导游客先登录、普通用户进入会员开通与报价页
 - VIP 可解锁全部优质简历详情和 PDF 导出
-- 知识星球 VIP 邀请码与支付优惠码是两套独立能力：邀请码直接兑换该批次配置的 VIP 天数，优惠码仅在年费会员报价/支付时抵扣金额
+- 知识星球 VIP 邀请码与支付优惠码是两套独立能力：邀请码直接兑换该批次配置的 VIP 天数，优惠码仅在年卡报价/支付时抵扣金额
 - 邀请码每个批次默认赠送 `30` 天，管理员创建时可选择 `30`、`90` 或 `365` 天；兑换成功后从实际兑换时间起获得完整批次权益，批次截止时间只限制领取时间
 - 未登录领取时，邀请码只换取默认 10 分钟的高熵领取凭证，凭证和扫码 challenge 在服务端只保存摘要；邀请码、领取令牌都不进入 URL 或二维码。二维码过期可在领取凭证有效期内更新，只有最新二维码能绑定领取
 - 创建领取凭证不会预占批次名额；最终领取时重新锁定并校验账号、批次状态、截止时间和剩余名额，成功后一次性写入兑换记录、会员权益和领取状态。成功请求可安全重试，返回同一条兑换结果
@@ -289,10 +289,10 @@ AI 与需要 VIP 权益解锁的优质简历权限由服务端实时校验。PDF
 - 每个账号终身只能领取一次邀请码福利；撤销后也不能换码再次领取，邀请码不能与已有有效会员叠加，也不会覆盖或缩短已有权益
 - 邀请码兑换按账号和 IP 限流，避免撞库枚举；生成、作废、异常撤销、人工开通、延期和撤销会员均写入审计日志
 - 管理员可以按用户延期有限期会员；延期保留原始权益来源，永久会员不需要也不能延期
-- VIP 到期不会自动续期，用户的简历数据继续保留；如需继续使用会员功能，由管理员延期或用户购买默认 `365` 天的年费会员
+- VIP 到期不会自动续期，用户的简历数据继续保留；如需继续使用会员功能，由管理员延期或用户购买当前已启用的会员方案
 - 后台提供一键复制星球发布文案，文案包含新用户扫码领取入口、邀请码、权益期限、截止时间、剩余名额及防泄露提示
 - 批次邀请码属于可转发的福利凭证，泄露后无法判断领取者是否来自知识星球；运营上应控制发放范围，发现泄露立即作废批次并逐条复核异常领取
-- 会员微信 Native 在线支付代码路径已实现但默认关闭：每笔年费会员默认 `365` 天，创建订单时固化原价、优惠、实付和权益天数，支付成功后有限期会员从 `max(当前时间, 原到期时间)` 续期，永久会员不能购买。应付为 0 的有效优惠码订单在本地原子开通，不向微信创建 0 元订单
+- 会员微信 Native 在线支付代码路径已实现但默认关闭：月卡、季卡、年卡和终身会员由服务端方案表定价，创建订单时固化方案、权益类型、期限、原价、优惠和实付；有限期会员从 `max(当前时间, 原到期时间)` 续期，终身方案把到期时间置空，已有永久会员不能购买。优惠码暂仅用于年卡，应付为 0 的有效年卡优惠码订单在本地原子开通，不向微信创建 0 元订单
 - 会员订单固定保留 30 分钟。到期任务必须先主动查单；仍未支付才请求微信关单，并在二次查单确认关闭后标记 `CANCELED`、释放活动订单。已收款回调即使晚于本地取消也不会被静默丢弃：没有更晚成交单时正常开通，有更晚 `PAID` 替代单时进入 `REFUND_REQUIRED` 人工退款
 - 会员支付与用户简历市场分别由 `MEMBERSHIP_PAYMENT_ACCEPT_NEW_ORDERS`、`MARKETPLACE_PAYMENT_ACCEPT_NEW_ORDERS` 控制；旧总开关不能再开启。未成功发放该笔权益的会员异常订单使用 `PENDING -> REFUND_PROCESSING -> REFUNDED` 人工退款状态机，也可填写原因后驳回或关闭；每次有效操作都记录管理员、原因和审计时间，退款完成时必须记录退款流水。接口只登记商户平台退款结果，不发起真实退款；本单已发放权益时会拒绝退款登记，必须先按权益来源重算，避免误撤其他续费、邀请或管理员权益
 - 支付优惠码绑定问卷提交邮箱，报价和下单都要求登录且匹配当前账号；真正结算时再次在同一事务中锁定优惠码，只有 `ISSUED` 且未过期才更新为 `USED`
@@ -357,7 +357,9 @@ AI 与需要 VIP 权益解锁的优质简历权限由服务端实时校验。PDF
 - `POST /api/public/vip-invite-claims`：未登录用户验证邀请码并创建不预占名额的短期领取凭证；无效、过期、作废和名额耗尽统一返回不可领取
 - `POST /api/membership/vip-invite-claims/complete`：扫码绑定账号并确认当前协议后，原子完成邀请码核销与 VIP 开通；同一成功请求可幂等重试
 - `POST /api/membership/redeem-invite`：已注册用户兑换知识星球 VIP 邀请码
-- `POST /api/membership/quote`：会员价格与优惠码报价
+- `GET /api/membership/plans`：获取四档会员方案及启用状态
+- `POST /api/membership/quote`：按 `planCode` 获取会员价格与优惠码报价
+- `GET /api/membership/orders/active`：恢复当前账号唯一的活跃会员订单，无活跃订单时返回 `data: null`
 - `POST /api/membership/orders`：按幂等键创建或复用会员 Native 支付订单；应付 0 元时直接原子结算
 - `GET /api/membership/orders/{orderNo}`：用户查看自己的会员订单金额快照、二维码、30 分钟截止时间及权益天数
 - `POST /api/membership/orders/{orderNo}/refresh`：主动查单；到期仍未支付时执行查单、关单、复查
@@ -396,6 +398,7 @@ AI 与需要 VIP 权益解锁的优质简历权限由服务端实时校验。PDF
 ### 管理员 VIP 邀请码接口
 
 - `POST /api/admin/vip-invites`：生成可多人兑换的 VIP 批次码；`membershipDays` 只能是 `30`、`90` 或 `365`，未填默认 `30` 天
+- `GET /api/admin/membership-plans` / `PUT /api/admin/membership-plans/{code}`：查看四档付费方案并逐项配置真实价格和启用状态
 - `GET /api/admin/vip-invites`：查看邀请码批次、进度和状态
 - `GET /api/admin/vip-invites/{id}/redemptions`：查看该批次的兑换用户和会员到期时间
 - `POST /api/admin/vip-invites/{id}/invalidate`：立即作废邀请码

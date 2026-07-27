@@ -30,7 +30,14 @@ public class MembershipOrderController {
                                              HttpServletRequest request) {
         return Result.success(membershipOrderService.createOrder(
                 SecurityUtils.getCurrentUserId(), dto.getIdempotencyKey(),
-                dto.getCouponCode(), request.getRemoteAddr()));
+                dto.getPlanCode(), dto.getCouponCode(), request.getRemoteAddr()));
+    }
+
+    @Operation(summary = "获取当前活跃会员支付订单")
+    @GetMapping("/active")
+    public Result<MembershipOrderDTO> getActive() {
+        return Result.success(membershipOrderService.getActiveOrder(
+                SecurityUtils.getCurrentUserId()));
     }
 
     @Operation(summary = "获取会员支付订单")

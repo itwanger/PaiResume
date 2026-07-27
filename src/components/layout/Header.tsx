@@ -3,7 +3,6 @@ import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import {
   AUTHENTICATED_HOME_PATH,
   buildResumeEditorPath,
-  RESUME_EDITOR_ENTRY_PATH,
 } from '../../config/site'
 import { useAuthStore } from '../../store/authStore'
 import { useResumeStore } from '../../store/resumeStore'
@@ -129,12 +128,6 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
   const isVipUser = user?.membershipStatus === 'ACTIVE'
   const navbarIdentity = user ? getAccountDisplayName(user) : ''
   const navbarAccountLabel = getNavbarAccountLabel(navbarIdentity)
-  const editorSectionActive = location.pathname === RESUME_EDITOR_ENTRY_PATH
-    || location.pathname.startsWith(`${RESUME_EDITOR_ENTRY_PATH}/`)
-    || location.pathname.startsWith('/preview/')
-  const editorNavigationLinkClass = ({ isActive }: { isActive: boolean }) => (
-    navigationLinkClass({ isActive: isActive || editorSectionActive })
-  )
   const excellentSectionActive = location.pathname === EXCELLENT_RESUMES_PATH
     || location.pathname.startsWith('/showcases/')
     || location.pathname.startsWith('/marketplace/resumes/')
@@ -454,11 +447,6 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
                     创作者中心
                   </NavLink>
                 ) : null}
-                {readyAuthenticated ? (
-                  <NavLink to={RESUME_EDITOR_ENTRY_PATH} className={editorNavigationLinkClass}>
-                    简历编辑
-                  </NavLink>
-                ) : null}
               </nav>
 
               {!initialized ? (
@@ -644,11 +632,6 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
                 {readyAuthenticated && user?.marketplaceEnabled ? (
                   <NavLink to={CREATOR_MARKETPLACE_PATH} className={navigationLinkClass}>
                     创作者中心
-                  </NavLink>
-                ) : null}
-                {readyAuthenticated ? (
-                  <NavLink to={RESUME_EDITOR_ENTRY_PATH} className={editorNavigationLinkClass}>
-                    简历编辑
                   </NavLink>
                 ) : null}
               </nav>

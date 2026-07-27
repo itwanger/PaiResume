@@ -115,9 +115,8 @@ app:
     membership-accept-new-orders: ${MEMBERSHIP_PAYMENT_ACCEPT_NEW_ORDERS:false}
     marketplace-accept-new-orders: ${MARKETPLACE_PAYMENT_ACCEPT_NEW_ORDERS:false}
     order-expire-minutes: ${PAYMENT_ORDER_EXPIRE_MINUTES:15}
-    # 会员订单固定保留 30 分钟；年费会员默认 365 天，并固化进订单快照。
+    # 会员订单固定保留 30 分钟；权益类型、期限和价格从 membership_plan 固化进订单快照。
     membership-order-expire-minutes: ${MEMBERSHIP_ORDER_EXPIRE_MINUTES:30}
-    membership-payment-days: ${MEMBERSHIP_PAYMENT_DAYS:365}
     platform-fee-basis-points: ${MARKETPLACE_PLATFORM_FEE_BPS:0}
     creator-earning-hold-days: ${MARKETPLACE_EARNING_HOLD_DAYS:7}
     paid-order-reconciliation-interval-minutes: ${MARKETPLACE_PAID_RECONCILIATION_INTERVAL_MINUTES:360}

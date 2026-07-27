@@ -62,6 +62,7 @@ check_url "/api/ready" "200"
 
 require_header "/" "Strict-Transport-Security" "max-age=31536000"
 require_header "/" "X-Frame-Options" "DENY"
+require_header "/preview/smoke-private-route" "X-Frame-Options" "SAMEORIGIN"
 require_header "/" "X-Content-Type-Options" "nosniff"
 require_header "/settings/account" "X-Robots-Tag" "noindex, nofollow"
 require_header "/showcases/smoke-private-route" "X-Robots-Tag" "noindex, nofollow"

@@ -124,6 +124,9 @@ public enum ResultCode {
     MEMBERSHIP_PAYMENT_REVIEW_REQUIRED(7403, "会员支付需要人工复核"),
     MEMBERSHIP_PAYMENT_REVIEW_STATE_INVALID(7404, "会员支付复核状态不允许执行该操作"),
     MEMBERSHIP_REFUND_REFERENCE_CONFLICT(7405, "会员退款流水已用于其他订单"),
+    MEMBERSHIP_PLAN_NOT_FOUND(7406, "会员方案不存在"),
+    MEMBERSHIP_PLAN_NOT_AVAILABLE(7407, "会员方案暂不可购买"),
+    MEMBERSHIP_ORDER_REQUEST_CONFLICT(7408, "当前请求与已有会员订单不一致"),
 
     // Manual resume review: 75xx
     RESUME_REVIEW_NOT_FOUND(7501, "人工精修请求不存在"),

@@ -73,13 +73,6 @@ public class PaymentConfigurationValidator {
         if (properties.getMembershipOrderExpireMinutes() != 30) {
             throw new IllegalStateException("MEMBERSHIP_ORDER_EXPIRE_MINUTES must be exactly 30");
         }
-        if (properties.getMembershipPaymentDays() < 1 || properties.getMembershipPaymentDays() > 3650) {
-            throw new IllegalStateException("MEMBERSHIP_PAYMENT_DAYS must be between 1 and 3650");
-        }
-        if ("production".equalsIgnoreCase(normalizedEnvironment())
-                && properties.getMembershipPaymentDays() != 365) {
-            throw new IllegalStateException("MEMBERSHIP_PAYMENT_DAYS must be exactly 365 in production");
-        }
         if (properties.getPlatformFeeBasisPoints() < 0 || properties.getPlatformFeeBasisPoints() > 5000) {
             throw new IllegalStateException("MARKETPLACE_PLATFORM_FEE_BPS must be between 0 and 5000");
         }

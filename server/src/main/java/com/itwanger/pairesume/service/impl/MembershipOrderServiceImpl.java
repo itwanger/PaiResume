@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicLong;
 @Service
 @RequiredArgsConstructor
 public class MembershipOrderServiceImpl implements MembershipOrderService {
-    private static final String PAYMENT_DESCRIPTION = "PaiResume VIP会员";
+    private static final String PAYMENT_DESCRIPTION_PREFIX = "PaiResume VIP";
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
 
     private final MembershipOrderLocalService localService;
@@ -42,18 +42,24 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
     private volatile LocalDateTime lastReconciliationFailureAt;
 
     @Override
-    public MembershipOrderDTO createOrder(Long userId, String idempotencyKey,
-                                          String couponCode, String clientIp) {
+    public MembershipOrderDTO createOrder(
+            Long userId,
+            String idempotencyKey,
+            String planCode,
+            String couponCode,
+            String clientIp
+    ) {
         if (!paymentProperties.isMembershipAcceptNewOrders()) {
             throw new BusinessException(ResultCode.PAYMENT_NOT_ENABLED);
         }
         MembershipPaymentOrder order;
         try {
             order = localService.findOrCreate(
-                    userId, idempotencyKey, couponCode,
+                    userId, idempotencyKey, planCode, couponCode,
                     paymentGateway.provider(), payChannel());
         } catch (DuplicateKeyException exception) {
-            order = localService.resolveAfterDuplicate(userId, idempotencyKey);
+            order = localService.resolveAfterDuplicate(
+                    userId, idempotencyKey, planCode, couponCode);
         }
         order = recoverStalePrepay(order);
 
@@ -81,6 +87,12 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
     @Override
     public MembershipOrderDTO getOrder(String orderNo, Long userId) {
         return toDto(localService.getAuthorized(orderNo, userId));
+    }
+
+    @Override
+    public MembershipOrderDTO getActiveOrder(Long userId) {
+        MembershipPaymentOrder active = localService.getActive(userId);
+        return active == null ? null : toDto(active);
     }
 
     @Override
@@ -154,7 +166,7 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
     private MembershipPaymentOrder createProviderPrepay(MembershipPaymentOrder order, String clientIp) {
         try {
             PaymentPrepayResult prepay = paymentGateway.createNativeOrder(new PaymentPrepayRequest(
-                    order.getOrderNo(), PAYMENT_DESCRIPTION, order.getPayableAmountCents(),
+                    order.getOrderNo(), paymentDescription(order), order.getPayableAmountCents(),
                     StringUtils.hasText(clientIp) ? clientIp : "127.0.0.1", order.getExpiresAt()));
             if (prepay == null || !Objects.equals(paymentGateway.provider(), prepay.provider())
                     || !StringUtils.hasText(prepay.codeUrl())) {
@@ -295,6 +307,9 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
         MembershipOrderDTO dto = new MembershipOrderDTO();
         dto.setOrderNo(order.getOrderNo());
         dto.setUserId(order.getUserId());
+        dto.setPlanCode(order.getPlanCode());
+        dto.setPlanName(order.getPlanNameSnapshot());
+        dto.setEntitlementType(order.getEntitlementType());
         dto.setMembershipDays(order.getMembershipDays());
         dto.setListPriceCents(order.getListPriceCents());
         dto.setDiscountAmountCents(order.getDiscountAmountCents());
@@ -314,6 +329,12 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
         dto.setPaymentReviewReason(order.getPaymentReviewReason());
         dto.setReviewStatus(order.getReviewStatus());
         return dto;
+    }
+
+    private String paymentDescription(MembershipPaymentOrder order) {
+        return StringUtils.hasText(order.getPlanNameSnapshot())
+                ? PAYMENT_DESCRIPTION_PREFIX + " " + order.getPlanNameSnapshot()
+                : PAYMENT_DESCRIPTION_PREFIX + "会员";
     }
 
     private String payChannel() {

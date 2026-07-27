@@ -9,6 +9,8 @@ import com.itwanger.pairesume.mapper.CouponCodeMapper;
 import com.itwanger.pairesume.mapper.MembershipPaymentOrderMapper;
 import com.itwanger.pairesume.mapper.UserMapper;
 import com.itwanger.pairesume.payment.MembershipOrderStatus;
+import com.itwanger.pairesume.payment.MembershipEntitlementType;
+import com.itwanger.pairesume.payment.MembershipPlanCode;
 import com.itwanger.pairesume.payment.MembershipPaymentReviewStatus;
 import com.itwanger.pairesume.payment.MembershipPaymentVerifier;
 import com.itwanger.pairesume.payment.PaymentProviderState;
@@ -103,6 +105,10 @@ public class MembershipOrderSettlementService {
 
         CouponCode coupon = null;
         if (order.getCouponCodeId() != null) {
+            if (!MembershipPlanCode.ANNUAL.name().equals(order.getPlanCode())) {
+                markForReview(order, transactionId, paidAt, "COUPON_PLAN_NOT_ELIGIBLE");
+                return order;
+            }
             coupon = couponMapper.selectByCodeForUpdate(order.getCouponCodeSnapshot());
             String couponProblem = couponProblem(order, coupon, user, paidAt);
             if (couponProblem != null) {
@@ -114,11 +120,27 @@ public class MembershipOrderSettlementService {
             return order;
         }
 
+        boolean permanentEntitlement = MembershipEntitlementType.PERMANENT.name()
+                .equals(order.getEntitlementType());
+        boolean fixedDaysEntitlement = MembershipEntitlementType.FIXED_DAYS.name()
+                .equals(order.getEntitlementType())
+                || order.getEntitlementType() == null;
+        if ((!permanentEntitlement && !fixedDaysEntitlement)
+                || (permanentEntitlement && order.getMembershipDays() != null)
+                || (fixedDaysEntitlement
+                    && (order.getMembershipDays() == null || order.getMembershipDays() <= 0))) {
+            markForReview(order, transactionId, paidAt, "MEMBERSHIP_PLAN_SNAPSHOT_INVALID");
+            return order;
+        }
+
         LocalDateTime now = LocalDateTime.now();
-        LocalDateTime base = user.getMembershipExpiresAt() != null
-                && user.getMembershipExpiresAt().isAfter(now)
-                ? user.getMembershipExpiresAt() : now;
-        LocalDateTime expiresAt = base.plusDays(order.getMembershipDays());
+        LocalDateTime base = permanentEntitlement
+                ? now
+                : user.getMembershipExpiresAt() != null
+                    && user.getMembershipExpiresAt().isAfter(now)
+                    ? user.getMembershipExpiresAt() : now;
+        LocalDateTime expiresAt = permanentEntitlement
+                ? null : base.plusDays(order.getMembershipDays());
 
         order.setOrderStatus(MembershipOrderStatus.PAID.name());
         order.setProviderTransactionId(transactionId);

@@ -10,6 +10,9 @@ public class MembershipPaymentAdminOrderDTO {
     private String orderNo;
     private Long userId;
     private String userEmail;
+    private String planCode;
+    private String planName;
+    private String entitlementType;
     private Integer membershipDays;
     private Integer listPriceCents;
     private Integer discountAmountCents;

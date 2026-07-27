@@ -47,6 +47,7 @@ Font.register({
 
 export interface ResumePdfOptions {
   pageMode?: 'standard' | 'continuous'
+  documentTitle?: string
   fileNameSuffix?: string
   templateId?: ResumePdfTemplateId
   density?: ResumePdfDensity
@@ -105,9 +106,9 @@ export const RESUME_PDF_TEMPLATES: ResumePdfTemplateOption[] = [
   {
     id: 'compact',
     icon: '▤',
-    name: '紧凑密度',
+    name: '紧凑模式',
     description: '压缩留白，适合内容较多的一页展示。',
-    previewTitle: '紧凑密度',
+    previewTitle: '紧凑模式',
     previewSummary: '适合内容偏多的简历，优先把第一页压实，减少大片留白。',
     previewHighlights: ['边距更小', '段距更短', '首页优先填充'],
   },
@@ -1070,7 +1071,14 @@ function normalizeExternalUrl(value: string) {
   return /^https?:\/\//i.test(value) ? value : `https://${value}`
 }
 
-function buildFileName(modules: ResumeModule[], resumeId: number, options?: ResumePdfOptions) {
+function sanitizePdfFileNamePart(value: string) {
+  return value
+    .replace(/\.pdf$/i, '')
+    .replace(/[\\/:*?"<>|]/g, '-')
+    .trim()
+}
+
+function buildFileName(modules: ResumeModule[], resumeId?: number, options?: ResumePdfOptions) {
   const basicInfoModule = modules.find((module) => module.moduleType === 'basic_info')
   const educationModule = modules.find((module) => module.moduleType === 'education')
   const jobIntentionModule = modules.find((module) => module.moduleType === 'job_intention')
@@ -1084,10 +1092,12 @@ function buildFileName(modules: ResumeModule[], resumeId: number, options?: Resu
     basicInfo?.jobIntention.trim() || jobIntention?.targetPosition.trim() || '',
   ]
     .filter(Boolean)
-    .map((part) => part.replace(/[\\/:*?"<>|]/g, '-').trim())
+    .map(sanitizePdfFileNamePart)
 
-  const baseName = segments.join('-') || `resume-${resumeId}`
-  const suffix = options?.fileNameSuffix ? `-${options.fileNameSuffix}` : ''
+  const preferredTitle = sanitizePdfFileNamePart(options?.documentTitle ?? '')
+  const baseName = preferredTitle || segments.join('-') || (resumeId ? `resume-${resumeId}` : '派简历')
+  const suffixPart = sanitizePdfFileNamePart(options?.fileNameSuffix ?? '')
+  const suffix = suffixPart ? `-${suffixPart}` : ''
   return `${baseName}${suffix}.pdf`
 }
 
@@ -1118,6 +1128,7 @@ function getResumePdfSectionHeadingVariant(
 
 function ResumePdfDocument({
   modules,
+  documentTitle,
   pageSize = 'A4',
   templateId = 'default',
   density = DEFAULT_RESUME_PDF_PREVIEW_CONFIG.density,
@@ -1126,6 +1137,7 @@ function ResumePdfDocument({
   onRender,
 }: {
   modules: ResumeModule[]
+  documentTitle: string
   pageSize?: 'A4' | [number, number]
   templateId?: ResumePdfTemplateId
   density?: ResumePdfDensity
@@ -1510,7 +1522,7 @@ function ResumePdfDocument({
   }
 
   return (
-    <Document onRender={onRender}>
+    <Document title={documentTitle} onRender={onRender}>
       <Page size={pageSize} style={styles.page}>
         {isCampusBlue ? (
           <>
@@ -1794,6 +1806,7 @@ async function renderResumePdfAsset(
   const document = (
     <ResumePdfDocument
       modules={modules}
+      documentTitle={buildFileName(modules, undefined, options)}
       pageSize={pageSize}
       templateId={options?.templateId ?? 'default'}
       density={options?.density}

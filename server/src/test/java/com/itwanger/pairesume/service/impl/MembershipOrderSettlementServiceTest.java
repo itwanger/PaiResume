@@ -20,6 +20,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.LocalDateTime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -59,6 +61,32 @@ class MembershipOrderSettlementServiceTest {
         verify(userMapper).updateMembership(user);
         verify(orderMapper).cancelOtherCreatedOrders(7L, order.getId());
         verify(orderMapper).expireOtherProviderOrders(7L, order.getId());
+    }
+
+    @Test
+    void lifetimePurchaseUpgradesFiniteMemberToPermanentWithoutFakeExpiration() {
+        MembershipPaymentOrder order = order(MembershipOrderStatus.PENDING);
+        order.setPlanCode("LIFETIME");
+        order.setPlanNameSnapshot("终身会员");
+        order.setEntitlementType("PERMANENT");
+        order.setMembershipDays(null);
+        User user = user("ACTIVE");
+        user.setMembershipExpiresAt(LocalDateTime.now().plusDays(8));
+        ProviderPaymentResult paid = paid(order);
+        when(orderMapper.selectByOrderNoForUpdate(order.getOrderNo())).thenReturn(order);
+        when(userMapper.selectByIdForUpdate(7L)).thenReturn(user);
+
+        MembershipPaymentOrder settled = service.settlePaid(order.getOrderNo(), paid);
+
+        assertEquals(MembershipOrderStatus.PAID.name(), settled.getOrderStatus());
+        assertNotNull(settled.getMembershipStartedAt());
+        assertNull(settled.getMembershipExpiresAt());
+        assertEquals("ACTIVE", user.getMembershipStatus());
+        assertNull(user.getMembershipExpiresAt());
+        assertEquals("PAYMENT", user.getMembershipSource());
+        assertEquals("PAYMENT", user.getMembershipOriginType());
+        assertEquals(order.getId(), user.getMembershipOriginId());
+        verify(userMapper).updateMembership(user);
     }
 
     @Test
@@ -113,6 +141,9 @@ class MembershipOrderSettlementServiceTest {
     @Test
     void zeroAmountOrderConsumesLockedRecipientCouponAndActivatesMembership() {
         MembershipPaymentOrder order = order(MembershipOrderStatus.CREATED);
+        order.setPlanCode("ANNUAL");
+        order.setPlanNameSnapshot("年卡");
+        order.setMembershipDays(365);
         order.setProvider("coupon");
         order.setPayableAmountCents(0);
         order.setDiscountAmountCents(6600);
@@ -143,6 +174,9 @@ class MembershipOrderSettlementServiceTest {
     @Test
     void expiredZeroAmountOrderIsCanceledWithoutConsumingCouponOrGrantingVip() {
         MembershipPaymentOrder order = order(MembershipOrderStatus.CREATED);
+        order.setPlanCode("ANNUAL");
+        order.setPlanNameSnapshot("年卡");
+        order.setMembershipDays(365);
         order.setProvider("coupon");
         order.setPayableAmountCents(0);
         order.setDiscountAmountCents(6600);
@@ -184,6 +218,9 @@ class MembershipOrderSettlementServiceTest {
         order.setOrderNo("PM-test-order");
         order.setUserId(7L);
         order.setActiveOrderKey("MEMBERSHIP:7");
+        order.setPlanCode("MONTHLY");
+        order.setPlanNameSnapshot("月卡");
+        order.setEntitlementType("FIXED_DAYS");
         order.setMembershipDays(30);
         order.setListPriceCents(6600);
         order.setDiscountAmountCents(0);

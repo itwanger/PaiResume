@@ -22,7 +22,7 @@ export interface PublishedFeedback {
 }
 
 export interface HomeData {
-  membershipPriceCents: number
+  membershipPriceCents: number | null
   questionnaireCouponAmountCents: number
   marketplaceEnabled: boolean
   showcases: ShowcaseCard[]

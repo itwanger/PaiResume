@@ -99,6 +99,9 @@ OSS 生命周期按前缀工作且规则生效、执行存在时间差，不能�
 
 Nginx 站点的首次安装、证书链修复或 Nginx 配置变更属于独立运维动作，必须先 `nginx -t` 再受控 reload；不能夹在日常 PaiResume 应用发布中执行。
 
+编辑器的“预览与导出”会在同域 iframe 中加载 `/preview/:id`。Nginx 对其他页面继续返回
+`X-Frame-Options: DENY`，仅该预览路径返回 `SAMEORIGIN`；不得将站点整体改成允许跨域嵌入。
+
 `bootstrap-production-env.sh` 可通过 `PAIRESUME_SUPPORT_EMAIL` 接收与前端制品一致的公开客服邮箱；重复执行时若未显式传入，会保留目标环境文件中已有的 `VITE_SUPPORT_EMAIL`，不会退回 SMTP 发件地址或静默改值。公开客服邮箱不是秘密，但仍不得把 SMTP 密码或其他凭据写进命令输出。
 
 ## 回滚
@@ -120,6 +123,6 @@ Nginx 站点的首次安装、证书链修复或 Nginx 配置变更属于独立�
 - 私有 OSS 必须使用独立前缀和最小权限凭据；验收短期 POST 上传策略、服务端 PDF 类型/大小/摘要核对、冻结对象不可覆盖、过期 staging 清理和对象生命周期删除。浏览器只能获得 POST 表单所需的非秘密 AccessKey ID，不得拿到 AccessKey Secret 或长期密钥对；服务端不得接受用户自定义 URL、本地路径、对象键或收件人。上传授权与完成冻结按动作分别执行账号/IP 双预算限流，生产预检强制 IP 预算不小于账号预算。只有用独立运维身份留证确认私有桶、精确 CORS、两条生命周期和应用 RAM 最小权限后，才把四个 `RESUME_REVIEW_OSS_*_CONFIRMED` 预检位改为 `true`。
 - 使用真实客服邮箱、运营主体和当前 AI 服务商披露重新构建前端，并真实验证客服邮箱收发与值守；只修改运行时环境文件不会改变已经生成的 `dist`。
 - 会员支付开放前，微信支付回调公网可达并完成 `checklists/wechat-payment-acceptance.md` 全部场景。
-- 生产年费会员固定使用 `MEMBERSHIP_PAYMENT_DAYS=365`；邀请码权益天数由后台逐批配置，不能复用该支付期限配置。
+- 会员月卡、季卡、年卡和终身会员由 `membership_plan` 统一管理；新迁移只继承并启用已有年卡价格，其余方案必须由管理员配置真实价格后逐项启用。邀请码权益天数仍由后台逐批配置，不能复用付费方案。
 - 人工精修第二次及以后收费前，完成 `checklists/resume-review-acceptance.md`；未完成时保持价格 `0`、`RESUME_REVIEW_PAID_ACCEPT_NEW_ORDERS=false` 和验收确认位 `false`。
 - 用户简历市场开放前，再完成 `checklists/marketplace-payment-acceptance.md` 的真实市场订单、退款反冲、作者收益、结算和治理值守验收。

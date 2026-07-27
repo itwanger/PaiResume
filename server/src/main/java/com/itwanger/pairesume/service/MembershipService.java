@@ -6,7 +6,11 @@ import com.itwanger.pairesume.dto.UserAdminDTO;
 import java.util.List;
 
 public interface MembershipService {
-    CouponQuoteDTO quote(Long userId, String couponCode);
+    CouponQuoteDTO quote(Long userId, String planCode, String couponCode);
+
+    default CouponQuoteDTO quote(Long userId, String couponCode) {
+        return quote(userId, "ANNUAL", couponCode);
+    }
 
     boolean isActiveMember(Long userId);
 

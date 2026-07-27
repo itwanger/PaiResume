@@ -7,6 +7,10 @@ import lombok.Data;
 
 @Data
 public class CreateMembershipOrderDTO {
+    @Size(max = 32, message = "会员方案编码不能超过 32 个字符")
+    @Pattern(regexp = "^[A-Za-z_]*$", message = "会员方案编码格式不合法")
+    private String planCode;
+
     @NotBlank(message = "幂等键不能为空")
     @Size(min = 8, max = 64, message = "幂等键长度应为 8-64 个字符")
     @Pattern(regexp = "^[A-Za-z0-9._:-]+$", message = "幂等键格式不合法")

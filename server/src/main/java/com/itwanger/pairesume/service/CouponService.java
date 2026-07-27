@@ -10,7 +10,11 @@ import java.util.List;
 public interface CouponService {
     CouponQuoteDTO quote(String couponCode);
 
+    CouponQuoteDTO quote(String couponCode, int listPriceCents);
+
     CouponQuoteDTO quoteForUser(String couponCode, String recipientEmail);
+
+    CouponQuoteDTO quoteForUser(String couponCode, String recipientEmail, int listPriceCents);
 
     CouponCode issueForFeedback(FeedbackSubmission submission);
 

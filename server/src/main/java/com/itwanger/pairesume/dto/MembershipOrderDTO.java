@@ -6,6 +6,9 @@ import lombok.Data;
 public class MembershipOrderDTO {
     private String orderNo;
     private Long userId;
+    private String planCode;
+    private String planName;
+    private String entitlementType;
     private Integer membershipDays;
     private Integer listPriceCents;
     private Integer discountAmountCents;

@@ -8,6 +8,11 @@ map $request_uri $pai_resume_robots_tag {
     ~^/(?:admin|creator|dashboard|editor|forgot-password|legal-consent|login|membership|preview|register|settings|showcases|survey|vip)(?:/|\?|$) "noindex, nofollow";
 }
 
+map $request_uri $pai_resume_frame_options {
+    default "DENY";
+    ~^/preview(?:/|\?|$) "SAMEORIGIN";
+}
+
 server {
     listen 80;
     server_name resume.paicoding.com;
@@ -29,7 +34,8 @@ server {
     client_max_body_size 10m;
 
     add_header X-Content-Type-Options nosniff always;
-    add_header X-Frame-Options DENY always;
+    # 编辑器会同源嵌入 /preview/:id；其他页面仍禁止被 iframe 嵌入。
+    add_header X-Frame-Options $pai_resume_frame_options always;
     add_header Referrer-Policy strict-origin-when-cross-origin always;
     add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;

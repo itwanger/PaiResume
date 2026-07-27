@@ -292,6 +292,9 @@ public class MembershipPaymentAdminServiceImpl implements MembershipPaymentAdmin
         dto.setOrderNo(order.getOrderNo());
         dto.setUserId(order.getUserId());
         dto.setUserEmail(emailOf(order.getUserId()));
+        dto.setPlanCode(order.getPlanCode());
+        dto.setPlanName(order.getPlanNameSnapshot());
+        dto.setEntitlementType(order.getEntitlementType());
         dto.setMembershipDays(order.getMembershipDays());
         dto.setListPriceCents(order.getListPriceCents());
         dto.setDiscountAmountCents(order.getDiscountAmountCents());

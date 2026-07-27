@@ -248,6 +248,11 @@ acme.sh 续期
 - 3306 边界：腾讯云“全部 IPv4、TCP 3306、拒绝”规则已生效；[Check-Host 报告](https://check-host.net/check-report/45460e09k163)中的德国、芬兰、以色列、印度和越南节点均超时，配合服务器抓包未见入站探测 SYN。本地 `127.0.0.1` 上应用账号仍可通过 TLS 访问 MySQL。
 - 密钥权限：生产环境文件、MySQL 凭据、专用 truststore 和发布锁均为 `root:root 0600`，秘密值未写入发布包或本文。
 
+2026-07-27 复查发现，生产 Nginx 对 `/preview/:id` 也返回了全局
+`X-Frame-Options: DENY`，与编辑器的同域预览 iframe 冲突。仓库模板已收紧为仅该路径返回
+`SAMEORIGIN`、其他路径继续 `DENY`；该修复仍需单独执行 `nginx -t`、受控 reload 和公网冒烟，
+不能随普通应用发布静默修改共享 Nginx。
+
 首次发布没有旧的成功版本，因此当前不存在 `previous` 软链接。不能把 `./launch.sh rollback` 当成首版兜底；若首版必须下线，应停止 `pai-resume.service` 并由受控运维操作取消 `current`，或发布一个新的已验证版本。第二次成功发布后，脚本才会保留可一键切回的上一版本。
 
 ## 十一、当前完成状态

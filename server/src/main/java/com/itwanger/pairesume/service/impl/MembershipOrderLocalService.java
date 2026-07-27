@@ -3,19 +3,20 @@ package com.itwanger.pairesume.service.impl;
 import com.itwanger.pairesume.common.BusinessException;
 import com.itwanger.pairesume.common.ResultCode;
 import com.itwanger.pairesume.entity.CouponCode;
+import com.itwanger.pairesume.entity.MembershipPlan;
 import com.itwanger.pairesume.entity.MembershipPaymentOrder;
-import com.itwanger.pairesume.entity.PlatformConfig;
 import com.itwanger.pairesume.entity.User;
 import com.itwanger.pairesume.mapper.CouponCodeMapper;
 import com.itwanger.pairesume.mapper.MembershipPaymentOrderMapper;
 import com.itwanger.pairesume.mapper.UserMapper;
 import com.itwanger.pairesume.payment.MarketplacePaymentProperties;
+import com.itwanger.pairesume.payment.MembershipPlanCode;
 import com.itwanger.pairesume.payment.MembershipOrderStatus;
 import com.itwanger.pairesume.payment.MembershipPaymentReviewStatus;
 import com.itwanger.pairesume.payment.MembershipPaymentVerifier;
 import com.itwanger.pairesume.payment.PaymentProviderState;
 import com.itwanger.pairesume.payment.ProviderPaymentResult;
-import com.itwanger.pairesume.service.PlatformConfigService;
+import com.itwanger.pairesume.service.MembershipPlanService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -35,17 +36,25 @@ public class MembershipOrderLocalService {
     private final MembershipPaymentOrderMapper orderMapper;
     private final UserMapper userMapper;
     private final CouponCodeMapper couponMapper;
-    private final PlatformConfigService platformConfigService;
+    private final MembershipPlanService membershipPlanService;
     private final MarketplacePaymentProperties paymentProperties;
     private final MembershipPaymentVerifier paymentVerifier;
 
     @Transactional
-    public MembershipPaymentOrder findOrCreate(Long userId, String idempotencyKey, String couponCode,
-                                               String provider, String payChannel) {
+    public MembershipPaymentOrder findOrCreate(
+            Long userId,
+            String idempotencyKey,
+            String planCode,
+            String couponCode,
+            String provider,
+            String payChannel
+    ) {
+        String normalizedPlanCode = MembershipPlanCode.fromRequest(planCode).name();
+        String normalizedCoupon = normalizeCoupon(couponCode);
         User user = requireUserForUpdate(userId);
         MembershipPaymentOrder idempotent = orderMapper.selectByIdempotencyKey(userId, idempotencyKey);
         if (idempotent != null) {
-            return idempotent;
+            return validateExistingRequest(idempotent, normalizedPlanCode, normalizedCoupon);
         }
         if (isPermanentMember(user)) {
             throw new BusinessException(ResultCode.MEMBERSHIP_PERMANENT);
@@ -53,17 +62,18 @@ public class MembershipOrderLocalService {
         String activeKey = "MEMBERSHIP:" + userId;
         MembershipPaymentOrder active = orderMapper.selectByActiveOrderKey(activeKey);
         if (active != null) {
-            return active;
+            return validateExistingRequest(active, normalizedPlanCode, normalizedCoupon);
         }
 
-        PlatformConfig config = platformConfigService.getConfigEntity();
-        int listPrice = config.getMembershipPriceCents();
-        if (listPrice <= 0) {
-            throw new BusinessException(ResultCode.INTERNAL_ERROR.getCode(), "会员价格配置错误");
+        MembershipPlan plan = membershipPlanService.requirePurchasable(normalizedPlanCode);
+        int listPrice = plan.getPriceCents();
+        if (StringUtils.hasText(normalizedCoupon)
+                && !MembershipPlanCode.ANNUAL.name().equals(normalizedPlanCode)) {
+            throw new BusinessException(
+                    ResultCode.COUPON_INVALID.getCode(), "优惠码当前仅适用于年卡");
         }
         CouponCode coupon = null;
         int discount = 0;
-        String normalizedCoupon = normalizeCoupon(couponCode);
         if (StringUtils.hasText(normalizedCoupon)) {
             coupon = couponMapper.selectByCodeForUpdate(normalizedCoupon);
             validateCoupon(coupon, user, LocalDateTime.now());
@@ -77,7 +87,10 @@ public class MembershipOrderLocalService {
         order.setActiveOrderKey(activeKey);
         order.setCouponCodeId(coupon == null ? null : coupon.getId());
         order.setCouponCodeSnapshot(coupon == null ? null : coupon.getCode());
-        order.setMembershipDays(paymentProperties.getMembershipPaymentDays());
+        order.setPlanCode(plan.getPlanCode());
+        order.setPlanNameSnapshot(plan.getDisplayName());
+        order.setEntitlementType(plan.getEntitlementType());
+        order.setMembershipDays(plan.getMembershipDays());
         order.setListPriceCents(listPrice);
         order.setDiscountAmountCents(discount);
         order.setPayableAmountCents(listPrice - discount);
@@ -92,7 +105,26 @@ public class MembershipOrderLocalService {
         return order;
     }
 
-    public MembershipPaymentOrder resolveAfterDuplicate(Long userId, String idempotencyKey) {
+    public MembershipPaymentOrder findOrCreate(
+            Long userId,
+            String idempotencyKey,
+            String couponCode,
+            String provider,
+            String payChannel
+    ) {
+        return findOrCreate(
+                userId, idempotencyKey, MembershipPlanCode.ANNUAL.name(),
+                couponCode, provider, payChannel);
+    }
+
+    public MembershipPaymentOrder resolveAfterDuplicate(
+            Long userId,
+            String idempotencyKey,
+            String planCode,
+            String couponCode
+    ) {
+        String normalizedPlanCode = MembershipPlanCode.fromRequest(planCode).name();
+        String normalizedCoupon = normalizeCoupon(couponCode);
         MembershipPaymentOrder order = orderMapper.selectByIdempotencyKey(userId, idempotencyKey);
         if (order == null) {
             order = orderMapper.selectByActiveOrderKey("MEMBERSHIP:" + userId);
@@ -100,7 +132,12 @@ public class MembershipOrderLocalService {
         if (order == null) {
             throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "并发创建会员订单失败，请重试");
         }
-        return order;
+        return validateExistingRequest(order, normalizedPlanCode, normalizedCoupon);
+    }
+
+    public MembershipPaymentOrder resolveAfterDuplicate(Long userId, String idempotencyKey) {
+        return resolveAfterDuplicate(
+                userId, idempotencyKey, MembershipPlanCode.ANNUAL.name(), null);
     }
 
     public MembershipPaymentOrder getAuthorized(String orderNo, Long userId) {
@@ -112,6 +149,10 @@ public class MembershipOrderLocalService {
             throw new BusinessException(ResultCode.MEMBERSHIP_ORDER_FORBIDDEN);
         }
         return order;
+    }
+
+    public MembershipPaymentOrder getActive(Long userId) {
+        return orderMapper.selectByActiveOrderKey("MEMBERSHIP:" + userId);
     }
 
     public MembershipPaymentOrder getById(Long id) {
@@ -279,6 +320,28 @@ public class MembershipOrderLocalService {
 
     private String normalizeCoupon(String value) {
         return StringUtils.hasText(value) ? value.trim().toUpperCase(Locale.ROOT) : null;
+    }
+
+    private MembershipPaymentOrder validateExistingRequest(
+            MembershipPaymentOrder order,
+            String planCode,
+            String couponCode
+    ) {
+        String existingPlanCode = StringUtils.hasText(order.getPlanCode())
+                ? order.getPlanCode().trim().toUpperCase(Locale.ROOT)
+                : legacyPlanCode(order);
+        String existingCoupon = normalizeCoupon(order.getCouponCodeSnapshot());
+        if (!Objects.equals(existingPlanCode, planCode)
+                || !Objects.equals(existingCoupon, couponCode)) {
+            throw new BusinessException(ResultCode.MEMBERSHIP_ORDER_REQUEST_CONFLICT);
+        }
+        return order;
+    }
+
+    private String legacyPlanCode(MembershipPaymentOrder order) {
+        return Objects.equals(order.getMembershipDays(), 365)
+                ? MembershipPlanCode.ANNUAL.name()
+                : "LEGACY_FIXED_DAYS";
     }
 
     private void markForReview(MembershipPaymentOrder order, ProviderPaymentResult result, String reason) {
