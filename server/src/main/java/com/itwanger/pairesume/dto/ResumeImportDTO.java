@@ -1,6 +1,7 @@
 package com.itwanger.pairesume.dto;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
@@ -9,6 +10,7 @@ import java.util.List;
 
 @Data
 public class ResumeImportDTO {
+    @NotBlank(message = "请输入简历名称")
     @Size(max = 128, message = "简历标题不能超过 128 个字符")
     private String title;
 

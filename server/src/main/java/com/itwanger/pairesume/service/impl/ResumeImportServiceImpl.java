@@ -46,6 +46,6 @@ public class ResumeImportServiceImpl implements ResumeImportService {
     }
 
     private String normalizeOptional(String value) {
-        return value == null || value.isBlank() ? null : value.trim();
+        return value == null || value.isBlank() ? null : value.strip();
     }
 }

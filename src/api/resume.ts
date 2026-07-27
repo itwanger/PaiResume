@@ -21,7 +21,7 @@ export interface ResumeModule {
 }
 
 export interface ResumeImportPayload {
-  title?: string
+  title: string
   templateId?: string
   modules: Array<{
     moduleType: string
@@ -308,8 +308,8 @@ export const resumeApi = {
   list: () =>
     client.get<ApiEnvelope<ResumeListItem[]>>('/resumes'),
 
-  create: (data?: { title?: string; templateId?: string }) =>
-    client.post<ApiEnvelope<ResumeListItem>>('/resumes', data || {}),
+  create: (data: { title: string; templateId?: string }) =>
+    client.post<ApiEnvelope<ResumeListItem>>('/resumes', data),
 
   importResume: (data: ResumeImportPayload) =>
     client.post<ApiEnvelope<ResumeListItem>>('/resumes/import', data),

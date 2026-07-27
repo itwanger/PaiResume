@@ -12,6 +12,7 @@ import {
 import { resumeApi, type ResumeListItem } from '../api/resume'
 import { Header } from '../components/layout/Header'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
+import { RESUME_CREATE_PATH } from '../config/site'
 import { buildMarketplaceListingPath } from '../utils/navigation'
 
 interface ListingFormState {
@@ -445,7 +446,7 @@ export default function CreatorMarketplacePage() {
         ) : resumes.length === 0 ? (
           <section className="mt-8 rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center">
             <h2 className="text-xl font-semibold text-slate-900">先创建一份简历</h2>
-            <Link to="/dashboard" className="mt-4 inline-flex rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-700">去创建简历</Link>
+            <Link to={RESUME_CREATE_PATH} className="mt-4 inline-flex rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-700">去创建简历</Link>
           </section>
         ) : (
           <section className="mt-8 grid gap-6 lg:grid-cols-[300px_minmax(0,1fr)] lg:items-start">

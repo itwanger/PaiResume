@@ -46,7 +46,7 @@ public class ResumeController {
 
     @Operation(summary = "创建简历")
     @PostMapping
-    public Result<ResumeListVO> create(@RequestBody ResumeCreateDTO dto) {
+    public Result<ResumeListVO> create(@Valid @RequestBody ResumeCreateDTO dto) {
         return Result.success(resumeService.create(getCurrentUserId(), dto));
     }
 

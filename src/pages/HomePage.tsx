@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import {
   getMarketplacePageItems,
   marketplaceApi,
@@ -9,10 +9,13 @@ import {
 import { publicApi, type HomeData } from '../api/public'
 import { Header } from '../components/layout/Header'
 import { SiteFooter } from '../components/layout/SiteFooter'
-import { buildResumeEditorPath } from '../config/site'
+import { RESUME_CREATE_PATH } from '../config/site'
 import { useAuthStore } from '../store/authStore'
-import { useResumeStore } from '../store/resumeStore'
-import { buildMarketplaceListingPath, EXCELLENT_RESUMES_PATH } from '../utils/navigation'
+import {
+  buildLoginPath,
+  buildMarketplaceListingPath,
+  EXCELLENT_RESUMES_PATH,
+} from '../utils/navigation'
 
 interface HomepageShowcaseCard {
   id: number
@@ -233,17 +236,13 @@ function ResumeShowcaseThumbnail({ index, title }: { index: number; title: strin
 }
 
 export default function HomePage() {
-  const navigate = useNavigate()
   const shouldReduceMotion = useReducedMotion() ?? false
   const { isAuthenticated, initialized, user } = useAuthStore()
-  const createResume = useResumeStore((state) => state.createResume)
   const readyAuthenticated = initialized && isAuthenticated
   const [homeData, setHomeData] = useState<HomeData | null>(null)
   const [marketplaceListings, setMarketplaceListings] = useState<MarketplaceListingCard[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [creatingResume, setCreatingResume] = useState(false)
-  const [createResumeError, setCreateResumeError] = useState('')
   const marketplaceEnabled = homeData?.marketplaceEnabled === true
   const testimonials = homeData?.testimonials ?? []
   const marketplaceShowcases: HomepageShowcaseCard[] = (marketplaceEnabled ? marketplaceListings : []).map((listing) => ({
@@ -301,24 +300,6 @@ export default function HomePage() {
     void loadHome()
   }, [])
 
-  const handleStartCreating = async () => {
-    if (creatingResume) {
-      return
-    }
-
-    setCreateResumeError('')
-    setCreatingResume(true)
-    try {
-      const resume = await createResume()
-      navigate(buildResumeEditorPath(resume.id))
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : '创建简历失败，请稍后重试'
-      setCreateResumeError(message)
-    } finally {
-      setCreatingResume(false)
-    }
-  }
-
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
       <Header />
@@ -354,18 +335,15 @@ export default function HomePage() {
                     正在加载…
                   </button>
                 ) : readyAuthenticated ? (
-                  <button
-                    type="button"
-                    onClick={() => void handleStartCreating()}
-                    disabled={creatingResume}
-                    aria-busy={creatingResume}
-                    className="rounded-lg bg-primary-600 px-5 py-3 text-sm font-medium text-white transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  <Link
+                    to={RESUME_CREATE_PATH}
+                    className="rounded-lg bg-primary-600 px-5 py-3 text-sm font-medium text-white transition-colors hover:bg-primary-700"
                   >
-                    {creatingResume ? '正在创建…' : '开始制作简历'}
-                  </button>
+                    开始制作简历
+                  </Link>
                 ) : (
                   <Link
-                    to="/login"
+                    to={buildLoginPath(RESUME_CREATE_PATH)}
                     className="rounded-lg bg-primary-600 px-5 py-3 text-sm font-medium text-white transition-colors hover:bg-primary-700"
                   >
                     扫码开始制作
@@ -386,9 +364,6 @@ export default function HomePage() {
                   </Link>
                 ) : null}
               </div>
-              {createResumeError ? (
-                <p className="mt-3 text-sm text-red-600" role="alert">{createResumeError}</p>
-              ) : null}
             </div>
 
             <div className="relative mx-auto w-full max-w-xl lg:mx-0" aria-label="派简历核心能力">

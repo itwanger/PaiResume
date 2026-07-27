@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { resumeApi, type ResumeListItem, type ResumeModule } from '../api/resume'
 import type { ImportedResumeData } from '../utils/importers'
+import { normalizeResumeTitle } from '../utils/resumeCreation'
 
 function getSortTime(value: string): number {
   const time = new Date(value).getTime()
@@ -31,7 +32,7 @@ interface ResumeState {
   modules: ResumeModule[]
   loading: boolean
   fetchResumeList: () => Promise<void>
-  createResume: (title?: string) => Promise<ResumeListItem>
+  createResume: (title: string) => Promise<ResumeListItem>
   importResume: (payload: ImportedResumeData) => Promise<ResumeListItem>
   renameResume: (id: number, title: string) => Promise<ResumeListItem>
   deleteResume: (id: number) => Promise<void>
@@ -78,7 +79,7 @@ export const useResumeStore = create<ResumeState>((set) => ({
 
   importResume: async ({ title, modules }) => {
     const { data: response } = await resumeApi.importResume({
-      title,
+      title: normalizeResumeTitle(title),
       modules: modules.map((module, sortOrder) => ({
         moduleType: module.moduleType,
         content: module.content,

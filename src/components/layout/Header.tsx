@@ -7,6 +7,7 @@ import {
 } from '../../config/site'
 import { useAuthStore } from '../../store/authStore'
 import { useResumeStore } from '../../store/resumeStore'
+import { getAccountDisplayName } from '../../utils/accountIdentity'
 import {
   detectResumeImportType,
   getResumeImporter,
@@ -19,7 +20,11 @@ import {
   CREATOR_MARKETPLACE_PATH,
   EXCELLENT_RESUMES_PATH,
 } from '../../utils/navigation'
-import { getAccountDisplayName } from '../../utils/accountIdentity'
+import {
+  RESUME_TITLE_MAX_LENGTH,
+  getResumeImportTitle,
+  getResumeTitleError,
+} from '../../utils/resumeCreation'
 import { LogoMark } from '../branding/LogoMark'
 
 const IMPORT_LOG_PREFIX = '[resume-import]'
@@ -114,7 +119,7 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
   const importMenuRef = useRef<HTMLDivElement | null>(null)
   const accountMenuRef = useRef<HTMLDivElement | null>(null)
   const importDialogRef = useRef<HTMLDivElement | null>(null)
-  const confirmImportButtonRef = useRef<HTMLButtonElement | null>(null)
+  const importTitleInputRef = useRef<HTMLInputElement | null>(null)
   const importDialogReturnFocusRef = useRef<HTMLElement | null>(null)
   const dragDepthRef = useRef(0)
   const readyAuthenticated = initialized && isAuthenticated
@@ -158,7 +163,10 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
       setPendingImport({
         fileName: file.name,
         type: currentType,
-        payload,
+        payload: {
+          ...payload,
+          title: getResumeImportTitle(payload.title, file.name),
+        },
       })
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : '导入失败，请稍后再试'
@@ -188,6 +196,13 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
       return
     }
 
+    const titleError = getResumeTitleError(pendingImport.payload.title)
+    if (titleError) {
+      setImportError(titleError)
+      importTitleInputRef.current?.focus()
+      return
+    }
+
     setImportError('')
     setImportingType(pendingImport.type)
 
@@ -212,7 +227,7 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
 
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    window.requestAnimationFrame(() => confirmImportButtonRef.current?.focus())
+    window.requestAnimationFrame(() => importTitleInputRef.current?.focus())
 
     const handleDialogKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && !importingType) {
@@ -788,7 +803,7 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
               </div>
 
               <p id="resume-import-preview-description" className="mt-3 text-sm leading-6 text-slate-500">
-                双栏 PDF 可能识别错序，请核对标题和联系方式。
+                确认简历名称和识别结果。
               </p>
 
               <dl className="mt-5 space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm">
@@ -797,8 +812,48 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
                   <dd className="mt-1 break-all font-medium text-slate-700">{pendingImport.fileName}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">简历标题</dt>
-                  <dd className="mt-1 font-medium text-slate-900">{preview.title}</dd>
+                  <dt>
+                    <label
+                      htmlFor="resume-import-title"
+                      className="text-xs font-medium uppercase tracking-wide text-slate-400"
+                    >
+                      简历名称
+                    </label>
+                  </dt>
+                  <dd className="mt-2">
+                    <input
+                      ref={importTitleInputRef}
+                      id="resume-import-title"
+                      name="resumeImportTitle"
+                      type="text"
+                      value={pendingImport.payload.title}
+                      onChange={(event) => {
+                        const title = event.target.value
+                        setPendingImport((current) => current ? {
+                          ...current,
+                          payload: {
+                            ...current.payload,
+                            title,
+                          },
+                        } : current)
+                        if (importError) {
+                          setImportError('')
+                        }
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.nativeEvent.isComposing || event.keyCode === 229) {
+                          return
+                        }
+                        if (event.key === 'Enter' && !importingType) {
+                          event.preventDefault()
+                          void confirmImport()
+                        }
+                      }}
+                      required
+                      maxLength={RESUME_TITLE_MAX_LENGTH}
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-medium text-slate-900 outline-none transition-colors focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
+                    />
+                  </dd>
                 </div>
                 <div>
                   <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">基本信息</dt>
@@ -842,10 +897,9 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
                   取消，不创建
                 </button>
                 <button
-                  ref={confirmImportButtonRef}
                   type="button"
                   onClick={() => void confirmImport()}
-                  disabled={!!importingType}
+                  disabled={!!importingType || !!getResumeTitleError(pendingImport.payload.title)}
                   className="rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {importingType ? '正在创建…' : '确认并创建简历'}

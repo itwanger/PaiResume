@@ -1,16 +1,26 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import type { ResumeListItem } from '../api/resume'
 import { useResumeStore } from '../store/resumeStore'
 import { Header } from '../components/layout/Header'
 import { ResumeCard } from '../components/dashboard/ResumeCard'
-import { buildResumeEditorPath } from '../config/site'
+import {
+  AUTHENTICATED_HOME_PATH,
+  buildResumeEditorPath,
+} from '../config/site'
+import {
+  RESUME_TITLE_MAX_LENGTH,
+  getResumeTitleError,
+  hasResumeCreateIntent,
+  normalizeResumeTitle,
+} from '../utils/resumeCreation'
 
 export default function DashboardPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { resumeList, loading, fetchResumeList, createResume, renameResume, deleteResume } = useResumeStore()
   const [creating, setCreating] = useState(false)
-  const [error, setError] = useState('')
+  const [dialogError, setDialogError] = useState('')
   const [dialogMode, setDialogMode] = useState<'create' | 'rename' | null>(null)
   const [resumeTitle, setResumeTitle] = useState('')
   const [editingResume, setEditingResume] = useState<ResumeListItem | null>(null)
@@ -19,16 +29,34 @@ export default function DashboardPage() {
     fetchResumeList()
   }, [fetchResumeList])
 
+  useEffect(() => {
+    if (!hasResumeCreateIntent(location.search)) {
+      return
+    }
+
+    setDialogError('')
+    setResumeTitle('')
+    setEditingResume(null)
+    setDialogMode('create')
+    navigate(AUTHENTICATED_HOME_PATH, { replace: true })
+  }, [location.search, navigate])
+
   const handleCreate = async () => {
-    setError('')
+    const titleError = getResumeTitleError(resumeTitle)
+    if (titleError) {
+      setDialogError(titleError)
+      return
+    }
+
+    setDialogError('')
     setCreating(true)
     try {
-      const title = resumeTitle.trim()
+      const title = normalizeResumeTitle(resumeTitle)
       let nextResumeId: number | null = null
       if (dialogMode === 'rename' && editingResume) {
         await renameResume(editingResume.id, title)
       } else {
-        const resume = await createResume(title || undefined)
+        const resume = await createResume(title)
         nextResumeId = resume.id
       }
       setResumeTitle('')
@@ -43,21 +71,21 @@ export default function DashboardPage() {
         : dialogMode === 'rename'
           ? '重命名失败，请稍后重试'
           : '创建失败，请稍后重试'
-      setError(message)
+      setDialogError(message)
     } finally {
       setCreating(false)
     }
   }
 
   const openCreateDialog = () => {
-    setError('')
+    setDialogError('')
     setResumeTitle('')
     setEditingResume(null)
     setDialogMode('create')
   }
 
   const openRenameDialog = (resume: ResumeListItem) => {
-    setError('')
+    setDialogError('')
     setResumeTitle(resume.title)
     setEditingResume(resume)
     setDialogMode('rename')
@@ -66,6 +94,7 @@ export default function DashboardPage() {
   const closeCreateDialog = () => {
     if (creating) return
     setDialogMode(null)
+    setDialogError('')
     setResumeTitle('')
     setEditingResume(null)
   }
@@ -85,12 +114,6 @@ export default function DashboardPage() {
       <Header enableResumeDrop />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {error && (
-          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {error}
-          </div>
-        )}
-
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-2xl font-bold text-gray-900">我的简历</h1>
           {loading || resumeList.length > 0 ? (
@@ -140,9 +163,14 @@ export default function DashboardPage() {
 
       {dialogMode && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+          <div
+            className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="resume-title-dialog-heading"
+          >
             <div className="mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">
+              <h2 id="resume-title-dialog-heading" className="text-lg font-semibold text-gray-900">
                 {dialogMode === 'rename' ? '重命名简历' : '新建简历'}
               </h2>
             </div>
@@ -156,16 +184,32 @@ export default function DashboardPage() {
                 name="resumeTitle"
                 type="text"
                 value={resumeTitle}
-                onChange={(e) => setResumeTitle(e.target.value)}
+                onChange={(e) => {
+                  setResumeTitle(e.target.value)
+                  if (dialogError) {
+                    setDialogError('')
+                  }
+                }}
                 onKeyDown={(e) => {
+                  if (e.nativeEvent.isComposing || e.keyCode === 229) {
+                    return
+                  }
                   if (e.key === 'Enter' && !creating) {
                     void handleCreate()
                   }
                 }}
                 placeholder="例如：Java 后端简历"
+                required
+                maxLength={RESUME_TITLE_MAX_LENGTH}
+                aria-describedby={dialogError ? 'resume-title-error' : undefined}
                 className="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none transition-colors focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
                 autoFocus
               />
+              {dialogError ? (
+                <p id="resume-title-error" className="mt-2 text-sm text-red-600" role="alert">
+                  {dialogError}
+                </p>
+              ) : null}
             </div>
 
             <div className="mt-6 flex justify-end gap-3">
@@ -179,7 +223,7 @@ export default function DashboardPage() {
               <button
                 type="button"
                 onClick={() => void handleCreate()}
-                disabled={creating}
+                disabled={creating || !normalizeResumeTitle(resumeTitle)}
                 className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-700 disabled:opacity-50"
               >
                 {creating

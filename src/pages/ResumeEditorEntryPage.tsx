@@ -2,25 +2,18 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { resumeApi } from '../api/resume'
 import { Header } from '../components/layout/Header'
-import { buildResumeEditorPath } from '../config/site'
-import { useResumeStore } from '../store/resumeStore'
+import { getResumeEditorEntryPath } from '../utils/resumeCreation'
 
-let pendingEditorResolution: Promise<number> | null = null
+let pendingEditorResolution: Promise<string> | null = null
 
-function resolveResumeEditor(createResume: () => Promise<{ id: number }>) {
+function resolveResumeEditor() {
   if (pendingEditorResolution) {
     return pendingEditorResolution
   }
 
   pendingEditorResolution = (async () => {
     const { data: response } = await resumeApi.list()
-    const mostRecentlyUpdatedResume = response.data[0]
-    if (mostRecentlyUpdatedResume) {
-      return mostRecentlyUpdatedResume.id
-    }
-
-    const resume = await createResume()
-    return resume.id
+    return getResumeEditorEntryPath(response.data)
   })().finally(() => {
     pendingEditorResolution = null
   })
@@ -30,7 +23,6 @@ function resolveResumeEditor(createResume: () => Promise<{ id: number }>) {
 
 export default function ResumeEditorEntryPage() {
   const navigate = useNavigate()
-  const createResume = useResumeStore((state) => state.createResume)
   const [attempt, setAttempt] = useState(0)
   const [error, setError] = useState('')
 
@@ -40,9 +32,9 @@ export default function ResumeEditorEntryPage() {
     const resolveEditor = async () => {
       setError('')
       try {
-        const resumeId = await resolveResumeEditor(createResume)
+        const destination = await resolveResumeEditor()
         if (!cancelled) {
-          navigate(buildResumeEditorPath(resumeId), { replace: true })
+          navigate(destination, { replace: true })
         }
       } catch (err: unknown) {
         if (!cancelled) {
@@ -56,7 +48,7 @@ export default function ResumeEditorEntryPage() {
     return () => {
       cancelled = true
     }
-  }, [attempt, createResume, navigate])
+  }, [attempt, navigate])
 
   return (
     <div className="min-h-screen bg-gray-50">

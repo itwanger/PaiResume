@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { GITHUB_REPOSITORY_URL, RESUME_EDITOR_ENTRY_PATH } from '../../config/site'
+import { GITHUB_REPOSITORY_URL, RESUME_CREATE_PATH } from '../../config/site'
 import { EXCELLENT_RESUMES_PATH } from '../../utils/navigation'
 import { LogoMark } from '../branding/LogoMark'
 
@@ -24,7 +24,7 @@ export function SiteFooter() {
             <div className="mt-4 flex flex-col items-start gap-3">
               <Link to="/" className={footerLinkClassName}>首页</Link>
               <Link to={EXCELLENT_RESUMES_PATH} className={footerLinkClassName}>优质简历</Link>
-              <Link to={RESUME_EDITOR_ENTRY_PATH} className={footerLinkClassName}>制作简历</Link>
+              <Link to={RESUME_CREATE_PATH} className={footerLinkClassName}>制作简历</Link>
             </div>
           </nav>
 

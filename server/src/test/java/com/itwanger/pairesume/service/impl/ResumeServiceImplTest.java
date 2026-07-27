@@ -1,6 +1,7 @@
 package com.itwanger.pairesume.service.impl;
 
 import com.itwanger.pairesume.common.BusinessException;
+import com.itwanger.pairesume.dto.ResumeCreateDTO;
 import com.itwanger.pairesume.entity.Resume;
 import com.itwanger.pairesume.mapper.ResumeMapper;
 import com.itwanger.pairesume.service.ResumeMarketplaceService;
@@ -8,10 +9,14 @@ import com.itwanger.pairesume.service.ResumeShowcaseService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -32,6 +37,36 @@ class ResumeServiceImplTest {
                 resumeMarketplaceService,
                 resumeShowcaseService
         );
+        ReflectionTestUtils.setField(service, "maxResumeCountPerUser", 20);
+    }
+
+    @Test
+    void creatingResumeTrimsRequiredTitleBeforeInsert() {
+        when(resumeMapper.selectCount(any())).thenReturn(0L);
+        ResumeCreateDTO dto = new ResumeCreateDTO();
+        dto.setTitle("\u3000Java 后端求职简历\u3000");
+
+        service.create(7L, dto);
+
+        ArgumentCaptor<Resume> resumeCaptor = ArgumentCaptor.forClass(Resume.class);
+        verify(resumeMapper).insert(resumeCaptor.capture());
+        assertEquals("Java 后端求职简历", resumeCaptor.getValue().getTitle());
+    }
+
+    @Test
+    void creatingResumeRejectsBlankTitleBeforeDatabaseAccess() {
+        ResumeCreateDTO dto = new ResumeCreateDTO();
+
+        dto.setTitle(null);
+        assertThrows(BusinessException.class, () -> service.create(7L, dto));
+
+        dto.setTitle("\u3000");
+        assertThrows(BusinessException.class, () -> service.create(7L, dto));
+
+        dto.setTitle("简".repeat(129));
+        assertThrows(BusinessException.class, () -> service.create(7L, dto));
+
+        verifyNoInteractions(resumeMapper);
     }
 
     @Test

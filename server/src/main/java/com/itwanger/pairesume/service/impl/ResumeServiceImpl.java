@@ -59,6 +59,8 @@ public class ResumeServiceImpl implements ResumeService {
 
     @Override
     public ResumeListVO create(Long userId, ResumeCreateDTO dto) {
+        var title = normalizeRequiredTitle(dto.getTitle());
+
         // 检查简历数量上限
         var count = resumeMapper.selectCount(
             new LambdaQueryWrapper<Resume>()
@@ -71,7 +73,7 @@ public class ResumeServiceImpl implements ResumeService {
 
         var resume = new Resume();
         resume.setUserId(userId);
-        resume.setTitle(dto.getTitle() != null ? dto.getTitle() : "未命名简历");
+        resume.setTitle(title);
         resume.setTemplateId(dto.getTemplateId() != null ? dto.getTemplateId() : "default");
         resume.setStatus(1);
         resumeMapper.insert(resume);
@@ -85,10 +87,23 @@ public class ResumeServiceImpl implements ResumeService {
         return vo;
     }
 
+    private String normalizeRequiredTitle(String title) {
+        if (title == null || title.isBlank()) {
+            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "请输入简历名称");
+        }
+
+        var normalizedTitle = title.strip();
+        if (normalizedTitle.length() > 128) {
+            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "简历名称不能超过 128 个字符");
+        }
+
+        return normalizedTitle;
+    }
+
     @Override
     public ResumeListVO update(Long userId, Long resumeId, ResumeUpdateDTO dto) {
         var resume = getAndVerifyOwnership(resumeId, userId);
-        resume.setTitle(dto.getTitle().trim());
+        resume.setTitle(dto.getTitle().strip());
         resumeMapper.updateById(resume);
         return toListVO(resume);
     }
