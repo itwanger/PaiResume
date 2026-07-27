@@ -1,10 +1,12 @@
 package com.itwanger.pairesume.config;
 
+import db.migration.V6__ReconcilePaiResumeSchema;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ClassPathResource;
 
 import java.nio.charset.StandardCharsets;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ShowcaseAccessTypeMigrationContractTest {
@@ -21,5 +23,11 @@ class ShowcaseAccessTypeMigrationContractTest {
 
         assertTrue(sql.contains("ADD COLUMN `access_type` VARCHAR(16) NOT NULL DEFAULT 'VIP'"));
         assertTrue(sql.contains("访问类型: FREE/VIP"));
+    }
+
+    @Test
+    void v6BaselineSchemaChecksumRemainsCompatibleWithProduction() {
+        assertEquals(-1486653611,
+                new V6__ReconcilePaiResumeSchema().getChecksum());
     }
 }
