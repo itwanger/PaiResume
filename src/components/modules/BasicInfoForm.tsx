@@ -120,7 +120,6 @@ export function BasicInfoForm({ resumeId, moduleId, initialContent }: Props) {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="text-sm font-medium text-gray-700">可选信息</p>
-              <p className="mt-1 text-xs text-gray-500">填写这些内容可以补充求职偏好、照片和个人标签。</p>
             </div>
             <button
               type="button"

@@ -107,8 +107,7 @@ export function PaymentQrModal({
       >
         <div className="flex items-start justify-between border-b border-slate-100 px-5 py-4 sm:px-6">
           <div>
-            <p className="text-xs font-medium uppercase tracking-[0.16em] text-primary-600">微信支付</p>
-            <h2 id="marketplace-payment-title" className="mt-1 text-xl font-semibold text-slate-950">
+            <h2 id="marketplace-payment-title" className="text-xl font-semibold text-slate-950">
               {duplicatePaid
                 ? '检测到重复支付'
                 : refundRequired
@@ -145,7 +144,6 @@ export function PaymentQrModal({
                 </svg>
               </div>
               <p className="mt-4 text-lg font-semibold text-emerald-950">支付成功，正在加载完整简历</p>
-              <p className="mt-2 text-sm leading-6 text-emerald-800">本次购买已绑定当前账号，内容正常展示期间可直接查看，无需重复支付。</p>
             </div>
           ) : duplicatePaid ? (
             <div className="rounded-2xl border border-amber-300 bg-amber-50 px-5 py-7 text-center">
@@ -213,7 +211,7 @@ export function PaymentQrModal({
                       </svg>
                     </div>
                     <p className="mt-3 text-sm font-medium text-slate-800">二维码图片暂未生成</p>
-                    <p className="mt-1 text-xs leading-5 text-slate-500">可复制开发支付码排查配置，正式环境应由后端返回二维码 data URL。</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">请稍后刷新订单状态。</p>
                     <button
                       type="button"
                       onClick={() => void copyCodeUrl()}

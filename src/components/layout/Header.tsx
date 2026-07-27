@@ -747,10 +747,7 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
                 </svg>
               </div>
               <h2 className="text-2xl font-semibold text-slate-900">松开即可导入简历</h2>
-              <p className="mt-3 text-sm leading-6 text-slate-500">
-                支持 `.md`、`.markdown`、`.txt`、`.docx` 和文本型 `.pdf`
-                {importingType ? '，当前正在处理上一份文件，请稍候。' : '，直接把文件拖到页面任意位置就行。'}
-              </p>
+              <p className="mt-3 text-sm leading-6 text-slate-500">支持 Markdown、TXT、DOCX 和文本型 PDF</p>
             </div>
           </div>
         </div>
@@ -775,12 +772,7 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
               className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl sm:p-7"
             >
               <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="text-sm font-medium text-sky-600">导入前确认</div>
-                  <h2 id="resume-import-preview-title" className="mt-1 text-xl font-semibold text-slate-900">
-                    核对识别结果
-                  </h2>
-                </div>
+                <h2 id="resume-import-preview-title" className="text-xl font-semibold text-slate-900">核对识别结果</h2>
                 <button
                   type="button"
                   onClick={closeImportPreview}
@@ -795,7 +787,7 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
               </div>
 
               <p id="resume-import-preview-description" className="mt-3 text-sm leading-6 text-slate-500">
-                Word 表格和双栏 PDF 的阅读顺序可能存在差异。请先核对标题、联系方式和识别到的模块，确认后才会创建简历。
+                双栏 PDF 可能识别错序，请核对标题和联系方式。
               </p>
 
               <dl className="mt-5 space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm">
@@ -825,7 +817,7 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
                       >
                         <div className="text-xs font-medium text-slate-700">{module.label}</div>
                         <div className="mt-0.5 line-clamp-2 text-xs leading-5 text-slate-500">
-                          {module.summary || '已识别该模块，请进入编辑器继续核对内容'}
+                          {module.summary || '已识别该模块'}
                         </div>
                       </div>
                     ))}

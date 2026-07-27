@@ -52,7 +52,7 @@ export function AiOptimizeStreamModal({
                 {isStreaming ? 'AI 生成中' : status === 'error' ? '生成失败' : '生成完成'}
               </span>
             </div>
-            <p className="mt-1 text-sm text-gray-500">模态框会实时展示 AI 推理过程和最终结果，确认后才会回填当前字段。</p>
+            <p className="mt-1 text-sm text-gray-500">实时展示生成过程，确认后再写入当前字段。</p>
           </div>
           <button type="button" onClick={onClose} className="text-gray-400 transition hover:text-gray-600">
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

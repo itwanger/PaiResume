@@ -368,7 +368,7 @@ export function ResumeReviewAdminPanel({
         <div>
           <h2 className="text-lg font-semibold text-gray-900">人工简历精修工作台</h2>
           <p className="mt-1 max-w-3xl text-sm leading-6 text-gray-500">
-            首次免费，第二次及以后每份快照单独付费。接受、完成、退回、邮件重试和退款确认都会写入审计记录。
+            接受、完成、退回、邮件重试和退款确认均写入审计记录。
           </p>
         </div>
         <button
@@ -416,7 +416,7 @@ export function ResumeReviewAdminPanel({
           aria-label="搜索人工精修申请"
           className="min-h-11 min-w-0 flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
         />
-        <span className="self-center text-sm text-gray-500">当前 {filteredReviews.length} 条</span>
+        <span className="self-center text-sm text-gray-500">{filteredReviews.length} 条</span>
       </div>
 
       <div className="mt-5 space-y-4">
@@ -499,7 +499,7 @@ export function ResumeReviewAdminPanel({
           )
         })}
         {filteredReviews.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-gray-200 px-4 py-8 text-center text-sm text-gray-500">当前筛选条件下暂无人工精修申请。</p>
+          <p className="rounded-xl border border-dashed border-gray-200 px-4 py-8 text-center text-sm text-gray-500">暂无申请</p>
         ) : null}
       </div>
 

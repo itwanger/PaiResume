@@ -383,13 +383,7 @@ export default function CreatorMarketplacePage() {
 
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-sm font-medium text-primary-700">简历内容市场</p>
-            <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-950">创作者中心</h1>
-            <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-              你可以免费公开简历，也可以设置一次性查看价格。所有首次投稿和版本更新都会先进入平台审核；作者收益由平台记账，可逐笔申请线下结算。
-            </p>
-          </div>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-950">创作者中心</h1>
           <Link to="/dashboard" className="text-sm font-medium text-primary-700 hover:text-primary-800">返回我的简历</Link>
         </div>
 
@@ -431,12 +425,12 @@ export default function CreatorMarketplacePage() {
 
         <div className="mt-6 rounded-2xl border border-primary-200 bg-primary-50 px-5 py-4 text-sm leading-6 text-primary-800">
           <strong className="font-semibold text-primary-950">投稿先审后发：</strong>
-          首次投稿在审核通过前不会公开；已公开简历提交更新后，审核期间仍展示上一个已通过版本，不会提前替换线上内容。
+          投稿和更新均需审核；更新审核期间继续展示上一版。
         </div>
 
         <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm leading-6 text-red-800">
           <strong className="font-semibold text-red-950">发布前请逐项检查隐私：</strong>
-          公开内容可能包含电话、邮箱、微信、照片、住址、学校和任职经历。平台不会自动替你脱敏，请删除不希望陌生人看到的信息后再发布。
+          请删除不希望公开的电话、邮箱、微信、照片等个人信息，平台不会自动脱敏。
         </div>
 
         {error ? (
@@ -451,8 +445,7 @@ export default function CreatorMarketplacePage() {
         ) : resumes.length === 0 ? (
           <section className="mt-8 rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center">
             <h2 className="text-xl font-semibold text-slate-900">先创建一份简历</h2>
-            <p className="mt-2 text-sm text-slate-500">完成简历内容后，再来设置免费公开或付费查看。</p>
-            <Link to="/dashboard" className="mt-5 inline-flex rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-700">去创建简历</Link>
+            <Link to="/dashboard" className="mt-4 inline-flex rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-700">去创建简历</Link>
           </section>
         ) : (
           <section className="mt-8 grid gap-6 lg:grid-cols-[300px_minmax(0,1fr)] lg:items-start">
@@ -496,8 +489,7 @@ export default function CreatorMarketplacePage() {
               <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <p className="text-xs font-medium uppercase tracking-[0.14em] text-primary-600">公开设置</p>
-                    <h2 className="mt-1 text-xl font-semibold text-slate-950">{selectedResume?.title ?? '当前简历'}</h2>
+                    <h2 className="text-xl font-semibold text-slate-950">{selectedResume?.title ?? '当前简历'}</h2>
                   </div>
                   <div className="flex flex-wrap gap-2 text-xs">
                     <span className={listing?.moderationStatus === 'SUSPENDED'
@@ -620,7 +612,6 @@ export default function CreatorMarketplacePage() {
                         placeholder="Java，后端，应届，AI Agent"
                         className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
                       />
-                      <p className="mt-2 text-xs text-slate-500">使用中文或英文逗号分隔，最多保留 8 个标签。</p>
                     </div>
 
                     <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4">
@@ -637,7 +628,7 @@ export default function CreatorMarketplacePage() {
 
                     {listing?.snapshotOutdated ? (
                       <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
-                        原简历已更新，当前公开快照仍是旧版本。点击“提交最新快照审核”，并在审核通过后，才会向新访客展示最新内容。
+                        当前公开的是旧版本，提交最新快照并审核通过后才会更新。
                       </div>
                     ) : null}
 
@@ -683,16 +674,11 @@ export default function CreatorMarketplacePage() {
               </section>
 
               <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-                <div>
-                  <h2 className="text-xl font-semibold text-slate-950">审核与申诉</h2>
-                  <p className="mt-1 text-sm leading-6 text-slate-500">
-                    投稿被驳回或内容被平台下架后，可以补充修改说明和权利证明，提交一次待处理申诉。
-                  </p>
-                </div>
+                <h2 className="text-xl font-semibold text-slate-950">审核与申诉</h2>
 
                 {!listing ? (
                   <div className="mt-5 rounded-xl border border-dashed border-slate-300 px-5 py-8 text-center text-sm text-slate-500">
-                    提交投稿后，这里会显示审核结果和申诉记录。
+                    暂无审核记录
                   </div>
                 ) : (
                   <div className="mt-5 space-y-5">
@@ -731,7 +717,7 @@ export default function CreatorMarketplacePage() {
                       )
                     ) : (
                       <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-800">
-                        当前没有可申诉的驳回或下架状态。
+                        暂无可申诉状态
                       </div>
                     )}
 
@@ -772,15 +758,10 @@ export default function CreatorMarketplacePage() {
               </section>
 
               <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <h2 className="text-xl font-semibold text-slate-950">收益记录</h2>
-                    <p className="mt-1 text-sm text-slate-500">
-                      成交后先进入默认 7 天风控观察期；到期且未退款才可逐笔申请，管理员完成线下转账后会登记流水或备注。
-                    </p>
-                  </div>
-                  <span className="w-fit rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">申请后由平台线下结算</span>
-                </div>
+                <h2 className="text-xl font-semibold text-slate-950">收益记录</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  收益默认观察 7 天，无退款后可逐笔申请线下结算。
+                </p>
 
                 {earnings.length ? (
                   <div className="mt-5 overflow-x-auto">
@@ -864,7 +845,7 @@ export default function CreatorMarketplacePage() {
                   </div>
                 ) : (
                   <div className="mt-5 rounded-xl border border-dashed border-slate-300 px-5 py-12 text-center text-sm text-slate-500">
-                    暂无收益记录。发布简历并产生成功订单后会显示在这里。
+                    暂无收益记录
                   </div>
                 )}
               </section>

@@ -26,6 +26,13 @@ function formatCents(value: number) {
   return `¥${(value / 100).toFixed(2)}`
 }
 
+function formatMembershipExpiry(value: string) {
+  const parsed = new Date(value.includes('T') ? value : value.replace(' ', 'T'))
+  return Number.isNaN(parsed.getTime())
+    ? value
+    : parsed.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })
+}
+
 function createIdempotencyKey(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID()
@@ -256,40 +263,23 @@ export default function MembershipPage() {
     <div className="min-h-screen bg-slate-50">
       <Header />
 
-      <main className="mx-auto grid max-w-6xl gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,1fr)_420px] lg:px-8 lg:py-14">
+      <main className={isVip
+        ? 'mx-auto flex max-w-xl flex-col gap-6 px-4 py-10 sm:px-6 lg:py-14'
+        : 'mx-auto grid max-w-6xl gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,1fr)_420px] lg:px-8 lg:py-14'}>
         <section>
-          <p className="text-sm font-medium text-primary-700">派简历 VIP</p>
-          <h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">解锁 AI 优化与完整投递能力</h1>
-          <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">
-            免费账号可以编辑、保存和导入简历；VIP 可进一步使用 AI 优化与分析、智能一页、PDF 导出和优质简历全文。
-          </p>
-
-          <div className="mt-6 border border-primary-200 bg-primary-50 px-5 py-4 text-sm leading-6 text-primary-950">
-            <p><strong>免费账号：</strong>编辑、保存、导入简历，已有简历数据会持续保留。</p>
-            <p><strong>VIP 账号：</strong>在免费功能基础上，解锁全部 AI 功能、智能一页、PDF 导出和优质简历全文。</p>
-          </div>
-
-          <div className="mt-8 grid gap-4 sm:grid-cols-2">
-            {[
-              ['AI 智能优化', '使用 AI 优化模块和字段表达，获得针对性的简历建议。'],
-              ['AI 简历分析', '分析内容完整度、表达质量和可改进项。'],
-              ['智能一页与 PDF', '把多页简历合成一张连续长页，完整保留内容，并以单页 PDF 导出。'],
-              ['优质简历全文', '查看精选简历的完整模块、项目要点和推荐排版。'],
-            ].map(([title, description]) => (
-              <div key={title} className="border border-slate-200 bg-white px-5 py-5">
-                <div className="flex h-8 w-8 items-center justify-center bg-primary-50 text-primary-700">
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
-                <h2 className="mt-4 font-semibold text-slate-900">{title}</h2>
-                <p className="mt-2 text-sm leading-6 text-slate-500">{description}</p>
-              </div>
-            ))}
-          </div>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">VIP 会员</h1>
+          {!isVip ? (
+            <div className="mt-6 border border-primary-200 bg-primary-50 px-5 py-4 text-sm leading-6 text-primary-950">
+              <p><strong>免费：</strong>编辑、保存、导入简历</p>
+              <p className="mt-2"><strong>VIP：</strong>AI、智能一页、PDF 导出、VIP 优质简历</p>
+            </div>
+          ) : null}
         </section>
 
-        <aside className="h-fit border border-slate-200 bg-white p-6 shadow-sm lg:sticky lg:top-24">
+        <aside className={[
+          'h-fit border border-slate-200 bg-white p-6 shadow-sm',
+          isVip ? '' : 'lg:sticky lg:top-24',
+        ].join(' ')}>
           {isVip ? (
             <div>
               <div className="flex h-11 w-11 items-center justify-center bg-emerald-50 text-emerald-700">
@@ -299,7 +289,9 @@ export default function MembershipPage() {
               </div>
               <h2 className="mt-5 text-xl font-semibold text-slate-950">你的 VIP 已开通</h2>
               <p className="mt-2 text-sm leading-6 text-slate-500">
-                {user?.membershipExpiresAt ? `有效期至 ${user.membershipExpiresAt}` : 'VIP 权益当前有效'}，AI、智能一页、PDF 导出和优质简历全文均已解锁。
+                {user?.membershipExpiresAt
+                  ? `有效期至 ${formatMembershipExpiry(user.membershipExpiresAt)}`
+                  : 'VIP 权益当前有效'}
               </p>
               <Link to={returnTo} className="mt-6 inline-flex w-full items-center justify-center bg-primary-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-700">
                 继续查看
@@ -308,16 +300,12 @@ export default function MembershipPage() {
           ) : (
             <div>
               <div className="flex items-center justify-between gap-4">
-                <div>
-                  <div className="text-sm font-medium text-primary-700">VIP 开通</div>
-                  <h2 className="mt-1 text-xl font-semibold text-slate-950">确认价格</h2>
-                </div>
+                <h2 className="text-xl font-semibold text-slate-950">开通 VIP</h2>
                 <span className="bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">{membershipPlanLabel}</span>
               </div>
 
               <div className="mt-6 border border-emerald-200 bg-emerald-50 px-4 py-4">
-                <label htmlFor="membership-invite" className="block text-sm font-semibold text-emerald-950">VIP 邀请码</label>
-                <p className="mt-1 text-xs leading-5 text-emerald-800">邀请码与支付优惠码相互独立，邀请码兑换不需要付款。</p>
+                <label htmlFor="membership-invite" className="block text-sm font-semibold text-emerald-950">知识星球 VIP 邀请码</label>
                 <div className="mt-3 flex gap-2">
                   <input
                     id="membership-invite"
@@ -336,14 +324,10 @@ export default function MembershipPage() {
                   </button>
                 </div>
                 {inviteError ? <p className="mt-2 text-sm text-red-600" role="alert">{inviteError}</p> : null}
-                <ul className="mt-3 list-disc space-y-1 pl-5 text-xs leading-5 text-emerald-900">
-                  <li>每个账号只能领取一次，不能叠加，也不能换一个邀请码重复续期。</li>
-                  <li>邀请码权益天数由知识星球福利批次决定，兑换后以账号显示的到期时间为准。</li>
-                  <li>邀请码截止时间只限制领取，不会缩短已经领取的权益。</li>
-                  <li>到期后不会自动续期；如需继续使用，可购买年费会员或由管理员在后台延期。</li>
-                  <li>到期后简历数据继续保留，编辑、保存和导入功能仍可使用。</li>
-                  <li>邀请码仅限本人使用，请勿截图、转发或发布到公开渠道。</li>
-                </ul>
+                <div className="mt-3 space-y-1 text-xs leading-5 text-emerald-900">
+                  <p>每个账号限领一次，不能叠加；权益期限以领取结果为准。</p>
+                  <p>仅限本人使用，请勿转发；到期不自动续费，简历数据不受影响。</p>
+                </div>
               </div>
 
               <div className="mt-6">
@@ -369,10 +353,6 @@ export default function MembershipPage() {
               </div>
 
               <div className="mt-6 space-y-3 border-y border-slate-100 py-5">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-500">会员期限</span>
-                  <span className="font-medium text-slate-800">{membershipDays} 天</span>
-                </div>
                 {priceRows.map((row) => (
                   <div key={row.label} className="flex items-center justify-between text-sm">
                     <span className="text-slate-500">{row.label}</span>
@@ -383,11 +363,11 @@ export default function MembershipPage() {
 
               {quote.paymentEnabled ? (
                 <div className="mt-5 border border-primary-200 bg-primary-50 px-4 py-3 text-sm leading-6 text-primary-900">
-                  创建订单后将展示微信支付二维码。订单 30 分钟内有效，未支付的超时订单会由服务端向支付平台确认后自动取消。
+                  订单 30 分钟内有效；未支付的超时订单会在服务端向支付平台确认后自动取消。
                 </div>
               ) : (
                 <div className="mt-5 border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
-                  当前暂停创建新的会员订单。已经创建的订单仍可继续查询支付结果；需要新开通时请稍后再试。
+                  会员支付维护中，已有订单仍可继续。
                 </div>
               )}
 
@@ -412,7 +392,7 @@ export default function MembershipPage() {
                 先填写问卷获取优惠码
               </Link>
               <p className="mt-4 text-center text-xs leading-5 text-slate-400">
-                优惠码状态：{quote.couponStatus}。以上是服务端报价预览，会员期限、优惠和实付金额最终以创建成功的订单快照为准。
+                订单金额以创建成功时为准。
               </p>
             </div>
           )}

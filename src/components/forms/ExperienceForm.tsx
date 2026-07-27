@@ -176,7 +176,7 @@ export function ExperienceForm() {
           label="工作描述"
           value={formData.description}
           onChange={handleChange('description')}
-          placeholder="描述您的工作职责和主要成就（使用 STAR 法则：情境 - 任务 - 行动 - 结果）"
+          placeholder="说明职责、行动和结果"
           rows={4}
           required
           helperText="尽量使用量化指标，如'性能提升 50%'、'用户增长 10 万'等"

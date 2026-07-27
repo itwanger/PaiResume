@@ -614,10 +614,7 @@ export default function EditorPage() {
             className="relative flex h-full w-[min(20rem,calc(100vw-3rem))] flex-col bg-white shadow-2xl outline-none"
           >
             <div className="flex min-h-14 shrink-0 items-center justify-between border-b border-gray-100 px-4">
-              <div>
-                <p className="text-sm font-semibold text-gray-900">选择模块</p>
-                <p className="mt-0.5 text-xs text-gray-400">当前：{mobileWorkspaceLabel}</p>
-              </div>
+              <p className="text-sm font-semibold text-gray-900">选择模块</p>
               <button
                 type="button"
                 onClick={closeMobileModuleMenu}
@@ -783,10 +780,7 @@ export default function EditorPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L8 18l-4 1 1-4L16.5 3.5z" />
                   </svg>
                 </span>
-                <span>
-                  <span className="block text-sm font-semibold text-slate-900">请二哥帮我改简历</span>
-                  <span className="block text-xs leading-5 text-slate-500">人工精修 · 按服务端次数规则使用</span>
-                </span>
+                <span className="text-sm font-semibold text-slate-900">请二哥帮我改简历</span>
               </button>
             </div>
           ) : null}
@@ -804,7 +798,7 @@ export default function EditorPage() {
               ) : (
                 <div className="rounded-xl border border-primary-200 bg-primary-50 px-6 py-10 text-center">
                   <h2 className="text-lg font-semibold text-gray-900">AI 简历分析为 VIP 功能</h2>
-                  <p className="mt-2 text-sm leading-6 text-gray-600">免费账号仍可编辑、保存和导入简历，开通 VIP 后可使用 AI 分析与优化。</p>
+                  <p className="mt-2 text-sm leading-6 text-gray-600">开通 VIP 后可使用 AI 分析与优化。</p>
                   <button
                     type="button"
                     onClick={() => setMembershipModalOpen(true)}
@@ -918,7 +912,7 @@ export default function EditorPage() {
             </div>
           ) : (
             <div className="text-center py-20 text-gray-400">
-              请在左侧选择模块开始编辑
+              请选择模块
             </div>
           )}
         </main>

@@ -205,8 +205,7 @@ export function AdminShell({
 
         <div className="border-t border-white/10 p-3">
           <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">当前管理员</div>
-            <div className="mt-1.5 truncate text-xs font-medium text-slate-200">
+            <div className="truncate text-xs font-medium text-slate-200">
               {user?.email || user?.nickname || '管理员账号'}
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2">
@@ -242,17 +241,9 @@ export function AdminShell({
               <span aria-hidden="true">≡</span>
             </button>
             <div className="min-w-0">
-              <div className="flex items-center gap-2 text-xs text-slate-400">
-                <span>运营控制台</span>
-                <span aria-hidden="true">/</span>
-                <span className="truncate text-slate-600">{activeMeta.label}</span>
-              </div>
+              <div className="text-xs text-slate-500">运营控制台</div>
             </div>
             <div className="ml-auto flex items-center gap-3">
-              <div className="hidden items-center gap-2 text-xs text-slate-500 sm:flex">
-                <span className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,0.12)]" />
-                管理员权限已验证
-              </div>
               <Link
                 to="/dashboard"
                 className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-950"
@@ -266,11 +257,9 @@ export function AdminShell({
         <main className="mx-auto min-w-0 w-full max-w-[1540px] overflow-x-hidden px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           <div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-end">
             <div>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-600">PaiResume Operations</div>
-              <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950 sm:text-[28px]">
+              <h1 className="text-2xl font-semibold tracking-tight text-slate-950 sm:text-[28px]">
                 {activeMeta.label}
               </h1>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">{activeMeta.description}</p>
             </div>
           </div>
 

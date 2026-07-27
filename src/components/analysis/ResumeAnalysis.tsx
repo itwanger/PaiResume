@@ -67,18 +67,18 @@ export function ResumeAnalysis({ resumeId }: ResumeAnalysisProps) {
     window.localStorage.setItem(ANALYSIS_PROMPT_STORAGE_KEY, nextPrompt)
     setPromptDraft(nextPrompt)
     setSavedPrompt(nextPrompt)
-    setSaveHint('提示词已保存，本次及后续分析都会使用这版。')
+    setSaveHint('提示词已保存')
   }
 
   const handleResetPrompt = () => {
     setPromptDraft(DEFAULT_ANALYSIS_PROMPT)
-    setSaveHint('已恢复默认提示词，记得保存后再开始分析。')
+    setSaveHint('已恢复默认提示词，请保存')
   }
 
   const handleAnalyze = () => {
     const nextPrompt = promptDraft.trim()
     if (!nextPrompt) {
-      setSaveHint('请先填写提示词，再保存并开始分析。')
+      setSaveHint('请填写并保存提示词')
       return
     }
 
@@ -160,7 +160,7 @@ export function ResumeAnalysis({ resumeId }: ResumeAnalysisProps) {
             开始分析
           </Button>
           {hasUnsavedChanges && (
-            <span className="text-sm text-amber-600">提示词有未保存修改，保存后才能开始分析。</span>
+            <span className="text-sm text-amber-600">请先保存提示词</span>
           )}
         </div>
 
@@ -179,8 +179,7 @@ export function ResumeAnalysis({ resumeId }: ResumeAnalysisProps) {
 
       {(isAnalyzing || analysisReasoning || analysisStatus) && (
         <Section
-          title={isAnalyzing ? '分析过程' : '本次分析过程'}
-          description={analysisStatus || 'AI 正在逐步整理分析重点。'}
+          title="分析过程"
         >
           <div className="rounded-2xl border border-primary-100 bg-[linear-gradient(180deg,_rgba(239,246,255,0.92)_0%,_rgba(255,255,255,0.96)_100%)] p-4 shadow-[0_18px_50px_-28px_rgba(37,99,235,0.28)]">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -206,7 +205,7 @@ export function ResumeAnalysis({ resumeId }: ResumeAnalysisProps) {
                 ) : (
                   <div className="flex items-center gap-2 text-slate-300">
                     <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-primary-300" />
-                    <span>AI 已开始工作，思考过程输出后会显示在这里。</span>
+                    <span>等待分析输出…</span>
                   </div>
                 )}
               </div>
@@ -251,7 +250,6 @@ export function ResumeAnalysis({ resumeId }: ResumeAnalysisProps) {
           {analysisResult.issues.length > 0 && (
             <Section
               title={`发现的问题 (${analysisResult.issues.length})`}
-              description="以下是检测到的问题，建议优先处理真正影响投递效果的内容。"
             >
               <div className="space-y-3">
                 {analysisResult.issues.map((issue, index) => (
@@ -281,10 +279,7 @@ export function ResumeAnalysis({ resumeId }: ResumeAnalysisProps) {
           )}
 
           {analysisResult.suggestions.length > 0 && (
-            <Section
-              title="改进建议"
-              description="这些建议不是硬性问题，更偏向继续往上打磨。"
-            >
+            <Section title="改进建议">
               <ul className="space-y-2">
                 {analysisResult.suggestions.map((suggestion, index) => (
                   <li
@@ -307,8 +302,7 @@ export function ResumeAnalysis({ resumeId }: ResumeAnalysisProps) {
                 <svg className="mx-auto mb-4 h-16 w-16 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <p className="text-lg font-medium text-gray-900">太棒了！</p>
-                <p className="mt-2 text-gray-600">您的简历没有发现明显问题</p>
+                <p className="text-lg font-medium text-gray-900">未发现明显问题</p>
               </div>
             </Section>
           )}

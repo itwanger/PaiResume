@@ -10,16 +10,13 @@ const footerLinkClassName = 'text-sm text-slate-400 transition-colors hover:text
 export function SiteFooter() {
   return (
     <footer className="border-t border-slate-800 bg-slate-950 text-slate-300">
-      <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-[minmax(0,1.6fr)_repeat(3,minmax(0,1fr))]">
+      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+        <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-[minmax(0,1.6fr)_repeat(3,minmax(0,1fr))]">
           <div className="max-w-sm">
             <Link to="/" className="inline-flex items-center gap-3" aria-label="派简历首页">
               <LogoMark className="h-10 w-10" />
               <span className="text-lg font-semibold text-white">派简历</span>
             </Link>
-            <p className="mt-4 text-sm leading-7 text-slate-400">
-              从内容诊断、AI 优化到智能排版，认真完成一份适合投递的简历。
-            </p>
           </div>
 
           <nav aria-label="页脚产品导航">
@@ -55,9 +52,6 @@ export function SiteFooter() {
               GitHub 源码
               <span aria-hidden="true">↗</span>
             </a>
-            <p className="mt-3 text-xs leading-6 text-slate-500">
-              查看项目源码、提交功能建议与兼容性问题。
-            </p>
           </div>
         </div>
 

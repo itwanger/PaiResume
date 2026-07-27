@@ -425,7 +425,7 @@ export function MarketplaceGovernancePanel({
         <div>
           <h2 className="text-lg font-semibold text-gray-900">市场治理工作台</h2>
           <p className="mt-1 max-w-3xl text-sm leading-6 text-gray-500">
-            处理公开举报、侵权投诉与创作者申诉。所有处理动作必须填写原因，并会永久写入治理审计记录。
+            处理原因会永久写入治理审计记录。
           </p>
         </div>
         <button
@@ -494,8 +494,7 @@ export function MarketplaceGovernancePanel({
 
       {!activeTabLoading && !activeTabFailed && activeTab === 'REPORTS' ? (
         <div className="mt-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-gray-500">待处理举报按最早提交优先排列。</p>
+          <div className="flex flex-wrap items-center justify-end gap-3">
             <select
               aria-label="举报处理状态筛选"
               value={reportStatus}
@@ -594,7 +593,7 @@ export function MarketplaceGovernancePanel({
             </div>
           ) : (
             <p className="mt-4 rounded-lg border border-dashed border-gray-300 px-4 py-10 text-center text-sm text-gray-500">
-              当前筛选条件下暂无举报或侵权投诉。
+              暂无举报或投诉
             </p>
           )}
           <Pagination
@@ -700,7 +699,7 @@ export function MarketplaceGovernancePanel({
             </div>
           ) : (
             <p className="mt-4 rounded-lg border border-dashed border-gray-300 px-4 py-10 text-center text-sm text-gray-500">
-              当前筛选条件下暂无创作者申诉。
+              暂无申诉
             </p>
           )}
           <Pagination
@@ -799,7 +798,7 @@ export function MarketplaceGovernancePanel({
             </div>
           ) : (
             <p className="mt-4 rounded-lg border border-dashed border-gray-300 px-4 py-10 text-center text-sm text-gray-500">
-              当前筛选条件下暂无治理审计记录。
+              暂无审计记录
             </p>
           )}
           <Pagination

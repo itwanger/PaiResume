@@ -79,7 +79,6 @@ export default function ResumeEditorEntryPage() {
             <>
               <div className="mx-auto h-10 w-10 animate-pulse rounded-full bg-primary-100" aria-hidden="true" />
               <h1 className="mt-5 text-lg font-semibold text-gray-900">正在打开简历编辑器</h1>
-              <p className="mt-2 text-sm text-gray-500">将自动进入最近编辑的简历</p>
             </>
           )}
         </div>

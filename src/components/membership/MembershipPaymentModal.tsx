@@ -122,8 +122,7 @@ export function MembershipPaymentModal({
       >
         <div className="flex items-start justify-between border-b border-slate-100 px-5 py-4 sm:px-6">
           <div>
-            <p className="text-xs font-medium uppercase tracking-[0.16em] text-primary-600">微信支付 · VIP 会员</p>
-            <h2 id="membership-payment-title" className="mt-1 text-xl font-semibold text-slate-950">
+            <h2 id="membership-payment-title" className="text-xl font-semibold text-slate-950">
               {paid
                 ? 'VIP 已开通'
                 : canceled
@@ -199,7 +198,7 @@ export function MembershipPaymentModal({
                 ) : order.codeUrl ? (
                   <div className="px-3 text-center">
                     <p className="text-sm font-medium text-slate-800">二维码图片暂未生成</p>
-                    <p className="mt-1 text-xs leading-5 text-slate-500">请稍后刷新；开发排查时也可复制支付码。</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">请稍后刷新订单状态。</p>
                     <button
                       type="button"
                       onClick={() => void copyCodeUrl()}
@@ -257,8 +256,6 @@ export function MembershipPaymentModal({
               </div>
             </div>
           </dl>
-
-          <p className="mt-3 text-xs leading-5 text-slate-500">本区域展示的是服务端创建订单时固化的会员期限、优惠与金额快照，不使用浏览器本地计算结果。</p>
 
           {error ? (
             <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">{error}</div>

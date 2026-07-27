@@ -28,13 +28,12 @@ function PolicySection({ title, children }: PolicySectionProps) {
 }
 
 interface PolicyPageProps {
-  eyebrow: string
   title: string
   summary: string
   children: ReactNode
 }
 
-function PolicyPage({ eyebrow, title, summary, children }: PolicyPageProps) {
+function PolicyPage({ title, summary, children }: PolicyPageProps) {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <header className="border-b border-slate-200 bg-white">
@@ -52,8 +51,7 @@ function PolicyPage({ eyebrow, title, summary, children }: PolicyPageProps) {
       <main className="mx-auto max-w-4xl px-4 py-10 sm:px-6 sm:py-14">
         <article className="border border-slate-200 bg-white px-5 py-8 shadow-sm sm:px-10 sm:py-10">
           <div className="border-b border-slate-200 pb-8">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary-600">{eyebrow}</p>
-            <h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-950">{title}</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-slate-950">{title}</h1>
             <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-600">{summary}</p>
             <p className="mt-3 text-xs text-slate-400">更新日期：{LAST_UPDATED}</p>
           </div>
@@ -74,7 +72,6 @@ function PolicyPage({ eyebrow, title, summary, children }: PolicyPageProps) {
 export function PrivacyPolicyPage() {
   return (
     <PolicyPage
-      eyebrow="Privacy Policy"
       title="隐私政策"
       summary="本政策说明派简历在提供账号、简历编辑、人工智能辅助和支付服务时，如何收集、使用、保存和保护你的信息。"
     >
@@ -140,7 +137,6 @@ export function PrivacyPolicyPage() {
 export function TermsPage() {
   return (
     <PolicyPage
-      eyebrow="Terms of Service"
       title="服务条款"
       summary="注册或使用派简历前，请阅读本条款。勾选同意并完成注册，表示你理解并接受与所使用功能相关的约定。"
     >
@@ -192,7 +188,6 @@ export function TermsPage() {
 export function RefundPolicyPage() {
   return (
     <PolicyPage
-      eyebrow="Refund Policy"
       title="退款规则"
       summary="本规则适用于派简历页面内直接购买的数字化会员或服务。用户付费简历市场正式开放前，不接受该类交易。"
     >
@@ -233,7 +228,6 @@ export function CustomerServicePage() {
 
   return (
     <PolicyPage
-      eyebrow="Customer Support"
       title="客服说明"
       summary="请根据问题是否包含账号、订单或简历信息选择渠道。公开反馈不得包含个人信息，支付问题必须使用私密渠道。"
     >

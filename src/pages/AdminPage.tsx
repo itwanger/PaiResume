@@ -1230,7 +1230,7 @@ export default function AdminPage() {
         {failedSectionLabels.length ? (
           <div role="alert" className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 shadow-sm sm:flex-row sm:items-center sm:justify-between">
             <span className="leading-5">
-              部分后台数据加载失败：{failedSectionLabels.join('、')}。对应模块不会用 0 或默认价格冒充真实数据。
+              加载失败：{failedSectionLabels.join('、')}；对应模块已暂停操作。
             </span>
             <button
               type="button"
@@ -1275,7 +1275,7 @@ export default function AdminPage() {
             <h2 className="mt-4 text-lg font-semibold text-slate-950">当前模块数据加载失败</h2>
             <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-600">
               {activeViewFailedSections.map((section) => ADMIN_DATA_SECTION_LABELS[section]).join('、')}
-              暂不可用。为避免把旧数据或空数组误当成真实结果，本页的查看与写操作已暂停。
+              加载失败，本页操作已暂停。
             </p>
             <button
               type="button"
@@ -1357,14 +1357,13 @@ export default function AdminPage() {
                       onChange={(event) => setPlatformConfig((current) => ({ ...current, resumeReviewPriceCents: Number(event.target.value) }))}
                       className="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none transition-colors focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
                     />
-                    <span className="mt-2 block text-xs leading-5 text-gray-500">仅用于第二次及以后的申请，每次按创建订单时的服务端价格快照收费。</span>
+                    <span className="mt-2 block text-xs leading-5 text-gray-500">第二次及以后按订单价格快照收费。</span>
                   </label>
                   <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-4 text-sm leading-6 text-gray-600">
-                    <p>当前会员价 {formatCents(platformConfig.membershipPriceCents)}，问卷默认优惠 {formatCents(platformConfig.questionnaireCouponAmountCents)}。</p>
-                    <p className={platformConfig.resumeReviewPriceCents > 0 ? 'mt-1 text-gray-700' : 'mt-1 font-medium text-amber-700'}>
-                      人工精修单次价 {formatCents(platformConfig.resumeReviewPriceCents)}；价格为 0 时，即使部署环境打开收款开关，也不会接受第二次及以后的付费新单。
+                    <p className={platformConfig.resumeReviewPriceCents > 0 ? 'text-gray-700' : 'font-medium text-amber-700'}>
+                      精修价格为 0 时不接受付费新单。
                     </p>
-                    <p className="mt-1 text-xs text-gray-500">修改价格只影响之后创建的新订单，不会改写已有申请和订单金额；独立收款开关由部署配置管理。</p>
+                    <p className="mt-1 text-xs text-gray-500">价格仅影响新订单；收款开关由部署配置独立控制。</p>
                   </div>
                   <button
                     type="button"
@@ -1381,12 +1380,7 @@ export default function AdminPage() {
                 {activeView === 'showcases' ? (
                   <div className="rounded-lg border border-gray-200 bg-white px-6 py-6">
                 <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <h2 className="text-lg font-semibold text-gray-900">官方精选简历</h2>
-                    <p className="mt-1 text-sm text-gray-500">
-                      从管理员自己的脱敏简历中挑选内容，发布到优质简历菜单；每条可设置为公开查看，或付费查看（由 VIP 权益解锁）。
-                    </p>
-                  </div>
+                  <h2 className="text-lg font-semibold text-gray-900">官方精选简历</h2>
                 </div>
 
                 <div className="mt-5 grid gap-4 md:grid-cols-2">
@@ -1561,7 +1555,7 @@ export default function AdminPage() {
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900">投稿审核与上下架</h2>
                   <p className="mt-1 max-w-3xl text-sm leading-6 text-gray-500">
-                    默认显示待审投稿。通过后才切换公开版本；更新待审期间，原已通过版本继续展示。平台下架会阻止历史买家访问，恢复不会覆盖创作者自己的发布选择。
+                    通过后切换公开版本；平台下架会阻止历史买家访问，恢复不覆盖创作者选择。
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-3">
@@ -1756,7 +1750,7 @@ export default function AdminPage() {
                 </div>
               ) : (
                 <p className="mt-5 rounded-lg border border-dashed border-gray-300 px-4 py-10 text-center text-sm text-gray-500">
-                  当前筛选条件下暂无用户公开简历。
+                  暂无匹配简历
                 </p>
               )}
 
@@ -1804,10 +1798,10 @@ export default function AdminPage() {
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900">作者收益线下结算</h2>
                   <p className="mt-1 text-sm leading-6 text-gray-500">
-                    这里只显示作者已主动申请的待结算收益。完成实际转账后，再填写转账流水或备注并确认结算。
+                    实际转账后再登记流水并确认结算。
                   </p>
                   <p className="mt-1 text-xs leading-5 text-amber-700">
-                    待结算共 {pendingCreatorEarningCount} 条，当前列表最多展示最早 200 条。
+                    待结算 {pendingCreatorEarningCount} 条 · 最早 200 条
                   </p>
                 </div>
                 <button
@@ -1878,7 +1872,7 @@ export default function AdminPage() {
                 </div>
               ) : (
                 <p className="mt-5 rounded-lg border border-dashed border-gray-300 px-4 py-10 text-center text-sm text-gray-500">
-                  暂无作者申请线下结算。
+                  暂无结算申请
                 </p>
               )}
               </section>
@@ -1889,9 +1883,6 @@ export default function AdminPage() {
               <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900">会员支付复核</h2>
-                  <p className="mt-1 max-w-3xl text-sm leading-6 text-gray-500">
-                    处理会员订单的迟到付款、重复付款和其他退款复核。这里与下方用户简历交易退款相互独立。
-                  </p>
                 </div>
                 <button
                   type="button"
@@ -2044,7 +2035,7 @@ export default function AdminPage() {
                 </div>
               ) : (
                 <p className="mt-5 rounded-lg border border-dashed border-gray-300 px-4 py-10 text-center text-sm text-gray-500">
-                  当前筛选条件下暂无会员支付订单。
+                  暂无匹配订单
                 </p>
               )}
 
@@ -2217,10 +2208,10 @@ export default function AdminPage() {
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900">支付异常人工复核</h2>
                   <p className="mt-1 max-w-3xl text-sm leading-6 text-gray-500">
-                    展示需要人工核对的无效成交付款和重复支付。本页面不会发起退款，只用于在商户平台实际退款完成后登记核验结果。
+                    仅登记商户平台退款结果，不发起退款。
                   </p>
                   <p className="mt-1 text-xs leading-5 text-red-700">
-                    当前待复核异常共 {marketplacePaymentIssueCount} 条；复核列表每次最多展示 200 条。
+                    待复核 {marketplacePaymentIssueCount} 条 · 最多 200 条
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-3">
@@ -2498,8 +2489,8 @@ export default function AdminPage() {
               ) : (
                 <p className="mt-5 rounded-lg border border-dashed border-gray-300 px-4 py-10 text-center text-sm text-gray-500">
                   {paymentReviewFilter === 'REFUNDED'
-                    ? '暂无已登记的退款历史。'
-                    : '当前没有需要人工复核的异常支付订单。'}
+                    ? '暂无退款历史'
+                    : '暂无异常订单'}
                 </p>
               )}
               </section>
@@ -2508,12 +2499,7 @@ export default function AdminPage() {
             {activeView === 'vip-invites' ? (
               <section className="rounded-lg border border-emerald-200 bg-white px-6 py-6">
               <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-start">
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-900">知识星球 VIP 邀请码</h2>
-                  <p className="mt-1 max-w-3xl text-sm leading-6 text-gray-500">
-                    每个批次码可单独配置权益天数，并供多名星球用户兑换；每个账号只能领取一次，且邀请码与支付优惠码完全独立。
-                  </p>
-                </div>
+                <h2 className="text-lg font-semibold text-gray-900">知识星球 VIP 邀请码</h2>
                 <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
                   作废批次码只阻止新兑换，不影响已领取用户；泄露后请在兑换记录中逐条撤销异常权益。
                 </div>
@@ -2700,7 +2686,7 @@ export default function AdminPage() {
                       </table>
                     </div>
                   ) : (
-                    <p className="mt-2 text-sm text-gray-500">暂时还没有用户兑换。</p>
+                    <p className="mt-2 text-sm text-gray-500">暂无兑换</p>
                   )}
                 </div>
               ) : null}
@@ -2922,7 +2908,7 @@ export default function AdminPage() {
                   </table>
                   {!filteredUsers.length ? (
                     <div className="border-t border-gray-100 px-4 py-12 text-center text-sm text-gray-500">
-                      当前筛选条件下没有用户。
+                      暂无匹配用户
                     </div>
                   ) : null}
                 </div>
@@ -2937,7 +2923,7 @@ export default function AdminPage() {
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900">最近会员管理审计日志</h2>
                   <p className="mt-1 text-sm leading-6 text-gray-500">
-                    展示最近 200 条手工开通、延期、撤销、邀请码作废和异常兑换撤销记录。
+                    最近 200 条会员与邀请码高风险操作。
                   </p>
                 </div>
                 <button
@@ -3006,7 +2992,7 @@ export default function AdminPage() {
                   </table>
                 </div>
               ) : (
-                <p className="mt-4 text-sm text-gray-500">暂无会员管理审计记录。</p>
+                <p className="mt-4 text-sm text-gray-500">暂无审计记录</p>
               )}
               </section>
             ) : null}

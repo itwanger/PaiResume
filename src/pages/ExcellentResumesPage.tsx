@@ -153,12 +153,9 @@ export default function ExcellentResumesPage() {
                     <ResumeLayoutThumbnail />
                   </div>
                   <div className="flex flex-1 flex-col p-5">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <h3 className="text-lg font-semibold text-slate-950">{showcase.title}</h3>
-                        <p className="mt-1 text-sm font-medium text-primary-700">{showcase.scoreLabel}</p>
-                      </div>
-                      <span className="shrink-0 bg-primary-50 px-2.5 py-1 text-xs text-primary-700">推荐排版</span>
+                    <div>
+                      <h3 className="text-lg font-semibold text-slate-950">{showcase.title}</h3>
+                      <p className="mt-1 text-sm font-medium text-primary-700">{showcase.scoreLabel}</p>
                     </div>
                     <p className="mt-4 line-clamp-2 text-sm leading-6 text-slate-600">{showcase.summary}</p>
                     <div className="mt-4 flex flex-wrap gap-2">
@@ -178,7 +175,7 @@ export default function ExcellentResumesPage() {
               ))}
             </div>
           ) : (
-            <div className="border border-dashed border-slate-300 bg-white px-6 py-12 text-center text-sm text-slate-500">优质简历正在整理中。</div>
+            <div className="border border-dashed border-slate-300 bg-white px-6 py-12 text-center text-sm text-slate-500">暂无简历</div>
           )}
         </section>
 
@@ -187,9 +184,8 @@ export default function ExcellentResumesPage() {
           <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-12">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
-                <p className="text-sm font-medium text-emerald-700">社区创作者</p>
-                <h2 className="mt-1 text-2xl font-bold text-slate-950">用户公开简历</h2>
-                <p className="mt-2 text-sm leading-6 text-slate-500">这里只展示作者主动发布的摘要；完整正文仍由服务端按免费、本人或已购权限返回。</p>
+                <h2 className="text-2xl font-bold text-slate-950">用户公开简历</h2>
+                <p className="mt-2 text-sm leading-6 text-slate-500">完整正文按免费、本人或已购权限返回。</p>
               </div>
 
               <form onSubmit={handleSearch} className="flex w-full max-w-xl flex-col gap-2 sm:flex-row">
@@ -251,10 +247,7 @@ export default function ExcellentResumesPage() {
                         </span>
                       </div>
                       <div className="flex flex-1 flex-col p-5">
-                        <div className="flex items-start justify-between gap-4">
-                          <h3 className="text-lg font-semibold text-slate-950">{listing.title}</h3>
-                          <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-xs text-slate-500">用户公开</span>
-                        </div>
+                        <h3 className="text-lg font-semibold text-slate-950">{listing.title}</h3>
                         <p className="mt-4 line-clamp-3 text-sm leading-6 text-slate-600">{listing.summary}</p>
                         <div className="mt-4 flex flex-wrap gap-2">
                           {(listing.tags ?? []).map((tag) => (
@@ -281,7 +274,7 @@ export default function ExcellentResumesPage() {
               </div>
             ) : (
               <div className="mt-6 border border-dashed border-slate-300 bg-slate-50 px-6 py-16 text-center">
-                <p className="text-sm text-slate-500">没有找到符合条件的用户公开简历。</p>
+                <p className="text-sm text-slate-500">暂无符合条件的简历</p>
               </div>
             )}
 

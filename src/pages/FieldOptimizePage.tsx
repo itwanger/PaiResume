@@ -721,10 +721,7 @@ export default function FieldOptimizePage() {
             <div className="grid gap-6 xl:grid-cols-[0.95fr_1.25fr]">
               <section className="min-w-0 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
                 <div className="mb-3 flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-medium text-slate-800">系统提示词</div>
-                    <div className="mt-1 text-xs text-slate-500">控制优化风格和表达约束，通常只需少量调整。</div>
-                  </div>
+                  <div className="text-sm font-medium text-slate-800">系统提示词</div>
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
@@ -762,10 +759,7 @@ export default function FieldOptimizePage() {
 
               <section className="min-w-0 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
                 <div className="mb-3 flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-medium text-slate-800">用户提示词</div>
-                    <div className="mt-1 text-xs text-slate-500">补充本次目标、输出格式和特殊改写要求。</div>
-                  </div>
+                  <div className="text-sm font-medium text-slate-800">用户提示词</div>
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
@@ -822,7 +816,7 @@ export default function FieldOptimizePage() {
                     <div>
                       <MarkdownPreview
                         content={state.reasoning}
-                        emptyText={isStreaming ? '正在等待生成过程输出...' : '点击“开始优化”后，这里会展示完整的生成过程。'}
+                        emptyText={isStreaming ? '正在等待生成过程输出...' : '暂无生成过程'}
                         className="min-h-[220px] border-primary-100 bg-gradient-to-br from-primary-50 via-white to-slate-50"
                       />
                     </div>
@@ -830,7 +824,7 @@ export default function FieldOptimizePage() {
                       <div className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">流式结果</div>
                       <MarkdownPreview
                         content={state.streamedContent}
-                        emptyText={isStreaming ? '正在等待结果输出...' : '点击“开始优化”后，这里会展示流式返回内容。'}
+                        emptyText={isStreaming ? '正在等待结果输出...' : '暂无流式结果'}
                         className="min-h-[120px] border-primary-100 bg-white"
                       />
                     </div>
@@ -882,7 +876,7 @@ export default function FieldOptimizePage() {
                         </div>
                       )) : (
                         <div className="rounded-2xl border border-dashed border-primary-100 bg-primary-50/30 px-4 py-8 text-sm text-slate-500">
-                          {isStreaming ? 'AI 还在生成候选版本。' : '点击“开始优化”后，这里会展示可采纳候选。'}
+                          {isStreaming ? '正在生成候选版本...' : '暂无候选版本'}
                         </div>
                       )}
                     </div>
@@ -914,7 +908,7 @@ export default function FieldOptimizePage() {
                       />
                     ) : (
                       <div className="min-h-[240px] overflow-auto whitespace-pre-wrap rounded-2xl border border-primary-100 bg-primary-50/40 p-4 text-sm leading-7 text-slate-700">
-                        {isStreaming ? 'AI 还在生成优化结果。' : '点击“开始优化”后，这里会展示优化结果。'}
+                        {isStreaming ? '正在生成优化结果...' : '暂无优化结果'}
                       </div>
                     )}
                   </section>

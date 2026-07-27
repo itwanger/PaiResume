@@ -51,7 +51,7 @@ export default function SurveyPage() {
           <div>
             <h1 className="text-2xl font-semibold text-gray-900">提交评价 / 新需求 / Bug 反馈</h1>
             <p className="mt-2 text-sm leading-6 text-gray-500">
-              问卷公开可填。管理员审核通过后，会自动把单次优惠码发到你填写的邮箱。
+              审核通过后，单次优惠码将发送到你填写的邮箱。
             </p>
           </div>
 

@@ -35,42 +35,42 @@ const TERMINAL_REQUEST_STATUSES = new Set<ResumeReviewStatus>([
 const REQUEST_STATUS_COPY: Record<ResumeReviewStatus, { title: string; description: string; tone: string }> = {
   AWAITING_PAYMENT: {
     title: '等待微信支付',
-    description: '这份 PDF 已经确认提交。请完成本单支付，系统确认到账后才会发送邮件。',
+    description: '支付成功后发送 PDF。',
     tone: 'border-amber-200 bg-amber-50 text-amber-950',
   },
   EMAIL_PENDING: {
     title: '正在发送简历',
-    description: '系统正在把你确认上传的 PDF 投递到固定人工审阅邮箱；此状态还不代表邮件已被接收。',
+    description: '正在发送 PDF。',
     tone: 'border-blue-200 bg-blue-50 text-blue-950',
   },
   EMAILED: {
     title: '简历已发送给二哥',
-    description: '固定审阅邮箱已接收 PDF 附件，等待二哥接单。邮件副本一旦发出便无法远程召回。',
+    description: 'PDF 已送达，等待接单。',
     tone: 'border-emerald-200 bg-emerald-50 text-emerald-950',
   },
   ACCEPTED: {
     title: '二哥已接单',
-    description: '本次人工精修正在处理中，请留意你填写的联系邮箱。',
+    description: '处理中，请留意联系邮箱。',
     tone: 'border-emerald-200 bg-emerald-50 text-emerald-950',
   },
   COMPLETED: {
     title: '本次人工精修已完成',
-    description: '本次服务已完成。如需再次提交，请重新创建一份独立快照。',
+    description: '本次已结束，可查看下一次资格。',
     tone: 'border-emerald-200 bg-emerald-50 text-emerald-950',
   },
   REFUND_REQUIRED: {
     title: '本笔付款需要人工退款处理',
-    description: '请勿重复支付。该状态只表示需要人工核对，不代表退款已经到账。',
+    description: '请勿重复支付；此状态不代表退款已到账。',
     tone: 'border-red-200 bg-red-50 text-red-950',
   },
   RETURNED: {
     title: '本次申请已退回',
-    description: '本次申请没有继续处理，可以查看最新资格后重新提交。',
+    description: '本次已结束，可查看下一次资格。',
     tone: 'border-slate-200 bg-slate-50 text-slate-950',
   },
   REFUNDED: {
     title: '退款已人工确认',
-    description: '本次申请已经结束，可以查看最新资格后重新提交。',
+    description: '本次已结束，可查看下一次资格。',
     tone: 'border-slate-200 bg-slate-50 text-slate-950',
   },
 }
@@ -198,32 +198,28 @@ export function ResumeReviewModal({
     if (!eligibility) return null
     if (!eligibility.enabled) {
       return {
-        eyebrow: '暂未开放',
         title: '人工精修暂未开放',
-        description: '当前不会接收新的人工精修申请。',
+        description: '',
         tone: 'border-slate-200 bg-slate-50',
       }
     }
     if (eligibility.welcomeFreeAvailable) {
       return {
-        eyebrow: '第 1 次',
-        title: '首次人工精修免费',
-        description: '本次不会创建支付订单。免费额度在收件邮件服务器受理后核销。',
+        title: '首次精修免费',
+        description: '邮件受理后核销免费次数。',
         tone: 'border-emerald-200 bg-emerald-50',
       }
     }
     if (eligibility.paidReviewAvailable && eligibility.priceCents > 0) {
       return {
-        eyebrow: '第 2 次及以后',
-        title: `本次需单独支付 ${formatCents(eligibility.priceCents)}`,
-        description: '每次付款只对应当前确认上传的这一份 PDF，不会自动续费。',
+        title: `本次 ${formatCents(eligibility.priceCents)}`,
+        description: '每次仅对应当前 PDF，不会自动续费。',
         tone: 'border-blue-200 bg-blue-50',
       }
     }
     return {
-      eyebrow: '第 2 次及以后',
-      title: '付费人工精修暂未开放',
-      description: '后台尚未同时配置真实价格和收款开关，目前不会创建订单。',
+      title: '付费精修暂未开放',
+      description: '',
       tone: 'border-slate-200 bg-slate-50',
     }
   }, [eligibility])
@@ -542,17 +538,10 @@ export function ResumeReviewModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="resume-review-title"
-        aria-describedby="resume-review-description"
         className="relative max-h-[94vh] w-full overflow-y-auto rounded-t-2xl bg-white shadow-2xl outline-none sm:max-w-2xl sm:rounded-2xl"
       >
         <header className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-100 bg-white/95 px-5 py-4 backdrop-blur sm:px-6">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary-600">人工简历精修</p>
-            <h2 id="resume-review-title" className="mt-1 text-xl font-semibold text-slate-950">请二哥帮我改简历</h2>
-            <p id="resume-review-description" className="mt-1 text-sm leading-6 text-slate-500">
-              请选择最终确认的 PDF；文件会直传到平台私有存储，通过核验后再创建申请。
-            </p>
-          </div>
+          <h2 id="resume-review-title" className="text-xl font-semibold text-slate-950">人工精修</h2>
           <button
             ref={closeButtonRef}
             type="button"
@@ -581,7 +570,7 @@ export function ResumeReviewModal({
 
           {loading ? (
             <div className="flex min-h-48 items-center justify-center text-sm text-slate-500" role="status">
-              正在读取人工精修资格与申请状态…
+              正在加载…
             </div>
           ) : currentRequest ? (
             <RequestStatusPanel
@@ -594,15 +583,10 @@ export function ResumeReviewModal({
             <>
               {entitlementSummary ? (
                 <div className={`rounded-2xl border px-4 py-4 sm:px-5 ${entitlementSummary.tone}`}>
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">{entitlementSummary.eyebrow}</p>
-                  <h3 className="mt-1 text-lg font-semibold text-slate-950">{entitlementSummary.title}</h3>
-                  <p className="mt-1 text-sm leading-6 text-slate-700">{entitlementSummary.description}</p>
-                </div>
-              ) : null}
-
-              {paidReviewBlocked ? (
-                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-700">
-                  付费人工精修暂未开放。只有后台配置真实价格并开启独立收款开关后，这里才会显示服务端金额和支付入口。
+                  <h3 className="text-lg font-semibold text-slate-950">{entitlementSummary.title}</h3>
+                  {entitlementSummary.description ? (
+                    <p className="mt-1 text-sm leading-6 text-slate-700">{entitlementSummary.description}</p>
+                  ) : null}
                 </div>
               ) : null}
 
@@ -710,24 +694,24 @@ function ApplicationForm({
   return (
     <div className="space-y-5 rounded-2xl border border-slate-200 bg-white px-4 py-5 sm:px-5">
       <div>
-        <h3 className="text-base font-semibold text-slate-950">选择简历 PDF</h3>
-        <p className="mt-1 text-sm leading-6 text-slate-500">仅支持不超过 10MB 的 PDF。文件会直接上传到平台的私有 OSS，不会公开，也不能指定外部链接或收件人。</p>
-        <label htmlFor="resume-review-pdf" className="mt-3 block text-sm font-medium text-slate-700">PDF 文件</label>
+        <h3 className="text-base font-semibold text-slate-950">选择 PDF</h3>
+        <p className="mt-1 text-sm leading-6 text-slate-500">最大 10MB，仅用于本次人工精修。</p>
+        <label htmlFor="resume-review-pdf" className="sr-only">PDF 文件</label>
         <input
           id="resume-review-pdf"
           type="file"
           accept=".pdf,application/pdf"
           onChange={onPdfFileChange}
           disabled={submitting || validatingPdf}
-          className="mt-2 block min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-primary-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary-700 hover:file:bg-primary-100 disabled:cursor-not-allowed disabled:opacity-50"
+          className="mt-3 block min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-primary-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary-700 hover:file:bg-primary-100 disabled:cursor-not-allowed disabled:opacity-50"
         />
         {validatingPdf ? (
-          <p className="mt-2 text-xs font-medium text-blue-700" role="status">正在校验 PDF 格式并计算 SHA-256…</p>
+          <p className="mt-2 text-xs font-medium text-blue-700" role="status">正在校验 PDF…</p>
         ) : selectedPdf ? (
           <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3">
             <div className="min-w-0">
               <p className="truncate text-sm font-medium text-emerald-950" title={selectedPdf.name}>{selectedPdf.name}</p>
-              <p className="mt-1 text-xs text-emerald-700">{formatFileSize(selectedPdf.size)} · 已通过 PDF 格式校验</p>
+              <p className="mt-1 text-xs text-emerald-700">{formatFileSize(selectedPdf.size)} · 已校验</p>
             </div>
             <button
               type="button"
@@ -738,18 +722,11 @@ function ApplicationForm({
               移除
             </button>
           </div>
-        ) : (
-          <p className="mt-2 text-xs text-slate-500">提交前必须先选择一份 PDF。</p>
-        )}
+        ) : null}
       </div>
 
       <div>
-        <h3 className="text-base font-semibold text-slate-950">联系邮箱</h3>
-        <p className="mt-1 text-sm leading-6 text-slate-500">用于二哥联系你；核验通过的 PDF 只会发送到平台固定人工审阅邮箱。</p>
-      </div>
-
-      <div>
-        <label htmlFor="resume-review-contact-email" className="mb-2 block text-sm font-medium text-slate-700">邮箱地址</label>
+        <label htmlFor="resume-review-contact-email" className="mb-2 block text-base font-semibold text-slate-950">联系邮箱</label>
         <input
           id="resume-review-contact-email"
           type="email"
@@ -761,7 +738,7 @@ function ApplicationForm({
           className="min-h-11 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
         />
         {accountEmailVerified ? (
-          <p className="mt-2 text-xs font-medium text-emerald-700">当前账号已验证该邮箱，无需重复输入验证码。</p>
+          <p className="mt-2 text-xs font-medium text-emerald-700">邮箱已验证</p>
         ) : (
           <div className="mt-3 flex flex-col gap-2 sm:flex-row">
             <div className="min-w-0 flex-1">
@@ -789,7 +766,7 @@ function ApplicationForm({
       </div>
 
       <fieldset className="space-y-3">
-        <legend className="text-sm font-semibold text-slate-900">提交授权（需分别确认）</legend>
+        <legend className="text-sm font-semibold text-slate-900">确认授权</legend>
         <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 px-3 py-3 transition hover:border-primary-200">
           <input
             type="checkbox"
@@ -797,7 +774,7 @@ function ApplicationForm({
             onChange={(event) => onManualReviewConsentChange(event.target.checked)}
             className="mt-1 h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
           />
-          <span className="text-sm leading-6 text-slate-700">我同意将本次选择并确认的 PDF 交给二哥进行人工审阅。</span>
+          <span className="text-sm leading-6 text-slate-700">同意二哥人工审阅这份 PDF</span>
         </label>
         <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 px-3 py-3 transition hover:border-primary-200">
           <input
@@ -806,13 +783,9 @@ function ApplicationForm({
             onChange={(event) => onEmailDeliveryConsentChange(event.target.checked)}
             className="mt-1 h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
           />
-          <span className="text-sm leading-6 text-slate-700">我同意将 PDF 直传到平台私有 OSS，并由服务端核验后发送到预设的固定人工审阅邮箱；邮件发出后无法远程召回。</span>
+          <span className="text-sm leading-6 text-slate-700">同意上传至私有存储并发送到固定审阅邮箱；邮件发出后无法撤回</span>
         </label>
       </fieldset>
-
-      {!selectedPdf && !validatingPdf ? (
-        <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800">请先选择并校验一份 PDF。</p>
-      ) : null}
 
       <button
         type="button"
@@ -822,7 +795,6 @@ function ApplicationForm({
       >
         {submitLabel}
       </button>
-      <p className="text-center text-xs leading-5 text-slate-500">只有 PDF 上传并通过服务端核验后才会创建申请；上传或核验失败不会扣减次数或生成订单。</p>
     </div>
   )
 }
@@ -846,9 +818,8 @@ function RequestStatusPanel({ request, refreshing, onRefresh, onStartNext }: Req
   return (
     <div className="space-y-5">
       <div className={`rounded-2xl border px-4 py-5 sm:px-5 ${copy.tone}`} role="status">
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] opacity-70">申请状态</p>
-        <h3 className="mt-1 text-lg font-semibold">{copy.title}</h3>
-        <p className="mt-2 text-sm leading-6 opacity-80">{copy.description}</p>
+        <h3 className="text-lg font-semibold">{copy.title}</h3>
+        {copy.description ? <p className="mt-2 text-sm leading-6 opacity-80">{copy.description}</p> : null}
         {request.requestStatus === 'REFUND_REQUIRED' && request.refundReason ? (
           <p className="mt-2 text-xs leading-5 opacity-80">服务端复核原因：{request.refundReason}</p>
         ) : null}

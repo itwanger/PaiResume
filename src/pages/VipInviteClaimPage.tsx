@@ -638,10 +638,9 @@ export default function VipInviteClaimPage() {
 
         <main className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
           <div className="text-center">
-            <p className="text-xs font-semibold tracking-[0.16em] text-emerald-700">知识星球专属福利</p>
-            <h1 className="mt-2 text-2xl font-bold text-slate-950">领取 VIP 会员</h1>
+            <h1 className="text-2xl font-bold text-slate-950">领取 VIP 会员</h1>
             <p className="mt-3 text-sm leading-7 text-slate-600">
-              输入二哥编程星球发放的邀请码，通过「派聪明」服务号确认本人身份，即可注册或登录并领取 VIP。
+              输入知识星球邀请码；未登录用户还需使用「派聪明」扫码确认账号。
             </p>
           </div>
 
@@ -673,7 +672,7 @@ export default function VipInviteClaimPage() {
                 to={AUTHENTICATED_HOME_PATH}
                 className="mt-6 inline-flex w-full items-center justify-center rounded-lg bg-primary-600 px-5 py-2.5 font-medium text-white transition-colors hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
               >
-                开始使用派简历
+                进入我的简历
               </Link>
             </section>
           ) : alreadyVip || (initialized && isAuthenticated && user?.membershipStatus === 'ACTIVE' && !claim) ? (
@@ -731,10 +730,7 @@ export default function VipInviteClaimPage() {
               {completionPhase === 'loading' ? (
                 <>
                   <LoadingSpinner className="mx-auto h-8 w-8 text-primary-600" />
-                  <h2 className="mt-4 text-lg font-semibold text-slate-950">正在开通 VIP</h2>
-                  <p className="mt-2 text-sm leading-6 text-slate-500">
-                    正在把知识星球福利绑定到当前账号，请不要关闭页面。
-                  </p>
+                  <h2 className="mt-4 text-lg font-semibold text-slate-950">正在开通 VIP，请勿关闭页面</h2>
                 </>
               ) : (
                 <>
@@ -815,16 +811,13 @@ export default function VipInviteClaimPage() {
                   ) : null}
                 </div>
 
-                <div className="mt-3 min-h-6 text-center text-sm text-slate-500" aria-live="polite">
-                  {qrPhase === 'pending' && qrDisplay ? (
+                {qrPhase === 'pending' && qrDisplay ? (
+                  <div className="mt-3 text-center text-sm text-slate-500" aria-live="polite">
                     <span>
                       等待扫码 · 二维码剩余 {formatExpiry(qrDisplay.expiresIn)}
                     </span>
-                  ) : null}
-                  {qrPhase === 'idle' ? <span>勾选协议后即可扫码领取</span> : null}
-                  {qrPhase === 'loading' ? <span>正在连接派聪明服务号…</span> : null}
-                  {qrPhase === 'exchanging' ? <span>登录成功后将继续领取 VIP</span> : null}
-                </div>
+                  </div>
+                ) : null}
               </div>
 
               <div className="mt-4 rounded-lg bg-blue-50 px-4 py-3 text-sm leading-6 text-blue-800">
@@ -832,7 +825,7 @@ export default function VipInviteClaimPage() {
                 可以长按二维码识别；也可以截图后，在微信“扫一扫”中从相册选择。
               </div>
               <p className="mt-3 text-center text-xs leading-5 text-slate-500">
-                领取凭证剩余 {formatExpiry(claimExpiresIn)}。刷新页面后可在当前浏览器继续，不会把凭证放进网址。
+                领取凭证剩余 {formatExpiry(claimExpiresIn)}；刷新页面后可在当前浏览器继续。
               </p>
               <button
                 type="button"
@@ -845,8 +838,7 @@ export default function VipInviteClaimPage() {
           )}
 
           <div className="mt-7 border-t border-slate-100 pt-5 text-xs leading-5 text-slate-500">
-            <p>「派聪明」仅用于注册、登录和确认领取账号。</p>
-            <div className="mt-3 flex flex-wrap justify-center gap-x-4 gap-y-2">
+            <div className="flex flex-wrap justify-center gap-x-4 gap-y-2">
               <Link to="/terms" className="hover:text-primary-700">服务条款</Link>
               <Link to="/privacy" className="hover:text-primary-700">隐私政策</Link>
               <Link to="/customer-service" className="hover:text-primary-700">遇到问题</Link>
