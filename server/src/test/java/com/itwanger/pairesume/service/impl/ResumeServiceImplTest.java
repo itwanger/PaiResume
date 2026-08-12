@@ -2,6 +2,7 @@ package com.itwanger.pairesume.service.impl;
 
 import com.itwanger.pairesume.common.BusinessException;
 import com.itwanger.pairesume.dto.ResumeCreateDTO;
+import com.itwanger.pairesume.dto.ResumeStyleUpdateDTO;
 import com.itwanger.pairesume.dto.ResumeUpdateDTO;
 import com.itwanger.pairesume.entity.Resume;
 import com.itwanger.pairesume.entity.ResumeModule;
@@ -147,6 +148,33 @@ class ResumeServiceImplTest {
 
         service.update(7L, 11L, dto);
 
+        verify(resumeMapper).updateById(resume);
+        verify(resumeShowcaseService).unpublishChangedResume(11L);
+    }
+
+    @Test
+    void updatingStylePersistsResumeOwnedPdfConfiguration() {
+        Resume resume = new Resume();
+        resume.setId(11L);
+        resume.setUserId(7L);
+        resume.setStatus(1);
+        when(resumeMapper.selectById(11L)).thenReturn(resume);
+        ResumeStyleUpdateDTO dto = new ResumeStyleUpdateDTO();
+        dto.setTemplateId("warm");
+        dto.setDensity("compact");
+        dto.setAccentPreset("warm");
+        dto.setHeadingStyle("filled");
+
+        var result = service.updateStyle(7L, 11L, dto);
+
+        assertEquals("warm", resume.getTemplateId());
+        assertEquals("compact", resume.getPdfDensity());
+        assertEquals("warm", resume.getAccentPreset());
+        assertEquals("filled", resume.getHeadingStyle());
+        assertEquals("warm", result.getTemplateId());
+        assertEquals("compact", result.getDensity());
+        assertEquals("warm", result.getAccentPreset());
+        assertEquals("filled", result.getHeadingStyle());
         verify(resumeMapper).updateById(resume);
         verify(resumeShowcaseService).unpublishChangedResume(11L);
     }

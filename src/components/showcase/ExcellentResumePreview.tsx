@@ -20,6 +20,7 @@ import {
 } from '../../utils/moduleContent'
 import { parseInlineMarkdownSegments } from '../../utils/inlineMarkdown'
 import { normalizePublicPhotoSource } from '../../utils/resumePhoto'
+import { normalizeInlineText } from '../../utils/resumeText'
 import {
   getModuleDisplayLabel,
   sortResumeModulesForDisplay,
@@ -166,7 +167,7 @@ function ResumeHeader({
               {basicInfo?.name || '个人简历'}
             </h1>
             {basicInfo?.isPartyMember ? (
-              <p className="mt-2 text-sm font-medium text-primary-700">中共党员</p>
+              <p className="mt-2 text-sm font-medium text-primary-700">政治面貌：党员</p>
             ) : null}
           </div>
         </div>
@@ -281,13 +282,18 @@ function ModuleGroup({
         }))
         .filter(({ content }) => hasAnyText([
           content.company,
-          content.projectName,
           content.position,
           content.startDate,
           content.endDate,
-          content.techStack,
-          content.projectDescription,
-          ...content.responsibilities,
+          ...content.projects.flatMap((project) => [
+            project.projectName,
+            project.role,
+            project.startDate,
+            project.endDate,
+            project.techStack,
+            project.projectDescription,
+            ...project.responsibilities,
+          ]),
         ]))
 
       if (entries.length === 0) return null
@@ -296,22 +302,26 @@ function ModuleGroup({
         <ResumeSection title={title}>
           <div className="space-y-5">
             {entries.map(({ module, content }) => {
-              const primaryTitle = content.projectName
-                || [content.company, content.position].filter(Boolean).join(' · ')
-              const meta = content.projectName
-                ? [content.company, content.position].filter(Boolean).join(' · ')
-                : ''
-
               return (
-                <ExperienceEntry
-                  key={module.id}
-                  title={primaryTitle}
-                  meta={meta}
-                  date={formatMonthRange(content.startDate, content.endDate)}
-                  description={content.projectDescription}
-                  techStack={content.techStack}
-                  bullets={content.responsibilities}
-                />
+                <div key={module.id} className="break-inside-avoid">
+                  <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-5">
+                    <h3 className="font-bold text-slate-900">{[content.company, content.position].filter(Boolean).join(' · ')}</h3>
+                    <p className="shrink-0 text-slate-600">{formatMonthRange(content.startDate, content.endDate)}</p>
+                  </div>
+                  <div className="mt-2 space-y-4">
+                    {content.projects.map((project) => (
+                      <ExperienceEntry
+                        key={project.id}
+                        title={project.projectName}
+                        meta={project.role}
+                        date={formatMonthRange(project.startDate, project.endDate)}
+                        description={project.projectDescription}
+                        techStack={project.techStack}
+                        bullets={project.responsibilities}
+                      />
+                    ))}
+                  </div>
+                </div>
               )
             })}
           </div>
@@ -550,7 +560,7 @@ function ExperienceEntry({
 
       <div className="mt-1.5 space-y-1 text-slate-700">
         <LabeledCopy label="项目简介" value={description} />
-        <LabeledCopy label="技术栈" value={techStack} />
+        <LabeledCopy label="技术栈" value={normalizeInlineText(techStack)} />
       </div>
 
       {visibleBullets.length > 0 ? (

@@ -24,7 +24,7 @@ function ResumeLayoutThumbnail({ accent = 'primary' }: { accent?: 'primary' | 'e
   const inkClass = accent === 'emerald' ? 'bg-emerald-700' : 'bg-primary-700'
 
   return (
-    <div className="relative mx-auto aspect-[210/297] w-full max-w-[220px] overflow-hidden border border-slate-200 bg-white p-3 shadow-sm" aria-hidden="true">
+    <div className="relative mx-auto aspect-[210/297] w-full max-w-[220px] overflow-hidden p-3" aria-hidden="true">
       <div className="grid grid-cols-[38px_minmax(0,1fr)] gap-2">
         <div className="h-12 bg-slate-200" />
         <div className="space-y-1.5 pt-0.5">
@@ -150,7 +150,7 @@ export default function ExcellentResumesPage() {
             <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
               {showcases.map((showcase) => (
                 <article key={showcase.id} className="group flex flex-col overflow-hidden border border-slate-200 bg-white transition hover:border-primary-200 hover:shadow-lg hover:shadow-slate-200/60">
-                  <div className="relative border-b border-slate-100 bg-slate-100 px-8 py-7">
+                  <div className="relative border-b border-slate-100 px-8 py-7">
                     <ResumeLayoutThumbnail />
                   </div>
                   <div className="flex flex-1 flex-col p-5">
@@ -186,7 +186,6 @@ export default function ExcellentResumesPage() {
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <h2 className="text-2xl font-bold text-slate-950">用户公开简历</h2>
-                <p className="mt-2 text-sm leading-6 text-slate-500">完整正文按免费、本人或已购权限返回。</p>
               </div>
 
               <form onSubmit={handleSearch} className="flex w-full max-w-xl flex-col gap-2 sm:flex-row">
@@ -230,7 +229,7 @@ export default function ExcellentResumesPage() {
                   const paid = listing.accessType === 'PAID'
                   return (
                     <article key={listing.slug} className="group flex flex-col overflow-hidden border border-slate-200 bg-slate-50 transition hover:border-emerald-200 hover:shadow-lg hover:shadow-slate-200/60">
-                      <div className="relative border-b border-slate-100 bg-slate-100 px-8 py-7">
+                      <div className="relative border-b border-slate-100 px-8 py-7">
                         <ResumeLayoutThumbnail accent="emerald" />
                         <span className={paid
                           ? 'absolute right-4 top-4 bg-amber-600 px-2.5 py-1 text-xs font-medium text-white'

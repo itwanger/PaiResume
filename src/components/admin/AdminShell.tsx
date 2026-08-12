@@ -245,7 +245,6 @@ export function AdminShell({
                 <div className="truncate text-xs font-semibold text-slate-700">
                   {user?.nickname || user?.email || '管理员账号'}
                 </div>
-                <div className="mt-0.5 text-[11px] text-slate-400">已登录管理账号</div>
               </div>
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2">

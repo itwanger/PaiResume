@@ -727,8 +727,7 @@ export function MarketplaceGovernancePanel({
           aria-labelledby="governance-tab-APPEALS"
           className="mt-5"
         >
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-gray-500">通过申诉前，系统会校验申诉针对的版本和当前状态是否仍然一致。</p>
+          <div className="flex justify-end">
             <select
               aria-label="申诉处理状态筛选"
               value={appealStatus}

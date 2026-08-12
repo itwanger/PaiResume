@@ -12,6 +12,7 @@ import com.itwanger.pairesume.service.AiService;
 import com.itwanger.pairesume.service.ResumeContentLibraryService;
 import com.itwanger.pairesume.service.ResumeImportService;
 import com.itwanger.pairesume.vo.ResumeListVO;
+import com.itwanger.pairesume.vo.ResumeHistoryMaterialVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,6 +43,8 @@ public class ResumeContentLibraryServiceImpl implements ResumeContentLibraryServ
 
     private final UserResumeProfileMapper profileMapper;
     private final UserResumeMaterialMapper userMaterialMapper;
+    private final ResumeMapper resumeMapper;
+    private final ResumeModuleMapper resumeModuleMapper;
     private final OfficialResumeMaterialMapper officialMaterialMapper;
     private final ResumeContentTemplateMapper contentTemplateMapper;
     private final ResumeImportService resumeImportService;
@@ -126,6 +129,101 @@ public class ResumeContentLibraryServiceImpl implements ResumeContentLibraryServ
     @Override
     public void deleteUserMaterial(Long userId, Long materialId) {
         userMaterialMapper.deleteById(requireOwnedMaterial(userId, materialId));
+    }
+
+    @Override
+    public List<ResumeHistoryMaterialVO> listHistoryMaterials(Long userId, String moduleType,
+                                                              String query, Long excludeResumeId) {
+        String normalizedType = hasText(moduleType) ? normalizeModuleType(moduleType) : null;
+        String keyword = normalizeOptional(query).toLowerCase(Locale.ROOT);
+
+        var resumeWrapper = new LambdaQueryWrapper<Resume>()
+                .eq(Resume::getUserId, userId)
+                .eq(Resume::getStatus, 1);
+        if (excludeResumeId != null) resumeWrapper.ne(Resume::getId, excludeResumeId);
+        List<Resume> resumes = resumeMapper.selectList(resumeWrapper
+                .orderByDesc(Resume::getUpdatedAt)
+                .orderByDesc(Resume::getId));
+
+        Map<Long, Resume> resumeById = new LinkedHashMap<>();
+        resumes.forEach(resume -> resumeById.put(resume.getId(), resume));
+        List<ResumeModule> modules = List.of();
+        if (!resumeById.isEmpty()) {
+            var moduleWrapper = new LambdaQueryWrapper<ResumeModule>()
+                    .in(ResumeModule::getResumeId, resumeById.keySet());
+            if (normalizedType != null) moduleWrapper.eq(ResumeModule::getModuleType, normalizedType);
+            modules = resumeModuleMapper.selectList(moduleWrapper
+                    .orderByDesc(ResumeModule::getUpdatedAt)
+                    .orderByDesc(ResumeModule::getId));
+        }
+
+        LinkedHashMap<String, ResumeHistoryMaterialVO> deduplicated = new LinkedHashMap<>();
+        for (ResumeModule module : modules) {
+            Map<String, Object> content = copyMap(module.getContent());
+            if (!isReusableHistoryContent(module.getModuleType(), content)) continue;
+            if ("basic_info".equals(module.getModuleType()) && resumePhotoService != null) {
+                content = resumePhotoService.hydrateBasicInfoForRead(userId, "basic_info", content);
+            }
+            String title = historyMaterialTitle(module.getModuleType(), content);
+            if (!matchesHistoryQuery(keyword, title, content)) continue;
+            String identity = historyMaterialIdentity(module.getModuleType(), content);
+            Resume sourceResume = resumeById.get(module.getResumeId());
+            deduplicated.putIfAbsent(identity, ResumeHistoryMaterialVO.builder()
+                    .key("resume-module-" + module.getId())
+                    .moduleType(module.getModuleType())
+                    .title(title)
+                    .content(content)
+                    .sourceType("HISTORY_RESUME")
+                    .sourceResumeId(module.getResumeId())
+                    .sourceResumeTitle(sourceResume == null ? "" : sourceResume.getTitle())
+                    .updatedAt(module.getUpdatedAt())
+                    .build());
+        }
+
+        if (normalizedType == null || "basic_info".equals(normalizedType)) {
+            UserResumeProfile legacyProfile = profileMapper.selectById(userId);
+            if (legacyProfile != null && isReusableHistoryContent("basic_info", legacyProfile.getContent())) {
+                Map<String, Object> content = copyMap(legacyProfile.getContent());
+                if (resumePhotoService != null) {
+                    content = resumePhotoService.hydrateBasicInfoForRead(userId, "basic_info", content);
+                }
+                String title = historyMaterialTitle("basic_info", content);
+                if (matchesHistoryQuery(keyword, title, content)) {
+                    String identity = historyMaterialIdentity("basic_info", content);
+                    deduplicated.putIfAbsent(identity, ResumeHistoryMaterialVO.builder()
+                            .key("legacy-profile-" + userId)
+                            .moduleType("basic_info")
+                            .title(title)
+                            .content(content)
+                            .sourceType("LEGACY_PROFILE")
+                            .updatedAt(legacyProfile.getUpdatedAt())
+                            .build());
+                }
+            }
+        }
+
+        var legacyWrapper = new LambdaQueryWrapper<UserResumeMaterial>()
+                .eq(UserResumeMaterial::getUserId, userId)
+                .eq(UserResumeMaterial::getStatus, "ACTIVE");
+        if (normalizedType != null) legacyWrapper.eq(UserResumeMaterial::getModuleType, normalizedType);
+        List<UserResumeMaterial> legacyMaterials = userMaterialMapper.selectList(legacyWrapper
+                .orderByDesc(UserResumeMaterial::getUpdatedAt)
+                .orderByDesc(UserResumeMaterial::getId));
+        for (UserResumeMaterial material : legacyMaterials) {
+            if (!isReusableHistoryContent(material.getModuleType(), material.getContent())) continue;
+            if (!matchesHistoryQuery(keyword, material.getTitle(), material.getContent())) continue;
+            String identity = historyMaterialIdentity(material.getModuleType(), material.getContent());
+            deduplicated.putIfAbsent(identity, ResumeHistoryMaterialVO.builder()
+                    .key("legacy-material-" + material.getId())
+                    .moduleType(material.getModuleType())
+                    .title(material.getTitle())
+                    .content(copyMap(material.getContent()))
+                    .sourceType("LEGACY_LIBRARY")
+                    .legacyMaterialId(material.getId())
+                    .updatedAt(material.getUpdatedAt())
+                    .build());
+        }
+        return List.copyOf(deduplicated.values());
     }
 
     @Override
@@ -403,13 +501,115 @@ public class ResumeContentLibraryServiceImpl implements ResumeContentLibraryServ
         }
     }
 
+    private boolean isReusableHistoryContent(String moduleType, Map<String, Object> content) {
+        return switch (moduleType) {
+            case "basic_info" -> hasAnyText(content, "name", "email", "phone");
+            case "education" -> hasTextValue(content, "school")
+                    && hasAnyText(content, "department", "major", "degree");
+            case "internship", "work_experience" -> hasTextValue(content, "company")
+                    && (hasAnyText(content, "position", "projectName") || hasNestedProjectText(content));
+            case "project" -> hasTextValue(content, "projectName");
+            case "skill" -> hasMeaningfulValue(content.get("categories"));
+            case "paper" -> hasAnyText(content, "journalName", "content");
+            case "research" -> hasTextValue(content, "projectName");
+            case "award" -> hasTextValue(content, "awardName");
+            case "job_intention" -> hasTextValue(content, "targetPosition");
+            default -> false;
+        };
+    }
+
+    private String historyMaterialTitle(String moduleType, Map<String, Object> content) {
+        String title = switch (moduleType) {
+            case "basic_info" -> firstText(content, "name", "email", "phone");
+            case "education" -> firstText(content, "school");
+            case "internship", "work_experience" -> firstText(content, "company", "projectName");
+            case "project", "research" -> firstText(content, "projectName");
+            case "paper" -> firstText(content, "journalName");
+            case "award" -> firstText(content, "awardName");
+            case "job_intention" -> firstText(content, "targetPosition");
+            case "skill" -> "专业技能";
+            default -> "历史资料";
+        };
+        return title.isBlank() ? "历史资料" : title;
+    }
+
+    private String historyMaterialIdentity(String moduleType, Map<String, Object> content) {
+        List<String> fields = switch (moduleType) {
+            case "basic_info" -> List.of("name", "email", "phone");
+            case "education" -> List.of("school", "degree", "startDate", "endDate", "major", "department");
+            case "internship", "work_experience" -> List.of("company", "position", "projectName", "startDate", "endDate");
+            case "project" -> List.of("projectName", "role");
+            case "skill" -> List.of();
+            case "paper" -> List.of("journalName", "publishTime");
+            case "research" -> List.of("projectName");
+            case "award" -> List.of("awardName", "awardTime");
+            case "job_intention" -> List.of("targetPosition", "targetCity");
+            default -> List.of();
+        };
+        String identity = fields.stream()
+                .map(field -> normalizedText(content.get(field)))
+                .collect(java.util.stream.Collectors.joining("|"));
+        if (identity.replace("|", "").isBlank()) {
+            try {
+                identity = objectMapper.writeValueAsString(new TreeMap<>(content));
+            } catch (Exception ignored) {
+                identity = content.toString();
+            }
+        }
+        return moduleType + ":" + identity;
+    }
+
+    private boolean matchesHistoryQuery(String keyword, String title, Map<String, Object> content) {
+        if (keyword.isBlank()) return true;
+        if (normalizeOptional(title).toLowerCase(Locale.ROOT).contains(keyword)) return true;
+        try {
+            return objectMapper.writeValueAsString(content).toLowerCase(Locale.ROOT).contains(keyword);
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private boolean hasAnyText(Map<String, Object> content, String... fields) {
+        return Arrays.stream(fields).anyMatch(field -> hasTextValue(content, field));
+    }
+
+    private boolean hasTextValue(Map<String, Object> content, String field) {
+        return !strippedText(content.get(field)).isBlank();
+    }
+
+    private String firstText(Map<String, Object> content, String... fields) {
+        return Arrays.stream(fields)
+                .map(field -> strippedText(content.get(field)))
+                .filter(value -> !value.isBlank())
+                .findFirst()
+                .orElse("");
+    }
+
+    private String normalizedText(Object value) {
+        return strippedText(value).toLowerCase(Locale.ROOT);
+    }
+
+    private String strippedText(Object value) {
+        return value instanceof String text ? text.strip() : "";
+    }
+
     private boolean hasMeaningfulValue(Object value) {
         if (value instanceof String text) return !text.isBlank();
         if (value instanceof Boolean flag) return flag;
         if (value instanceof Number) return true;
-        if (value instanceof Map<?, ?> map) return map.values().stream().anyMatch(this::hasMeaningfulValue);
+        if (value instanceof Map<?, ?> map) return map.entrySet().stream()
+                .filter(entry -> !"id".equals(String.valueOf(entry.getKey())))
+                .anyMatch(entry -> hasMeaningfulValue(entry.getValue()));
         if (value instanceof Collection<?> collection) return collection.stream().anyMatch(this::hasMeaningfulValue);
         return false;
+    }
+
+    private boolean hasNestedProjectText(Map<String, Object> content) {
+        if (!(content.get("projects") instanceof Collection<?> projects)) return false;
+        return projects.stream().anyMatch(project -> project instanceof Map<?, ?> projectMap
+                && (hasMeaningfulValue(projectMap.get("projectName"))
+                || hasMeaningfulValue(projectMap.get("projectDescription"))
+                || hasMeaningfulValue(projectMap.get("responsibilities"))));
     }
 
     private String normalizeModuleType(String value) {

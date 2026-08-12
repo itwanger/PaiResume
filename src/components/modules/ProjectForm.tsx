@@ -6,6 +6,7 @@ import { normalizeProjectContent } from '../../utils/moduleContent'
 import { AutoResizeTextarea } from '../ui/AutoResizeTextarea'
 import { ModuleSaveBar } from './ModuleSaveBar'
 import { MaterialActions } from '../materials/MaterialActions'
+import { MonthInput } from '../ui/MonthInput'
 
 interface Props {
   resumeId: number
@@ -24,12 +25,16 @@ export function ProjectForm({ resumeId, moduleId, initialContent }: Props) {
   const [optimizingField, setOptimizingField] = useState<string | null>(null)
   const [optimizeError, setOptimizeError] = useState('')
   const [optimizeErrorField, setOptimizeErrorField] = useState<string | null>(null)
+  const [pendingResponsibilityFocus, setPendingResponsibilityFocus] = useState<number | null>(null)
 
   const update = (field: keyof ProjectContent, value: string | string[]) => {
     setContent((prev) => ({ ...prev, [field]: value }))
   }
 
-  const addResponsibility = () => update('achievements', [...content.achievements, ''])
+  const addResponsibility = () => {
+    setPendingResponsibilityFocus(content.achievements.length)
+    update('achievements', [...content.achievements, ''])
+  }
 
   const updateResponsibility = (index: number, value: string) => {
     const next = [...content.achievements]
@@ -74,10 +79,9 @@ export function ProjectForm({ resumeId, moduleId, initialContent }: Props) {
         onSave={saveNow}
       >
         <MaterialActions
+          resumeId={resumeId}
           moduleType="project"
           content={content}
-          defaultTitle={content.projectName || '项目经历'}
-          instanceKey={moduleId}
           onApply={setContent}
           embedded
         />
@@ -110,20 +114,19 @@ export function ProjectForm({ resumeId, moduleId, initialContent }: Props) {
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium text-gray-700">开始时间</label>
-          <input
-            type="month"
+          <MonthInput
             value={content.startDate}
-            onChange={(e) => update('startDate', e.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
+            onChange={(value) => update('startDate', value)}
+            ariaLabel="项目开始时间"
           />
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium text-gray-700">结束时间</label>
-          <input
-            type="month"
+          <MonthInput
             value={content.endDate}
-            onChange={(e) => update('endDate', e.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
+            onChange={(value) => update('endDate', value)}
+            ariaLabel="项目结束时间"
+            allowPresent
           />
         </div>
       </div>
@@ -171,7 +174,7 @@ export function ProjectForm({ resumeId, moduleId, initialContent }: Props) {
         <div className="mb-2 flex items-center justify-between">
           <label className="text-sm font-medium text-gray-700">核心职责</label>
           <button type="button" onClick={addResponsibility} className="text-sm text-primary-600 hover:text-primary-700">
-            + 添加
+            + 添加职责
           </button>
         </div>
         {content.achievements.map((item, index) => (
@@ -204,6 +207,20 @@ export function ProjectForm({ resumeId, moduleId, initialContent }: Props) {
               onChange={(e) => updateResponsibility(index, e.target.value)}
               minRows={4}
               placeholder={`职责 ${index + 1}`}
+              aria-label={`核心职责 ${index + 1}`}
+              autoFocus={pendingResponsibilityFocus === index}
+              onFocus={(event) => {
+                if (pendingResponsibilityFocus === index) {
+                  event.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                  setPendingResponsibilityFocus(null)
+                }
+              }}
+              onKeyDown={(event) => {
+                if ((event.metaKey || event.ctrlKey) && event.key === 'Enter' && index === content.achievements.length - 1) {
+                  event.preventDefault()
+                  addResponsibility()
+                }
+              }}
               className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm leading-6 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
             />
             {optimizeError && optimizeErrorField === `achievement-${index}` && (
@@ -213,6 +230,17 @@ export function ProjectForm({ resumeId, moduleId, initialContent }: Props) {
             )}
           </div>
         ))}
+        {content.achievements.length > 0 && (
+          <div className="mt-4 text-center">
+            <button
+              type="button"
+              onClick={addResponsibility}
+              className="text-sm font-medium text-primary-600 hover:text-primary-700"
+            >
+              + 继续添加职责
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )

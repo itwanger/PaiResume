@@ -36,15 +36,23 @@ export interface EducationContent {
   isDoubleFirst: boolean
 }
 
-export interface InternshipContent {
-  company: string
+export interface ExperienceProjectContent {
+  id: string
   projectName: string
-  position: string
+  role: string
   startDate: string
   endDate: string
   techStack: string
   projectDescription: string
   responsibilities: string[]
+}
+
+export interface InternshipContent {
+  company: string
+  position: string
+  startDate: string
+  endDate: string
+  projects: ExperienceProjectContent[]
 }
 
 export interface ProjectContent {

@@ -491,13 +491,18 @@ public class AiServiceImpl implements AiService {
     private FieldOptimizePlan buildExperienceFieldOptimizePlan(String moduleType, Map<String, Object> content, AiFieldOptimizeRequestDTO request) {
         var company = getStringValue(content.get("company"));
         var position = getStringValue(content.get("position"));
-        var projectName = getStringValue(content.get("projectName"));
-        var techStack = getStringValue(content.get("techStack"));
-        var projectDescription = getStringValue(content.get("projectDescription"));
-        var responsibilities = getStringListValue(content.get("responsibilities"));
+        var hasNestedProjects = content.get("projects") instanceof List<?> projects && !projects.isEmpty();
 
         return switch (request.getFieldType()) {
             case "project_description" -> {
+                var projectIndex = hasNestedProjects && request.getIndex() != null ? request.getIndex() : 0;
+                var project = hasNestedProjects ? getMapListItem(content.get("projects"), projectIndex) : null;
+                if (hasNestedProjects && project == null) {
+                    throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "项目索引无效");
+                }
+                var projectDescription = getStringValue(project == null
+                        ? content.get("projectDescription")
+                        : project.get("projectDescription"));
                 if (projectDescription.isBlank()) {
                     throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "项目简介为空，暂时无法优化");
                 }
@@ -516,11 +521,24 @@ public class AiServiceImpl implements AiService {
                 );
             }
             case "responsibility" -> {
-                var index = request.getIndex();
-                if (index == null || index < 0 || index >= responsibilities.size()) {
+                var encodedIndex = request.getIndex();
+                if (encodedIndex == null || encodedIndex < 0) {
                     throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "核心职责索引无效");
                 }
-                var originalText = responsibilities.get(index);
+                var projectIndex = hasNestedProjects ? encodedIndex / 1000 : 0;
+                var responsibilityIndex = hasNestedProjects ? encodedIndex % 1000 : encodedIndex;
+                var project = hasNestedProjects ? getMapListItem(content.get("projects"), projectIndex) : null;
+                if (hasNestedProjects && project == null) {
+                    throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "项目索引无效");
+                }
+                var projectName = getStringValue(project == null ? content.get("projectName") : project.get("projectName"));
+                var techStack = getStringValue(project == null ? content.get("techStack") : project.get("techStack"));
+                var projectDescription = getStringValue(project == null ? content.get("projectDescription") : project.get("projectDescription"));
+                var responsibilities = getStringListValue(project == null ? content.get("responsibilities") : project.get("responsibilities"));
+                if (responsibilityIndex >= responsibilities.size()) {
+                    throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "核心职责索引无效");
+                }
+                var originalText = responsibilities.get(responsibilityIndex);
                 if (originalText == null || originalText.isBlank()) {
                     throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "当前这条核心职责为空，暂时无法优化");
                 }
@@ -1401,7 +1419,14 @@ public class AiServiceImpl implements AiService {
         return listValue.stream()
                 .filter(String.class::isInstance)
                 .map(String.class::cast)
-                .toList();
+            .toList();
+    }
+
+    private Map<?, ?> getMapListItem(Object value, int index) {
+        if (!(value instanceof List<?> listValue) || index < 0 || index >= listValue.size()) {
+            return null;
+        }
+        return listValue.get(index) instanceof Map<?, ?> mapValue ? mapValue : null;
     }
 
     private String toPrettyJsonString(Object obj) {

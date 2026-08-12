@@ -31,10 +31,9 @@ export function ResearchForm({ resumeId, moduleId, initialContent }: Props) {
         onSave={saveNow}
       >
         <MaterialActions
+          resumeId={resumeId}
           moduleType="research"
           content={content}
-          defaultTitle={content.projectName || '科研经历'}
-          instanceKey={moduleId}
           onApply={setContent}
           embedded
         />

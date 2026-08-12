@@ -418,7 +418,6 @@ export default function HomePage() {
               <div>
                 <div className="text-sm font-medium text-primary-700">岗位简历参考</div>
                 <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">优质简历库</h2>
-                <p className="mt-2 text-sm leading-6 text-slate-500">按岗位浏览优质简历，先看缩略展示，点击后查看详情。</p>
               </div>
               <Link to={EXCELLENT_RESUMES_PATH} className="hidden text-sm font-medium text-primary-700 transition hover:text-primary-800 sm:inline-flex">
                 查看全部简历&nbsp;→

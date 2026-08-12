@@ -12,7 +12,9 @@ export function hasMeaningfulMaterialValue(value: unknown): boolean {
   if (typeof value === 'number') return true
   if (Array.isArray(value)) return value.some(hasMeaningfulMaterialValue)
   if (value && typeof value === 'object') {
-    return Object.values(value as Record<string, unknown>).some(hasMeaningfulMaterialValue)
+    return Object.entries(value as Record<string, unknown>)
+      .filter(([key]) => key !== 'id')
+      .some(([, childValue]) => hasMeaningfulMaterialValue(childValue))
   }
   return false
 }
@@ -26,12 +28,18 @@ export function applyMaterialFields<T extends object>(current: T, source: Record
 
 export function getMaterialPreview(content: Record<string, unknown>): string {
   const values: string[] = []
-  for (const value of Object.values(content)) {
+  const append = (value: unknown, key = '') => {
+    if (key === 'id') return
     if (typeof value === 'string' && value.trim()) values.push(value.trim())
     if (Array.isArray(value)) {
-      value.filter((item): item is string => typeof item === 'string' && Boolean(item.trim()))
-        .forEach((item) => values.push(item.trim()))
+      value.forEach((item) => append(item))
     }
+    if (value && typeof value === 'object') {
+      Object.entries(value as Record<string, unknown>).forEach(([childKey, childValue]) => append(childValue, childKey))
+    }
+  }
+  for (const [key, value] of Object.entries(content)) {
+    append(value, key)
     if (values.join(' · ').length >= 120) break
   }
   const preview = values.join(' · ')

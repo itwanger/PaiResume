@@ -27,10 +27,9 @@ export function AwardForm({ resumeId, moduleId, initialContent }: Props) {
         onSave={saveNow}
       >
         <MaterialActions
+          resumeId={resumeId}
           moduleType="award"
           content={content}
-          defaultTitle={content.awardName || '获奖情况'}
-          instanceKey={moduleId}
           onApply={setContent}
           embedded
         />

@@ -3,6 +3,7 @@ package com.itwanger.pairesume.service;
 import com.itwanger.pairesume.dto.*;
 import com.itwanger.pairesume.entity.*;
 import com.itwanger.pairesume.vo.ResumeListVO;
+import com.itwanger.pairesume.vo.ResumeHistoryMaterialVO;
 
 import java.util.List;
 import java.util.Map;
@@ -14,6 +15,8 @@ public interface ResumeContentLibraryService {
     UserResumeMaterial createUserMaterial(Long userId, ResumeMaterialUpsertDTO dto);
     UserResumeMaterial updateUserMaterial(Long userId, Long materialId, ResumeMaterialUpsertDTO dto);
     void deleteUserMaterial(Long userId, Long materialId);
+    List<ResumeHistoryMaterialVO> listHistoryMaterials(Long userId, String moduleType,
+                                                       String query, Long excludeResumeId);
 
     List<OfficialResumeMaterial> listPublishedMaterials(String moduleType, String query, String targetRole);
     OfficialResumeMaterial usePublishedMaterial(Long userId, Long materialId);

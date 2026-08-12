@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { authApi, type WechatChallengeCreateData } from '../api/auth'
 import { Header } from '../components/layout/Header'
+import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { useAuthStore } from '../store/authStore'
 
 type ReauthPhase = 'idle' | 'loading' | 'pending' | 'confirmed' | 'expired' | 'error'
@@ -27,6 +28,7 @@ export default function AccountSettingsPage() {
   const [reauthProof, setReauthProof] = useState('')
   const [reauthProofExpiresAt, setReauthProofExpiresAt] = useState(0)
   const [reauthError, setReauthError] = useState('')
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const challengeRequestRef = useRef<{
     key: number
     request: Promise<WechatChallengeCreateData>
@@ -147,22 +149,23 @@ export default function AccountSettingsPage() {
       setError('请先使用派聪明服务号扫码确认本次注销操作')
       return
     }
-    if (!window.confirm('账号注销后无法恢复。确认继续吗？')) {
-      return
-    }
+    setConfirmDeleteOpen(true)
+  }
 
+  const confirmDeleteAccount = async () => {
     setLoading(true)
     try {
       await authApi.deleteAccount({
         password: requiresPassword ? password : undefined,
         wechatReauthProof: requiresPassword ? undefined : reauthProof,
-        confirmation,
+        confirmation: '注销账号',
       })
       clearSession()
       window.localStorage.removeItem('rememberedEmail')
       window.localStorage.removeItem('rememberedPassword')
       navigate('/', { replace: true })
     } catch (deleteError: unknown) {
+      setConfirmDeleteOpen(false)
       setError(deleteError instanceof Error ? deleteError.message : '账号注销失败，请稍后再试')
     } finally {
       setLoading(false)
@@ -282,6 +285,16 @@ export default function AccountSettingsPage() {
           </form>
         </section>
       </main>
+      <ConfirmDialog
+        open={confirmDeleteOpen}
+        title="永久注销账号？"
+        description="注销后账号和未依法保留的数据将无法恢复，请确认你确实要继续。"
+        confirmText="确认永久注销"
+        tone="danger"
+        loading={loading}
+        onConfirm={confirmDeleteAccount}
+        onCancel={() => setConfirmDeleteOpen(false)}
+      />
     </div>
   )
 }

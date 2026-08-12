@@ -1,11 +1,15 @@
 import client, { type ApiEnvelope } from './client'
 import { getAccessToken } from './tokenStore'
 import type { AnalysisResult } from '../types'
+import type { ResumePdfPreviewConfig } from '../utils/resumePdf'
 
 export interface ResumeListItem {
   id: number
   title: string
   templateId: string
+  density?: string
+  accentPreset?: string
+  headingStyle?: string
   preview?: ResumeCardPreview
   createdAt: string
   updatedAt: string
@@ -329,6 +333,9 @@ export const resumeApi = {
   update: (id: number, data: { title: string }) =>
     client.put<ApiEnvelope<ResumeListItem>>(`/resumes/${id}`, data),
 
+  updateStyle: (id: number, data: ResumePdfPreviewConfig) =>
+    client.put<ApiEnvelope<ResumeListItem>>(`/resumes/${id}/style`, data),
+
   delete: (id: number) =>
     client.delete(`/resumes/${id}`),
 
@@ -337,6 +344,9 @@ export const resumeApi = {
 
   addModule: (resumeId: number, data: { moduleType: string; content: Record<string, unknown>; sortOrder?: number }) =>
     client.post<ApiEnvelope<ResumeModule>>(`/resumes/${resumeId}/modules`, data),
+
+  reorderModules: (resumeId: number, moduleIds: number[]) =>
+    client.put<ApiEnvelope<null>>(`/resumes/${resumeId}/modules/order`, { moduleIds }),
 
   updateModule: (resumeId: number, moduleId: number, content: Record<string, unknown>) =>
     client.post<ApiEnvelope<ResumeModule>>(`/resumes/${resumeId}/modules/${moduleId}/update`, { content }),

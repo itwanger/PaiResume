@@ -2,9 +2,11 @@ package com.itwanger.pairesume.controller;
 
 import com.itwanger.pairesume.common.Result;
 import com.itwanger.pairesume.dto.ModuleCreateDTO;
+import com.itwanger.pairesume.dto.ModuleOrderUpdateDTO;
 import com.itwanger.pairesume.dto.ModuleUpdateDTO;
 import com.itwanger.pairesume.dto.ResumeCreateDTO;
 import com.itwanger.pairesume.dto.ResumeImportDTO;
+import com.itwanger.pairesume.dto.ResumeStyleUpdateDTO;
 import com.itwanger.pairesume.dto.ResumeUpdateDTO;
 import com.itwanger.pairesume.entity.ResumeModule;
 import com.itwanger.pairesume.service.ResumeImportService;
@@ -62,6 +64,13 @@ public class ResumeController {
         return Result.success(resumeService.update(getCurrentUserId(), id, dto));
     }
 
+    @Operation(summary = "更新简历样式")
+    @PutMapping("/{id}/style")
+    public Result<ResumeListVO> updateStyle(@PathVariable Long id,
+                                             @Valid @RequestBody ResumeStyleUpdateDTO dto) {
+        return Result.success(resumeService.updateStyle(getCurrentUserId(), id, dto));
+    }
+
     @Operation(summary = "删除简历")
     @DeleteMapping("/{id}")
     public Result<Void> delete(@PathVariable Long id) {
@@ -79,6 +88,14 @@ public class ResumeController {
     @PostMapping("/{id}/modules")
     public Result<ResumeModule> createModule(@PathVariable Long id, @Valid @RequestBody ModuleCreateDTO dto) {
         return Result.success(moduleService.create(id, getCurrentUserId(), dto));
+    }
+
+    @Operation(summary = "调整简历模块顺序")
+    @PutMapping("/{id}/modules/order")
+    public Result<Void> reorderModules(@PathVariable Long id,
+                                       @Valid @RequestBody ModuleOrderUpdateDTO dto) {
+        moduleService.reorder(id, getCurrentUserId(), dto.getModuleIds());
+        return Result.success();
     }
 
     @Operation(summary = "更新模块内容")

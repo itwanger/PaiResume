@@ -65,10 +65,9 @@ export function SkillForm({ resumeId, moduleId, initialContent }: Props) {
         onSave={saveNow}
       >
         <MaterialActions
+          resumeId={resumeId}
           moduleType="skill"
           content={content}
-          defaultTitle="专业技能"
-          instanceKey={moduleId}
           onApply={(next) => setContent(toFlatSkillContent(next))}
           embedded
         />

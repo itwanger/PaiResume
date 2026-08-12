@@ -15,6 +15,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Map;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -81,5 +82,44 @@ class ResumeModuleServiceImplTest {
 
         verify(moduleMapper).updateById(module);
         verify(resumeShowcaseService).unpublishChangedResume(11L);
+    }
+
+    @Test
+    void reorderPersistsTheCompleteModuleOrderAtomically() {
+        ResumeModule basicInfo = module(1L, "basic_info", 0);
+        ResumeModule education = module(2L, "education", 1);
+        ResumeModule project = module(3L, "project", 2);
+        when(moduleMapper.selectList(any())).thenReturn(List.of(basicInfo, education, project));
+
+        service.reorder(11L, 7L, List.of(1L, 3L, 2L));
+
+        verify(moduleMapper).updateSortOrder(11L, 1L, 0);
+        verify(moduleMapper).updateSortOrder(11L, 3L, 1);
+        verify(moduleMapper).updateSortOrder(11L, 2L, 2);
+        verify(resumeShowcaseService).unpublishChangedResume(11L);
+    }
+
+    @Test
+    void reorderRejectsMissingOrDuplicateModuleIds() {
+        when(moduleMapper.selectList(any())).thenReturn(List.of(
+                module(1L, "basic_info", 0),
+                module(2L, "education", 1),
+                module(3L, "project", 2)
+        ));
+
+        assertThrows(BusinessException.class, () -> service.reorder(11L, 7L, List.of(1L, 1L, 3L)));
+
+        verify(moduleMapper, never()).updateSortOrder(any(), any(), any());
+        verify(resumeShowcaseService, never()).unpublishChangedResume(11L);
+    }
+
+    private ResumeModule module(Long id, String moduleType, int sortOrder) {
+        ResumeModule module = new ResumeModule();
+        module.setId(id);
+        module.setResumeId(11L);
+        module.setModuleType(moduleType);
+        module.setSortOrder(sortOrder);
+        module.setContent(Map.of());
+        return module;
     }
 }

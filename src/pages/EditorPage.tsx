@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { useResumeStore } from '../store/resumeStore'
@@ -11,6 +11,7 @@ import { AiOptimizePanel } from '../components/analysis/AiOptimizePanel'
 import { ResumeAnalysis } from '../components/analysis/ResumeAnalysis'
 import { BasicInfoForm } from '../components/modules/BasicInfoForm'
 import { EducationForm } from '../components/modules/EducationForm'
+import { EducationItemSorter } from '../components/modules/EducationItemSorter'
 import { InternshipForm } from '../components/modules/InternshipForm'
 import { WorkExperienceForm } from '../components/modules/WorkExperienceForm'
 import { ProjectForm } from '../components/modules/ProjectForm'
@@ -24,18 +25,20 @@ import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { flushResumeAutoSaves } from '../hooks/useAutoSave'
 import { SINGLETON_MODULES, type ModuleType } from '../types'
 import { normalizeJobIntentionContent } from '../utils/moduleContent'
+import { getEducationTimelineIssues } from '../utils/educationTimeline'
 import { buildMembershipPath } from '../utils/navigation'
 import { getModuleDisplayLabelFromModules } from '../utils/resumeDisplay'
 import {
   DEFAULT_RESUME_PDF_PREVIEW_CONFIG,
   downloadResumePdf,
-  resolveResumePdfAccentPreset,
-  resolveResumePdfDensity,
-  resolveResumePdfHeadingStyle,
-  resolveResumePdfTemplateId,
   type ResumePdfPageMode,
   type ResumePdfPreviewConfig,
 } from '../utils/resumePdf'
+import {
+  normalizeResumeStyle,
+  readStoredResumeStyle,
+  writeStoredResumeStyle,
+} from '../utils/resumeStyle'
 
 type EditorView = 'module' | 'analysis' | 'template-selection'
 const AI_OPTIMIZABLE_MODULE_TYPES = new Set<ModuleType>(['research', 'skill'])
@@ -43,7 +46,6 @@ const NON_REMOVABLE_MODULE_TYPES = new Set<ModuleType>(['basic_info'])
 const PREVIEW_PANEL_COLLAPSED_STORAGE_KEY = 'pai-resume.preview-panel-collapsed'
 const COMPACT_PREVIEW_MEDIA_QUERY = '(max-width: 1279px)'
 const DESKTOP_MODULE_SIDEBAR_MEDIA_QUERY = '(min-width: 768px)'
-const RESUME_PDF_PREVIEW_CONFIG_STORAGE_KEY_PREFIX = 'pai-resume.pdf-preview-config'
 const DESKTOP_MODULE_SIDEBAR_WIDTH = '11rem'
 
 function getStoredDesktopPreviewPreference(): boolean {
@@ -70,7 +72,18 @@ export default function EditorPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const user = useAuthStore((state) => state.user)
-  const { resumeList, modules, loading, fetchModules, addModule, deleteModule } = useResumeStore()
+  const {
+    resumeList,
+    modules,
+    loading,
+    fetchResumeList,
+    fetchModules,
+    updateResumeStyle,
+    addModule,
+    reorderModuleTypes,
+    reorderModuleItems,
+    deleteModule,
+  } = useResumeStore()
   const [activeModuleType, setActiveModuleType] = useState<ModuleType | null>(null)
   const [aiModuleId, setAiModuleId] = useState<number | null>(null)
   const [editorView, setEditorView] = useState<EditorView>('module')
@@ -90,6 +103,7 @@ export default function EditorPage() {
   const [isCompactViewport, setIsCompactViewport] = useState(matchesCompactPreviewViewport)
   const [compactPreviewOpen, setCompactPreviewOpen] = useState(false)
   const [mobileModuleMenuOpen, setMobileModuleMenuOpen] = useState(false)
+  const [educationItemSorting, setEducationItemSorting] = useState(false)
   const previewToggleRef = useRef<HTMLButtonElement | null>(null)
   const mobilePreviewToggleRef = useRef<HTMLButtonElement | null>(null)
   const resumeReviewTriggerRef = useRef<HTMLButtonElement | null>(null)
@@ -99,10 +113,13 @@ export default function EditorPage() {
   const mobileModuleDialogRef = useRef<HTMLDivElement | null>(null)
   const editorScrollRef = useRef<HTMLElement | null>(null)
   const editorScrollThumbRef = useRef<HTMLDivElement | null>(null)
+  const styleSaveQueueRef = useRef<Promise<void>>(Promise.resolve())
+  const styleSaveVersionRef = useRef(0)
   const [pdfPreviewConfig, setPdfPreviewConfig] = useState<ResumePdfPreviewConfig>(DEFAULT_RESUME_PDF_PREVIEW_CONFIG)
 
   const resumeId = Number(id)
-  const resumeTitle = resumeList.find((resume) => resume.id === resumeId)?.title
+  const currentResume = resumeList.find((resume) => resume.id === resumeId)
+  const resumeTitle = currentResume?.title
   const requestedModuleType = searchParams.get('moduleType')
   const requestedViewParam = searchParams.get('view')
   const requestedView: EditorView = requestedViewParam === 'analysis'
@@ -117,6 +134,11 @@ export default function EditorPage() {
       ? 'basic_info'
       : null
   const isVip = user?.membershipStatus === 'ACTIVE'
+
+  const handleReorderModuleTypes = useCallback(
+    (moduleTypes: ModuleType[]) => reorderModuleTypes(resumeId, moduleTypes),
+    [reorderModuleTypes, resumeId],
+  )
 
   useEffect(() => {
     if (resumeId) {
@@ -234,6 +256,7 @@ export default function EditorPage() {
   useEffect(() => {
     setCompactPreviewOpen(false)
     setMobileModuleMenuOpen(false)
+    setEducationItemSorting(false)
   }, [activeModuleType, editorView])
 
   useEffect(() => {
@@ -248,40 +271,46 @@ export default function EditorPage() {
       return
     }
 
-    const storedValue = window.localStorage.getItem(`${RESUME_PDF_PREVIEW_CONFIG_STORAGE_KEY_PREFIX}:${resumeId}`)
-    if (!storedValue) {
-      setPdfPreviewConfig(DEFAULT_RESUME_PDF_PREVIEW_CONFIG)
+    if (!currentResume) {
+      const storedConfig = readStoredResumeStyle(resumeId)
+      if (storedConfig) setPdfPreviewConfig(storedConfig)
       return
     }
 
-    try {
-      const parsed = JSON.parse(storedValue) as Partial<ResumePdfPreviewConfig>
-      const parsedTemplateId = resolveResumePdfTemplateId(parsed.templateId)
-      setPdfPreviewConfig({
-        templateId: parsedTemplateId === 'compact' ? 'default' : parsedTemplateId,
-        density: parsed.density
-          ? resolveResumePdfDensity(parsed.density)
-          : parsedTemplateId === 'compact'
-            ? 'compact'
-            : DEFAULT_RESUME_PDF_PREVIEW_CONFIG.density,
-        accentPreset: resolveResumePdfAccentPreset(parsed.accentPreset),
-        headingStyle: resolveResumePdfHeadingStyle(parsed.headingStyle),
-      })
-    } catch {
-      setPdfPreviewConfig(DEFAULT_RESUME_PDF_PREVIEW_CONFIG)
+    setPdfPreviewConfig(normalizeResumeStyle(currentResume))
+  }, [currentResume, resumeId])
+
+  useEffect(() => {
+    if (resumeId && !currentResume) {
+      void fetchResumeList()
     }
-  }, [resumeId])
+  }, [currentResume, fetchResumeList, resumeId])
 
   useEffect(() => {
     if (typeof window === 'undefined' || !resumeId) {
       return
     }
 
-    window.localStorage.setItem(
-      `${RESUME_PDF_PREVIEW_CONFIG_STORAGE_KEY_PREFIX}:${resumeId}`,
-      JSON.stringify(pdfPreviewConfig)
-    )
+    writeStoredResumeStyle(resumeId, pdfPreviewConfig)
   }, [pdfPreviewConfig, resumeId])
+
+  const handlePdfPreviewConfigChange = useCallback((nextConfig: ResumePdfPreviewConfig) => {
+    setPdfPreviewConfig(nextConfig)
+    writeStoredResumeStyle(resumeId, nextConfig)
+    const saveVersion = ++styleSaveVersionRef.current
+    styleSaveQueueRef.current = styleSaveQueueRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        try {
+          await updateResumeStyle(resumeId, nextConfig)
+          if (styleSaveVersionRef.current === saveVersion) setExportError('')
+        } catch (error: unknown) {
+          if (styleSaveVersionRef.current === saveVersion) {
+            setExportError(error instanceof Error ? error.message : '简历样式保存失败，请重试')
+          }
+        }
+      })
+  }, [resumeId, updateResumeStyle])
 
   const updateEditorLocation = useCallback((nextView: EditorView, moduleType?: ModuleType | null) => {
     const nextParams = new URLSearchParams()
@@ -540,9 +569,20 @@ export default function EditorPage() {
   }, [isCompactViewport])
 
   const activeModules = modules.filter((m) => m.moduleType === activeModuleType)
+  const educationTimelineIssues = useMemo(() => getEducationTimelineIssues(modules), [modules])
+  const educationIssuesByModuleId = useMemo(
+    () => new Map(educationTimelineIssues.map((issue) => [issue.moduleId, issue.messages])),
+    [educationTimelineIssues],
+  )
   const canAddAnotherInstance = activeModuleType ? !SINGLETON_MODULES.includes(activeModuleType) : false
   const canOptimizeActiveModule = activeModuleType ? AI_OPTIMIZABLE_MODULE_TYPES.has(activeModuleType) : false
   const canDeleteActiveModule = activeModuleType ? !NON_REMOVABLE_MODULE_TYPES.has(activeModuleType) : false
+
+  const handleReorderActiveModuleItems = useCallback(async (moduleIds: number[]) => {
+    if (!activeModuleType) return
+    await flushResumeAutoSaves(resumeId)
+    await reorderModuleItems(resumeId, activeModuleType, moduleIds)
+  }, [activeModuleType, reorderModuleItems, resumeId])
   const previewOpen = isCompactViewport ? compactPreviewOpen : !desktopPreviewCollapsed
   const inlinePreviewOpen = !isCompactViewport && previewOpen
   const analysisContainerClassName = inlinePreviewOpen ? 'mx-auto max-w-4xl' : 'mx-auto max-w-6xl'
@@ -560,7 +600,7 @@ export default function EditorPage() {
     if (!scroller || !thumb) return
 
     const scrollRange = scroller.scrollHeight - scroller.clientHeight
-    if (scrollRange <= 1 || !inlinePreviewOpen || editorView === 'template-selection') {
+    if (scrollRange <= 1 || isCompactViewport || editorView === 'template-selection') {
       thumb.style.display = 'none'
       return
     }
@@ -571,7 +611,7 @@ export default function EditorPage() {
     thumb.style.display = 'block'
     thumb.style.height = `${thumbHeight}px`
     thumb.style.transform = `translateY(${thumbTop}px)`
-  }, [editorView, inlinePreviewOpen])
+  }, [editorView, isCompactViewport])
 
   useEffect(() => {
     const scroller = editorScrollRef.current
@@ -703,7 +743,7 @@ export default function EditorPage() {
     const props = { resumeId, moduleId, initialContent: mergedBasicInfoContent }
     switch (activeModuleType) {
       case 'basic_info': return <BasicInfoForm {...props} />
-      case 'education': return <EducationForm {...props} />
+      case 'education': return <EducationForm {...props} timelineMessages={educationIssuesByModuleId.get(moduleId)} />
       case 'internship': return <InternshipForm {...props} />
       case 'work_experience': return <WorkExperienceForm {...props} />
       case 'project': return <ProjectForm {...props} />
@@ -768,6 +808,7 @@ export default function EditorPage() {
                   closeMobileModuleMenu()
                   openDeleteDialog(moduleIds, moduleType, moduleIds.length > 1 ? '全部内容' : '当前内容')
                 }}
+                onReorderModuleTypes={handleReorderModuleTypes}
                 analysisActive={editorView === 'analysis'}
                 onSelectAnalysis={() => {
                   openAnalysisView()
@@ -845,13 +886,19 @@ export default function EditorPage() {
               .map((module) => module.id)
             openDeleteDialog(moduleIds, moduleType, moduleIds.length > 1 ? '全部内容' : '当前内容')
           }}
+          onReorderModuleTypes={handleReorderModuleTypes}
           analysisActive={editorView === 'analysis'}
           onSelectAnalysis={openAnalysisView}
           templateSelectionActive={editorView === 'template-selection'}
           onSelectTemplateSelection={openTemplateSelectionView}
         />
 
-        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto px-3 py-4 sm:px-5 sm:py-5 lg:px-6 lg:py-6 xl:px-8">
+        <div className="relative min-h-0 min-w-0 flex-1 basis-0">
+        <main
+          ref={editorScrollRef}
+          onScroll={updateEditorScrollIndicator}
+          className={`${isCompactViewport ? '' : 'editor-scroll-area'} h-full min-h-0 min-w-0 overflow-y-auto px-3 py-4 sm:px-5 sm:py-5 lg:px-6 lg:py-6 xl:px-8`}
+        >
           {membershipNavigationError ? (
             <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
               {membershipNavigationError}
@@ -942,7 +989,7 @@ export default function EditorPage() {
             <ChromePreviewFrame
               resumeId={resumeId}
               config={pdfPreviewConfig}
-              onConfigChange={setPdfPreviewConfig}
+              onConfigChange={handlePdfPreviewConfigChange}
               onExportPdf={(pageMode) => void handleExportPdf(pageMode)}
               isVip={isVip}
               onRequireVip={() => setMembershipModalOpen(true)}
@@ -957,10 +1004,20 @@ export default function EditorPage() {
                 </div>
               )}
 
-              <div className="mb-4 flex justify-end">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                {activeModuleType === 'education' && activeModules.length > 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => setEducationItemSorting((current) => !current)}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:border-primary-200 hover:text-primary-700"
+                  >
+                    {educationItemSorting ? '完成排序' : '调整教育背景顺序'}
+                  </button>
+                ) : <span />}
                 {activeModules.length > 0 && canAddAnotherInstance && (
                   <button
                     onClick={() => handleAddInstanceOfType(activeModuleType)}
+                    disabled={educationItemSorting}
                     className="text-sm text-primary-600 hover:text-primary-700"
                   >
                     + 添加
@@ -968,15 +1025,31 @@ export default function EditorPage() {
                 )}
               </div>
 
-              {activeModules.length > 0 ? (
+              {activeModuleType === 'education' && educationTimelineIssues.length > 0 ? (
+                <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
+                  教育时间线有 {educationTimelineIssues.length} 条经历需要检查
+                </div>
+              ) : null}
+
+              {activeModules.length > 0 && activeModuleType === 'education' && educationItemSorting ? (
+                <EducationItemSorter
+                  modules={activeModules}
+                  issuesByModuleId={educationIssuesByModuleId}
+                  onReorder={handleReorderActiveModuleItems}
+                />
+              ) : activeModules.length > 0 ? (
                 <div className="space-y-4">
                   {activeModules.map((mod, index) => (
                     <div key={mod.id} className="editor-form-container rounded-xl border border-gray-200 bg-white p-4 sm:p-5">
                       {activeModules.length > 1 && (
-                        <div className="flex items-center justify-between mb-3 pb-3 border-b border-gray-100">
-                          <span className="text-sm font-medium text-gray-500">
-                            第 {index + 1} 条
-                          </span>
+                        <div className={activeModuleType === 'education'
+                          ? 'mb-2 flex items-center justify-end'
+                          : 'mb-3 flex items-center justify-between border-b border-gray-100 pb-3'}>
+                          {activeModuleType !== 'education' ? (
+                            <span className="text-sm font-medium text-gray-500">
+                              第 {index + 1} 条
+                            </span>
+                          ) : null}
                           <div className="flex gap-2">
                             {canOptimizeActiveModule && (
                               <button
@@ -1046,6 +1119,23 @@ export default function EditorPage() {
           )}
         </main>
 
+        {!isCompactViewport && editorView !== 'template-selection' ? (
+          <div
+            data-editor-scroll-indicator
+            className="absolute inset-y-0 -right-[3px] z-20 hidden w-[6px] md:block"
+            onWheel={handleEditorScrollIndicatorWheel}
+            aria-hidden="true"
+          >
+            <div
+              data-editor-scroll-thumb
+              ref={editorScrollThumbRef}
+              onPointerDown={handleEditorScrollThumbPointerDown}
+              className="absolute right-0 top-0 hidden w-[6px] cursor-grab touch-none rounded-full bg-slate-300 active:cursor-grabbing"
+            />
+          </div>
+        ) : null}
+        </div>
+
         {editorView !== 'template-selection' && (
           <aside
             id="resume-preview-panel"
@@ -1058,11 +1148,11 @@ export default function EditorPage() {
               previewOpen
                 ? isCompactViewport
                   ? 'fixed bottom-0 right-0 top-[65px] z-20 h-[calc(100vh-65px)] w-full max-w-[540px] overflow-y-auto p-4 sm:p-6'
-                  : 'h-full min-h-0 min-w-0 flex-1 basis-0 overflow-y-auto p-6 xl:px-8'
+                  : 'h-full min-h-0 min-w-0 flex-1 basis-0 overflow-y-auto'
                 : 'hidden h-full min-h-0 shrink-0 sm:block sm:w-14 sm:min-w-14 sm:max-w-14 sm:p-0'
             }`}
           >
-            <div className="relative min-h-full">
+            <div className={`relative min-h-full ${previewOpen && !isCompactViewport ? 'p-6 xl:px-8' : ''}`}>
               {isCompactViewport && previewOpen ? (
                 <div className="mb-3 flex justify-end sm:hidden">
                   <button
@@ -1148,12 +1238,10 @@ function getDefaultContentMap(): Record<ModuleType, Record<string, unknown>> {
       startDate: '', endDate: '', is985: false, is211: false, isDoubleFirst: false,
     },
     internship: {
-      company: '', projectName: '', position: '', startDate: '', endDate: '',
-      techStack: '', projectDescription: '', responsibilities: [],
+      company: '', position: '', startDate: '', endDate: '', projects: [],
     },
     work_experience: {
-      company: '', projectName: '', position: '', startDate: '', endDate: '',
-      techStack: '', projectDescription: '', responsibilities: [],
+      company: '', position: '', startDate: '', endDate: '', projects: [],
     },
     project: {
       projectName: '', role: '', startDate: '', endDate: '', techStack: '',

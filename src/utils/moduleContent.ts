@@ -2,6 +2,7 @@ import type {
   AwardContent,
   BasicInfoContent,
   EducationContent,
+  ExperienceProjectContent,
   InternshipContent,
   JobIntentionContent,
   PaperContent,
@@ -145,16 +146,56 @@ export function normalizeInternshipContent(content: Record<string, unknown>): In
   const record = asRecord(content)
   const legacyContent = parseLegacyInternshipContent(toStringValue(record.responsibilities))
   const normalizedResponsibilities = toStringArray(record.responsibilities)
+  const rawProjects = Array.isArray(record.projects)
+    ? record.projects.filter((item): item is UnknownRecord => !!item && typeof item === 'object' && !Array.isArray(item))
+    : []
+  const hasLegacyProject = [
+    record.projectName,
+    record.role,
+    record.techStack,
+    record.projectDescription,
+    record.responsibilities,
+  ].some((value) => typeof value === 'string' ? value.trim() : Array.isArray(value) && value.length > 0)
+
+  const normalizeProject = (project: UnknownRecord, index: number): ExperienceProjectContent => ({
+    id: toStringValue(project.id) || `project-${index + 1}`,
+    projectName: toStringValue(project.projectName),
+    role: toStringValue(project.role),
+    startDate: toStringValue(project.startDate),
+    endDate: toStringValue(project.endDate),
+    techStack: toStringValue(project.techStack),
+    projectDescription: toStringValue(project.projectDescription),
+    responsibilities: toStringArray(project.responsibilities),
+  })
+
+  let projects = rawProjects.map(normalizeProject)
+  if (hasLegacyProject) {
+    const migratedProject: ExperienceProjectContent = {
+      id: projects[0]?.id || 'project-1',
+      projectName: toStringValue(record.projectName),
+      role: toStringValue(record.role),
+      startDate: toStringValue(record.projectStartDate),
+      endDate: toStringValue(record.projectEndDate),
+      techStack: toStringValue(record.techStack),
+      projectDescription: toStringValue(record.projectDescription) || legacyContent.projectDescription,
+      responsibilities: normalizedResponsibilities.length > 0 ? normalizedResponsibilities : legacyContent.responsibilities,
+    }
+    // Legacy flat experience data represents one complete company experience.
+    // When it is present alongside an existing projects array (for example after
+    // applying an old history material), do not retain unrelated child projects.
+    projects = [migratedProject]
+  }
+
+  if (projects.length === 0) {
+    projects = [normalizeProject({}, 0)]
+  }
 
   return {
     company: toStringValue(record.company),
-    projectName: toStringValue(record.projectName),
     position: toStringValue(record.position),
     startDate: toStringValue(record.startDate),
     endDate: toStringValue(record.endDate),
-    techStack: toStringValue(record.techStack),
-    projectDescription: toStringValue(record.projectDescription) || legacyContent.projectDescription,
-    responsibilities: normalizedResponsibilities.length > 0 ? normalizedResponsibilities : legacyContent.responsibilities,
+    projects,
   }
 }
 

@@ -2,6 +2,9 @@ import { create } from 'zustand'
 import { resumeApi, type ResumeListItem, type ResumeModule } from '../api/resume'
 import type { ImportedResumeData } from '../utils/importers'
 import { normalizeResumeTitle } from '../utils/resumeCreation'
+import { reorderResumeModulesByType, reorderResumeModulesWithinType } from '../utils/resumeDisplay'
+import type { ModuleType } from '../types'
+import type { ResumePdfPreviewConfig } from '../utils/resumePdf'
 
 function getSortTime(value: string): number {
   const time = new Date(value).getTime()
@@ -35,16 +38,19 @@ interface ResumeState {
   createResume: (title: string) => Promise<ResumeListItem>
   importResume: (payload: ImportedResumeData) => Promise<ResumeListItem>
   renameResume: (id: number, title: string) => Promise<ResumeListItem>
+  updateResumeStyle: (id: number, config: ResumePdfPreviewConfig) => Promise<ResumeListItem>
   deleteResume: (id: number) => Promise<void>
   fetchModules: (resumeId: number) => Promise<void>
   updateModuleContent: (resumeId: number, moduleId: number, content: Record<string, unknown>) => Promise<void>
   addModule: (resumeId: number, moduleType: string, content: Record<string, unknown>, sortOrder?: number) => Promise<void>
+  reorderModuleTypes: (resumeId: number, moduleTypes: ModuleType[]) => Promise<void>
+  reorderModuleItems: (resumeId: number, moduleType: ModuleType, moduleIds: number[]) => Promise<void>
   deleteModule: (resumeId: number, moduleId: number) => Promise<void>
   setCurrentResumeId: (id: number | null) => void
   clearUserData: () => void
 }
 
-export const useResumeStore = create<ResumeState>((set) => ({
+export const useResumeStore = create<ResumeState>((set, get) => ({
   resumeList: [],
   currentResumeId: null,
   modules: [],
@@ -103,6 +109,17 @@ export const useResumeStore = create<ResumeState>((set) => ({
     return updatedResume
   },
 
+  updateResumeStyle: async (id, config) => {
+    const { data: res } = await resumeApi.updateStyle(id, config)
+    const updatedResume = res.data
+    set((state) => ({
+      resumeList: state.resumeList.map((resume) =>
+        resume.id === id ? { ...resume, ...updatedResume, preview: resume.preview } : resume
+      ),
+    }))
+    return updatedResume
+  },
+
   deleteResume: async (id) => {
     await resumeApi.delete(id)
     set((state) => ({
@@ -139,6 +156,46 @@ export const useResumeStore = create<ResumeState>((set) => ({
         ? [...state.modules, res.data]
         : state.modules,
     }))
+  },
+
+  reorderModuleTypes: async (resumeId, moduleTypes) => {
+    const previousModules = get().currentResumeId === resumeId ? get().modules : []
+    const reorderedModules = reorderResumeModulesByType(previousModules, moduleTypes)
+    set((state) => ({
+      modules: state.currentResumeId === resumeId ? reorderedModules : state.modules,
+    }))
+
+    try {
+      await resumeApi.reorderModules(
+        resumeId,
+        reorderedModules.map((module) => module.id),
+      )
+    } catch (error) {
+      set((state) => ({
+        modules: state.currentResumeId === resumeId ? previousModules : state.modules,
+      }))
+      throw error
+    }
+  },
+
+  reorderModuleItems: async (resumeId, moduleType, moduleIds) => {
+    const previousModules = get().currentResumeId === resumeId ? get().modules : []
+    const reorderedModules = reorderResumeModulesWithinType(previousModules, moduleType, moduleIds)
+    set((state) => ({
+      modules: state.currentResumeId === resumeId ? reorderedModules : state.modules,
+    }))
+
+    try {
+      await resumeApi.reorderModules(
+        resumeId,
+        reorderedModules.map((module) => module.id),
+      )
+    } catch (error) {
+      set((state) => ({
+        modules: state.currentResumeId === resumeId ? previousModules : state.modules,
+      }))
+      throw error
+    }
   },
 
   deleteModule: async (resumeId, moduleId) => {

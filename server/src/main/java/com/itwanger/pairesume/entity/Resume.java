@@ -16,6 +16,12 @@ public class Resume {
 
     private String templateId;
 
+    private String pdfDensity;
+
+    private String accentPreset;
+
+    private String headingStyle;
+
     /** 状态: 0=已删除, 1=正常 */
     private Integer status;
 

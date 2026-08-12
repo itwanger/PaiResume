@@ -378,9 +378,6 @@ export default function MarketplaceResumePage() {
                       </svg>
                     </div>
                     <h2 className="mt-5 text-xl font-semibold text-slate-950">完整简历尚未解锁</h2>
-                    <p className="mt-3 text-sm leading-6 text-slate-600">
-                      页面只展示作者主动公开的标题、摘要和标签。服务端确认查看权限后，才会返回简历正文。
-                    </p>
                   </div>
                 </div>
               )}

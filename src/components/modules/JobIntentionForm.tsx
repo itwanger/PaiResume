@@ -31,10 +31,9 @@ export function JobIntentionForm({ resumeId, moduleId, initialContent }: Props) 
         onSave={saveNow}
       >
         <MaterialActions
+          resumeId={resumeId}
           moduleType="job_intention"
           content={content}
-          defaultTitle={content.targetPosition || '求职方案'}
-          instanceKey={moduleId}
           onApply={setContent}
           embedded
         />

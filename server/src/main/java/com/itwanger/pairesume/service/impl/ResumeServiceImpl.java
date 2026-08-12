@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.itwanger.pairesume.common.BusinessException;
 import com.itwanger.pairesume.common.ResultCode;
 import com.itwanger.pairesume.dto.ResumeCreateDTO;
+import com.itwanger.pairesume.dto.ResumeStyleUpdateDTO;
 import com.itwanger.pairesume.dto.ResumeUpdateDTO;
 import com.itwanger.pairesume.entity.Resume;
 import com.itwanger.pairesume.entity.ResumeModule;
@@ -68,7 +69,7 @@ public class ResumeServiceImpl implements ResumeService {
             var vo = new ResumeListVO();
             vo.setId(r.getId());
             vo.setTitle(r.getTitle());
-            vo.setTemplateId(r.getTemplateId());
+            applyStyle(r, vo);
             vo.setPreview(buildCardPreview(modulesByResumeId.getOrDefault(r.getId(), List.of())));
             vo.setCreatedAt(r.getCreatedAt());
             vo.setUpdatedAt(r.getUpdatedAt());
@@ -174,7 +175,9 @@ public class ResumeServiceImpl implements ResumeService {
         if (value instanceof String string) return !string.isBlank();
         if (value instanceof Boolean bool) return bool;
         if (value instanceof Number number) return number.doubleValue() != 0;
-        if (value instanceof Map<?, ?> map) return map.values().stream().anyMatch(this::hasMeaningfulValue);
+        if (value instanceof Map<?, ?> map) return map.entrySet().stream()
+                .filter(entry -> !"id".equals(String.valueOf(entry.getKey())))
+                .anyMatch(entry -> hasMeaningfulValue(entry.getValue()));
         if (value instanceof Collection<?> collection) return collection.stream().anyMatch(this::hasMeaningfulValue);
         return false;
     }
@@ -212,13 +215,16 @@ public class ResumeServiceImpl implements ResumeService {
         resume.setUserId(userId);
         resume.setTitle(title);
         resume.setTemplateId(dto.getTemplateId() != null ? dto.getTemplateId() : "default");
+        resume.setPdfDensity("normal");
+        resume.setAccentPreset("auto");
+        resume.setHeadingStyle("auto");
         resume.setStatus(1);
         resumeMapper.insert(resume);
 
         var vo = new ResumeListVO();
         vo.setId(resume.getId());
         vo.setTitle(resume.getTitle());
-        vo.setTemplateId(resume.getTemplateId());
+        applyStyle(resume, vo);
         vo.setPreview(new ResumeCardPreviewVO());
         vo.setCreatedAt(resume.getCreatedAt());
         vo.setUpdatedAt(resume.getUpdatedAt());
@@ -250,6 +256,19 @@ public class ResumeServiceImpl implements ResumeService {
 
     @Override
     @Transactional
+    public ResumeListVO updateStyle(Long userId, Long resumeId, ResumeStyleUpdateDTO dto) {
+        var resume = getAndVerifyOwnership(resumeId, userId);
+        resume.setTemplateId(dto.getTemplateId());
+        resume.setPdfDensity(dto.getDensity());
+        resume.setAccentPreset(dto.getAccentPreset());
+        resume.setHeadingStyle(dto.getHeadingStyle());
+        resumeMapper.updateById(resume);
+        resumeShowcaseService.unpublishChangedResume(resumeId);
+        return toListVO(resume);
+    }
+
+    @Override
+    @Transactional
     public void delete(Long userId, Long resumeId) {
         getAndVerifyOwnership(resumeId, userId);
         if (resumeMapper.deleteById(resumeId) != 1) {
@@ -268,11 +287,22 @@ public class ResumeServiceImpl implements ResumeService {
         var vo = new ResumeListVO();
         vo.setId(resume.getId());
         vo.setTitle(resume.getTitle());
-        vo.setTemplateId(resume.getTemplateId());
+        applyStyle(resume, vo);
         vo.setPreview(new ResumeCardPreviewVO());
         vo.setCreatedAt(resume.getCreatedAt());
         vo.setUpdatedAt(resume.getUpdatedAt());
         return vo;
+    }
+
+    private void applyStyle(Resume resume, ResumeListVO vo) {
+        vo.setTemplateId(defaultIfBlank(resume.getTemplateId(), "default"));
+        vo.setDensity(defaultIfBlank(resume.getPdfDensity(), "normal"));
+        vo.setAccentPreset(defaultIfBlank(resume.getAccentPreset(), "auto"));
+        vo.setHeadingStyle(defaultIfBlank(resume.getHeadingStyle(), "auto"));
+    }
+
+    private String defaultIfBlank(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value;
     }
 
     private Resume getAndVerifyOwnership(Long resumeId, Long userId) {

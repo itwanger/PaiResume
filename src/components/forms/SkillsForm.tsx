@@ -2,6 +2,7 @@ import { useState, useCallback, KeyboardEventHandler } from 'react'
 import { Section } from '../ui/Section'
 import { Input } from '../ui/Input'
 import { Button } from '../ui/Button'
+import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { useResume } from '../../hooks/useResume'
 
 // 常见技能标签
@@ -21,6 +22,7 @@ export function SkillsForm() {
   const { resume, addSkill, removeSkill, setSkills } = useResume()
   const { skills } = resume
   const [inputValue, setInputValue] = useState('')
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false)
 
   const handleAddSkill = useCallback(() => {
     const skill = inputValue.trim()
@@ -50,9 +52,12 @@ export function SkillsForm() {
   )
 
   const handleClearAll = useCallback(() => {
-    if (window.confirm('确定要清空所有技能吗？')) {
-      setSkills([])
-    }
+    setConfirmClearOpen(true)
+  }, [])
+
+  const confirmClearAll = useCallback(() => {
+    setSkills([])
+    setConfirmClearOpen(false)
   }, [setSkills])
 
   return (
@@ -147,6 +152,15 @@ export function SkillsForm() {
           })}
         </div>
       </div>
+      <ConfirmDialog
+        open={confirmClearOpen}
+        title="清空全部技能？"
+        description="当前已添加的技能将全部移除。"
+        confirmText="确认清空"
+        tone="danger"
+        onConfirm={confirmClearAll}
+        onCancel={() => setConfirmClearOpen(false)}
+      />
     </Section>
   )
 }

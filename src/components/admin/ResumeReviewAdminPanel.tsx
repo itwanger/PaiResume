@@ -414,9 +414,6 @@ export function ResumeReviewAdminPanel({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold text-gray-900">人工简历精修工作台</h2>
-          <p className="mt-1 max-w-3xl text-sm leading-6 text-gray-500">
-            接受、完成、退回、邮件重试和退款确认均写入审计记录。
-          </p>
         </div>
         <button
           type="button"

@@ -1,6 +1,9 @@
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { ResumeCardPreview, ResumeListItem } from '../../api/resume'
 import { buildResumeEditorPath } from '../../config/site'
+import type { ResumePdfAccentPreset, ResumePdfHeadingStyle, ResumePdfTemplateId } from '../../utils/resumePdf'
+import { normalizeResumeStyle } from '../../utils/resumeStyle'
 
 interface ResumeCardProps {
   resume: ResumeListItem
@@ -30,7 +33,89 @@ const sectionLabels: Record<string, string> = {
   award: '获奖',
 }
 
-function ResumeContentThumbnail({ preview }: { preview: ResumeCardPreview }) {
+type ThumbnailAccent = Exclude<ResumePdfAccentPreset, 'auto'>
+
+const templateLabels: Record<ResumePdfTemplateId, string> = {
+  default: '正常标准',
+  compact: '紧凑模式',
+  accent: '蓝调重点',
+  'campus-blue': '校园技术蓝',
+  minimal: '极简留白',
+  executive: '深色抬头',
+  warm: '暖灰质感',
+  slate: '冷灰技术',
+  focus: '重点聚焦',
+}
+
+const accentLabels: Record<ThumbnailAccent, string> = {
+  blue: '蓝调',
+  slate: '石墨',
+  warm: '暖棕',
+  emerald: '森绿',
+}
+
+const templateDefaultAccents: Record<ResumePdfTemplateId, ThumbnailAccent> = {
+  default: 'blue',
+  compact: 'blue',
+  accent: 'blue',
+  'campus-blue': 'blue',
+  minimal: 'slate',
+  executive: 'slate',
+  warm: 'warm',
+  slate: 'slate',
+  focus: 'blue',
+}
+
+const accentClasses: Record<ThumbnailAccent, {
+  text: string
+  strongText: string
+  border: string
+  bar: string
+  dot: string
+  soft: string
+  chip: string
+  ring: string
+}> = {
+  blue: {
+    text: 'text-blue-700', strongText: 'text-blue-900', border: 'border-blue-200', bar: 'border-blue-600', dot: 'bg-blue-600',
+    soft: 'bg-blue-50/75', chip: 'bg-blue-50 text-blue-700', ring: 'ring-blue-200',
+  },
+  slate: {
+    text: 'text-slate-600', strongText: 'text-slate-900', border: 'border-slate-300', bar: 'border-slate-600', dot: 'bg-slate-600',
+    soft: 'bg-slate-100/80', chip: 'bg-slate-100 text-slate-700', ring: 'ring-slate-300',
+  },
+  warm: {
+    text: 'text-amber-700', strongText: 'text-amber-900', border: 'border-orange-200', bar: 'border-amber-700', dot: 'bg-amber-700',
+    soft: 'bg-orange-50/80', chip: 'bg-orange-50 text-amber-800', ring: 'ring-orange-200',
+  },
+  emerald: {
+    text: 'text-emerald-700', strongText: 'text-emerald-900', border: 'border-emerald-200', bar: 'border-emerald-600', dot: 'bg-emerald-600',
+    soft: 'bg-emerald-50/75', chip: 'bg-emerald-50 text-emerald-700', ring: 'ring-emerald-200',
+  },
+}
+
+function resolveThumbnailHeadingStyle(templateId: ResumePdfTemplateId, headingStyle: ResumePdfHeadingStyle) {
+  if (headingStyle !== 'auto') return headingStyle
+  if (templateId === 'campus-blue' || templateId === 'executive' || templateId === 'slate') return 'filled'
+  if (templateId === 'focus') return 'bar'
+  return 'underline'
+}
+
+function ResumeContentThumbnail({ preview, resume }: { preview: ResumeCardPreview; resume: ResumeListItem }) {
+  const style = normalizeResumeStyle(resume)
+  const accent = style.accentPreset === 'auto' ? templateDefaultAccents[style.templateId] : style.accentPreset
+  const palette = accentClasses[accent]
+  const headingStyle = resolveThumbnailHeadingStyle(style.templateId, style.headingStyle)
+  const headingClassName = headingStyle === 'filled'
+    ? palette.soft
+    : headingStyle === 'bar'
+      ? `border-l-4 ${palette.bar}`
+      : `border-b ${palette.border}`
+  const surfaceClassName = style.templateId === 'warm'
+    ? 'bg-stone-50/55'
+    : style.templateId === 'slate' || style.templateId === 'executive'
+      ? 'bg-slate-50/70'
+      : ''
   const summaryRows = [
     { label: '教育背景', value: preview.education },
     { label: '工作/实习', value: preview.experience },
@@ -44,23 +129,27 @@ function ResumeContentThumbnail({ preview }: { preview: ResumeCardPreview }) {
 
   return (
     <div
-      className="relative mb-4 h-40 w-full shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100 p-3"
+      className={`relative mb-4 h-40 w-full shrink-0 overflow-hidden ${surfaceClassName}`}
+      data-template-id={style.templateId}
+      data-accent-preset={accent}
+      data-heading-style={headingStyle}
+      data-density={style.density}
       aria-label={hasContent
         ? `简历内容概览：${preview.name || '姓名待填写'}，${preview.targetRole || '求职方向待填写'}，已填写 ${preview.filledModuleCount} 个模块`
         : '空白简历，尚未填写内容'}
     >
-      <div className="mx-auto flex h-full max-w-[260px] flex-col overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:shadow-md">
-        <div className="border-b border-primary-100 bg-primary-50/70 px-3 py-2">
+      <div className="flex h-full flex-col overflow-hidden">
+        <div className={`${headingClassName} px-3 ${style.density === 'compact' ? 'py-1.5' : 'py-2'}`}>
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <p className="truncate text-[11px] font-bold leading-4 text-slate-900">
+              <p className={`truncate text-[11px] font-bold leading-4 ${headingStyle === 'underline' ? 'text-slate-900' : palette.strongText}`}>
                 {preview.name || '姓名待填写'}
               </p>
-              <p className="truncate text-[9px] leading-3.5 text-primary-700">
+              <p className={`truncate text-[9px] leading-3.5 ${palette.text}`}>
                 {preview.targetRole || '求职方向待填写'}
               </p>
             </div>
-            <span className="shrink-0 rounded-full bg-white px-1.5 py-0.5 text-[8px] font-medium text-slate-500 ring-1 ring-slate-200">
+            <span className={`shrink-0 rounded-full bg-white px-1.5 py-0.5 text-[8px] font-medium text-slate-500 ring-1 ${palette.ring}`}>
               {preview.filledModuleCount} 个模块
             </span>
           </div>
@@ -68,11 +157,11 @@ function ResumeContentThumbnail({ preview }: { preview: ResumeCardPreview }) {
 
         {hasContent ? (
           <div className="grid min-h-0 flex-1 grid-cols-[74px_minmax(0,1fr)]">
-            <aside className="border-r border-slate-100 bg-slate-50/80 px-2 py-2">
+            <aside className="border-r border-slate-100 px-2 py-2">
               <p className="text-[8px] font-semibold tracking-wide text-slate-500">技能概览</p>
               <div className="mt-1.5 flex flex-wrap gap-1">
-                {preview.skills.length ? preview.skills.slice(0, 5).map((skill) => (
-                  <span key={skill} className="max-w-full truncate rounded bg-primary-50 px-1 py-0.5 text-[7px] leading-3 text-primary-700">
+                {preview.skills.length ? preview.skills.slice(0, style.density === 'compact' ? 6 : 5).map((skill) => (
+                  <span key={skill} className={`max-w-full truncate rounded px-1 py-0.5 text-[7px] leading-3 ${palette.chip}`}>
                     {skill}
                   </span>
                 )) : (
@@ -84,19 +173,17 @@ function ResumeContentThumbnail({ preview }: { preview: ResumeCardPreview }) {
               ) : null}
             </aside>
 
-            <div className="min-w-0 space-y-2 px-2.5 py-2">
+            <div className={`min-w-0 px-2.5 py-2 ${style.density === 'compact' ? 'space-y-1.5' : 'space-y-2'}`}>
               {summaryRows.length ? summaryRows.map((row) => (
                 <div key={row.label} className="min-w-0">
                   <div className="mb-0.5 flex items-center gap-1">
-                    <span className="h-1.5 w-1.5 rounded-full bg-primary-500" />
+                    <span className={`h-1.5 w-1.5 rounded-full ${palette.dot}`} />
                     <span className="text-[8px] font-semibold leading-3 text-slate-600">{row.label}</span>
                   </div>
                   <p className="truncate pl-2.5 text-[8px] leading-3 text-slate-500">{row.value}</p>
                 </div>
               )) : (
-                <div className="flex h-full items-center justify-center text-center text-[8px] leading-4 text-slate-400">
-                  已填写基础信息，继续补充教育、经历和项目
-                </div>
+                <div className="h-full rounded bg-slate-50" aria-hidden="true" />
               )}
             </div>
           </div>
@@ -109,7 +196,6 @@ function ResumeContentThumbnail({ preview }: { preview: ResumeCardPreview }) {
               <span className="h-1.5 rounded-full bg-slate-100" />
             </div>
             <p className="text-[9px] font-medium text-slate-500">尚未填写简历内容</p>
-            <p className="mt-0.5 text-[8px] text-slate-400">打开后开始完善</p>
           </div>
         )}
       </div>
@@ -120,16 +206,28 @@ function ResumeContentThumbnail({ preview }: { preview: ResumeCardPreview }) {
 export function ResumeCard({ resume, onDelete, onRename }: ResumeCardProps) {
   const navigate = useNavigate()
   const preview = resume.preview || emptyPreview
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement | null>(null)
 
-  const handleDelete = (event: React.MouseEvent) => {
-    event.stopPropagation()
-    if (window.confirm(`确定要删除「${resume.title}」吗？`)) onDelete(resume.id)
-  }
+  useEffect(() => {
+    if (!menuOpen) return
 
-  const handleRename = (event: React.MouseEvent) => {
-    event.stopPropagation()
-    onRename(resume)
-  }
+    const handlePointerDown = (event: PointerEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false)
+      }
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuOpen(false)
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [menuOpen])
 
   const formatDate = (dateStr: string) => new Date(dateStr).toLocaleDateString('zh-CN', {
     year: 'numeric',
@@ -137,51 +235,80 @@ export function ResumeCard({ resume, onDelete, onRename }: ResumeCardProps) {
     day: '2-digit',
   })
 
-  const templateLabel = resume.templateId && resume.templateId !== 'default' ? resume.templateId : '标准版'
+  const style = normalizeResumeStyle(resume)
+  const styleLabel = style.accentPreset === 'auto'
+    ? templateLabels[style.templateId]
+    : `${templateLabels[style.templateId]} · ${accentLabels[style.accentPreset]}`
 
   return (
     <article
       onClick={() => navigate(buildResumeEditorPath(resume.id))}
-      className="group flex h-full min-h-72 cursor-pointer flex-col rounded-xl border border-gray-200 bg-white p-5 transition-all hover:border-primary-300 hover:shadow-md"
+      className={`group relative flex h-full min-h-72 cursor-pointer flex-col rounded-xl border border-gray-200 bg-white p-5 transition-all hover:border-primary-300 hover:shadow-md ${menuOpen ? 'z-20' : ''}`}
     >
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <h2
-          className="min-w-0 flex-1 whitespace-normal break-words text-base font-semibold leading-6 text-gray-900 transition-colors group-hover:text-primary-600"
-          title={resume.title}
-        >
-          {resume.title}
-        </h2>
-        <div className="flex shrink-0 items-center gap-1">
-          <button
-            type="button"
-            onClick={handleRename}
-            className="p-1 text-gray-300 transition-colors hover:text-primary-600"
-            title="重命名"
-            aria-label={`重命名「${resume.title}」`}
-          >
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536M9 11l6.768-6.768a2.5 2.5 0 113.536 3.536L12.536 14.536A4 4 0 019.708 15.708L6 16l.292-3.708A4 4 0 017.464 9.464L9 11z" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            onClick={handleDelete}
-            className="p-1 text-gray-300 transition-colors hover:text-red-500"
-            title="删除"
-            aria-label={`删除「${resume.title}」`}
-          >
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-          </button>
-        </div>
-      </div>
+      <h2
+        className="mb-4 whitespace-normal break-words text-base font-semibold leading-6 text-gray-900 transition-colors group-hover:text-primary-600"
+        title={resume.title}
+      >
+        {resume.title}
+      </h2>
 
-      <ResumeContentThumbnail preview={preview} />
+      <ResumeContentThumbnail preview={preview} resume={resume} />
 
-      <footer className="mt-auto flex items-center justify-between gap-3 text-xs text-gray-400">
-        <span className="truncate">模板：{templateLabel}</span>
+      <footer className="mt-auto flex min-w-0 items-center gap-3 text-xs text-gray-400">
+        <span className="min-w-0 flex-1 truncate">样式：{styleLabel}</span>
         <span className="shrink-0">更新于 {formatDate(resume.updatedAt)}</span>
+        <div
+          ref={menuRef}
+          className="relative shrink-0"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <button
+            type="button"
+            onClick={() => setMenuOpen((open) => !open)}
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+            title="更多操作"
+            aria-label={`“${resume.title}”的更多操作`}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+          >
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <circle cx="5" cy="12" r="1.7" />
+              <circle cx="12" cy="12" r="1.7" />
+              <circle cx="19" cy="12" r="1.7" />
+            </svg>
+          </button>
+
+          {menuOpen ? (
+            <div
+              role="menu"
+              aria-label={`“${resume.title}”的简历操作`}
+              className="absolute bottom-full right-0 z-30 mb-2 w-36 rounded-xl border border-gray-200 bg-white p-1.5 shadow-lg"
+            >
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setMenuOpen(false)
+                  onRename(resume)
+                }}
+                className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-primary-700"
+              >
+                修改简历名
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setMenuOpen(false)
+                  onDelete(resume.id)
+                }}
+                className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
+              >
+                删除简历
+              </button>
+            </div>
+          ) : null}
+        </div>
       </footer>
     </article>
   )

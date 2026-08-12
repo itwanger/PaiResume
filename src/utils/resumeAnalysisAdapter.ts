@@ -69,14 +69,17 @@ export function buildAnalysisResume(modules: ResumeModule[]): Resume {
   const experiences = modules.flatMap((module) => {
     if (module.moduleType === 'internship' || module.moduleType === 'work_experience') {
       const content = normalizeInternshipContent(module.content)
-      const description = [
-        content.projectDescription ? `项目简介：${content.projectDescription}` : '',
-        content.responsibilities.length > 0 ? `核心职责：\n${content.responsibilities.join('\n')}` : '',
-      ].filter(Boolean).join('\n')
+      const description = content.projects.map((project) => [
+        project.projectName ? `项目：${project.projectName}` : '',
+        project.role ? `项目角色：${project.role}` : '',
+        project.techStack ? `技术栈：${project.techStack}` : '',
+        project.projectDescription ? `项目简介：${project.projectDescription}` : '',
+        project.responsibilities.length > 0 ? `核心职责：\n${project.responsibilities.join('\n')}` : '',
+      ].filter(Boolean).join('\n')).filter(Boolean).join('\n\n')
 
       return [{
         id: toExperienceId(module.id),
-        company: content.company || content.projectName,
+        company: content.company || content.projects[0]?.projectName || '',
         position: content.position,
         startDate: content.startDate,
         endDate: content.endDate,

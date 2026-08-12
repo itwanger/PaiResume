@@ -28,6 +28,7 @@ import {
 import { parseInlineMarkdownSegments } from './inlineMarkdown'
 import { normalizePhotoSource } from './resumePhoto'
 import { getModuleDisplayLabel, sortResumeModulesForDisplay } from './resumeDisplay'
+import { normalizeInlineText } from './resumeText'
 
 function resolveFontSource(fileName: string) {
   if (typeof window === 'undefined') {
@@ -886,8 +887,12 @@ function estimateContinuousPageHeight(modules: ResumeModule[]) {
 
     if (module.moduleType === 'internship' || module.moduleType === 'work_experience') {
       const content = normalizeInternshipContent(module.content)
-      textVolume += textLengthForPage([content.company, content.projectName, content.position, content.projectDescription, content.techStack, ...content.responsibilities])
-      bulletCount += content.responsibilities.length
+      textVolume += textLengthForPage([
+        content.company,
+        content.position,
+        ...content.projects.flatMap((project) => [project.projectName, project.role, project.projectDescription, project.techStack, ...project.responsibilities]),
+      ])
+      bulletCount += content.projects.reduce((count, project) => count + project.responsibilities.length, 0)
       continue
     }
 
@@ -945,7 +950,7 @@ function formatMonth(value: string) {
 function formatMonthRange(start: string, end: string) {
   const startText = formatMonth(start)
   const endText = formatMonth(end)
-  if (startText && endText) return `${startText}至${endText}`
+  if (startText && endText) return `${startText} - ${endText}`
   return startText || endText
 }
 
@@ -1168,14 +1173,24 @@ function ResumePdfDocument({
   const displayJobIntention = basicInfo?.jobIntention || jobIntention?.targetPosition || ''
   const internshipSectionTitle = getModuleDisplayLabel('internship')
   const workExperienceSectionTitle = getModuleDisplayLabel('work_experience')
-  const hasEducationModule = sortedModules.some((module) => module.moduleType === 'education')
   const educationModules = sortedModules.filter((module) => module.moduleType === 'education')
+  const firstContentModuleType = sortedModules.find((module) => module.moduleType !== 'basic_info')?.moduleType
+  const useCompactPhotoEducationLayout = isCompactDensity
+    && hasPhoto
+    && !isCampusBlue
+    && educationModules.length > 0
+    && firstContentModuleType === 'education'
+  const internshipModules = sortedModules.filter((module) => module.moduleType === 'internship')
+  const workExperienceModules = sortedModules.filter((module) => module.moduleType === 'work_experience')
+  const firstInternshipModuleId = internshipModules[0]?.id ?? null
+  const firstWorkExperienceModuleId = workExperienceModules[0]?.id ?? null
   const projectModules = sortedModules.filter((module) => module.moduleType === 'project')
   const firstProjectModuleId = projectModules[0]?.id ?? null
   const awardModules = sortedModules
     .filter((module) => module.moduleType === 'award')
     .map((module) => normalizeAwardContent(module.content))
     .filter((award) => award.awardName || award.awardTime)
+  const firstAwardModuleId = sortedModules.find((module) => module.moduleType === 'award')?.id ?? null
   const headerContainerStyle = [
     styles.header,
     ...(isExecutive ? [{ backgroundColor: theme.sectionTitleColor, padding: 14, marginBottom: 16 }] : []),
@@ -1260,7 +1275,7 @@ function ResumePdfDocument({
         { label: '籍贯：', value: basicInfo.hometown },
         { label: '求职意向：', value: displayJobIntention },
         { label: '意向城市：', value: basicInfo.targetCity },
-        { label: '政治面貌：', value: basicInfo.isPartyMember ? '中共党员' : '' },
+        { label: '政治面貌：', value: basicInfo.isPartyMember ? '党员' : '' },
         { label: 'GitHub：', value: basicInfo.github, href: normalizeExternalUrl(basicInfo.github) },
         { label: '博客：', value: basicInfo.blog, href: normalizeExternalUrl(basicInfo.blog) },
         { label: 'LeetCode：', value: basicInfo.leetcode },
@@ -1307,6 +1322,7 @@ function ResumePdfDocument({
           {basicInfo.phone ? <Text><Text style={headerLabelStyle}>手机号：</Text>{basicInfo.phone}</Text> : null}
           {basicInfo.wechat ? <Text><Text style={headerLabelStyle}>微信：</Text>{basicInfo.wechat}</Text> : null}
           {basicInfo.targetCity ? <Text><Text style={headerLabelStyle}>意向城市：</Text>{basicInfo.targetCity}</Text> : null}
+          {basicInfo.isPartyMember ? <Text><Text style={headerLabelStyle}>政治面貌：</Text>党员</Text> : null}
           {basicInfo.github ? (
             <Text>
               <Text style={headerLabelStyle}>GitHub：</Text>
@@ -1396,7 +1412,7 @@ function ResumePdfDocument({
               style={[
                 styles.item,
                 ...(educationModule.id !== educationModules[educationModules.length - 1]?.id
-                  ? [{ paddingBottom: 6 }]
+                  ? [{ paddingBottom: 2 }]
                   : []),
               ]}
             >
@@ -1457,17 +1473,6 @@ function ResumePdfDocument({
             </View>
           )
         })}
-        {awardModules.length > 0 ? (
-          <View style={{ marginTop: 4 }}>
-            {awardModules.map((award, index) => (
-              <Text key={`${award.awardName}-${index}`} style={styles.paragraph}>
-                <Text style={styles.label}>奖项：</Text>
-                {award.awardName}
-                {award.awardTime ? `（${formatAwardDisplayTime(award.awardTime)}）` : ''}
-              </Text>
-            ))}
-          </View>
-        ) : null}
         </>
       ), styleOverrides)
     ) : null
@@ -1483,7 +1488,14 @@ function ResumePdfDocument({
           <Text style={styles.strong}>{titleLine || '项目 - 角色'}</Text>
           <Text style={styles.muted}>{formatMonthRange(content.startDate, content.endDate)}</Text>
         </View>
-        {content.techStack ? <Text style={styles.paragraph}>技术栈：{content.techStack}</Text> : null}
+        {content.techStack
+          ? renderWrappedLabeledText(
+              styles,
+              '技术栈：',
+              normalizeInlineText(content.techStack),
+              `project-tech-stack-${projectModule.id}`
+            )
+          : null}
         {content.description ? (
           <View style={styles.paragraph}>
             {renderWrappedLabeledText(styles, '项目简介：', content.description, `project-summary-${projectModule.id}`)}
@@ -1509,15 +1521,12 @@ function ResumePdfDocument({
     <Document title={documentTitle} onRender={onRender}>
       <Page size={pageSize} style={styles.page}>
         {isCampusBlue ? (
-          <>
-            {renderCampusBlueHeaderBlock()}
-            {renderEducationBlock()}
-          </>
-        ) : hasPhoto ? (
+          renderCampusBlueHeaderBlock()
+        ) : useCompactPhotoEducationLayout ? (
           <View style={topSectionWithPhotoStyle}>
             <View style={styles.topSectionRow}>
               <View style={styles.topSectionMain}>
-                {renderHeaderBlock(educationModules.length > 0 ? [] : [{ marginBottom: 0 }])}
+                {renderHeaderBlock([{ marginBottom: Math.max(theme.headerBottom - 2, 4) }])}
                 {renderEducationBlock([{ marginBottom: 0 }])}
               </View>
               <View style={[styles.topSectionPhotoColumn, { width: photoFrameWidth }]}>
@@ -1527,49 +1536,103 @@ function ResumePdfDocument({
               </View>
             </View>
           </View>
+        ) : hasPhoto ? (
+          <View style={topSectionWithPhotoStyle}>
+            <View style={styles.topSectionRow}>
+              <View style={styles.topSectionMain}>
+                {renderHeaderBlock([{ marginBottom: 0 }])}
+              </View>
+              <View style={[styles.topSectionPhotoColumn, { width: photoFrameWidth }]}>
+                <View style={splitPhotoFrameStyle}>
+                  <Image src={photoSource} style={styles.photoImage} />
+                </View>
+              </View>
+            </View>
+          </View>
         ) : (
-          <>
-            {renderHeaderBlock()}
-            {renderEducationBlock()}
-          </>
+          renderHeaderBlock()
         )}
 
         {sortedModules.map((module) => {
           switch (module.moduleType) {
             case 'basic_info':
-            case 'education':
               return null
+            case 'education':
+              return !useCompactPhotoEducationLayout && module.id === educationModules[0]?.id
+                ? renderEducationBlock()
+                : null
             case 'internship':
             case 'work_experience': {
-              const content = normalizeInternshipContent(module.content)
-              const titleLine = [content.company, content.position, content.projectName].filter(Boolean).join(' - ')
+              const isWorkExperience = module.moduleType === 'work_experience'
+              const experienceModules = isWorkExperience ? workExperienceModules : internshipModules
+              const firstModuleId = isWorkExperience ? firstWorkExperienceModuleId : firstInternshipModuleId
+              if (module.id !== firstModuleId) return null
+
               return renderSectionBlock(
                 module.id,
-                module.moduleType === 'work_experience' ? workExperienceSectionTitle : internshipSectionTitle,
+                isWorkExperience ? workExperienceSectionTitle : internshipSectionTitle,
                 (
-                  <View style={styles.item}>
-                    <View style={styles.rowBetween}>
-                      <Text style={styles.strong}>{titleLine || '公司 - 职位 - 项目名'}</Text>
-                      <Text style={styles.muted}>{formatMonthRange(content.startDate, content.endDate)}</Text>
-                    </View>
-                    {content.projectDescription ? (
-                      <View style={styles.paragraph}>
-                        {renderWrappedLabeledText(styles, '项目简介：', content.projectDescription, `summary-${module.id}`)}
-                      </View>
-                    ) : null}
-                    {content.techStack ? <Text style={styles.paragraph}><Text style={styles.label}>技术栈：</Text>{content.techStack}</Text> : null}
-                    {content.responsibilities.length > 0 ? (
-                      <View style={styles.paragraph}>
-                        <Text><Text style={styles.label}>核心职责：</Text></Text>
-                        {content.responsibilities.map((line, index) => (
-                          <View key={`${index}-${line}`} style={styles.listItem}>
-                            {isCampusBlue
-                              ? renderBulletItem(styles, line, `duty-${module.id}-${index}`)
-                              : renderOrderedItem(styles, line, index, `duty-${module.id}-${index}`)}
+                  <View>
+                    {experienceModules.map((experienceModule) => {
+                      const content = normalizeInternshipContent(experienceModule.content)
+                      const companyTitle = [content.company, content.position].filter(Boolean).join(' - ')
+                      const visibleProjects = content.projects.filter((project) => {
+                        const projectTitle = [project.projectName, project.role].filter(Boolean).join(' - ')
+                        return Boolean(projectTitle || project.startDate || project.endDate || project.techStack || project.projectDescription || project.responsibilities.some(Boolean))
+                      })
+                      return (
+                        <View key={experienceModule.id} style={styles.item}>
+                          <View style={styles.rowBetween}>
+                            <Text style={styles.strong}>{companyTitle || '公司 - 职位'}</Text>
+                            <Text style={styles.muted}>{formatMonthRange(content.startDate, content.endDate)}</Text>
                           </View>
-                        ))}
-                      </View>
-                    ) : null}
+                          {visibleProjects.map((project, projectIndex) => {
+                            const projectTitle = [project.projectName, project.role].filter(Boolean).join(' - ')
+                            return (
+                              <View
+                                key={project.id}
+                                style={[
+                                  styles.item,
+                                  { marginTop: 5 },
+                                ]}
+                              >
+                                {projectTitle || project.startDate || project.endDate ? (
+                                  <View style={styles.rowBetween}>
+                                    <Text style={styles.strong}>{projectTitle}</Text>
+                                    <Text style={styles.muted}>{formatMonthRange(project.startDate, project.endDate)}</Text>
+                                  </View>
+                                ) : null}
+                                {project.projectDescription ? (
+                                  <View style={styles.paragraph}>
+                                    {renderWrappedLabeledText(styles, '项目简介：', project.projectDescription, `summary-${experienceModule.id}-${projectIndex}`)}
+                                  </View>
+                                ) : null}
+                                {project.techStack
+                                  ? renderWrappedLabeledText(
+                                      styles,
+                                      '技术栈：',
+                                      normalizeInlineText(project.techStack),
+                                      `experience-tech-stack-${experienceModule.id}-${projectIndex}`
+                                    )
+                                  : null}
+                                {project.responsibilities.some(Boolean) ? (
+                                  <View style={styles.paragraph}>
+                                    <Text><Text style={styles.label}>核心职责：</Text></Text>
+                                    {project.responsibilities.filter(Boolean).map((line, index) => (
+                                      <View key={`${index}-${line}`} style={styles.listItem}>
+                                        {isCampusBlue
+                                          ? renderBulletItem(styles, line, `duty-${experienceModule.id}-${projectIndex}-${index}`)
+                                          : renderOrderedItem(styles, line, index, `duty-${experienceModule.id}-${projectIndex}-${index}`)}
+                                      </View>
+                                    ))}
+                                  </View>
+                                ) : null}
+                              </View>
+                            )
+                          })}
+                        </View>
+                      )
+                    })}
                   </View>
                 )
               )
@@ -1659,18 +1722,21 @@ function ResumePdfDocument({
               )
             }
             case 'award': {
-              if (hasEducationModule) {
+              if (module.id !== firstAwardModuleId) {
                 return null
               }
-              const content = normalizeAwardContent(module.content)
               return renderSectionBlock(
-                module.id,
+                'award',
                 '获奖情况',
                 (
-                  <Text>
-                    {content.awardName || '奖项'}
-                    {content.awardTime ? `（${formatAwardDisplayTime(content.awardTime)}）` : ''}
-                  </Text>
+                  <>
+                    {awardModules.map((award, index) => (
+                      <Text key={`${award.awardName}-${index}`} style={styles.paragraph}>
+                        {award.awardName || '奖项'}
+                        {award.awardTime ? `（${formatAwardDisplayTime(award.awardTime)}）` : ''}
+                      </Text>
+                    ))}
+                  </>
                 )
               )
             }

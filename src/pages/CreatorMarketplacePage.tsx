@@ -146,6 +146,7 @@ export default function CreatorMarketplacePage() {
   const [appealDescription, setAppealDescription] = useState('')
   const [appealSubmitting, setAppealSubmitting] = useState(false)
   const [confirmUnpublishOpen, setConfirmUnpublishOpen] = useState(false)
+  const [settlementTarget, setSettlementTarget] = useState<CreatorEarning | null>(null)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
@@ -327,21 +328,21 @@ export default function CreatorMarketplacePage() {
     }
   }
 
-  const handleRequestSettlement = async (earning: CreatorEarning) => {
+  const handleRequestSettlement = (earning: CreatorEarning) => {
     if (settlementRequestingId !== null) return
-    if (!window.confirm(
-      `确认申请结算这笔 ${formatCurrency(getEarningIncome(earning))} 的作者收益？\n\n申请后将等待管理员完成线下转账。`,
-    )) {
-      return
-    }
+    setSettlementTarget(earning)
+  }
 
-    setSettlementRequestingId(earning.id)
+  const confirmRequestSettlement = async () => {
+    if (!settlementTarget || settlementRequestingId !== null) return
+    setSettlementRequestingId(settlementTarget.id)
     setError('')
     setSuccess('')
     try {
-      await creatorMarketplaceApi.requestSettlement(earning.id)
+      await creatorMarketplaceApi.requestSettlement(settlementTarget.id)
       await refreshEarnings()
       setSuccess('结算申请已提交，请等待管理员完成线下转账。')
+      setSettlementTarget(null)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : '结算申请提交失败')
     } finally {
@@ -864,6 +865,15 @@ export default function CreatorMarketplacePage() {
         loading={unpublishing}
         onConfirm={handleUnpublish}
         onCancel={() => setConfirmUnpublishOpen(false)}
+      />
+      <ConfirmDialog
+        open={settlementTarget !== null}
+        title="确认申请结算？"
+        description={`本次申请结算 ${formatCurrency(settlementTarget ? getEarningIncome(settlementTarget) : 0)}，提交后将等待管理员完成线下转账。`}
+        confirmText="确认申请"
+        loading={settlementRequestingId !== null}
+        onConfirm={confirmRequestSettlement}
+        onCancel={() => setSettlementTarget(null)}
       />
     </div>
   )

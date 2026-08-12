@@ -21,6 +21,18 @@ export interface UserResumeMaterial {
   updatedAt: string
 }
 
+export interface ResumeHistoryMaterial {
+  key: string
+  moduleType: ModuleType
+  title: string
+  content: Record<string, unknown>
+  sourceType: 'HISTORY_RESUME' | 'LEGACY_LIBRARY' | 'LEGACY_PROFILE'
+  sourceResumeId?: number
+  sourceResumeTitle?: string
+  legacyMaterialId?: number
+  updatedAt?: string
+}
+
 export interface OfficialResumeMaterial {
   id: number
   moduleType: ModuleType
@@ -101,6 +113,8 @@ export const contentLibraryApi = {
 
   listMyMaterials: (params?: { moduleType?: ModuleType; query?: string }) =>
     client.get<ApiEnvelope<UserResumeMaterial[]>>('/content-library/my-materials', { params }),
+  listHistoryMaterials: (params?: { moduleType?: ModuleType; query?: string; excludeResumeId?: number }) =>
+    client.get<ApiEnvelope<ResumeHistoryMaterial[]>>('/content-library/history-materials', { params }),
   createMyMaterial: (payload: MaterialUpsertPayload) =>
     client.post<ApiEnvelope<UserResumeMaterial>>('/content-library/my-materials', payload),
   updateMyMaterial: (id: number, payload: MaterialUpsertPayload) =>

@@ -16,6 +16,7 @@ import {
 } from '../../utils/moduleContent'
 import { parseInlineMarkdownSegments } from '../../utils/inlineMarkdown'
 import { normalizePhotoSource } from '../../utils/resumePhoto'
+import { normalizeInlineText } from '../../utils/resumeText'
 import {
   findBasicInfoContent,
   getModuleDisplayLabel,
@@ -474,7 +475,7 @@ function formatMonth(value: string) {
 function formatMonthRange(start: string, end: string) {
   const startText = formatMonth(start)
   const endText = formatMonth(end)
-  if (startText && endText) return `${startText}至${endText}`
+  if (startText && endText) return `${startText} - ${endText}`
   return startText || endText
 }
 
@@ -531,14 +532,9 @@ function getModuleSurfaceTone(moduleType: string, index: number) {
       ? 'from-primary-800 via-primary-600 to-primary-300'
       : 'from-primary-700 via-primary-500 to-primary-200'
 
-  const badge = moduleType === 'basic_info'
-    ? 'border-primary-700/20 bg-primary-700 text-white'
-    : 'border-primary-100 bg-primary-50 text-primary-700'
-
   return {
     container: alternatingSurface,
     accent,
-    badge,
   }
 }
 
@@ -560,7 +556,6 @@ function ModulePreviewSection({
   shouldReduceMotion: boolean
 }) {
   const label = getModuleDisplayLabel(module.moduleType as ModuleType, basicInfoContent)
-  const awardModules = modules.filter((item) => item.moduleType === 'award')
   const surfaceTone = getModuleSurfaceTone(module.moduleType, index)
 
   const renderProjectEntry = (projectModule: ResumeModule) => {
@@ -582,7 +577,7 @@ function ModulePreviewSection({
           </p>
         )}
         {content.techStack && (
-          <p className="text-sm text-gray-500">技术栈：{content.techStack}</p>
+          <p className="text-sm text-gray-500">技术栈：{normalizeInlineText(content.techStack)}</p>
         )}
         {content.achievements.length > 0 && (
           <div className="text-sm text-gray-600">
@@ -614,6 +609,7 @@ function ModulePreviewSection({
           ['手机号', content.phone as string],
           ['微信', content.wechat as string],
           ['意向城市', content.targetCity as string],
+          ['政治面貌', content.isPartyMember ? '党员' : ''],
           ['GitHub', content.github as string],
           ['博客', content.blog as string],
           ['籍贯', content.hometown as string],
@@ -647,10 +643,6 @@ function ModulePreviewSection({
         )
       }
       case 'education': {
-        const awards = awardModules
-          .map((item) => normalizeAwardContent(item.content))
-          .filter((item) => item.awardName || item.awardTime)
-
         return (
           <div className="mb-4 space-y-4">
             {modules
@@ -730,54 +722,67 @@ function ModulePreviewSection({
                   </div>
                 )
               })}
-            {awards.length > 0 && (
-              <div className="space-y-1 pt-1">
-                {awards.map((award, index) => (
-                  <div key={`${award.awardName}-${index}`} className="text-sm text-gray-600">
-                    <span className="text-gray-500">奖项：</span>
-                    {award.awardName}
-                    {award.awardTime ? `（${formatAwardDisplayTime(award.awardTime)}）` : ''}
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         )
       }
       case 'internship':
       case 'work_experience': {
-        const content = normalizeInternshipContent(module.content)
-        const titleLine = [content.company, content.position, content.projectName].filter(Boolean).join(' - ')
+        const experiences = modules
+          .filter((item) => item.moduleType === module.moduleType)
+          .map((item) => ({ id: item.id, content: normalizeInternshipContent(item.content) }))
         return (
-          <div className="mb-4 space-y-1.5">
-            <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
-              <div className="font-semibold text-gray-800">{titleLine || '公司 - 职位 - 项目名'}</div>
-              <span className="text-sm text-gray-400 sm:shrink-0">
-                {formatMonthRange(content.startDate, content.endDate)}
-              </span>
-            </div>
-            {content.projectDescription && (
-              <p className="text-sm text-gray-600">
-                <span className="text-gray-500">项目简介：</span>
-                {content.projectDescription}
-              </p>
-            )}
-            {content.techStack && (
-              <p className="text-sm text-gray-500">技术栈：{content.techStack}</p>
-            )}
-            {content.responsibilities.length > 0 && (
-              <div className="text-sm text-gray-600">
-                <p className="text-gray-500">核心职责：</p>
-                <div className="mt-1 space-y-1 pl-4">
-                  {content.responsibilities.map((line, index) => (
-                    <div key={`${index}-${line}`} className="flex gap-2">
-                      <span className="text-gray-400">•</span>
-                      <p className="flex-1 leading-6 whitespace-pre-wrap">{renderInlineMarkdownText(line)}</p>
-                    </div>
-                  ))}
+          <div className="mb-4 space-y-5">
+            {experiences.map(({ id, content }) => {
+              const companyTitle = [content.company, content.position].filter(Boolean).join(' - ')
+              const visibleProjects = content.projects.filter((project) => {
+                const projectTitle = [project.projectName, project.role].filter(Boolean).join(' - ')
+                return Boolean(projectTitle || project.startDate || project.endDate || project.techStack || project.projectDescription || project.responsibilities.some(Boolean))
+              })
+              return (
+                <div key={id}>
+                  <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
+                    <div className="font-semibold text-gray-800 sm:whitespace-nowrap">{companyTitle || '公司 - 职位'}</div>
+                    <span className="text-sm text-gray-400 sm:shrink-0">
+                      {formatMonthRange(content.startDate, content.endDate)}
+                    </span>
+                  </div>
+                  <div className="mt-3 space-y-4">
+                    {visibleProjects.map((project) => {
+                      const projectTitle = [project.projectName, project.role].filter(Boolean).join(' - ')
+                      return (
+                        <div key={project.id}>
+                          <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
+                            {projectTitle ? <p className="whitespace-nowrap text-sm font-semibold text-gray-800">{projectTitle}</p> : <span />}
+                            {project.startDate || project.endDate ? (
+                              <span className="text-sm text-gray-400 sm:shrink-0">{formatMonthRange(project.startDate, project.endDate)}</span>
+                            ) : null}
+                          </div>
+                          {project.projectDescription ? (
+                            <p className="mt-1.5 text-sm text-gray-600"><span className="text-gray-500">项目简介：</span>{project.projectDescription}</p>
+                          ) : null}
+                          {project.techStack ? (
+                            <p className="mt-1.5 text-sm text-gray-500">技术栈：{normalizeInlineText(project.techStack)}</p>
+                          ) : null}
+                          {project.responsibilities.some(Boolean) ? (
+                            <div className="mt-1.5 text-sm text-gray-600">
+                              <p className="text-gray-500">核心职责：</p>
+                              <div className="mt-1 space-y-1 pl-4">
+                                {project.responsibilities.filter(Boolean).map((line, index) => (
+                                  <div key={`${index}-${line}`} className="flex gap-2">
+                                    <span className="text-gray-400">•</span>
+                                    <p className="flex-1 whitespace-pre-wrap leading-6">{renderInlineMarkdownText(line)}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ) : null}
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
-              </div>
-            )}
+              )
+            })}
           </div>
         )
       }
@@ -850,11 +855,18 @@ function ModulePreviewSection({
         )
       }
       case 'award': {
-        const content = normalizeAwardContent(module.content)
+        const awards = modules
+          .filter((item) => item.moduleType === 'award')
+          .map((item) => ({ id: item.id, content: normalizeAwardContent(item.content) }))
+          .filter(({ content }) => content.awardName || content.awardTime)
         return (
-          <div className="mb-2 text-sm text-gray-600">
-            {content.awardName || '奖项'}
-            {content.awardTime ? `（${formatAwardDisplayTime(content.awardTime)}）` : ''}
+          <div className="space-y-2 text-sm text-gray-600">
+            {awards.map(({ id, content }) => (
+              <div key={id}>
+                {content.awardName || '奖项'}
+                {content.awardTime ? `（${formatAwardDisplayTime(content.awardTime)}）` : ''}
+              </div>
+            ))}
           </div>
         )
       }
@@ -885,13 +897,8 @@ function ModulePreviewSection({
       <div className={`absolute inset-y-0 left-0 w-1 bg-gradient-to-b ${surfaceTone.accent}`} />
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-white via-primary-200/80 to-transparent" />
       <div className="relative px-5 py-4 sm:px-6 sm:py-5">
-        <div className="mb-4 flex items-center justify-between gap-4 border-b border-primary-100/90 pb-3">
-          <div className="flex items-center gap-3">
-            <span className={`inline-flex h-8 min-w-8 items-center justify-center rounded-full border px-2 text-[11px] font-semibold tracking-[0.22em] ${surfaceTone.badge}`}>
-              {String(index + 1).padStart(2, '0')}
-            </span>
-            <h2 className="text-base font-semibold text-primary-900">{label}</h2>
-          </div>
+        <div className="mb-4 border-b border-primary-100/90 pb-3">
+          <h2 className="text-base font-semibold text-primary-900">{label}</h2>
         </div>
         {renderContent()}
       </div>

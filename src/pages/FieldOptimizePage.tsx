@@ -121,28 +121,41 @@ function templatizeRenderedPrompt(renderedPrompt: string, variables: Record<stri
   }, renderedPrompt)
 }
 
-function deriveFieldContext(module: ResumeModule | undefined, fieldType: string | null, index: number | null): FieldContext | null {
+const EXPERIENCE_RESPONSIBILITY_INDEX_STRIDE = 1000
+
+function encodeExperienceResponsibilityIndex(projectIndex: number, responsibilityIndex: number) {
+  return projectIndex * EXPERIENCE_RESPONSIBILITY_INDEX_STRIDE + responsibilityIndex
+}
+
+function deriveFieldContext(
+  module: ResumeModule | undefined,
+  fieldType: string | null,
+  projectIndex: number,
+  responsibilityIndex: number | null,
+): FieldContext | null {
   if (!module || !fieldType) {
     return null
   }
 
   if (module.moduleType === 'internship' || module.moduleType === 'work_experience') {
     const content = normalizeInternshipContent(module.content)
+    const project = content.projects[projectIndex]
+    if (!project) return null
     if (fieldType === 'project_description') {
       return {
         title: '项目简介',
-        original: content.projectDescription.trim(),
+        original: project.projectDescription.trim(),
         multiCandidate: true,
-        request: { fieldType: 'project_description' },
+        request: { fieldType: 'project_description', index: projectIndex },
         moduleType: module.moduleType,
       }
     }
-    if (fieldType === 'responsibility' && index !== null) {
+    if (fieldType === 'responsibility' && responsibilityIndex !== null) {
       return {
-        title: `核心职责 ${index + 1}`,
-        original: content.responsibilities[index]?.trim() || '',
+        title: `核心职责 ${responsibilityIndex + 1}`,
+        original: project.responsibilities[responsibilityIndex]?.trim() || '',
         multiCandidate: true,
-        request: { fieldType: 'responsibility', index },
+        request: { fieldType: 'responsibility', index: encodeExperienceResponsibilityIndex(projectIndex, responsibilityIndex) },
         moduleType: module.moduleType,
       }
     }
@@ -160,12 +173,12 @@ function deriveFieldContext(module: ResumeModule | undefined, fieldType: string 
         moduleType: 'project',
       }
     }
-    if (fieldType === 'responsibility' && index !== null) {
+    if (fieldType === 'responsibility' && responsibilityIndex !== null) {
       return {
-        title: `核心职责 ${index + 1}`,
-        original: content.achievements[index]?.trim() || '',
+        title: `核心职责 ${responsibilityIndex + 1}`,
+        original: content.achievements[responsibilityIndex]?.trim() || '',
         multiCandidate: true,
-        request: { fieldType: 'responsibility', index },
+        request: { fieldType: 'responsibility', index: responsibilityIndex },
         moduleType: 'project',
       }
     }
@@ -178,7 +191,8 @@ function derivePromptVariables(
   module: ResumeModule | undefined,
   fieldContext: FieldContext | null,
   fieldType: FieldType | null,
-  index: number | null
+  projectIndex: number,
+  responsibilityIndex: number | null,
 ): Record<string, string> {
   if (!module || !fieldContext || !fieldType) {
     return {}
@@ -192,13 +206,15 @@ function derivePromptVariables(
 
   if (module.moduleType === 'internship' || module.moduleType === 'work_experience') {
     const content = normalizeInternshipContent(module.content)
+    const project = content.projects[projectIndex]
+    if (!project) return {}
     return {
       company: content.company,
       position: content.position,
-      projectName: content.projectName,
-      techStack: content.techStack,
-      projectDescription: content.projectDescription,
-      original: index !== null ? (content.responsibilities[index] || '') : fieldContext.original,
+      projectName: project.projectName,
+      techStack: project.techStack,
+      projectDescription: project.projectDescription,
+      original: responsibilityIndex !== null ? (project.responsibilities[responsibilityIndex] || '') : fieldContext.original,
     }
   }
 
@@ -209,7 +225,7 @@ function derivePromptVariables(
       role: content.role,
       techStack: content.techStack,
       description: content.description,
-      original: index !== null ? (content.achievements[index] || '') : fieldContext.original,
+      original: responsibilityIndex !== null ? (content.achievements[responsibilityIndex] || '') : fieldContext.original,
     }
   }
 
@@ -266,17 +282,26 @@ function migrateStoredPromptTemplate(template: string, fieldContext: FieldContex
   return template
 }
 
-function applyOptimizedText(module: ResumeModule, fieldType: string, optimizedText: string, index: number | null) {
+function applyOptimizedText(
+  module: ResumeModule,
+  fieldType: string,
+  optimizedText: string,
+  projectIndex: number,
+  responsibilityIndex: number | null,
+) {
   if (module.moduleType === 'internship' || module.moduleType === 'work_experience') {
     const content = normalizeInternshipContent(module.content)
-    if (fieldType === 'project_description') {
-      return { ...content, projectDescription: optimizedText }
-    }
-    if (fieldType === 'responsibility' && index !== null) {
-      const responsibilities = [...content.responsibilities]
-      responsibilities[index] = optimizedText
-      return { ...content, responsibilities }
-    }
+    const projects = content.projects.map((project, index) => {
+      if (index !== projectIndex) return project
+      if (fieldType === 'project_description') return { ...project, projectDescription: optimizedText }
+      if (fieldType === 'responsibility' && responsibilityIndex !== null) {
+        const responsibilities = [...project.responsibilities]
+        responsibilities[responsibilityIndex] = optimizedText
+        return { ...project, responsibilities }
+      }
+      return project
+    })
+    return { ...content, projects }
   }
 
   if (module.moduleType === 'project') {
@@ -284,9 +309,9 @@ function applyOptimizedText(module: ResumeModule, fieldType: string, optimizedTe
     if (fieldType === 'project_description') {
       return { ...content, description: optimizedText }
     }
-    if (fieldType === 'responsibility' && index !== null) {
+    if (fieldType === 'responsibility' && responsibilityIndex !== null) {
       const achievements = [...content.achievements]
-      achievements[index] = optimizedText
+      achievements[responsibilityIndex] = optimizedText
       return { ...content, achievements }
     }
   }
@@ -304,16 +329,18 @@ export default function FieldOptimizePage() {
   const returnModuleType = searchParams.get('returnModuleType')
   const parsedIndex = searchParams.get('index')
   const index = parsedIndex === null ? null : Number(parsedIndex)
+  const parsedProjectIndex = Number(searchParams.get('projectIndex') || 0)
+  const projectIndex = Number.isSafeInteger(parsedProjectIndex) && parsedProjectIndex >= 0 ? parsedProjectIndex : 0
 
   const { modules, loading, currentResumeId, fetchModules, updateModuleContent } = useResumeStore()
   const module = modules.find((item) => item.id === numericModuleId)
   const fieldContext = useMemo(
-    () => deriveFieldContext(module, fieldType, Number.isFinite(index) ? index : null),
-    [module, fieldType, index]
+    () => deriveFieldContext(module, fieldType, projectIndex, Number.isFinite(index) ? index : null),
+    [module, fieldType, projectIndex, index]
   )
   const promptVariables = useMemo(
-    () => derivePromptVariables(module, fieldContext, fieldType as FieldType | null, Number.isFinite(index) ? index : null),
-    [module, fieldContext, fieldType, index]
+    () => derivePromptVariables(module, fieldContext, fieldType as FieldType | null, projectIndex, Number.isFinite(index) ? index : null),
+    [module, fieldContext, fieldType, projectIndex, index]
   )
   const [promptConfig, setPromptConfig] = useState<FieldOptimizePromptConfig>(EMPTY_PROMPT_CONFIG)
   const defaultPromptTemplate = useMemo(
@@ -677,7 +704,13 @@ export default function FieldOptimizePage() {
     }
     setSaving(true)
     try {
-      const nextContent = applyOptimizedText(module, fieldType, optimizedText, Number.isFinite(index) ? index : null)
+      const nextContent = applyOptimizedText(
+        module,
+        fieldType,
+        optimizedText,
+        projectIndex,
+        Number.isFinite(index) ? index : null,
+      )
       await updateModuleContent(resumeId, numericModuleId, nextContent)
       handleBack()
     } catch (error: unknown) {

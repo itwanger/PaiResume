@@ -6,6 +6,7 @@ import com.itwanger.pairesume.entity.*;
 import com.itwanger.pairesume.service.ResumeContentLibraryService;
 import com.itwanger.pairesume.util.SecurityUtils;
 import com.itwanger.pairesume.vo.ResumeListVO;
+import com.itwanger.pairesume.vo.ResumeHistoryMaterialVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -40,6 +41,16 @@ public class ResumeContentLibraryController {
             @RequestParam(required = false) String query
     ) {
         return Result.success(service.listUserMaterials(userId(), moduleType, query));
+    }
+
+    @Operation(summary = "从历史简历自动汇总可复用资料")
+    @GetMapping("/history-materials")
+    public Result<List<ResumeHistoryMaterialVO>> listHistoryMaterials(
+            @RequestParam(required = false) String moduleType,
+            @RequestParam(required = false) String query,
+            @RequestParam(required = false) Long excludeResumeId
+    ) {
+        return Result.success(service.listHistoryMaterials(userId(), moduleType, query, excludeResumeId));
     }
 
     @Operation(summary = "保存模块到我的资料库")

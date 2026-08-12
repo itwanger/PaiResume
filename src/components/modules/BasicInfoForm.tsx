@@ -10,7 +10,7 @@ import {
   normalizePhotoSource,
 } from '../../utils/resumePhoto'
 import { ModuleSaveBar } from './ModuleSaveBar'
-import { BasicProfileActions } from '../materials/BasicProfileActions'
+import { MaterialActions } from '../materials/MaterialActions'
 import { getBasicInfoFieldError, type BasicInfoValidationKind } from '../../utils/basicInfoValidation'
 import { resumePhotoApi } from '../../api/resumePhoto'
 import { SegmentedControl } from '../ui/SegmentedControl'
@@ -141,7 +141,13 @@ export function BasicInfoForm({ resumeId, moduleId, initialContent }: Props) {
         hasUnsavedChanges={hasUnsavedChanges}
         onSave={saveNow}
       >
-        <BasicProfileActions content={content} onApply={setContent} embedded />
+        <MaterialActions
+          resumeId={resumeId}
+          moduleType="basic_info"
+          content={content}
+          onApply={setContent}
+          embedded
+        />
       </ModuleSaveBar>
 
       <div className="editor-responsive-grid">
@@ -164,7 +170,7 @@ export function BasicInfoForm({ resumeId, moduleId, initialContent }: Props) {
           + 添加可选信息
         </button>
       ) : (
-        <div className="space-y-4 rounded-xl border border-dashed border-gray-200 bg-gray-50/70 p-4">
+        <div className="space-y-4 border-t border-gray-100 pt-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="text-sm font-medium text-gray-700">可选信息</p>

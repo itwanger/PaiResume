@@ -17,6 +17,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.List;
 
@@ -89,6 +91,37 @@ public class ResumeModuleServiceImpl implements ResumeModuleService {
         touchResume(resumeId);
         resumeShowcaseService.unpublishChangedResume(resumeId);
         return hydrateForRead(module, userId);
+    }
+
+    @Override
+    @Transactional
+    public void reorder(Long resumeId, Long userId, List<Long> moduleIds) {
+        verifyResumeOwnership(resumeId, userId);
+
+        var modules = moduleMapper.selectList(
+            new LambdaQueryWrapper<ResumeModule>()
+                .eq(ResumeModule::getResumeId, resumeId)
+                .orderByAsc(ResumeModule::getSortOrder)
+                .orderByAsc(ResumeModule::getId)
+        );
+        var moduleById = new HashMap<Long, ResumeModule>();
+        for (var module : modules) {
+            moduleById.put(module.getId(), module);
+        }
+
+        var requestedIds = new HashSet<>(moduleIds);
+        if (moduleIds.size() != modules.size()
+                || requestedIds.size() != moduleIds.size()
+                || !requestedIds.equals(moduleById.keySet())) {
+            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "模块顺序与当前简历不一致，请刷新后重试");
+        }
+
+        for (int index = 0; index < moduleIds.size(); index++) {
+            moduleMapper.updateSortOrder(resumeId, moduleIds.get(index), index);
+        }
+
+        touchResume(resumeId);
+        resumeShowcaseService.unpublishChangedResume(resumeId);
     }
 
     @Override

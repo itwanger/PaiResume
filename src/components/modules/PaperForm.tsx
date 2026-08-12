@@ -31,10 +31,9 @@ export function PaperForm({ resumeId, moduleId, initialContent }: Props) {
         onSave={saveNow}
       >
         <MaterialActions
+          resumeId={resumeId}
           moduleType="paper"
           content={content}
-          defaultTitle={content.journalName || '论文期刊'}
-          instanceKey={moduleId}
           onApply={setContent}
           embedded
         />

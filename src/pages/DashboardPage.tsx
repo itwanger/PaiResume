@@ -5,6 +5,7 @@ import { useResumeStore } from '../store/resumeStore'
 import { Header } from '../components/layout/Header'
 import { CreateResumeCard } from '../components/dashboard/CreateResumeCard'
 import { ResumeCard } from '../components/dashboard/ResumeCard'
+import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import {
   AUTHENTICATED_HOME_PATH,
   buildResumeEditorPath,
@@ -28,6 +29,9 @@ export default function DashboardPage() {
   const [editingResume, setEditingResume] = useState<ResumeListItem | null>(null)
   const [contentTemplates, setContentTemplates] = useState<ResumeContentTemplate[]>([])
   const [selectedContentTemplateId, setSelectedContentTemplateId] = useState<number | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<ResumeListItem | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
 
   useEffect(() => {
     fetchResumeList()
@@ -115,13 +119,27 @@ export default function DashboardPage() {
     setSelectedContentTemplateId(null)
   }
 
-  const handleDelete = async (id: number) => {
+  const openDeleteDialog = (id: number) => {
+    const target = resumeList.find((resume) => resume.id === id)
+    if (!target) return
+    setDeleteError('')
+    setDeleteTarget(target)
+  }
+
+  const handleDelete = async () => {
+    if (!deleteTarget || deleting) return
+    setDeleting(true)
+    setDeleteError('')
     try {
-      await deleteResume(id)
+      await deleteResume(deleteTarget.id)
+      setDeleteTarget(null)
     } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : '删除失败，请稍后重试')
       if (import.meta.env.DEV) {
         console.error('删除失败:', err instanceof Error ? err.name : 'Error')
       }
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -142,7 +160,7 @@ export default function DashboardPage() {
             <ResumeCard
               key={resume.id}
               resume={resume}
-              onDelete={handleDelete}
+              onDelete={openDeleteDialog}
               onRename={openRenameDialog}
             />
           ))}
@@ -210,7 +228,6 @@ export default function DashboardPage() {
                     className={`rounded-xl border px-4 py-3 text-left transition ${selectedContentTemplateId === null ? 'border-primary-400 bg-primary-50' : 'border-gray-200 hover:border-primary-200'}`}
                   >
                     <span className="block text-sm font-medium text-gray-900">空白简历</span>
-                    <span className="mt-1 block text-xs text-gray-500">从空白模块开始填写</span>
                   </button>
                   {contentTemplates.map((template) => (
                     <button
@@ -252,6 +269,20 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="删除这份简历？"
+        description={deleteError || `删除「${deleteTarget?.title ?? ''}」后无法恢复。`}
+        confirmText="确认删除"
+        tone="danger"
+        loading={deleting}
+        onConfirm={handleDelete}
+        onCancel={() => {
+          setDeleteTarget(null)
+          setDeleteError('')
+        }}
+      />
     </div>
   )
 }

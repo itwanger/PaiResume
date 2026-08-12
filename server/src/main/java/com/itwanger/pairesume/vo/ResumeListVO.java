@@ -8,6 +8,9 @@ public class ResumeListVO {
     private Long id;
     private String title;
     private String templateId;
+    private String density;
+    private String accentPreset;
+    private String headingStyle;
     private ResumeCardPreviewVO preview;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
