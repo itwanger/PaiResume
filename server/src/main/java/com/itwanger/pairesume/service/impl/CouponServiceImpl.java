@@ -15,6 +15,7 @@ import com.itwanger.pairesume.service.PlatformConfigService;
 import com.itwanger.pairesume.payment.MembershipPlanCode;
 import com.itwanger.pairesume.util.DateTimeUtils;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -25,6 +26,7 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class CouponServiceImpl implements CouponService {
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final String COUPON_CHARACTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -144,6 +146,23 @@ public class CouponServiceImpl implements CouponService {
         mailService.sendCouponCode(couponCode.getRecipientEmail(), couponCode.getCode(), couponCode.getAmountCents());
         couponCode.setEmailSentAt(LocalDateTime.now());
         couponCodeMapper.updateById(couponCode);
+    }
+
+    @Override
+    public CouponAdminDTO resendCoupon(Long couponId, Long adminUserId) {
+        CouponCode couponCode = couponCodeMapper.selectById(couponId);
+        if (couponCode == null) {
+            throw new BusinessException(ResultCode.COUPON_NOT_FOUND);
+        }
+        if (!"ISSUED".equals(couponCode.getCouponStatus())
+                || (couponCode.getExpiresAt() != null
+                && !couponCode.getExpiresAt().isAfter(LocalDateTime.now()))) {
+            throw new BusinessException(ResultCode.COUPON_INVALID);
+        }
+        resendCoupon(couponCode);
+        log.info("coupon_admin_action event=COUPON_EMAIL_RESENT couponId={} adminUserId={}",
+                couponId, adminUserId);
+        return toAdminDto(couponCode);
     }
 
     @Override

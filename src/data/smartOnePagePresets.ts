@@ -95,10 +95,7 @@ export const resumeReferenceTemplates: ResumeReferenceTemplate[] = [
     description: '强调技术动作、性能结果和工程化产出，适合后端与工程方向。',
     intendedUse: '适合项目、工作经历或实习经历较多、希望向一页高密度收敛的简历。',
     markdownBody: `# 姓名 / 目标岗位
-- 联系方式 / 核心链接 / 到岗时间
-
-## 核心摘要
-- 用一句话概括方向和优势
+- 联系方式 / 核心链接
 
 ## 工作经历
 ### 公司 - 岗位 - 时间

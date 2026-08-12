@@ -2,6 +2,7 @@ import type { PaperContent } from '../../types'
 import { useModuleContentState } from '../../hooks/useModuleContentState'
 import { normalizePaperContent } from '../../utils/moduleContent'
 import { ModuleSaveBar } from './ModuleSaveBar'
+import { MaterialActions } from '../materials/MaterialActions'
 
 interface Props {
   resumeId: number
@@ -28,7 +29,16 @@ export function PaperForm({ resumeId, moduleId, initialContent }: Props) {
         errorMessage={errorMessage}
         hasUnsavedChanges={hasUnsavedChanges}
         onSave={saveNow}
-      />
+      >
+        <MaterialActions
+          moduleType="paper"
+          content={content}
+          defaultTitle={content.journalName || '论文期刊'}
+          instanceKey={moduleId}
+          onApply={setContent}
+          embedded
+        />
+      </ModuleSaveBar>
 
       <div className="editor-responsive-grid">
         <div>

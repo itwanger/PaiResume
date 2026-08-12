@@ -45,11 +45,11 @@
 
 ## 私有 OSS 前置配置
 
-人工精修使用一个私有 OSS Bucket；普通 PDF 导出只在浏览器生成，不使用这个 Bucket。`RESUME_REVIEW_ENABLED=false` 的首发灰度不要求启用或配置该 Bucket；准备开放人工精修前，必须由独立运维身份完成下列配置，应用 RAM 身份只获得对象级权限：
+简历照片和人工精修可以复用一个私有 OSS Bucket，但必须使用互不重叠的专用前缀；普通 PDF 导出只在浏览器生成，不使用这个 Bucket。简历照片 OSS 是应用必备基础设施，不设置业务开关；endpoint、Bucket 或 RAM 凭据缺失时应用必须拒绝启动。必须由独立运维身份完成下列配置，应用 RAM 身份只获得对象级权限：
 
 1. Bucket ACL 设为 `private`，开启阻止公共访问，不绑定公开读 CDN 或公共读 Bucket Policy。`RESUME_REVIEW_OSS_ENDPOINT` 填地域 HTTPS endpoint，例如 `https://oss-cn-hangzhou.aliyuncs.com`，Bucket 名单独填写。
 2. staging 与冻结对象前缀保持互不相同且互不包含，生产默认分别为 `pairesume/resume-review/staging/` 和 `pairesume/resume-review/objects/`。前缀必须是以 `/` 结尾的相对值，只能包含字母、数字、`/`、`_`、`-`，不能包含空白、反斜杠或 `//`；不得把其他项目对象放进这两个前缀。
-3. 生产 CORS 只允许来源 `https://resume.paicoding.com`、方法 `POST` 和必要请求头 `content-type`；不使用 `*` 来源或 `*` 请求头，不允许浏览器跨域 `GET`、`DELETE`。可暴露 `ETag`、`x-oss-request-id` 便于验收排错，预检缓存建议 600 秒。浏览器请求使用 `credentials: omit`。
+3. 生产 CORS 只允许来源 `https://resume.paicoding.com`。人工精修使用 `POST`；私有照片使用 `POST`、`GET`、`HEAD`，其中读取必须携带服务端签发的短期 OSS URL。不使用 `*` 来源或 `*` 请求头，不允许浏览器跨域 `DELETE`。可暴露 `ETag`、`x-oss-request-id` 便于验收排错，预检缓存建议 600 秒。浏览器请求使用 `credentials: omit`。
 4. 配置两条按前缀匹配的删除生命周期：staging 最迟 1 天自动删除；冻结对象在 `RESUME_REVIEW_OSS_RETENTION_DAYS` 天后删除，生产默认 30 天。专用 Bucket 建议关闭版本控制；若必须开启，还要同步删除历史版本和 delete marker，不能只删除当前版本。两条规则都不做归档或冷归档转换，避免邮件重试前需要恢复对象。
 5. 应用凭据使用独立 RAM 用户或角色，不授予 `AliyunOSSFullAccess`、`oss:*`、`ListObjects`、`oss:DeleteObject`、Bucket ACL/CORS/生命周期修改权限。`CopyObject` 在同一 Bucket 内需要源对象 `oss:GetObject` 和目标对象 `oss:PutObject`；staging 与冻结对象均由 Bucket 生命周期规则删除，不需要给应用删除权限，因此最小对象策略可按实际 Bucket 和两个前缀填写：
 
@@ -74,6 +74,8 @@
 
 6. AccessKey ID 与 Secret 只写入权限受限的 `/etc/pai-resume/pai-resume.env`，不得进入 `dist`、发布包、日志或截图。POST 直传响应只按协议返回非秘密的 AccessKey ID；AccessKey Secret 和长期密钥对永远不得返回浏览器。若主机支持 ECS RAM 角色，应后续改用角色短期凭据并移除长期 AccessKey。
 7. 服务端签发的短期上传策略必须同时限制随机且精确的 staging key、与声明字节数完全相等的 `content-length-range`（声明值不得超过 10 MiB）、`application/pdf`、SHA-256 元数据、私有 ACL 和 `AES256` 服务端加密。上传完成后，服务端从 OSS 流式读取 staging 一次，核验完整内容并按源 ETag 复制到随机冻结 key，全局最多同时执行 `RESUME_REVIEW_OSS_MAX_CONCURRENT_FINALIZATIONS` 路；超出立即返回 503，不进入等待队列占用数据库连接。staging 不在业务事务中立即删除，避免 OSS 复制成功而数据库事务失败时失去重试源；独立短生命周期规则负责在最迟 1 天后清理。
+
+简历照片额外使用 `pairesume/resume-photo/staging/` 与 `pairesume/resume-photo/objects/`。浏览器和服务端均校验 PNG/JPEG、3 MiB 上限、SHA-256、文件头、单边 4096 像素及总像素 1600 万；数据库只保存 `resume_photo.id`。照片对象不设置自动到期生命周期，账号注销时由应用删除，因此应用 RAM 只需额外获得照片两个前缀的 `oss:GetObject`、`oss:PutObject` 和 `oss:DeleteObject`，不能获得其他前缀删除权限。照片 staging 仍必须配置最迟 1 天清理。
 
 OSS 生命周期按前缀工作且规则生效、执行存在时间差，不能把 30 分钟 `READY` 票据失效等同于对象已经删除。相关配置原理可核对阿里云官方的 [CORS 配置说明](https://help.aliyun.com/zh/oss/user-guide/configure-cross-origin-resource-sharing)、[生命周期说明](https://help.aliyun.com/zh/oss/user-guide/overview-54)、[RAM 最小权限示例](https://help.aliyun.com/zh/oss/user-guide/ram-policy/) 和 [CopyObject 权限表](https://help.aliyun.com/zh/oss/developer-reference/copyobject)。
 

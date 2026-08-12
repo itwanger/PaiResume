@@ -3,6 +3,8 @@
   <CORSRule>
     <AllowedOrigin>https://resume.paicoding.com</AllowedOrigin>
     <AllowedMethod>POST</AllowedMethod>
+    <AllowedMethod>GET</AllowedMethod>
+    <AllowedMethod>HEAD</AllowedMethod>
     <AllowedHeader>Content-Type</AllowedHeader>
     <ExposeHeader>x-oss-request-id</ExposeHeader>
     <MaxAgeSeconds>600</MaxAgeSeconds>

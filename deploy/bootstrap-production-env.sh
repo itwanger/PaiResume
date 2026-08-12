@@ -191,6 +191,31 @@ lookup_env_value() {
   done < "$file"
 }
 
+# Mandatory photo OSS values must come from an explicit PaiResume override or
+# an already provisioned target file. Never copy paicoding's broad, long-lived
+# image credentials into this application implicitly.
+select_required_photo_oss_value() {
+  local description="$1"
+  local override_value="$2"
+  local target_key="$3"
+
+  SELECTED_VALUE=""
+  if [[ -n "$override_value" ]]; then
+    SELECTED_VALUE="$override_value"
+    validate_value "$description" "$SELECTED_VALUE"
+    return 0
+  fi
+  if [[ -f "$target_env" ]]; then
+    lookup_env_value "$target_env" "$target_key"
+    if [[ "$LOOKUP_FOUND" == "true" && -n "$LOOKUP_VALUE" ]]; then
+      SELECTED_VALUE="$LOOKUP_VALUE"
+      validate_value "$description" "$SELECTED_VALUE"
+      return 0
+    fi
+  fi
+  die "缺少 ${description}；简历照片 OSS 是必备基础设施"
+}
+
 # Sets SELECTED_VALUE to the first non-empty candidate.
 select_required_source_value() {
   local description="$1"
@@ -312,11 +337,25 @@ select_required_source_value "DeepSeek API Key" \
 deepseek_api_key="$SELECTED_VALUE"
 
 # 人工精修首发总开关关闭，不把 paicoding 的长期 OSS 凭据复制给
-# PaiResume。以后完成独立 RAM 最小权限核验后，再通过受控配置流程写入。
-oss_endpoint=""
-oss_bucket=""
-oss_access_key_id=""
-oss_access_key_secret=""
+# PaiResume。简历照片 OSS 是必备基础设施，必须显式提供最小权限 RAM
+# 凭据；重复执行时可以从既有目标文件安全保留这些值。
+review_oss_endpoint=""
+review_oss_bucket=""
+review_oss_access_key_id=""
+review_oss_access_key_secret=""
+
+select_required_photo_oss_value "简历照片 OSS endpoint" \
+  "${PAIRESUME_PHOTO_OSS_ENDPOINT:-}" RESUME_PHOTO_OSS_ENDPOINT
+photo_oss_endpoint="$SELECTED_VALUE"
+select_required_photo_oss_value "简历照片 OSS Bucket" \
+  "${PAIRESUME_PHOTO_OSS_BUCKET:-}" RESUME_PHOTO_OSS_BUCKET
+photo_oss_bucket="$SELECTED_VALUE"
+select_required_photo_oss_value "简历照片 OSS AccessKey ID" \
+  "${PAIRESUME_PHOTO_OSS_ACCESS_KEY_ID:-}" RESUME_PHOTO_OSS_ACCESS_KEY_ID
+photo_oss_access_key_id="$SELECTED_VALUE"
+select_required_photo_oss_value "简历照片 OSS AccessKey Secret" \
+  "${PAIRESUME_PHOTO_OSS_ACCESS_KEY_SECRET:-}" RESUME_PHOTO_OSS_ACCESS_KEY_SECRET
+photo_oss_access_key_secret="$SELECTED_VALUE"
 
 oss_private_confirmed="${PAIRESUME_OSS_PRIVATE_BUCKET_CONFIRMED:-true}"
 oss_cors_confirmed="${PAIRESUME_OSS_CORS_CONFIRMED:-false}"
@@ -329,6 +368,15 @@ if [[ -n "${PAIRESUME_OSS_RAM_POLICY_CONFIRMED:-}" \
   && "${PAIRESUME_OSS_RAM_POLICY_CONFIRMED}" != "false" ]]; then
   die "现有 OSS AccessKey 的最小 RAM 权限尚未证实，拒绝写入 RAM_POLICY_CONFIRMED=true"
 fi
+
+photo_oss_private_confirmed="${PAIRESUME_PHOTO_OSS_PRIVATE_BUCKET_CONFIRMED:-false}"
+photo_oss_cors_confirmed="${PAIRESUME_PHOTO_OSS_CORS_CONFIRMED:-false}"
+photo_oss_lifecycle_confirmed="${PAIRESUME_PHOTO_OSS_STAGING_LIFECYCLE_CONFIRMED:-false}"
+photo_oss_ram_confirmed="${PAIRESUME_PHOTO_OSS_RAM_POLICY_CONFIRMED:-false}"
+validate_boolean_override "PAIRESUME_PHOTO_OSS_PRIVATE_BUCKET_CONFIRMED" "$photo_oss_private_confirmed"
+validate_boolean_override "PAIRESUME_PHOTO_OSS_CORS_CONFIRMED" "$photo_oss_cors_confirmed"
+validate_boolean_override "PAIRESUME_PHOTO_OSS_STAGING_LIFECYCLE_CONFIRMED" "$photo_oss_lifecycle_confirmed"
+validate_boolean_override "PAIRESUME_PHOTO_OSS_RAM_POLICY_CONFIRMED" "$photo_oss_ram_confirmed"
 
 operator_name="${PAIRESUME_OPERATOR_NAME:-沉默王二（个人开发者）}"
 validate_value "PAIRESUME_OPERATOR_NAME" "$operator_name"
@@ -477,10 +525,10 @@ write_env RESUME_REVIEW_UPLOAD_RATE_LIMIT_WINDOW_SECONDS 900
 write_env RESUME_REVIEW_UPLOAD_RATE_LIMIT_ACCOUNT_ATTEMPTS 20
 write_env RESUME_REVIEW_UPLOAD_RATE_LIMIT_IP_ATTEMPTS 200
 write_env RESUME_REVIEW_OSS_ENABLED false
-write_env RESUME_REVIEW_OSS_ENDPOINT "$oss_endpoint" true
-write_env RESUME_REVIEW_OSS_BUCKET "$oss_bucket" true
-write_env RESUME_REVIEW_OSS_ACCESS_KEY_ID "$oss_access_key_id" true
-write_env RESUME_REVIEW_OSS_ACCESS_KEY_SECRET "$oss_access_key_secret" true
+write_env RESUME_REVIEW_OSS_ENDPOINT "$review_oss_endpoint" true
+write_env RESUME_REVIEW_OSS_BUCKET "$review_oss_bucket" true
+write_env RESUME_REVIEW_OSS_ACCESS_KEY_ID "$review_oss_access_key_id" true
+write_env RESUME_REVIEW_OSS_ACCESS_KEY_SECRET "$review_oss_access_key_secret" true
 write_env RESUME_REVIEW_OSS_STAGING_PREFIX pairesume/resume-review/staging/
 write_env RESUME_REVIEW_OSS_OBJECT_PREFIX pairesume/resume-review/objects/
 write_env RESUME_REVIEW_OSS_UPLOAD_URL_TTL_MINUTES 10
@@ -492,6 +540,24 @@ write_env RESUME_REVIEW_OSS_PRIVATE_BUCKET_CONFIRMED "$oss_private_confirmed"
 write_env RESUME_REVIEW_OSS_CORS_CONFIRMED "$oss_cors_confirmed"
 write_env RESUME_REVIEW_OSS_LIFECYCLE_CONFIRMED "$oss_lifecycle_confirmed"
 write_env RESUME_REVIEW_OSS_RAM_POLICY_CONFIRMED "$oss_ram_confirmed"
+write_env RESUME_PHOTO_OSS_ENDPOINT "$photo_oss_endpoint" true
+write_env RESUME_PHOTO_OSS_BUCKET "$photo_oss_bucket" true
+write_env RESUME_PHOTO_OSS_ACCESS_KEY_ID "$photo_oss_access_key_id" true
+write_env RESUME_PHOTO_OSS_ACCESS_KEY_SECRET "$photo_oss_access_key_secret" true
+write_env RESUME_PHOTO_OSS_STAGING_PREFIX pairesume/resume-photo/staging/
+write_env RESUME_PHOTO_OSS_OBJECT_PREFIX pairesume/resume-photo/objects/
+write_env RESUME_PHOTO_OSS_UPLOAD_URL_TTL_MINUTES 10
+write_env RESUME_PHOTO_OSS_ACCESS_URL_TTL_MINUTES 60
+write_env RESUME_PHOTO_OSS_MAX_BYTES 3145728
+write_env RESUME_PHOTO_OSS_MAX_DIMENSION 4096
+write_env RESUME_PHOTO_OSS_MAX_PIXELS 16000000
+write_env RESUME_PHOTO_UPLOAD_RATE_LIMIT_WINDOW_SECONDS 900
+write_env RESUME_PHOTO_UPLOAD_RATE_LIMIT_ACCOUNT_ATTEMPTS 20
+write_env RESUME_PHOTO_UPLOAD_RATE_LIMIT_IP_ATTEMPTS 200
+write_env RESUME_PHOTO_OSS_PRIVATE_BUCKET_CONFIRMED "$photo_oss_private_confirmed"
+write_env RESUME_PHOTO_OSS_CORS_CONFIRMED "$photo_oss_cors_confirmed"
+write_env RESUME_PHOTO_OSS_STAGING_LIFECYCLE_CONFIRMED "$photo_oss_lifecycle_confirmed"
+write_env RESUME_PHOTO_OSS_RAM_POLICY_CONFIRMED "$photo_oss_ram_confirmed"
 write_env RESUME_REVIEW_PAID_ACCEPT_NEW_ORDERS false
 write_env RESUME_REVIEW_PAYMENT_ORDER_EXPIRE_MINUTES 30
 write_env RESUME_REVIEW_PAYMENT_ACCEPTANCE_CONFIRMED false

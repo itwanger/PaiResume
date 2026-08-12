@@ -9,6 +9,7 @@ import {
 } from '../api/marketplace'
 import { publicApi, type ShowcaseCard } from '../api/public'
 import { Header } from '../components/layout/Header'
+import { SegmentedControl } from '../components/ui/SegmentedControl'
 import {
   buildMarketplaceListingPath,
   buildShowcasePath,
@@ -200,27 +201,18 @@ export default function ExcellentResumesPage() {
               </form>
             </div>
 
-            <div className="mt-5 flex flex-wrap gap-2">
-              {([
-                ['', '全部'],
-                ['FREE', '免费公开'],
-                ['PAID', '付费查看'],
-              ] as const).map(([value, label]) => (
-                <button
-                  key={value || 'ALL'}
-                  type="button"
-                  onClick={() => setAccessType(value)}
-                  className={[
-                    'rounded-full px-4 py-2 text-sm font-medium transition',
-                    accessType === value
-                      ? 'bg-emerald-600 text-white'
-                      : 'border border-slate-200 bg-white text-slate-600 hover:border-emerald-200 hover:text-emerald-700',
-                  ].join(' ')}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+            <SegmentedControl
+              ariaLabel="简历查看范围"
+              value={accessType}
+              options={[
+                { value: '', label: '全部' },
+                { value: 'FREE', label: '免费公开' },
+                { value: 'PAID', label: '付费查看' },
+              ]}
+              onChange={setAccessType}
+              size="md"
+              className="mt-5"
+            />
 
             {marketplaceError ? (
               <div className="mt-5 border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">{marketplaceError}</div>

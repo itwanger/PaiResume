@@ -9,7 +9,7 @@ export function ResumePreview({ resume }: ResumePreviewProps) {
   const { basicInfo, educations, skills, experiences } = resume
   const photoSource = normalizePhotoSource(basicInfo.photo)
   const photoFrameClassName = basicInfo.photoBorder
-    ? 'border border-gray-200 bg-slate-50'
+    ? 'border border-primary-500'
     : 'bg-slate-50'
 
   return (
@@ -76,11 +76,6 @@ export function ResumePreview({ resume }: ResumePreviewProps) {
                 </a>
               )}
             </div>
-            {basicInfo.summary && (
-              <p className="mt-4 text-gray-700 leading-relaxed">
-                {basicInfo.summary}
-              </p>
-            )}
           </div>
           {photoSource ? (
             <div className="flex justify-end">

@@ -66,7 +66,7 @@ function getModuleSummary(
     case 'award':
       return joinValues(content, ['awardName', 'awardTime'])
     case 'job_intention':
-      return joinValues(content, ['targetPosition', 'targetCity', 'salaryRange'])
+      return joinValues(content, ['targetPosition', 'targetCity'])
   }
 
   return ''

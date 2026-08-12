@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   adminApi,
   type ResumeReviewAudit,
   type ResumeReviewAdminRequest,
 } from '../../api/admin'
 import type { ResumeReviewStatus } from '../../api/resumeReview'
+import { useAdminActionDialog } from './AdminActionDialog'
+import { formatAdminCents, formatAdminDateTime, getAdminErrorMessage } from './adminFormat'
 
 type ReviewFilter =
   | 'ACTION_REQUIRED'
@@ -17,6 +19,9 @@ type ReviewAction = 'ACCEPT' | 'COMPLETE' | 'RETURN' | 'RETRY_MAIL'
 interface ResumeReviewAdminPanelProps {
   onActionCountChanged: () => Promise<void>
 }
+
+/** 服务端工作台接口最多返回的工单条数 */
+const PAGE_LIMIT = 300
 
 const ACTIVE_STATUSES = new Set<ResumeReviewStatus>([
   'AWAITING_PAYMENT',
@@ -78,29 +83,13 @@ const FILTER_OPTIONS: Array<{ value: ReviewFilter; label: string }> = [
   { value: 'COMPLETED', label: '已完成' },
   { value: 'RETURNED', label: '已退回' },
   { value: 'REFUNDED', label: '已退款' },
-  { value: 'ALL', label: '最近 300 条' },
+  { value: 'ALL', label: `最近 ${PAGE_LIMIT} 条` },
 ]
-
-function getErrorMessage(error: unknown, fallback: string) {
-  return error instanceof Error && error.message.trim() ? error.message : fallback
-}
-
-function formatCents(value: number) {
-  return `¥${(value / 100).toFixed(2)}`
-}
-
-function formatDate(value: string | null | undefined) {
-  if (!value) return '—'
-  const parsed = new Date(value.includes('T') ? value : value.replace(' ', 'T'))
-  return Number.isNaN(parsed.getTime())
-    ? value
-    : parsed.toLocaleString('zh-CN', { hour12: false })
-}
 
 function entitlementLabel(request: ResumeReviewAdminRequest) {
   if (request.entitlementType === 'WELCOME_FREE') return '首次免费'
   if (request.entitlementType === 'FOLLOW_REWARD') return '历史免费权益（已停用）'
-  return `逐次付费 ${formatCents(request.priceCents)}`
+  return `逐次付费 ${formatAdminCents(request.priceCents)}`
 }
 
 function needsAdminAction(request: ResumeReviewAdminRequest) {
@@ -114,6 +103,10 @@ function needsAdminAction(request: ResumeReviewAdminRequest) {
 export function ResumeReviewAdminPanel({
   onActionCountChanged,
 }: ResumeReviewAdminPanelProps) {
+  const {
+    confirm: confirmAdminAction,
+    prompt: promptAdminValue,
+  } = useAdminActionDialog()
   const [reviews, setReviews] = useState<ResumeReviewAdminRequest[]>([])
   const [filter, setFilter] = useState<ReviewFilter>('ACTION_REQUIRED')
   const [query, setQuery] = useState('')
@@ -122,10 +115,15 @@ export function ResumeReviewAdminPanel({
   const [workspaceLoaded, setWorkspaceLoaded] = useState(false)
   const [workingRequestNo, setWorkingRequestNo] = useState<string | null>(null)
   const [selectedAuditRequestNo, setSelectedAuditRequestNo] = useState<string | null>(null)
+  const selectedAuditRequestNoRef = useRef<string | null>(null)
   const [audits, setAudits] = useState<ResumeReviewAudit[]>([])
   const [auditsLoading, setAuditsLoading] = useState(false)
+  const [auditsError, setAuditsError] = useState('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+
+  // 任一工单操作在途时禁用所有行的操作按钮与刷新，避免跨行并发写
+  const actionInFlight = workingRequestNo !== null
 
   const filteredReviews = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
@@ -164,7 +162,7 @@ export function ResumeReviewAdminPanel({
     }).catch((loadError: unknown) => {
       if (!canceled) {
         setWorkspaceLoaded(false)
-        setError(getErrorMessage(loadError, '人工精修工作台加载失败'))
+        setError(getAdminErrorMessage(loadError, '人工精修工作台加载失败'))
       }
     }).finally(() => {
       if (!canceled) setLoading(false)
@@ -174,36 +172,39 @@ export function ResumeReviewAdminPanel({
     }
   }, [])
 
+  function selectAuditRequest(requestNo: string | null) {
+    selectedAuditRequestNoRef.current = requestNo
+    setSelectedAuditRequestNo(requestNo)
+  }
+
+  // 后台静默刷新：保留筛选、搜索词、展开的审计面板与滚动位置，失败时保留现有数据
   async function refreshWorkspace() {
     setRefreshing(true)
-    setWorkspaceLoaded(false)
     setError('')
     try {
       const reviewResponse = await adminApi.listResumeReviews()
       setReviews(reviewResponse.data.data)
       await onActionCountChanged().catch(() => undefined)
+      // 首屏加载失败后的“重新加载”也走这里，成功后需要离开错误屏
       setWorkspaceLoaded(true)
     } catch (loadError: unknown) {
-      setWorkspaceLoaded(false)
-      setError(getErrorMessage(loadError, '人工精修工作台刷新失败'))
+      setError(getAdminErrorMessage(loadError, '人工精修工作台刷新失败，当前展示的是刷新前的数据'))
     } finally {
       setRefreshing(false)
     }
   }
 
   function requestReason(message: string) {
-    const rawReason = window.prompt(message, '')
-    if (rawReason === null) return null
-    const reason = rawReason.trim()
-    if (!reason) {
-      setError('操作原因不能为空')
-      return null
-    }
-    if (reason.length > 500) {
-      setError('操作原因不能超过 500 个字符')
-      return null
-    }
-    return reason
+    return promptAdminValue({
+      title: '填写工单操作原因',
+      description: `${message}\n\n原因会写入人工精修审计记录，请填写可复核的真实说明。`,
+      label: '操作原因',
+      placeholder: '请填写具体操作原因',
+      required: true,
+      maxLength: 500,
+      multiline: true,
+      confirmText: '继续',
+    })
   }
 
   function replaceReview(nextReview: ResumeReviewAdminRequest) {
@@ -213,9 +214,17 @@ export function ResumeReviewAdminPanel({
   }
 
   async function reloadSelectedAudits(requestNo: string) {
-    if (selectedAuditRequestNo !== requestNo) return
-    const { data: response } = await adminApi.listResumeReviewAudits(requestNo)
-    setAudits(response.data)
+    // 通过 ref 读取最新展开目标，避免闭包旧值把审计记录写进另一个工单
+    if (selectedAuditRequestNoRef.current !== requestNo) return
+    try {
+      const { data: response } = await adminApi.listResumeReviewAudits(requestNo)
+      setAudits(response.data)
+      setAuditsError('')
+    } catch (loadError: unknown) {
+      setAudits([])
+      setAuditsError(getAdminErrorMessage(loadError, '人工精修审计记录刷新失败'))
+      throw loadError
+    }
   }
 
   async function handleAction(request: ResumeReviewAdminRequest, action: ReviewAction) {
@@ -226,7 +235,7 @@ export function ResumeReviewAdminPanel({
         : action === 'RETURN'
           ? '退回申请'
           : '重试邮件投递'
-    const reason = requestReason(`请输入“${actionLabel}”的原因（必填，将写入审计日志）`)
+    const reason = await requestReason(`请输入“${actionLabel}”的原因（必填，将写入审计日志）`)
     if (!reason) return
 
     const confirmation = action === 'RETURN'
@@ -240,7 +249,12 @@ export function ResumeReviewAdminPanel({
         : action === 'COMPLETE'
           ? `确认 ${request.requestNo} 的人工精修确已完成？\n\n完成后用户可以申请下一次服务。`
           : `确认接受 ${request.requestNo}？\n\n接受后该申请会进入人工处理中。`
-    if (!window.confirm(confirmation)) return
+    if (!await confirmAdminAction({
+      title: actionLabel,
+      description: confirmation,
+      confirmText: `确认${actionLabel}`,
+      tone: action === 'RETURN' ? 'danger' : 'default',
+    })) return
 
     setWorkingRequestNo(request.requestNo)
     setError('')
@@ -255,38 +269,54 @@ export function ResumeReviewAdminPanel({
             : adminApi.retryResumeReviewMail(request.requestNo, reason))
       replaceReview({ ...request, ...actionResponse.data.data })
       void onActionCountChanged().catch(() => undefined)
+      // 详情刷新与审计刷新分别捕获，失败消息各自归因
+      let detailFailed = false
       try {
         const { data: detailResponse } = await adminApi.getResumeReview(request.requestNo)
         replaceReview(detailResponse.data)
+      } catch {
+        detailFailed = true
+      }
+      let auditsFailed = false
+      try {
         await reloadSelectedAudits(request.requestNo)
       } catch {
-        setSuccess(`${request.requestNo}：${actionLabel}已执行，但详情刷新失败，请刷新工作台确认`)
-        return
+        auditsFailed = true
       }
-      setSuccess(`${request.requestNo}：${actionLabel}成功`)
+      if (detailFailed) {
+        setSuccess(`${request.requestNo}：${actionLabel}已执行，但详情刷新失败，请刷新工作台确认`)
+      } else if (auditsFailed) {
+        setSuccess(`${request.requestNo}：${actionLabel}已执行，但审计记录刷新失败，可在审计面板中重试`)
+      } else {
+        setSuccess(`${request.requestNo}：${actionLabel}成功`)
+      }
     } catch (actionError: unknown) {
-      setError(getErrorMessage(actionError, `${actionLabel}失败`))
+      setError(getAdminErrorMessage(actionError, `${actionLabel}失败`))
     } finally {
       setWorkingRequestNo(null)
     }
   }
 
   async function handleConfirmRefund(request: ResumeReviewAdminRequest) {
-    const rawReference = window.prompt(
-      `请先在 ${request.provider || '微信'} 商户平台按订单 ${request.orderNo || request.requestNo}${request.providerTransactionId ? `（支付交易号 ${request.providerTransactionId}）` : ''}完成原路退款，再填写真实退款单号或核验流水（必填）`,
-      '',
-    )
-    if (rawReference === null) return
-    const refundReference = rawReference.trim()
-    if (!refundReference || refundReference.length > 128) {
-      setError('退款单号或核验流水不能为空，且不能超过 128 个字符')
-      return
-    }
-    const reason = requestReason('请输入退款核对说明（必填，例如退款渠道、核对人和用户沟通情况）')
+    const refundReference = await promptAdminValue({
+      title: '登记人工精修退款',
+      description: `请先在 ${request.provider || '未知通道'} 商户平台按订单 ${request.orderNo || request.requestNo}${request.providerTransactionId ? `（支付交易号 ${request.providerTransactionId}）` : ''}完成原路退款。本页面只登记结果。`,
+      label: '真实退款单号或核验流水',
+      required: true,
+      maxLength: 128,
+      confirmText: '下一步',
+      tone: 'danger',
+    })
+    // 对话框已按 required/maxLength 校验并 trim，返回值直接使用，无需重复校验
+    if (refundReference === null) return
+    const reason = await requestReason('请输入退款核对说明（必填，例如退款渠道、核对人和用户沟通情况）')
     if (!reason) return
-    if (!window.confirm(
-      `再次确认：你已在 ${request.provider || '微信'} 商户平台为订单 ${request.orderNo || '未记录'} 实际完成 ${formatCents(request.priceCents)} 原路退款。\n\n支付时间：${formatDate(request.paidAt)}\n支付交易号：${request.providerTransactionId || '未记录，请先在商户平台核实'}\n\n本操作只登记外部退款结果，不会发起退款。`,
-    )) return
+    if (!await confirmAdminAction({
+      title: '再次确认外部退款已完成',
+      description: `你已在 ${request.provider || '未知通道'} 商户平台为订单 ${request.orderNo || '未记录'} 实际完成 ${formatAdminCents(request.priceCents)} 原路退款。\n\n支付时间：${formatAdminDateTime(request.paidAt)}\n支付交易号：${request.providerTransactionId || '未记录，请先在商户平台核实'}\n\n本操作只登记外部退款结果，不会发起退款。`,
+      confirmText: '确认已退款',
+      tone: 'danger',
+    })) return
 
     setWorkingRequestNo(request.requestNo)
     setError('')
@@ -299,43 +329,60 @@ export function ResumeReviewAdminPanel({
       )
       replaceReview({ ...request, ...actionResponse.data.data, refundReference })
       void onActionCountChanged().catch(() => undefined)
+      let detailFailed = false
       try {
         const { data: detailResponse } = await adminApi.getResumeReview(request.requestNo)
         replaceReview(detailResponse.data)
+      } catch {
+        detailFailed = true
+      }
+      let auditsFailed = false
+      try {
         await reloadSelectedAudits(request.requestNo)
       } catch {
-        setSuccess(`${request.requestNo}：退款结果已登记，但详情刷新失败，请刷新工作台确认`)
-        return
+        auditsFailed = true
       }
-      setSuccess(`${request.requestNo}：外部退款结果已登记`)
+      if (detailFailed) {
+        setSuccess(`${request.requestNo}：退款结果已登记，但详情刷新失败，请刷新工作台确认`)
+      } else if (auditsFailed) {
+        setSuccess(`${request.requestNo}：退款结果已登记，但审计记录刷新失败，可在审计面板中重试`)
+      } else {
+        setSuccess(`${request.requestNo}：外部退款结果已登记`)
+      }
     } catch (actionError: unknown) {
-      setError(getErrorMessage(actionError, '退款结果登记失败'))
+      setError(getAdminErrorMessage(actionError, '退款结果登记失败'))
     } finally {
       setWorkingRequestNo(null)
     }
   }
 
-  async function toggleAudits(requestNo: string) {
-    if (selectedAuditRequestNo === requestNo) {
-      setSelectedAuditRequestNo(null)
-      setAudits([])
-      return
-    }
-    setSelectedAuditRequestNo(requestNo)
+  async function loadAudits(requestNo: string) {
     setAuditsLoading(true)
-    setError('')
+    setAuditsError('')
     try {
       const { data: response } = await adminApi.listResumeReviewAudits(requestNo)
       setAudits(response.data)
     } catch (loadError: unknown) {
       setAudits([])
-      setError(getErrorMessage(loadError, '人工精修审计记录加载失败'))
+      setAuditsError(getAdminErrorMessage(loadError, '人工精修审计记录加载失败'))
     } finally {
       setAuditsLoading(false)
     }
   }
 
-  if (loading || refreshing) {
+  async function toggleAudits(requestNo: string) {
+    if (selectedAuditRequestNo === requestNo) {
+      selectAuditRequest(null)
+      setAudits([])
+      setAuditsError('')
+      return
+    }
+    selectAuditRequest(requestNo)
+    setError('')
+    await loadAudits(requestNo)
+  }
+
+  if (loading) {
     return (
       <section className="rounded-lg border border-violet-200 bg-white px-6 py-6">
         <h2 className="text-lg font-semibold text-gray-900">人工简历精修工作台</h2>
@@ -374,7 +421,7 @@ export function ResumeReviewAdminPanel({
         <button
           type="button"
           onClick={() => void refreshWorkspace()}
-          disabled={refreshing}
+          disabled={refreshing || actionInFlight}
           className="min-h-11 shrink-0 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
         >
           {refreshing ? '刷新中…' : '刷新工作台'}
@@ -423,6 +470,7 @@ export function ResumeReviewAdminPanel({
         {filteredReviews.map((request) => {
           const working = workingRequestNo === request.requestNo
           const auditsOpen = selectedAuditRequestNo === request.requestNo
+          const auditRegionId = `review-audits-${request.requestNo}`
           return (
             <article key={request.requestNo} className="rounded-xl border border-gray-200 bg-gray-50/60 px-4 py-4 sm:px-5">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -437,22 +485,28 @@ export function ResumeReviewAdminPanel({
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {request.requestStatus === 'EMAILED' ? (
-                    <ActionButton disabled={working} onClick={() => void handleAction(request, 'ACCEPT')}>接受</ActionButton>
+                    <ActionButton busy={working} disabled={actionInFlight} onClick={() => void handleAction(request, 'ACCEPT')}>接受</ActionButton>
                   ) : null}
                   {request.requestStatus === 'ACCEPTED' ? (
-                    <ActionButton disabled={working} onClick={() => void handleAction(request, 'COMPLETE')}>完成</ActionButton>
+                    <ActionButton busy={working} disabled={actionInFlight} onClick={() => void handleAction(request, 'COMPLETE')}>完成</ActionButton>
                   ) : null}
                   {request.requestStatus === 'EMAIL_PENDING'
                     && (request.mailStatus === 'FAILED' || request.mailStatus === null) ? (
-                    <ActionButton disabled={working} onClick={() => void handleAction(request, 'RETRY_MAIL')}>重试邮件</ActionButton>
+                    <ActionButton busy={working} disabled={actionInFlight} onClick={() => void handleAction(request, 'RETRY_MAIL')}>重试邮件</ActionButton>
                   ) : null}
                   {['AWAITING_PAYMENT', 'EMAIL_PENDING', 'EMAILED', 'ACCEPTED'].includes(request.requestStatus) ? (
-                    <ActionButton tone="secondary" disabled={working} onClick={() => void handleAction(request, 'RETURN')}>退回</ActionButton>
+                    <ActionButton tone="secondary" busy={working} disabled={actionInFlight} onClick={() => void handleAction(request, 'RETURN')}>退回</ActionButton>
                   ) : null}
                   {request.requestStatus === 'REFUND_REQUIRED' ? (
-                    <ActionButton tone="danger" disabled={working} onClick={() => void handleConfirmRefund(request)}>确认外部退款</ActionButton>
+                    <ActionButton tone="danger" busy={working} disabled={actionInFlight} onClick={() => void handleConfirmRefund(request)}>确认外部退款</ActionButton>
                   ) : null}
-                  <ActionButton tone="secondary" disabled={working || auditsLoading} onClick={() => void toggleAudits(request.requestNo)}>
+                  <ActionButton
+                    tone="secondary"
+                    disabled={actionInFlight || auditsLoading}
+                    aria-expanded={auditsOpen}
+                    aria-controls={auditRegionId}
+                    onClick={() => void toggleAudits(request.requestNo)}
+                  >
                     {auditsOpen ? '收起审计' : '查看审计'}
                   </ActionButton>
                 </div>
@@ -461,29 +515,40 @@ export function ResumeReviewAdminPanel({
               <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
                 <div><dt className="text-xs text-gray-400">快照 / 资格</dt><dd className="mt-1 text-gray-800">简历 #{request.resumeId} · {entitlementLabel(request)}</dd></div>
                 <div><dt className="text-xs text-gray-400">用户 / 处理人</dt><dd className="mt-1 text-gray-800">用户 #{request.userId} · {request.handledBy ? `管理员 #${request.handledBy}` : '尚未接单'}</dd></div>
-                <div><dt className="text-xs text-gray-400">创建 / 付款</dt><dd className="mt-1 text-gray-800">{formatDate(request.createdAt)}{request.paidAt ? ` · ${formatDate(request.paidAt)}` : ''}</dd></div>
+                <div><dt className="text-xs text-gray-400">创建 / 付款</dt><dd className="mt-1 text-gray-800">{formatAdminDateTime(request.createdAt)}{request.paidAt ? ` · ${formatAdminDateTime(request.paidAt)}` : ''}</dd></div>
                 <div className="min-w-0"><dt className="text-xs text-gray-400">支付订单</dt><dd className="mt-1 break-all text-gray-800">{request.orderNo || '免费申请，无支付订单'}</dd></div>
-                <div><dt className="text-xs text-gray-400">支付通道 / 金额</dt><dd className="mt-1 text-gray-800">{request.provider ? `${request.provider} · ${request.paymentStatus || '待确认'}` : '无需支付'} · {formatCents(request.priceCents)}</dd></div>
+                <div><dt className="text-xs text-gray-400">支付通道 / 金额</dt><dd className="mt-1 text-gray-800">{request.provider ? `${request.provider} · ${request.paymentStatus || '待确认'}` : '无需支付'} · {formatAdminCents(request.priceCents)}</dd></div>
                 <div className="min-w-0"><dt className="text-xs text-gray-400">支付交易号</dt><dd className="mt-1 break-all text-gray-800">{request.providerTransactionId || '未记录'}</dd></div>
                 <div><dt className="text-xs text-gray-400">邮件投递</dt><dd className="mt-1 text-gray-800">{request.mailStatus ? MAIL_STATUS_LABELS[request.mailStatus] || request.mailStatus : '尚未建立投递任务'}{request.mailAttemptCount !== null ? ` · ${request.mailAttemptCount} 次尝试` : ''}</dd></div>
-                <div><dt className="text-xs text-gray-400">邮件时间</dt><dd className="mt-1 text-gray-800">{request.mailSentAt ? `已发送 ${formatDate(request.mailSentAt)}` : `下次 ${formatDate(request.mailNextAttemptAt)}`}</dd></div>
+                <div><dt className="text-xs text-gray-400">邮件时间</dt><dd className="mt-1 text-gray-800">{request.mailSentAt ? `已发送 ${formatAdminDateTime(request.mailSentAt)}` : `下次 ${formatAdminDateTime(request.mailNextAttemptAt)}`}</dd></div>
               </dl>
               {request.mailLastErrorType ? <p className="mt-3 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-700">最近邮件错误类型：{request.mailLastErrorType}</p> : null}
               {request.refundReason ? <p className="mt-3 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-xs leading-5 text-red-700">退款原因：{request.refundReason}</p> : null}
               {request.refundReference ? <p className="mt-3 break-all rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs leading-5 text-emerald-700">已登记退款流水：{request.refundReference}</p> : null}
 
               {auditsOpen ? (
-                <div className="mt-4 border-t border-gray-200 pt-4">
+                <div id={auditRegionId} className="mt-4 border-t border-gray-200 pt-4">
                   <h3 className="text-sm font-semibold text-gray-900">审计记录</h3>
                   {auditsLoading ? (
                     <p className="mt-2 text-sm text-gray-500">正在加载…</p>
+                  ) : auditsError ? (
+                    <div role="alert" className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-700">
+                      <p>{auditsError}</p>
+                      <button
+                        type="button"
+                        onClick={() => void loadAudits(request.requestNo)}
+                        className="mt-2 min-h-11 rounded-lg bg-red-600 px-4 py-2 text-xs font-medium text-white transition hover:bg-red-700"
+                      >
+                        重试加载审计
+                      </button>
+                    </div>
                   ) : audits.length > 0 ? (
                     <ol className="mt-3 space-y-2">
                       {audits.map((audit) => (
                         <li key={audit.id} className="rounded-lg border border-gray-200 bg-white px-3 py-3 text-xs leading-5 text-gray-600">
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <strong className="text-gray-900">{AUDIT_ACTION_LABELS[audit.action] || audit.action}</strong>
-                            <span>{formatDate(audit.createdAt)}</span>
+                            <span>{formatAdminDateTime(audit.createdAt)}</span>
                           </div>
                           <p className="mt-1">{audit.actorType}{audit.actorUserId ? ` #${audit.actorUserId}` : ''} · {audit.fromStatus || '—'} → {audit.toStatus || '—'}</p>
                           {audit.reason ? <p className="mt-1 break-words text-gray-700">原因：{audit.reason}</p> : null}
@@ -503,18 +568,17 @@ export function ResumeReviewAdminPanel({
         ) : null}
       </div>
 
+      <p className="mt-5 text-xs text-gray-400">仅显示最近 {PAGE_LIMIT} 条工单，更早的申请请结合状态筛选与搜索定位。</p>
     </section>
   )
 }
 
-interface ActionButtonProps {
-  children: React.ReactNode
-  disabled: boolean
+interface ActionButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  busy?: boolean
   tone?: 'primary' | 'secondary' | 'danger'
-  onClick: () => void
 }
 
-function ActionButton({ children, disabled, tone = 'primary', onClick }: ActionButtonProps) {
+function ActionButton({ busy = false, tone = 'primary', children, ...rest }: ActionButtonProps) {
   const className = tone === 'danger'
     ? 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'
     : tone === 'secondary'
@@ -523,11 +587,11 @@ function ActionButton({ children, disabled, tone = 'primary', onClick }: ActionB
   return (
     <button
       type="button"
-      onClick={onClick}
-      disabled={disabled}
+      aria-busy={busy || undefined}
+      {...rest}
       className={`min-h-10 rounded-lg border px-3 py-2 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
     >
-      {children}
+      {busy ? '处理中…' : children}
     </button>
   )
 }

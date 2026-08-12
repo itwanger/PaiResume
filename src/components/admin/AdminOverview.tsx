@@ -1,4 +1,5 @@
 import type { AdminView } from './adminNavigation'
+import { formatAdminDateTime } from './adminFormat'
 
 interface AdminOverviewProps {
   activeInviteCount: number | null
@@ -131,7 +132,7 @@ export function AdminOverview({
     ? actionItems.reduce((total, item) => total + (item.count ?? 0), 0)
     : null
   const visibleActionItems = actionItems.filter((item) => item.count === null || item.count > 0)
-  const formattedLastUpdatedAt = lastUpdatedAt?.toLocaleString('zh-CN', { hour12: false }) ?? '尚未完整加载'
+  const formattedLastUpdatedAt = lastUpdatedAt ? formatAdminDateTime(lastUpdatedAt) : '尚未完整加载'
 
   return (
     <div className="admin-workspace space-y-6">

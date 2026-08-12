@@ -10,8 +10,9 @@ import {
   SUPPORT_EMAIL,
 } from '../config/legalDisclosure'
 import { GITHUB_REPOSITORY_URL } from '../config/site'
+import { buildLoginPath, getLoginEntryLabel } from '../utils/navigation'
 
-const LAST_UPDATED = '2026年7月24日'
+const LAST_UPDATED = '2026年8月11日'
 
 interface PolicySectionProps {
   title: string
@@ -42,8 +43,8 @@ function PolicyPage({ title, summary, children }: PolicyPageProps) {
             <LogoMark className="h-9 w-9" />
             <span className="font-semibold tracking-tight">派简历</span>
           </Link>
-          <Link to="/login" className="text-sm font-medium text-primary-600 hover:text-primary-700">
-            扫码登录
+          <Link to={buildLoginPath()} className="text-sm font-medium text-primary-600 hover:text-primary-700">
+            {getLoginEntryLabel()}
           </Link>
         </div>
       </header>
@@ -91,6 +92,7 @@ export function PrivacyPolicyPage() {
       <PolicySection title="二、我们处理的信息">
         <p>账号信息包括注册邮箱、验证码校验结果、登录状态及必要的账号安全记录。使用“派聪明”服务号扫码登录时，我们还会处理服务号返回的稳定账号标识和关注状态，用于创建或识别你的派简历账号；密码只以不可逆摘要形式保存。</p>
         <p>简历信息由你主动填写或导入，可能包含姓名、联系方式、照片、教育和工作经历。请不要上传与求职无关的身份证件、银行卡、健康状况等敏感信息。</p>
+        <p>只有当你主动选择“保存到资料库”时，平台才会把对应内容保存为你的个人基本信息资料或私有模块资料。个人资料库由你自行维护，仅限登录本人查看和使用。</p>
         <p>服务运行时会产生设备、浏览器、访问时间、请求状态和故障信息；发生付费行为时，还会处理订单号、商品、金额及支付状态，但不会保存你的支付密码。</p>
         <p>申请人工精修时，我们会处理你主动选择的 PDF、文件名、文件大小与校验摘要、联系邮箱、授权记录、申请与处理状态。</p>
       </PolicySection>
@@ -113,12 +115,13 @@ export function PrivacyPolicyPage() {
       <PolicySection title="四、共享、公开与支付">
         <p>除完成你主动选择的 AI、邮件或支付服务所必需，或法律法规另有要求外，我们不会出售你的个人信息。</p>
         <p>普通简历默认不公开。若未来开放简历市场，你需要另行确认公开范围；在你明确发布前，平台不会把编辑中的简历作为公开内容展示。</p>
+        <p>当你主动上传简历照片时，浏览器会使用短期、单对象上传凭证把经过格式、大小和尺寸校验的图片直接上传到私有阿里云 OSS，数据库只保存照片资产标识。照片不使用公开 CDN；登录本人查看、预览或导出时，平台才签发短期访问地址。</p>
         <p>只有在你单独确认申请人工精修后，浏览器才会使用短期、单对象 POST 上传策略，把你选择的 PDF 直接上传到平台配置的私有阿里云对象存储 OSS。平台不会下发 AccessKey Secret 或其他可复用的长期凭据；浏览器只会收到精确绑定单个随机对象、大小、类型、摘要、私有 ACL、加密和单次写入的短时 POST 表单字段，其中 AccessKey ID 仅作为非秘密的签名身份标识。平台不接受自定义对象地址、外部链接或收件人。服务端核验并固化该文件后，会从私有 OSS 临时读取并发送到固定人工审阅邮箱，不写入服务器本地磁盘。邮件收件人会据此提供人工服务；已经由邮件系统接受的邮件无法由平台远程召回，请在提交前再次检查文件内容和其他敏感信息。</p>
         <p>支付由支付服务商处理。平台会接收完成对账和售后所需的交易结果，并按照退款规则处理异常订单。</p>
       </PolicySection>
 
       <PolicySection title="五、保存、安全与个人权利">
-        <p>信息会在提供服务及履行法定义务所需期限内保存。账号注销后，我们会删除普通简历正文、未售公开快照，并匿名化问卷联系邮箱等不再需要的信息；依法必须保留的交易与安全记录将在法定期限届满后处理。</p>
+        <p>信息会在提供服务及履行法定义务所需期限内保存。账号注销后，我们会删除普通简历正文、个人常用资料、私有模块资料、私有 OSS 简历照片、未售公开快照，并匿名化问卷联系邮箱等不再需要的信息；依法必须保留的交易与安全记录将在法定期限届满后处理。</p>
         <p>若公开简历版本已经售出，为履行对买家的数字内容交付与售后义务，该成交版本会和订单、查看权益一并保留，但停止新销售；存在未完成订单、待退款或作者收益未结清时，需先处理完毕才能注销。</p>
         <p>人工精修 PDF 仅保存在私有 OSS，并按专用对象前缀配置自动过期清理；申请、计费和审计记录会在完成服务、处理售后及履行法定义务所需期限内保留，之后删除文件引用或作匿名化处理。存在待支付、待发送、处理中或待退款的人工精修申请时，需要先处理完毕才能注销账号；已发送至人工审阅邮箱的副本不具备远程召回能力。</p>
         <p>为避免页面关闭或网络中断造成编辑内容丢失，尚未完成服务端保存的变更可能短暂保存在当前浏览器；保存成功或退出并清理账号数据后会移除对应草稿。</p>
@@ -157,6 +160,7 @@ export function TermsPage() {
 
       <PolicySection title="三、内容与人工智能功能">
         <p>你应确保上传、编辑、发布的内容来源合法，不侵犯他人的隐私、著作权、商业秘密或其他合法权益。你保留对自有内容的权利，并授权平台在提供所选功能所需范围内处理该内容。</p>
+        <p>平台提供的官方参考内容和内容模板只用于帮助理解写法与结构，不代表你的真实经历。应用后请结合本人事实修改，不得直接把示例公司、项目、职责、成果或数据作为个人经历投递。</p>
         {AI_PROVIDER_NAME && AI_PROVIDER_PRIVACY_URL ? (
           <p>你主动使用 AI 功能时，相关内容会发送给<strong className="font-semibold text-slate-800">{AI_PROVIDER_NAME}</strong>处理；请同时阅读其<a href={AI_PROVIDER_PRIVACY_URL} target="_blank" rel="noreferrer" className="font-medium text-primary-600 hover:text-primary-700">隐私政策</a>。</p>
         ) : (

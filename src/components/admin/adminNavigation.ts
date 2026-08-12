@@ -3,7 +3,9 @@ export const ADMIN_VIEWS = [
   'members',
   'vip-invites',
   'membership-payments',
+  'coupons',
   'showcases',
+  'content-library',
   'marketplace-listings',
   'marketplace-governance',
   'creator-earnings',
@@ -30,7 +32,6 @@ export interface AdminNavigationItem {
   id: AdminView
   label: string
   shortLabel: string
-  mark: string
 }
 
 interface AdminNavigationGroup {
@@ -46,7 +47,6 @@ export const ADMIN_NAVIGATION: AdminNavigationGroup[] = [
         id: 'overview',
         label: '运营总览',
         shortLabel: '总览',
-        mark: '总',
       },
     ],
   },
@@ -57,19 +57,21 @@ export const ADMIN_NAVIGATION: AdminNavigationGroup[] = [
         id: 'members',
         label: '用户与会员',
         shortLabel: '会员',
-        mark: '员',
       },
       {
         id: 'vip-invites',
         label: 'VIP 邀请福利',
         shortLabel: '邀请',
-        mark: '邀',
       },
       {
         id: 'membership-payments',
         label: '会员支付订单',
         shortLabel: '会员订单',
-        mark: '订',
+      },
+      {
+        id: 'coupons',
+        label: '支付优惠码',
+        shortLabel: '优惠码',
       },
     ],
   },
@@ -80,31 +82,31 @@ export const ADMIN_NAVIGATION: AdminNavigationGroup[] = [
         id: 'showcases',
         label: '官方精选简历',
         shortLabel: '精选',
-        mark: '精',
+      },
+      {
+        id: 'content-library',
+        label: '简历内容库',
+        shortLabel: '内容库',
       },
       {
         id: 'marketplace-listings',
         label: '市场投稿审核',
         shortLabel: '投稿',
-        mark: '稿',
       },
       {
         id: 'marketplace-governance',
         label: '举报与申诉',
         shortLabel: '治理',
-        mark: '治',
       },
       {
         id: 'creator-earnings',
         label: '作者收益结算',
         shortLabel: '结算',
-        mark: '结',
       },
       {
         id: 'marketplace-payments',
         label: '市场支付异常',
         shortLabel: '异常支付',
-        mark: '异',
       },
     ],
   },
@@ -115,13 +117,11 @@ export const ADMIN_NAVIGATION: AdminNavigationGroup[] = [
         id: 'resume-reviews',
         label: '人工精修工单',
         shortLabel: '精修',
-        mark: '修',
       },
       {
         id: 'surveys',
-        label: '问卷与优惠码',
+        label: '问卷审核',
         shortLabel: '问卷',
-        mark: '问',
       },
     ],
   },
@@ -130,15 +130,13 @@ export const ADMIN_NAVIGATION: AdminNavigationGroup[] = [
     items: [
       {
         id: 'platform-config',
-        label: '平台业务配置',
-        shortLabel: '配置',
-        mark: '配',
+        label: '会员价格配置',
+        shortLabel: '价格',
       },
       {
         id: 'audit-logs',
         label: '会员审计日志',
         shortLabel: '审计',
-        mark: '审',
       },
     ],
   },

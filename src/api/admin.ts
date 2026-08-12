@@ -147,12 +147,10 @@ export interface FeedbackSubmissionAdmin {
   consentToPublish: boolean
   reviewStatus: string
   publishStatus: string
-  couponStatus: string
   reviewNote: string | null
   reviewedBy: number | null
   reviewedAt: string | null
   createdAt: string
-  coupon?: CouponAdmin
 }
 
 export interface UserAdmin {
@@ -165,6 +163,14 @@ export interface UserAdmin {
   membershipExpiresAt: string | null
   membershipSource: string | null
   createdAt: string
+}
+
+/** 用户与会员列表查询：keyword 模糊匹配邮箱或昵称，page 从 1 开始。 */
+export interface ListUsersAdminQuery {
+  keyword?: string
+  membershipStatus?: '' | 'ACTIVE' | 'FREE'
+  page?: number
+  size?: number
 }
 
 export type ResumeShowcaseAccessType = 'FREE' | 'VIP'
@@ -181,17 +187,6 @@ export interface ResumeShowcaseAdmin {
   publishStatus: string
   createdAt: string
   updatedAt: string
-}
-
-export interface ResumeShowcasePayload {
-  resumeId: number
-  slug: string
-  scoreLabel: string
-  summary: string
-  tags: string[]
-  accessType: ResumeShowcaseAccessType
-  displayOrder: number
-  publishStatus: string
 }
 
 export interface AdminMarketListing {
@@ -234,6 +229,9 @@ export type MarketplaceListingModerationAction =
 export type MarketplaceReportAction = 'RESOLVE' | 'DISMISS' | 'TAKEDOWN'
 
 export type MarketplaceAppealAction = 'APPROVE' | 'REJECT'
+
+/** 申诉类型与 MarketplaceAppeal.appealType 保持同步的字面量联合 */
+export type MarketplaceAppealType = MarketplaceAppeal['appealType']
 
 export interface MarketplaceGovernanceAudit {
   id: number
@@ -456,7 +454,7 @@ export const adminApi = {
     client.post<ApiEnvelope<FeedbackSubmissionAdmin>>(`/admin/feedback-submissions/${id}/unpublish`),
 
   resendCoupon: (id: number) =>
-    client.post<ApiEnvelope<FeedbackSubmissionAdmin>>(`/admin/feedback-submissions/${id}/resend-coupon`),
+    client.post<ApiEnvelope<CouponAdmin>>(`/admin/coupons/${id}/resend`),
 
   listCoupons: () =>
     client.get<ApiEnvelope<CouponAdmin[]>>('/admin/coupons'),
@@ -482,8 +480,8 @@ export const adminApi = {
   listMembershipAuditLogs: () =>
     client.get<ApiEnvelope<MembershipAdminAuditLog[]>>('/admin/membership-audit-logs'),
 
-  listUsers: () =>
-    client.get<ApiEnvelope<UserAdmin[]>>('/admin/users'),
+  listUsers: (params: ListUsersAdminQuery = {}) =>
+    client.get<ApiEnvelope<MarketplacePage<UserAdmin>>>('/admin/users', { params }),
 
   grantMembership: (id: number, reason: string) =>
     client.post<ApiEnvelope<UserAdmin>>(`/admin/users/${id}/membership/grant`, { reason }),
@@ -497,11 +495,15 @@ export const adminApi = {
   listShowcases: () =>
     client.get<ApiEnvelope<ResumeShowcaseAdmin[]>>('/admin/showcases'),
 
-  createShowcase: (payload: ResumeShowcasePayload) =>
-    client.post<ApiEnvelope<ResumeShowcaseAdmin>>('/admin/showcases', payload),
+  featureShowcaseResume: (resumeId: number) =>
+    client.post<ApiEnvelope<ResumeShowcaseAdmin>>(
+      `/admin/showcases/resumes/${resumeId}/feature`,
+    ),
 
-  updateShowcase: (id: number, payload: ResumeShowcasePayload) =>
-    client.put<ApiEnvelope<ResumeShowcaseAdmin>>(`/admin/showcases/${id}`, payload),
+  unfeatureShowcaseResume: (resumeId: number) =>
+    client.delete<ApiEnvelope<ResumeShowcaseAdmin>>(
+      `/admin/showcases/resumes/${resumeId}/feature`,
+    ),
 
   listMarketplaceListings: (params: AdminMarketListingQuery) =>
     client.get<ApiEnvelope<MarketplacePage<AdminMarketListing>>>(

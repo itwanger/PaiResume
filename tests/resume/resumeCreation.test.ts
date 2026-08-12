@@ -4,7 +4,12 @@ import {
   RESUME_CREATE_PATH,
   buildResumeEditorPath,
 } from '../../src/config/site'
-import { buildLoginPath } from '../../src/utils/navigation'
+import {
+  buildLoginPath,
+  buildLoginPathForMode,
+  getLoginEntryLabel,
+  resolveLoginMethod,
+} from '../../src/utils/navigation'
 import {
   RESUME_TITLE_MAX_LENGTH,
   getResumeEditorEntryPath,
@@ -56,9 +61,32 @@ test('编辑入口有简历时打开最近一份，无简历时进入命名流�
   assert.equal(getResumeEditorEntryPath([]), RESUME_CREATE_PATH)
 })
 
-test('未登录用户扫码后仍能回到命名流程', () => {
+test('未登录用户完成登录后仍能回到命名流程', () => {
   const loginPath = buildLoginPath(RESUME_CREATE_PATH)
   const redirect = new URLSearchParams(loginPath.split('?')[1]).get('redirect')
 
   assert.equal(redirect, RESUME_CREATE_PATH)
+})
+
+test('登录入口会区分本地开发邮箱登录与生产扫码登录', () => {
+  assert.equal(buildLoginPathForMode('development'), '/login?method=email')
+  assert.equal(
+    buildLoginPathForMode('development', RESUME_CREATE_PATH),
+    `/login?method=email&redirect=${encodeURIComponent(RESUME_CREATE_PATH)}`,
+  )
+  assert.equal(buildLoginPathForMode('production'), '/login')
+  assert.equal(
+    buildLoginPathForMode('production', RESUME_CREATE_PATH),
+    `/login?redirect=${encodeURIComponent(RESUME_CREATE_PATH)}`,
+  )
+  assert.equal(buildLoginPathForMode('staging'), '/login')
+  assert.equal(getLoginEntryLabel('development'), '本地邮箱登录')
+  assert.equal(getLoginEntryLabel('production'), '扫码登录')
+})
+
+test('登录页允许显式选择登录方式，并按环境提供默认方式', () => {
+  assert.equal(resolveLoginMethod(null, 'development'), 'email')
+  assert.equal(resolveLoginMethod(null, 'production'), 'wechat')
+  assert.equal(resolveLoginMethod('wechat', 'development'), 'wechat')
+  assert.equal(resolveLoginMethod('email', 'production'), 'email')
 })

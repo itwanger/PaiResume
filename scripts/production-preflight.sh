@@ -76,6 +76,16 @@ for name in DEPLOY_STAGE APP_ENV APP_PUBLIC_URL APP_CORS_ALLOWED_ORIGIN_PATTERNS
   SERVER_TOMCAT_MAX_CONNECTIONS SERVER_TOMCAT_ACCEPT_COUNT \
   MEMBERSHIP_ORDER_EXPIRE_MINUTES \
   PAICONGMING_WECHAT_LOGIN_ENABLED \
+  RESUME_PHOTO_OSS_ENDPOINT RESUME_PHOTO_OSS_BUCKET \
+  RESUME_PHOTO_OSS_ACCESS_KEY_ID RESUME_PHOTO_OSS_ACCESS_KEY_SECRET \
+  RESUME_PHOTO_OSS_STAGING_PREFIX RESUME_PHOTO_OSS_OBJECT_PREFIX \
+  RESUME_PHOTO_OSS_UPLOAD_URL_TTL_MINUTES RESUME_PHOTO_OSS_ACCESS_URL_TTL_MINUTES \
+  RESUME_PHOTO_OSS_MAX_BYTES RESUME_PHOTO_OSS_MAX_DIMENSION RESUME_PHOTO_OSS_MAX_PIXELS \
+  RESUME_PHOTO_UPLOAD_RATE_LIMIT_WINDOW_SECONDS \
+  RESUME_PHOTO_UPLOAD_RATE_LIMIT_ACCOUNT_ATTEMPTS \
+  RESUME_PHOTO_UPLOAD_RATE_LIMIT_IP_ATTEMPTS \
+  RESUME_PHOTO_OSS_PRIVATE_BUCKET_CONFIRMED RESUME_PHOTO_OSS_CORS_CONFIRMED \
+  RESUME_PHOTO_OSS_STAGING_LIFECYCLE_CONFIRMED RESUME_PHOTO_OSS_RAM_POLICY_CONFIRMED \
   RESUME_REVIEW_ENABLED \
   RESUME_REVIEW_PAID_ACCEPT_NEW_ORDERS \
   RESUME_REVIEW_PAYMENT_ACCEPTANCE_CONFIRMED; do
@@ -85,7 +95,9 @@ done
 for name in JWT_SECRET VERIFICATION_CODE_SECRET MYSQL_USERNAME MYSQL_PASSWORD \
   FLYWAY_USERNAME FLYWAY_PASSWORD \
   REDIS_PASSWORD MAIL_USERNAME MAIL_PASSWORD MAIL_FROM AI_API_KEY VITE_SUPPORT_EMAIL \
-  VITE_OPERATOR_NAME VITE_AI_PROVIDER_NAME VITE_AI_PROVIDER_PRIVACY_URL; do
+  VITE_OPERATOR_NAME VITE_AI_PROVIDER_NAME VITE_AI_PROVIDER_PRIVACY_URL \
+  RESUME_PHOTO_OSS_ENDPOINT RESUME_PHOTO_OSS_BUCKET \
+  RESUME_PHOTO_OSS_ACCESS_KEY_ID RESUME_PHOTO_OSS_ACCESS_KEY_SECRET; do
   reject_placeholder "$name"
 done
 
@@ -185,6 +197,10 @@ fi
 
 require_boolean PAICONGMING_WECHAT_LOGIN_ENABLED
 require_true MYSQL_SHARED_ACCOUNT_CONFIRMED
+require_true RESUME_PHOTO_OSS_PRIVATE_BUCKET_CONFIRMED
+require_true RESUME_PHOTO_OSS_CORS_CONFIRMED
+require_true RESUME_PHOTO_OSS_STAGING_LIFECYCLE_CONFIRMED
+require_true RESUME_PHOTO_OSS_RAM_POLICY_CONFIRMED
 if [[ "${RESUME_REVIEW_ENABLED:-false}" == "true" ]]; then
   require_true RESUME_REVIEW_OSS_ENABLED
   require_true RESUME_REVIEW_OSS_PRIVATE_BUCKET_CONFIRMED
@@ -283,6 +299,60 @@ validate_integer_range() {
   fi
 }
 
+if [[ ! "${RESUME_PHOTO_OSS_ENDPOINT:-}" =~ ^https://[^/[:space:]]+$ ]]; then
+  echo "RESUME_PHOTO_OSS_ENDPOINT 必须是无路径、无查询参数的 HTTPS OSS endpoint" >&2
+  failures=$((failures + 1))
+fi
+if [[ ! "${RESUME_PHOTO_OSS_BUCKET:-}" =~ ^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$ ]]; then
+  echo "RESUME_PHOTO_OSS_BUCKET 必须是 3 至 63 位的小写 OSS Bucket 名称" >&2
+  failures=$((failures + 1))
+fi
+
+photo_staging_prefix="${RESUME_PHOTO_OSS_STAGING_PREFIX:-}"
+photo_object_prefix="${RESUME_PHOTO_OSS_OBJECT_PREFIX:-}"
+for entry in "staging:${photo_staging_prefix}" "objects:${photo_object_prefix}"; do
+  prefix_name="${entry%%:*}"
+  prefix_value="${entry#*:}"
+  if [[ ! "$prefix_value" =~ ^[A-Za-z0-9/_-]+/$ \
+    || "$prefix_value" == /* || "$prefix_value" == *//* ]]; then
+    echo "照片 OSS ${prefix_name} prefix 必须是仅含字母、数字、/、_、-，无双斜杠且以 / 结尾的相对对象前缀" >&2
+    failures=$((failures + 1))
+  fi
+done
+if [[ -n "$photo_staging_prefix" && -n "$photo_object_prefix" \
+  && ( "$photo_staging_prefix" == "$photo_object_prefix" \
+    || "$photo_staging_prefix" == "$photo_object_prefix"* \
+    || "$photo_object_prefix" == "$photo_staging_prefix"* ) ]]; then
+  echo "照片 OSS staging 与固化对象前缀必须互不相同且不能互相包含" >&2
+  failures=$((failures + 1))
+fi
+
+validate_integer_range RESUME_PHOTO_OSS_UPLOAD_URL_TTL_MINUTES 1 30
+validate_integer_range RESUME_PHOTO_OSS_ACCESS_URL_TTL_MINUTES 5 360
+validate_integer_range RESUME_PHOTO_OSS_MAX_BYTES 1024 3145728
+validate_integer_range RESUME_PHOTO_OSS_MAX_DIMENSION 256 4096
+validate_integer_range RESUME_PHOTO_OSS_MAX_PIXELS 65536 16000000
+validate_integer_range RESUME_PHOTO_UPLOAD_RATE_LIMIT_WINDOW_SECONDS 60 3600
+validate_integer_range RESUME_PHOTO_UPLOAD_RATE_LIMIT_ACCOUNT_ATTEMPTS 1 100
+validate_integer_range RESUME_PHOTO_UPLOAD_RATE_LIMIT_IP_ATTEMPTS 1 2000
+
+photo_upload_account_attempts="${RESUME_PHOTO_UPLOAD_RATE_LIMIT_ACCOUNT_ATTEMPTS:-}"
+photo_upload_ip_attempts="${RESUME_PHOTO_UPLOAD_RATE_LIMIT_IP_ATTEMPTS:-}"
+if [[ "$photo_upload_account_attempts" =~ ^[0-9]+$ \
+  && "$photo_upload_ip_attempts" =~ ^[0-9]+$ ]] \
+  && (( 10#$photo_upload_ip_attempts < 10#$photo_upload_account_attempts )); then
+  echo "RESUME_PHOTO_UPLOAD_RATE_LIMIT_IP_ATTEMPTS 不得小于账号预算" >&2
+  failures=$((failures + 1))
+fi
+
+photo_oss_access_key_secret="${RESUME_PHOTO_OSS_ACCESS_KEY_SECRET:-}"
+if [[ -n "$photo_oss_access_key_secret" && ( "$photo_oss_access_key_secret" == "$jwt_secret" \
+  || "$photo_oss_access_key_secret" == "$verification_secret" \
+  || "$photo_oss_access_key_secret" == "${paicongming_bridge_secret:-}" ) ]]; then
+  echo "照片 OSS AccessKey Secret 必须与 JWT、验证码和派聪明桥接密钥相互独立" >&2
+  failures=$((failures + 1))
+fi
+
 if [[ "${RESUME_REVIEW_ENABLED:-false}" == "true" ]]; then
 if [[ ! "${RESUME_REVIEW_RECIPIENT_EMAIL:-}" =~ ^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$ ]]; then
   echo "RESUME_REVIEW_RECIPIENT_EMAIL 必须是真实、固定且已验证的私密收件箱" >&2
@@ -345,6 +415,23 @@ if [[ -n "$oss_access_key_secret" && ( "$oss_access_key_secret" == "$jwt_secret"
   || "$oss_access_key_secret" == "${paicongming_bridge_secret:-}" ) ]]; then
   echo "OSS AccessKey Secret 必须与 JWT、验证码和派聪明桥接密钥相互独立" >&2
   failures=$((failures + 1))
+fi
+
+if [[ "${RESUME_REVIEW_ENABLED:-false}" == "true" \
+  && "${RESUME_REVIEW_OSS_BUCKET:-}" == "${RESUME_PHOTO_OSS_BUCKET:-}" ]]; then
+  review_staging_prefix="${RESUME_REVIEW_OSS_STAGING_PREFIX:-}"
+  review_object_prefix="${RESUME_REVIEW_OSS_OBJECT_PREFIX:-}"
+  for review_prefix in "$review_staging_prefix" "$review_object_prefix"; do
+    for photo_prefix in "$photo_staging_prefix" "$photo_object_prefix"; do
+      if [[ -n "$review_prefix" && -n "$photo_prefix" \
+        && ( "$review_prefix" == "$photo_prefix" \
+          || "$review_prefix" == "$photo_prefix"* \
+          || "$photo_prefix" == "$review_prefix"* ) ]]; then
+        echo "同一 OSS Bucket 中，简历照片与人工精修对象前缀不得重叠" >&2
+        failures=$((failures + 1))
+      fi
+    done
+  done
 fi
 fi
 

@@ -101,6 +101,8 @@ public class AuthServiceImpl implements AuthService {
     private final VipInviteService vipInviteService;
     private final JdbcTemplate jdbcTemplate;
     private final WechatReauthProofStore wechatReauthProofStore;
+    @Autowired(required = false)
+    private ResumePhotoService resumePhotoService;
 
     @Value("${jwt.access-token-expiration}")
     private long accessTokenExpiration;
@@ -507,6 +509,12 @@ public class AuthServiceImpl implements AuthService {
                 INNER JOIN resume r ON r.id = rm.resume_id
                 WHERE r.user_id = ?
                 """, userId);
+        jdbcTemplate.update("DELETE FROM resume_material_usage WHERE user_id = ?", userId);
+        jdbcTemplate.update("DELETE FROM user_resume_material WHERE user_id = ?", userId);
+        jdbcTemplate.update("DELETE FROM user_resume_profile WHERE user_id = ?", userId);
+        if (resumePhotoService != null) {
+            resumePhotoService.deleteAllForUser(userId);
+        }
         jdbcTemplate.update("DELETE FROM ai_optimize_record WHERE user_id = ?", userId);
         jdbcTemplate.update("DELETE FROM resume_analysis_record WHERE user_id = ?", userId);
         jdbcTemplate.update("""

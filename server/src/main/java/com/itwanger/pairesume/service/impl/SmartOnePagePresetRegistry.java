@@ -124,10 +124,7 @@ final class SmartOnePagePresetRegistry {
                     "engineering-compact",
                     """
                     # 姓名 / 目标岗位
-                    - 联系方式 / 核心链接 / 到岗时间
-
-                    ## 核心摘要
-                    - 用一句话概括方向和优势
+                    - 联系方式 / 核心链接
 
                     ## 实习 / 项目经历
                     ### 标题 - 时间

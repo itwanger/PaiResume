@@ -2,6 +2,7 @@ import type { ResearchContent } from '../../types'
 import { useModuleContentState } from '../../hooks/useModuleContentState'
 import { normalizeResearchContent } from '../../utils/moduleContent'
 import { ModuleSaveBar } from './ModuleSaveBar'
+import { MaterialActions } from '../materials/MaterialActions'
 
 interface Props {
   resumeId: number
@@ -28,7 +29,16 @@ export function ResearchForm({ resumeId, moduleId, initialContent }: Props) {
         errorMessage={errorMessage}
         hasUnsavedChanges={hasUnsavedChanges}
         onSave={saveNow}
-      />
+      >
+        <MaterialActions
+          moduleType="research"
+          content={content}
+          defaultTitle={content.projectName || '科研经历'}
+          instanceKey={moduleId}
+          onApply={setContent}
+          embedded
+        />
+      </ModuleSaveBar>
 
       <div className="editor-responsive-grid">
         <div>

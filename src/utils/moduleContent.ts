@@ -28,6 +28,10 @@ export function toBooleanValue(value: unknown): boolean {
   return typeof value === 'boolean' ? value : false
 }
 
+export function toPositiveNumberOrNull(value: unknown): number | null {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : null
+}
+
 export function toStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) {
     return []
@@ -107,6 +111,9 @@ export function normalizeBasicInfoContent(content: Record<string, unknown>): Bas
     wechat: toStringValue(record.wechat),
     isPartyMember: toBooleanValue(record.isPartyMember),
     photo: toStringValue(record.photo),
+    photoId: toPositiveNumberOrNull(record.photoId),
+    photoWidth: toPositiveNumberOrNull(record.photoWidth),
+    photoHeight: toPositiveNumberOrNull(record.photoHeight),
     photoBorder: toBooleanValue(record.photoBorder),
     hometown: toStringValue(record.hometown),
     blog: toStringValue(record.blog),

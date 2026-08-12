@@ -39,6 +39,34 @@ export function findBasicInfoContent(modules: ResumeModule[]): BasicInfoContent 
   return basicInfoModule ? normalizeBasicInfoContent(basicInfoModule.content) : null
 }
 
+export function selectResumeModulesForLivePreview(
+  modules: ResumeModule[],
+  activeModuleType?: ModuleType | null,
+): ResumeModule[] {
+  const sortedModules = sortResumeModulesForDisplay(modules)
+
+  if (activeModuleType) {
+    const previewModuleType = activeModuleType === 'job_intention' ? 'basic_info' : activeModuleType
+    const matchingModules = sortedModules.filter((module) => module.moduleType === previewModuleType)
+
+    // Education and project sections already render all entries of their type.
+    return previewModuleType === 'education' || previewModuleType === 'project'
+      ? matchingModules.slice(0, 1)
+      : matchingModules
+  }
+
+  const hasEducationModule = sortedModules.some((module) => module.moduleType === 'education')
+  const firstEducationModuleId = sortedModules.find((module) => module.moduleType === 'education')?.id
+  const firstProjectModuleId = sortedModules.find((module) => module.moduleType === 'project')?.id
+
+  return sortedModules.filter((module) => {
+    if (module.moduleType === 'job_intention') return false
+    if (module.moduleType === 'education') return module.id === firstEducationModuleId
+    if (module.moduleType === 'project') return module.id === firstProjectModuleId
+    return !(module.moduleType === 'award' && hasEducationModule)
+  })
+}
+
 export function getModuleDisplayLabel(
   moduleType: ModuleType,
   _basicInfoContent?: Pick<BasicInfoContent, 'workYears'> | null

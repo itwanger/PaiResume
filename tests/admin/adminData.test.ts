@@ -5,7 +5,6 @@ import type {
   UserAdmin,
 } from '../../src/api/admin'
 import {
-  filterAdminUsers,
   getUserAdminLabel,
   resumeReviewNeedsAdminAction,
 } from '../../src/components/admin/adminData'
@@ -58,19 +57,16 @@ function buildResumeReview(
   }
 }
 
-test('纯扫码账号没有邮箱时仍可搜索且不会崩溃', () => {
+test('纯扫码账号没有邮箱时回退到昵称作为展示名', () => {
   const wechatUser = buildUser({
     id: 88,
     email: null,
     nickname: '微信用户',
     membershipStatus: 'ACTIVE',
   })
-  const users = [buildUser(), wechatUser]
 
   assert.equal(getUserAdminLabel(wechatUser), '微信用户')
-  assert.deepEqual(filterAdminUsers(users, '微信', ''), [wechatUser])
-  assert.deepEqual(filterAdminUsers(users, '88', 'ACTIVE'), [wechatUser])
-  assert.deepEqual(filterAdminUsers(users, 'admin@example.com', ''), [users[0]])
+  assert.equal(getUserAdminLabel(buildUser()), 'admin@example.com')
 })
 
 test('没有邮箱和昵称的账号回退到稳定用户编号', () => {

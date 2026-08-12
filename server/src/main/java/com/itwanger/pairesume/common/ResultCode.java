@@ -56,6 +56,12 @@ public enum ResultCode {
     MODULE_ALREADY_EXISTS(3004, "该模块只能添加一份"),
     MEMBERSHIP_REQUIRED(3005, "开通会员后才可导出简历"),
     EXPORT_FAILED(3006, "导出失败，请稍后重试"),
+    RESUME_PHOTO_UPLOAD_NOT_FOUND(3011, "照片上传凭证不存在"),
+    RESUME_PHOTO_UPLOAD_FORBIDDEN(3012, "无权使用该照片"),
+    RESUME_PHOTO_UPLOAD_EXPIRED(3013, "照片上传凭证已过期，请重新选择文件"),
+    RESUME_PHOTO_UPLOAD_INVALID(3014, "照片文件校验失败"),
+    RESUME_PHOTO_STORAGE_UNAVAILABLE(3015, "照片存储暂时不可用，请稍后重试"),
+    RESUME_PHOTO_UPLOAD_RATE_LIMITED(3016, "照片上传操作过于频繁，请稍后再试"),
 
     // AI: 4xxx
     AI_NOT_CONFIGURED(4000, "AI 服务未配置，请检查服务端 AI 模型参数"),
@@ -92,6 +98,7 @@ public enum ResultCode {
     VIP_INVITE_CLAIM_INVALID(7020, "邀请码领取凭证无效或已过期"),
     VIP_INVITE_CLAIM_NOT_BOUND(7021, "请先使用派聪明扫码登录后领取"),
     VIP_INVITE_CLAIM_FORBIDDEN(7022, "该邀请码领取凭证不属于当前账号"),
+    FEEDBACK_REVIEW_STATE_INVALID(7023, "该问卷已经完成审核，请刷新后重试"),
 
     // Resume marketplace: 71xx
     MARKET_LISTING_NOT_FOUND(7101, "公开简历不存在"),

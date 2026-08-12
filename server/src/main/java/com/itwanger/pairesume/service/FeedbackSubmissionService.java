@@ -21,7 +21,5 @@ public interface FeedbackSubmissionService {
 
     FeedbackSubmissionAdminDTO unpublish(Long submissionId, Long adminUserId);
 
-    FeedbackSubmissionAdminDTO resendCoupon(Long submissionId, Long adminUserId);
-
     List<PublishedFeedbackDTO> listPublishedTestimonials();
 }

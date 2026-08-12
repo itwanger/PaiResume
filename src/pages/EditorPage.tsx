@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { useResumeStore } from '../store/resumeStore'
+import { resumeApi } from '../api/resume'
 import { Header } from '../components/layout/Header'
 import { ModuleSidebar } from '../components/editor/ModuleSidebar'
 import { PreviewPanel } from '../components/editor/PreviewPanel'
@@ -43,6 +44,7 @@ const PREVIEW_PANEL_COLLAPSED_STORAGE_KEY = 'pai-resume.preview-panel-collapsed'
 const COMPACT_PREVIEW_MEDIA_QUERY = '(max-width: 1279px)'
 const DESKTOP_MODULE_SIDEBAR_MEDIA_QUERY = '(min-width: 768px)'
 const RESUME_PDF_PREVIEW_CONFIG_STORAGE_KEY_PREFIX = 'pai-resume.pdf-preview-config'
+const DESKTOP_MODULE_SIDEBAR_WIDTH = '11rem'
 
 function getStoredDesktopPreviewPreference(): boolean {
   if (typeof window === 'undefined') {
@@ -95,6 +97,8 @@ export default function EditorPage() {
   const compactPreviewDialogRef = useRef<HTMLElement | null>(null)
   const mobileModuleTriggerRef = useRef<HTMLButtonElement | null>(null)
   const mobileModuleDialogRef = useRef<HTMLDivElement | null>(null)
+  const editorScrollRef = useRef<HTMLElement | null>(null)
+  const editorScrollThumbRef = useRef<HTMLDivElement | null>(null)
   const [pdfPreviewConfig, setPdfPreviewConfig] = useState<ResumePdfPreviewConfig>(DEFAULT_RESUME_PDF_PREVIEW_CONFIG)
 
   const resumeId = Number(id)
@@ -230,6 +234,13 @@ export default function EditorPage() {
   useEffect(() => {
     setCompactPreviewOpen(false)
     setMobileModuleMenuOpen(false)
+  }, [activeModuleType, editorView])
+
+  useEffect(() => {
+    if (editorView !== 'module') return
+    window.requestAnimationFrame(() => {
+      compactPreviewDialogRef.current?.scrollTo({ top: 0, behavior: 'auto' })
+    })
   }, [activeModuleType, editorView])
 
   useEffect(() => {
@@ -537,11 +548,88 @@ export default function EditorPage() {
   const analysisContainerClassName = inlinePreviewOpen ? 'mx-auto max-w-4xl' : 'mx-auto max-w-6xl'
   const moduleContainerClassName = inlinePreviewOpen ? 'mx-auto max-w-3xl' : 'mx-auto max-w-5xl'
   const previewToggleStyle = inlinePreviewOpen
-    ? { right: 'calc(clamp(420px, 38vw, 540px) - 16px)' }
+    ? { right: `calc((100vw - ${DESKTOP_MODULE_SIDEBAR_WIDTH}) / 2 - 16px)` }
     : undefined
   const previewTogglePositionClassName = previewOpen
     ? (isCompactViewport ? 'right-3' : '')
     : 'right-3 sm:right-[42px]'
+
+  const updateEditorScrollIndicator = useCallback(() => {
+    const scroller = editorScrollRef.current
+    const thumb = editorScrollThumbRef.current
+    if (!scroller || !thumb) return
+
+    const scrollRange = scroller.scrollHeight - scroller.clientHeight
+    if (scrollRange <= 1 || !inlinePreviewOpen || editorView === 'template-selection') {
+      thumb.style.display = 'none'
+      return
+    }
+
+    const thumbHeight = Math.max(48, scroller.clientHeight * scroller.clientHeight / scroller.scrollHeight)
+    const thumbTravel = Math.max(0, scroller.clientHeight - thumbHeight)
+    const thumbTop = scrollRange > 0 ? scroller.scrollTop / scrollRange * thumbTravel : 0
+    thumb.style.display = 'block'
+    thumb.style.height = `${thumbHeight}px`
+    thumb.style.transform = `translateY(${thumbTop}px)`
+  }, [editorView, inlinePreviewOpen])
+
+  useEffect(() => {
+    const scroller = editorScrollRef.current
+    if (!scroller || typeof window === 'undefined') return
+
+    let frameId = 0
+    const scheduleUpdate = () => {
+      window.cancelAnimationFrame(frameId)
+      frameId = window.requestAnimationFrame(updateEditorScrollIndicator)
+    }
+    const resizeObserver = new ResizeObserver(scheduleUpdate)
+    const mutationObserver = new MutationObserver(scheduleUpdate)
+
+    resizeObserver.observe(scroller)
+    mutationObserver.observe(scroller, { childList: true, subtree: true, characterData: true })
+    window.addEventListener('resize', scheduleUpdate)
+    scheduleUpdate()
+
+    return () => {
+      window.cancelAnimationFrame(frameId)
+      resizeObserver.disconnect()
+      mutationObserver.disconnect()
+      window.removeEventListener('resize', scheduleUpdate)
+    }
+  }, [activeModuleType, editorView, modules, updateEditorScrollIndicator])
+
+  const handleEditorScrollThumbPointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    const scroller = editorScrollRef.current
+    const thumb = editorScrollThumbRef.current
+    if (!scroller || !thumb) return
+
+    event.preventDefault()
+    const startY = event.clientY
+    const startScrollTop = scroller.scrollTop
+    const thumbTravel = scroller.clientHeight - thumb.getBoundingClientRect().height
+    const scrollRange = scroller.scrollHeight - scroller.clientHeight
+    if (thumbTravel <= 0 || scrollRange <= 0) return
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      scroller.scrollTop = startScrollTop + (moveEvent.clientY - startY) * scrollRange / thumbTravel
+    }
+    const stopDragging = () => {
+      window.removeEventListener('pointermove', handlePointerMove)
+      window.removeEventListener('pointerup', stopDragging)
+      window.removeEventListener('pointercancel', stopDragging)
+    }
+
+    window.addEventListener('pointermove', handlePointerMove)
+    window.addEventListener('pointerup', stopDragging)
+    window.addEventListener('pointercancel', stopDragging)
+  }, [])
+
+  const handleEditorScrollIndicatorWheel = useCallback((event: ReactWheelEvent<HTMLDivElement>) => {
+    const scroller = editorScrollRef.current
+    if (!scroller) return
+    event.preventDefault()
+    scroller.scrollTop += event.deltaY
+  }, [])
   const mobileWorkspaceLabel = editorView === 'analysis'
     ? '简历分析'
     : editorView === 'template-selection'
@@ -565,7 +653,10 @@ export default function EditorPage() {
     setExportError('')
     try {
       await flushResumeAutoSaves(resumeId)
-      const latestModules = useResumeStore.getState().modules
+      // Refresh after flushing so private OSS photos always use a newly signed
+      // read URL, even when the editor has stayed open past the URL's TTL.
+      const { data: latestModuleResponse } = await resumeApi.getModules(resumeId)
+      const latestModules = latestModuleResponse.data
       if (latestModules.length === 0) {
         throw new Error('请先完善简历内容后再导出 PDF')
       }
@@ -607,8 +698,6 @@ export default function EditorPage() {
           ...content,
           jobIntention: (content.jobIntention as string) || normalizeJobIntentionContent(jobIntentionModule.content).targetPosition,
           targetCity: (content.targetCity as string) || normalizeJobIntentionContent(jobIntentionModule.content).targetCity,
-          salaryRange: (content.salaryRange as string) || normalizeJobIntentionContent(jobIntentionModule.content).salaryRange,
-          expectedEntryDate: (content.expectedEntryDate as string) || normalizeJobIntentionContent(jobIntentionModule.content).expectedEntryDate,
         }
       : content
     const props = { resumeId, moduleId, initialContent: mergedBasicInfoContent }
@@ -627,7 +716,7 @@ export default function EditorPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50">
+    <div className="flex h-screen h-[100dvh] min-h-0 flex-col overflow-hidden bg-gray-50">
       <Header enableResumeDrop />
 
       {mobileModuleMenuOpen ? (
@@ -744,7 +833,7 @@ export default function EditorPage() {
         </div>
       )}
 
-      <div className="relative flex flex-1 items-start">
+      <div className="relative flex min-h-0 flex-1 items-stretch overflow-hidden">
         <ModuleSidebar
           modules={modules}
           activeModuleType={activeModuleType}
@@ -762,7 +851,7 @@ export default function EditorPage() {
           onSelectTemplateSelection={openTemplateSelectionView}
         />
 
-        <main className="min-w-0 flex-1 px-3 py-4 sm:px-5 sm:py-5 lg:px-6 lg:py-6 xl:px-8">
+        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto px-3 py-4 sm:px-5 sm:py-5 lg:px-6 lg:py-6 xl:px-8">
           {membershipNavigationError ? (
             <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
               {membershipNavigationError}
@@ -965,15 +1054,15 @@ export default function EditorPage() {
             aria-modal={isCompactViewport && previewOpen ? true : undefined}
             aria-label={isCompactViewport && previewOpen ? '简历预览' : undefined}
             tabIndex={isCompactViewport && previewOpen ? -1 : undefined}
-            className={`shrink-0 self-start border-l border-gray-200 bg-gray-50 outline-none transition-[width,min-width,max-width,padding] duration-300 ease-out motion-reduce:transition-none ${
+            className={`border-l border-gray-200 bg-gray-50 outline-none transition-[width,min-width,max-width,padding,flex-basis] duration-300 ease-out motion-reduce:transition-none ${
               previewOpen
                 ? isCompactViewport
                   ? 'fixed bottom-0 right-0 top-[65px] z-20 h-[calc(100vh-65px)] w-full max-w-[540px] overflow-y-auto p-4 sm:p-6'
-                  : 'relative w-[540px] min-w-[420px] max-w-[38vw] p-6 xl:px-8'
-                : 'hidden sm:block sm:w-14 sm:min-w-14 sm:max-w-14 sm:p-0'
+                  : 'h-full min-h-0 min-w-0 flex-1 basis-0 overflow-y-auto p-6 xl:px-8'
+                : 'hidden h-full min-h-0 shrink-0 sm:block sm:w-14 sm:min-w-14 sm:max-w-14 sm:p-0'
             }`}
           >
-            <div className={isCompactViewport && previewOpen ? 'relative' : 'relative sticky top-[89px]'}>
+            <div className="relative min-h-full">
               {isCompactViewport && previewOpen ? (
                 <div className="mb-3 flex justify-end sm:hidden">
                   <button
@@ -993,6 +1082,7 @@ export default function EditorPage() {
                 <PreviewPanel
                   modules={modules}
                   loading={loading}
+                  activeModuleType={editorView === 'module' ? activeModuleType : null}
                   pdfConfig={pdfPreviewConfig}
                 />
               )}

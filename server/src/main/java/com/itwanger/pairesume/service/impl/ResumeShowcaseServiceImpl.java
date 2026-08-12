@@ -12,14 +12,20 @@ import com.itwanger.pairesume.entity.ResumeShowcase;
 import com.itwanger.pairesume.mapper.ResumeMapper;
 import com.itwanger.pairesume.mapper.ResumeModuleMapper;
 import com.itwanger.pairesume.mapper.ResumeShowcaseMapper;
+import com.itwanger.pairesume.service.AiService;
 import com.itwanger.pairesume.service.MembershipService;
 import com.itwanger.pairesume.service.ResumeShowcaseService;
 import com.itwanger.pairesume.util.DateTimeUtils;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 @Service
@@ -28,11 +34,15 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
     private static final String ACCESS_TYPE_FREE = "FREE";
     private static final String ACCESS_TYPE_VIP = "VIP";
     private static final Set<String> ALLOWED_ACCESS_TYPES = Set.of(ACCESS_TYPE_FREE, ACCESS_TYPE_VIP);
+    private static final Set<String> PUBLIC_BASIC_INFO_FIELDS = Set.of(
+            "jobIntention", "targetCity", "salaryRange", "expectedEntryDate", "workYears"
+    );
 
     private final ResumeShowcaseMapper resumeShowcaseMapper;
     private final ResumeMapper resumeMapper;
     private final ResumeModuleMapper resumeModuleMapper;
     private final MembershipService membershipService;
+    private final AiService aiService;
 
     @Override
     public List<ShowcaseCardDTO> listPublishedShowcases() {
@@ -91,7 +101,95 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
     }
 
     @Override
+    public ResumeShowcase featureResume(Long resumeId, Long adminUserId) {
+        Resume resume = requireOwnedResume(resumeId, adminUserId);
+        var sourceUpdatedAt = resume.getUpdatedAt();
+        ResumeShowcase showcase = findByResumeId(resumeId);
+        if (showcase != null && "PUBLISHED".equals(showcase.getPublishStatus())) {
+            return showcase;
+        }
+
+        List<ResumeModule> modules = listResumeModules(resumeId);
+        boolean hasShowcaseContent = modules.stream()
+                .filter(module -> !"basic_info".equals(module.getModuleType()))
+                .anyMatch(module -> hasMeaningfulContent(module.getContent()));
+        if (!hasShowcaseContent) {
+            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "简历内容为空，无法精选");
+        }
+
+        var metadata = aiService.generateShowcaseMetadata(resume.getTitle(), modules);
+        ensureResumeVersionUnchanged(resumeId, adminUserId, sourceUpdatedAt);
+
+        var latestShowcase = findByResumeId(resumeId);
+        if (latestShowcase != null) {
+            if ("PUBLISHED".equals(latestShowcase.getPublishStatus())) {
+                return latestShowcase;
+            }
+            showcase = latestShowcase;
+        }
+        boolean creating = showcase == null;
+        if (creating) {
+            showcase = new ResumeShowcase();
+            showcase.setResumeId(resumeId);
+            showcase.setSlug("featured-" + resumeId);
+            long showcaseCount = resumeShowcaseMapper.selectCount(null);
+            showcase.setDisplayOrder((int) Math.min(showcaseCount, Integer.MAX_VALUE));
+            showcase.setAccessType(ACCESS_TYPE_VIP);
+        }
+
+        showcase.setScoreLabel(metadata.getDisplayLabel());
+        showcase.setSummary(metadata.getSummary());
+        showcase.setTags(metadata.getTags());
+        showcase.setPublishStatus("PUBLISHED");
+        if (showcase.getAccessType() == null || showcase.getAccessType().isBlank()) {
+            showcase.setAccessType(ACCESS_TYPE_VIP);
+        }
+
+        if (creating) {
+            try {
+                resumeShowcaseMapper.insert(showcase);
+            } catch (DuplicateKeyException e) {
+                var concurrentShowcase = findByResumeId(resumeId);
+                if (concurrentShowcase == null) {
+                    throw e;
+                }
+                ensureResumeStillPublishable(
+                        resumeId, adminUserId, sourceUpdatedAt, concurrentShowcase
+                );
+                return concurrentShowcase;
+            }
+        } else {
+            resumeShowcaseMapper.updateById(showcase);
+        }
+        ensureResumeStillPublishable(resumeId, adminUserId, sourceUpdatedAt, showcase);
+        return showcase;
+    }
+
+    @Override
+    public ResumeShowcase unfeatureResume(Long resumeId, Long adminUserId) {
+        requireOwnedResume(resumeId, adminUserId);
+        ResumeShowcase showcase = findByResumeId(resumeId);
+        if (showcase == null) {
+            throw new BusinessException(ResultCode.SHOWCASE_NOT_FOUND);
+        }
+        if (!"DRAFT".equals(showcase.getPublishStatus())) {
+            showcase.setPublishStatus("DRAFT");
+            resumeShowcaseMapper.updateById(showcase);
+        }
+        return showcase;
+    }
+
+    @Override
     public void unpublishDeletedResume(Long resumeId) {
+        unpublishResume(resumeId);
+    }
+
+    @Override
+    public void unpublishChangedResume(Long resumeId) {
+        unpublishResume(resumeId);
+    }
+
+    private void unpublishResume(Long resumeId) {
         ResumeShowcase showcase = resumeShowcaseMapper.selectOne(
                 new LambdaQueryWrapper<ResumeShowcase>()
                         .eq(ResumeShowcase::getResumeId, resumeId)
@@ -104,11 +202,51 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
         resumeShowcaseMapper.updateById(showcase);
     }
 
-    private void applyUpsert(ResumeShowcase showcase, Long adminUserId, ResumeShowcaseUpsertDTO dto) {
-        Resume resume = resumeMapper.selectById(dto.getResumeId());
-        if (resume == null || resume.getStatus() == 0 || !adminUserId.equals(resume.getUserId())) {
+    private void ensureResumeVersionUnchanged(
+            Long resumeId,
+            Long adminUserId,
+            LocalDateTime sourceUpdatedAt
+    ) {
+        Resume currentResume = requireOwnedResume(resumeId, adminUserId);
+        if (!Objects.equals(sourceUpdatedAt, currentResume.getUpdatedAt())) {
+            throw new BusinessException(
+                    ResultCode.BAD_REQUEST.getCode(),
+                    "简历内容已更新，请重新精选"
+            );
+        }
+    }
+
+    private void ensureResumeStillPublishable(
+            Long resumeId,
+            Long adminUserId,
+            LocalDateTime sourceUpdatedAt,
+            ResumeShowcase showcase
+    ) {
+        Resume currentResume = resumeMapper.selectById(resumeId);
+        boolean publishable = currentResume != null
+                && currentResume.getStatus() != null
+                && currentResume.getStatus() != 0
+                && adminUserId.equals(currentResume.getUserId())
+                && Objects.equals(sourceUpdatedAt, currentResume.getUpdatedAt());
+        if (publishable) {
+            return;
+        }
+
+        if (!"DRAFT".equals(showcase.getPublishStatus())) {
+            showcase.setPublishStatus("DRAFT");
+            resumeShowcaseMapper.updateById(showcase);
+        }
+        if (currentResume == null || currentResume.getStatus() == null || currentResume.getStatus() == 0) {
             throw new BusinessException(ResultCode.RESUME_NOT_FOUND);
         }
+        throw new BusinessException(
+                ResultCode.BAD_REQUEST.getCode(),
+                "简历内容已更新，请重新精选"
+        );
+    }
+
+    private void applyUpsert(ResumeShowcase showcase, Long adminUserId, ResumeShowcaseUpsertDTO dto) {
+        requireOwnedResume(dto.getResumeId(), adminUserId);
 
         ResumeShowcase existingSlug = resumeShowcaseMapper.selectOne(
                 new LambdaQueryWrapper<ResumeShowcase>()
@@ -127,6 +265,53 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
         showcase.setDisplayOrder(dto.getDisplayOrder());
         showcase.setPublishStatus(dto.getPublishStatus().trim().toUpperCase());
         showcase.setAccessType(normalizeAccessTypeForWrite(dto.getAccessType()));
+    }
+
+    private Resume requireOwnedResume(Long resumeId, Long adminUserId) {
+        Resume resume = resumeMapper.selectById(resumeId);
+        if (resume == null || resume.getStatus() == null || resume.getStatus() == 0
+                || !adminUserId.equals(resume.getUserId())) {
+            throw new BusinessException(ResultCode.RESUME_NOT_FOUND);
+        }
+        return resume;
+    }
+
+    private ResumeShowcase findByResumeId(Long resumeId) {
+        return resumeShowcaseMapper.selectOne(
+                new LambdaQueryWrapper<ResumeShowcase>()
+                        .eq(ResumeShowcase::getResumeId, resumeId)
+                        .last("LIMIT 1")
+        );
+    }
+
+    private List<ResumeModule> listResumeModules(Long resumeId) {
+        return resumeModuleMapper.selectList(
+                new LambdaQueryWrapper<ResumeModule>()
+                        .eq(ResumeModule::getResumeId, resumeId)
+                        .orderByAsc(ResumeModule::getSortOrder)
+                        .orderByAsc(ResumeModule::getId)
+        );
+    }
+
+    private boolean hasMeaningfulContent(Object value) {
+        if (value == null) {
+            return false;
+        }
+        if (value instanceof CharSequence text) {
+            return !text.toString().isBlank();
+        }
+        if (value instanceof Map<?, ?> map) {
+            return map.values().stream().anyMatch(this::hasMeaningfulContent);
+        }
+        if (value instanceof Iterable<?> values) {
+            for (var item : values) {
+                if (hasMeaningfulContent(item)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        return true;
     }
 
     private ResumeShowcase findPublishedShowcase(String slug) {
@@ -192,8 +377,34 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
         dto.setScoreLabel(showcase.getScoreLabel());
         dto.setSummary(showcase.getSummary());
         dto.setTags(showcase.getTags());
-        dto.setModules(modules);
+        dto.setModules(modules.stream().map(this::sanitizePublicModule).toList());
         dto.setUpdatedAt(DateTimeUtils.format(showcase.getUpdatedAt()));
         return dto;
+    }
+
+    private ResumeModule sanitizePublicModule(ResumeModule module) {
+        if (!"basic_info".equals(module.getModuleType())) {
+            return module;
+        }
+
+        var publicContent = new LinkedHashMap<String, Object>();
+        if (module.getContent() != null) {
+            for (var entry : module.getContent().entrySet()) {
+                if (PUBLIC_BASIC_INFO_FIELDS.contains(entry.getKey())
+                        && hasMeaningfulContent(entry.getValue())) {
+                    publicContent.put(entry.getKey(), entry.getValue());
+                }
+            }
+        }
+
+        var sanitized = new ResumeModule();
+        sanitized.setId(module.getId());
+        sanitized.setResumeId(module.getResumeId());
+        sanitized.setModuleType(module.getModuleType());
+        sanitized.setContent(publicContent);
+        sanitized.setSortOrder(module.getSortOrder());
+        sanitized.setCreatedAt(module.getCreatedAt());
+        sanitized.setUpdatedAt(module.getUpdatedAt());
+        return sanitized;
     }
 }

@@ -4,6 +4,8 @@ import com.itwanger.pairesume.common.BusinessException;
 import com.itwanger.pairesume.common.ResultCode;
 import com.itwanger.pairesume.entity.ResumeModule;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
@@ -13,15 +15,15 @@ import java.util.regex.Pattern;
 /**
  * Server-side trust boundary for resume photos.
  *
- * <p>The browser may preview remote images, but persisted resume data and
- * server-side publication paths must never dereference user-controlled URLs or
- * file paths. Only small, embedded raster images with a matching file signature
- * are accepted.</p>
+ * <p>Uploaded photos must be small raster images with matching signatures.
+ * User-provided HTTP(S) links may be stored, but the server never dereferences
+ * them and public resume paths continue to remove remote photo URLs.</p>
  */
 public final class ResumePhotoSecurityPolicy {
     public static final int MAX_PHOTO_BYTES = 3 * 1024 * 1024;
     public static final int MAX_IMAGE_DIMENSION = 4096;
     public static final long MAX_IMAGE_PIXELS = 16_000_000L;
+    public static final int MAX_REMOTE_URL_LENGTH = 2048;
 
     private static final int MAX_BASE64_CHARACTERS = ((MAX_PHOTO_BYTES + 2) / 3) * 4;
     private static final Pattern RASTER_DATA_URL = Pattern.compile(
@@ -40,10 +42,10 @@ public final class ResumePhotoSecurityPolicy {
         if (photo == null || photo instanceof String value && value.isBlank()) {
             return;
         }
-        if (!isSafeRasterDataUrl(photo)) {
+        if (!isSafeRasterDataUrl(photo) && !isSafeRemotePhotoUrl(photo)) {
             throw new BusinessException(
                     ResultCode.BAD_REQUEST.getCode(),
-                    "照片仅支持不超过 3MB、单边不超过 4096 像素且总像素不超过 1600 万的 PNG 或 JPEG 本地上传图片"
+                    "照片仅支持 PNG/JPG 上传，或有效的 http/https 图片链接"
             );
         }
     }
@@ -83,24 +85,67 @@ public final class ResumePhotoSecurityPolicy {
             return false;
         }
 
-        ImageDimensions dimensions = readDimensions(
+        ImageDimensions dimensions = inspectRasterBytes(
                 matcher.group(1).toLowerCase(Locale.ROOT),
-                decoded
+                decoded,
+                MAX_IMAGE_DIMENSION,
+                MAX_IMAGE_PIXELS
         );
-        return dimensions != null
-                && dimensions.width() > 0
-                && dimensions.height() > 0
-                && dimensions.width() <= MAX_IMAGE_DIMENSION
-                && dimensions.height() <= MAX_IMAGE_DIMENSION
-                && dimensions.width() * dimensions.height() <= MAX_IMAGE_PIXELS;
+        return dimensions != null;
     }
 
-    private static ImageDimensions readDimensions(String mimeType, byte[] bytes) {
-        return switch (mimeType) {
+    public static boolean isSafeRemotePhotoUrl(Object value) {
+        if (!(value instanceof String text)) {
+            return false;
+        }
+        String normalized = text.strip();
+        if (normalized.isEmpty() || normalized.length() > MAX_REMOTE_URL_LENGTH
+                || normalized.chars().anyMatch(Character::isISOControl)) {
+            return false;
+        }
+        try {
+            URI uri = new URI(normalized);
+            String scheme = uri.getScheme();
+            String host = uri.getHost();
+            return ("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme))
+                    && host != null && !host.isBlank()
+                    && uri.getRawUserInfo() == null
+                    && !isLocalOrPrivateHost(host);
+        } catch (URISyntaxException exception) {
+            return false;
+        }
+    }
+
+    private static boolean isLocalOrPrivateHost(String host) {
+        String normalized = host.toLowerCase(Locale.ROOT);
+        if ("localhost".equals(normalized) || normalized.endsWith(".localhost")
+                || "::1".equals(normalized) || normalized.startsWith("fe80:")
+                || normalized.startsWith("fc") || normalized.startsWith("fd")) {
+            return true;
+        }
+        if (normalized.matches("^(?:0|10|127|169\\.254|192\\.168)(?:\\..*)?$")) {
+            return true;
+        }
+        var private172 = Pattern.compile("^172\\.(\\d{1,2})(?:\\..*)?$").matcher(normalized);
+        return private172.matches()
+                && Integer.parseInt(private172.group(1)) >= 16
+                && Integer.parseInt(private172.group(1)) <= 31;
+    }
+
+    public static ImageDimensions inspectRasterBytes(String mimeType, byte[] bytes,
+                                                      int maxDimension, long maxPixels) {
+        if (bytes == null || bytes.length == 0 || maxDimension < 1 || maxPixels < 1) return null;
+        ImageDimensions dimensions = switch (mimeType == null ? "" : mimeType.toLowerCase(Locale.ROOT)) {
             case "image/png" -> readPngDimensions(bytes);
             case "image/jpeg" -> readJpegDimensions(bytes);
             default -> null;
         };
+        if (dimensions == null || dimensions.width() <= 0 || dimensions.height() <= 0
+                || dimensions.width() > maxDimension || dimensions.height() > maxDimension
+                || dimensions.width() * dimensions.height() > maxPixels) {
+            return null;
+        }
+        return dimensions;
     }
 
     private static ImageDimensions readPngDimensions(byte[] bytes) {
@@ -192,6 +237,6 @@ public final class ResumePhotoSecurityPolicy {
         return Byte.toUnsignedInt(value);
     }
 
-    private record ImageDimensions(long width, long height) {
+    public record ImageDimensions(long width, long height) {
     }
 }

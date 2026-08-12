@@ -95,7 +95,9 @@ export function assertPdfTextWithinLimit(characterCount: number): void {
 }
 
 async function loadPdfJs() {
-  const pdfJs = await import('pdfjs-dist')
+  const pdfJs = typeof window === 'undefined'
+    ? await import('pdfjs-dist/legacy/build/pdf.mjs')
+    : await import('pdfjs-dist')
   if (typeof window !== 'undefined') {
     const workerModule = await import('pdfjs-dist/build/pdf.worker.min.mjs?url')
     pdfJs.GlobalWorkerOptions.workerSrc = workerModule.default

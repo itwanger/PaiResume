@@ -3,9 +3,10 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { authApi, type WechatChallengeCreateData } from '../api/auth'
 import { LegalConsentCheckbox } from '../components/auth/LegalConsentCheckbox'
 import { LogoMark } from '../components/branding/LogoMark'
+import { getDevelopmentLoginCredentials } from '../config/developmentLogin'
 import { AUTHENTICATED_HOME_PATH } from '../config/site'
 import { useAuthStore } from '../store/authStore'
-import { getSafeInternalPath } from '../utils/navigation'
+import { getSafeInternalPath, resolveLoginMethod } from '../utils/navigation'
 
 const REMEMBERED_EMAIL_KEY = 'rememberedEmail'
 const LEGACY_REMEMBERED_PASSWORD_KEY = 'rememberedPassword'
@@ -76,12 +77,16 @@ export default function LoginPage() {
   const completeWechatLogin = useAuthStore((state) => state.completeWechatLogin)
   const returnTo = getSafeInternalPath(searchParams.get('redirect'), AUTHENTICATED_HOME_PATH)
   const passwordResetSucceeded = searchParams.get('passwordReset') === 'success'
-  const emailLoginPreferred = searchParams.get('method') === 'email'
+  const emailLoginPreferred = resolveLoginMethod(searchParams.get('method')) === 'email'
   const legacyEmailMode = passwordResetSucceeded || emailLoginPreferred
   const passwordResetPath = `/forgot-password?${new URLSearchParams({ redirect: returnTo }).toString()}`
+  const developmentDefaultsEnabled = import.meta.env.MODE === 'development' && !passwordResetSucceeded
+  const initialCredentials = developmentDefaultsEnabled
+    ? getDevelopmentLoginCredentials(rememberedCredentials.email)
+    : { email: rememberedCredentials.email, password: '' }
 
-  const [email, setEmail] = useState(rememberedCredentials.email)
-  const [password, setPassword] = useState('')
+  const [email, setEmail] = useState(initialCredentials.email)
+  const [password, setPassword] = useState(initialCredentials.password)
   const [rememberCredentials, setRememberCredentials] = useState(rememberedCredentials.remembered)
   const [emailError, setEmailError] = useState('')
   const [emailLoading, setEmailLoading] = useState(false)
@@ -219,6 +224,22 @@ export default function LoginPage() {
     }
   }, [agreementsAccepted, completeWechatLogin, navigate, qrRefreshKey, returnTo])
 
+  const handleEmailChange = (nextEmail: string) => {
+    setEmail(nextEmail)
+    if (!developmentDefaultsEnabled) {
+      return
+    }
+
+    setPassword((currentPassword) => {
+      const currentDefaultPassword = getDevelopmentLoginCredentials(email).password
+      if (currentPassword !== currentDefaultPassword) {
+        return currentPassword
+      }
+
+      return getDevelopmentLoginCredentials(nextEmail).password
+    })
+  }
+
   const handleEmailSubmit = async (event: FormEvent) => {
     event.preventDefault()
     setEmailError('')
@@ -299,7 +320,7 @@ export default function LoginPage() {
                     id="login-email"
                     type="email"
                     value={email}
-                    onChange={(event) => setEmail(event.target.value)}
+                    onChange={(event) => handleEmailChange(event.target.value)}
                     placeholder="your@email.com"
                     className="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none transition-colors focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
                     autoComplete="email"

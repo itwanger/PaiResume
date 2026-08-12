@@ -15,6 +15,7 @@ import {
   hasResumeCreateIntent,
   normalizeResumeTitle,
 } from '../utils/resumeCreation'
+import { contentLibraryApi, type ResumeContentTemplate } from '../api/contentLibrary'
 
 export default function DashboardPage() {
   const navigate = useNavigate()
@@ -25,9 +26,16 @@ export default function DashboardPage() {
   const [dialogMode, setDialogMode] = useState<'create' | 'rename' | null>(null)
   const [resumeTitle, setResumeTitle] = useState('')
   const [editingResume, setEditingResume] = useState<ResumeListItem | null>(null)
+  const [contentTemplates, setContentTemplates] = useState<ResumeContentTemplate[]>([])
+  const [selectedContentTemplateId, setSelectedContentTemplateId] = useState<number | null>(null)
 
   useEffect(() => {
     fetchResumeList()
+    void contentLibraryApi.listTemplates().then((response) => {
+      setContentTemplates(response.data.data)
+    }).catch(() => {
+      setContentTemplates([])
+    })
   }, [fetchResumeList])
 
   useEffect(() => {
@@ -38,6 +46,7 @@ export default function DashboardPage() {
     setDialogError('')
     setResumeTitle('')
     setEditingResume(null)
+    setSelectedContentTemplateId(null)
     setDialogMode('create')
     navigate(AUTHENTICATED_HOME_PATH, { replace: true })
   }, [location.search, navigate])
@@ -56,6 +65,10 @@ export default function DashboardPage() {
       let nextResumeId: number | null = null
       if (dialogMode === 'rename' && editingResume) {
         await renameResume(editingResume.id, title)
+      } else if (selectedContentTemplateId !== null) {
+        const response = await contentLibraryApi.createResumeFromTemplate(selectedContentTemplateId, title)
+        nextResumeId = response.data.data.id
+        await fetchResumeList()
       } else {
         const resume = await createResume(title)
         nextResumeId = resume.id
@@ -82,6 +95,7 @@ export default function DashboardPage() {
     setDialogError('')
     setResumeTitle('')
     setEditingResume(null)
+    setSelectedContentTemplateId(null)
     setDialogMode('create')
   }
 
@@ -98,6 +112,7 @@ export default function DashboardPage() {
     setDialogError('')
     setResumeTitle('')
     setEditingResume(null)
+    setSelectedContentTemplateId(null)
   }
 
   const handleDelete = async (id: number) => {
@@ -184,6 +199,36 @@ export default function DashboardPage() {
                 </p>
               ) : null}
             </div>
+
+            {dialogMode === 'create' && contentTemplates.length ? (
+              <div className="mt-5">
+                <p className="mb-2 text-sm font-medium text-gray-700">创建方式</p>
+                <div className="grid max-h-52 gap-2 overflow-y-auto pr-1">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedContentTemplateId(null)}
+                    className={`rounded-xl border px-4 py-3 text-left transition ${selectedContentTemplateId === null ? 'border-primary-400 bg-primary-50' : 'border-gray-200 hover:border-primary-200'}`}
+                  >
+                    <span className="block text-sm font-medium text-gray-900">空白简历</span>
+                    <span className="mt-1 block text-xs text-gray-500">从空白模块开始填写</span>
+                  </button>
+                  {contentTemplates.map((template) => (
+                    <button
+                      key={template.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedContentTemplateId(template.id)
+                        if (!resumeTitle.trim()) setResumeTitle(template.title)
+                      }}
+                      className={`rounded-xl border px-4 py-3 text-left transition ${selectedContentTemplateId === template.id ? 'border-primary-400 bg-primary-50' : 'border-gray-200 hover:border-primary-200'}`}
+                    >
+                      <span className="block text-sm font-medium text-gray-900">{template.title}</span>
+                      <span className="mt-1 block text-xs text-gray-500">{template.summary || [template.targetRole, template.careerStage].filter(Boolean).join(' · ')}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
 
             <div className="mt-6 flex justify-end gap-3">
               <button

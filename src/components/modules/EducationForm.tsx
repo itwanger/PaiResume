@@ -2,6 +2,7 @@ import type { EducationContent } from '../../types'
 import { useModuleContentState } from '../../hooks/useModuleContentState'
 import { normalizeEducationContent } from '../../utils/moduleContent'
 import { ModuleSaveBar } from './ModuleSaveBar'
+import { MaterialActions } from '../materials/MaterialActions'
 
 interface Props {
   resumeId: number
@@ -28,7 +29,16 @@ export function EducationForm({ resumeId, moduleId, initialContent }: Props) {
         errorMessage={errorMessage}
         hasUnsavedChanges={hasUnsavedChanges}
         onSave={saveNow}
-      />
+      >
+        <MaterialActions
+          moduleType="education"
+          content={content}
+          defaultTitle={content.school || '教育背景'}
+          instanceKey={moduleId}
+          onApply={setContent}
+          embedded
+        />
+      </ModuleSaveBar>
 
       <div className="editor-responsive-grid">
         <div>

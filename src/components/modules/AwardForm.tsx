@@ -2,6 +2,7 @@ import type { AwardContent } from '../../types'
 import { useModuleContentState } from '../../hooks/useModuleContentState'
 import { normalizeAwardContent } from '../../utils/moduleContent'
 import { ModuleSaveBar } from './ModuleSaveBar'
+import { MaterialActions } from '../materials/MaterialActions'
 
 interface Props {
   resumeId: number
@@ -18,13 +19,22 @@ export function AwardForm({ resumeId, moduleId, initialContent }: Props) {
   })
 
   return (
-    <div>
+    <div className="space-y-4">
       <ModuleSaveBar
         saveState={saveState}
         errorMessage={errorMessage}
         hasUnsavedChanges={hasUnsavedChanges}
         onSave={saveNow}
-      />
+      >
+        <MaterialActions
+          moduleType="award"
+          content={content}
+          defaultTitle={content.awardName || '获奖情况'}
+          instanceKey={moduleId}
+          onApply={setContent}
+          embedded
+        />
+      </ModuleSaveBar>
 
       <div className="editor-responsive-grid">
         <div>

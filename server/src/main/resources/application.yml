@@ -106,6 +106,26 @@ app:
       cors-confirmed: ${RESUME_REVIEW_OSS_CORS_CONFIRMED:false}
       lifecycle-confirmed: ${RESUME_REVIEW_OSS_LIFECYCLE_CONFIRMED:false}
       ram-policy-confirmed: ${RESUME_REVIEW_OSS_RAM_POLICY_CONFIRMED:false}
+  resume-photo:
+    oss:
+      endpoint: ${RESUME_PHOTO_OSS_ENDPOINT:}
+      bucket: ${RESUME_PHOTO_OSS_BUCKET:}
+      access-key-id: ${RESUME_PHOTO_OSS_ACCESS_KEY_ID:}
+      access-key-secret: ${RESUME_PHOTO_OSS_ACCESS_KEY_SECRET:}
+      staging-prefix: ${RESUME_PHOTO_OSS_STAGING_PREFIX:pairesume/resume-photo/staging/}
+      object-prefix: ${RESUME_PHOTO_OSS_OBJECT_PREFIX:pairesume/resume-photo/objects/}
+      upload-url-ttl-minutes: ${RESUME_PHOTO_OSS_UPLOAD_URL_TTL_MINUTES:10}
+      access-url-ttl-minutes: ${RESUME_PHOTO_OSS_ACCESS_URL_TTL_MINUTES:60}
+      max-photo-bytes: ${RESUME_PHOTO_OSS_MAX_BYTES:3145728}
+      max-image-dimension: ${RESUME_PHOTO_OSS_MAX_DIMENSION:4096}
+      max-image-pixels: ${RESUME_PHOTO_OSS_MAX_PIXELS:16000000}
+      rate-limit-window-seconds: ${RESUME_PHOTO_UPLOAD_RATE_LIMIT_WINDOW_SECONDS:900}
+      account-attempt-limit: ${RESUME_PHOTO_UPLOAD_RATE_LIMIT_ACCOUNT_ATTEMPTS:20}
+      ip-attempt-limit: ${RESUME_PHOTO_UPLOAD_RATE_LIMIT_IP_ATTEMPTS:200}
+      private-bucket-confirmed: ${RESUME_PHOTO_OSS_PRIVATE_BUCKET_CONFIRMED:false}
+      cors-confirmed: ${RESUME_PHOTO_OSS_CORS_CONFIRMED:false}
+      staging-lifecycle-confirmed: ${RESUME_PHOTO_OSS_STAGING_LIFECYCLE_CONFIRMED:false}
+      ram-policy-confirmed: ${RESUME_PHOTO_OSS_RAM_POLICY_CONFIRMED:false}
   payment:
     provider: ${PAYMENT_PROVIDER:disabled}
     # Deprecated fail-closed compatibility switch. It must stay false; use the

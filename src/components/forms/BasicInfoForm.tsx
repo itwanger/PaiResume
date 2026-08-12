@@ -1,7 +1,6 @@
 import { useCallback } from 'react'
 import { Section } from '../ui/Section'
 import { Input } from '../ui/Input'
-import { TextArea } from '../ui/TextArea'
 import { useResume } from '../../hooks/useResume'
 
 export function BasicInfoForm() {
@@ -60,16 +59,6 @@ export function BasicInfoForm() {
           value={basicInfo.website}
           onChange={handleChange('website')}
           placeholder="https://yourname.com"
-        />
-      </div>
-      <div className="mt-4">
-        <TextArea
-          label="个人总结"
-          value={basicInfo.summary}
-          onChange={handleChange('summary')}
-          placeholder="简要描述您的职业目标、核心技能和优势（50-200 字）"
-          rows={4}
-          helperText="突出您的核心竞争力和职业定位"
         />
       </div>
     </Section>

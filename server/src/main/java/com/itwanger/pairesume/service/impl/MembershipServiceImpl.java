@@ -1,9 +1,11 @@
 package com.itwanger.pairesume.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.itwanger.pairesume.common.BusinessException;
 import com.itwanger.pairesume.common.ResultCode;
 import com.itwanger.pairesume.dto.CouponQuoteDTO;
+import com.itwanger.pairesume.dto.MarketplacePageDTO;
 import com.itwanger.pairesume.dto.UserAdminDTO;
 import com.itwanger.pairesume.entity.User;
 import com.itwanger.pairesume.entity.MembershipPlan;
@@ -22,11 +24,14 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
-import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
 public class MembershipServiceImpl implements MembershipService {
+    private static final int MAX_PAGE_SIZE = 100;
+    private static final Set<String> MEMBERSHIP_STATUS_FILTERS = Set.of("ACTIVE", "FREE");
     private final CouponService couponService;
     private final UserMapper userMapper;
     private final MembershipAuditService membershipAuditService;
@@ -71,12 +76,42 @@ public class MembershipServiceImpl implements MembershipService {
     }
 
     @Override
-    public List<UserAdminDTO> listUsers() {
-        return userMapper.selectList(
-                new LambdaQueryWrapper<User>()
-                        .orderByDesc(User::getCreatedAt)
-                        .orderByDesc(User::getId)
-        ).stream().map(this::toAdminDto).toList();
+    @Transactional(readOnly = true)
+    public MarketplacePageDTO<UserAdminDTO> listUsers(int page, int size, String keyword, String membershipStatus) {
+        int safePage = Math.max(1, page);
+        int safeSize = Math.min(MAX_PAGE_SIZE, Math.max(1, size));
+        String normalizedKeyword = StringUtils.hasText(keyword) ? keyword.trim() : null;
+        String normalizedStatus = normalizeFilter(
+                membershipStatus, MEMBERSHIP_STATUS_FILTERS, "会员状态筛选值无效");
+        // 与 hasActiveMembership 的生效状态语义保持一致：DB 为 ACTIVE 但已过期的账号按 FREE 处理；
+        // membership_status 可能为 NULL（老数据），FREE 条件显式展开而不是裸 NOT，避免三值逻辑漏行。
+        LocalDateTime now = LocalDateTime.now();
+        LambdaQueryWrapper<User> query = new LambdaQueryWrapper<User>()
+                .and(StringUtils.hasText(normalizedKeyword), wrapper -> wrapper
+                        .like(User::getEmail, normalizedKeyword)
+                        .or()
+                        .like(User::getNickname, normalizedKeyword))
+                .and("ACTIVE".equals(normalizedStatus), wrapper -> wrapper
+                        .eq(User::getMembershipStatus, "ACTIVE")
+                        .and(active -> active
+                                .isNull(User::getMembershipExpiresAt)
+                                .or()
+                                .gt(User::getMembershipExpiresAt, now)))
+                .and("FREE".equals(normalizedStatus), wrapper -> wrapper
+                        .isNull(User::getMembershipStatus)
+                        .or()
+                        .ne(User::getMembershipStatus, "ACTIVE")
+                        .or(free -> free
+                                .isNotNull(User::getMembershipExpiresAt)
+                                .le(User::getMembershipExpiresAt, now)))
+                .orderByDesc(User::getCreatedAt)
+                .orderByDesc(User::getId);
+        Page<User> result = userMapper.selectPage(new Page<>(safePage, safeSize, true), query);
+        int totalPages = result.getTotal() == 0
+                ? 0 : (int) Math.ceil((double) result.getTotal() / safeSize);
+        return new MarketplacePageDTO<>(
+                result.getRecords().stream().map(this::toAdminDto).toList(),
+                result.getTotal(), safePage, safeSize, totalPages);
     }
 
     @Override
@@ -162,6 +197,17 @@ public class MembershipServiceImpl implements MembershipService {
             throw new BusinessException(ResultCode.USER_NOT_FOUND);
         }
         return user;
+    }
+
+    private String normalizeFilter(String value, Set<String> allowed, String message) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        String normalized = value.trim().toUpperCase(Locale.ROOT);
+        if (!allowed.contains(normalized)) {
+            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), message);
+        }
+        return normalized;
     }
 
     private UserAdminDTO toAdminDto(User user) {

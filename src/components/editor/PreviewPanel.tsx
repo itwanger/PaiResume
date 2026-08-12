@@ -16,7 +16,12 @@ import {
 } from '../../utils/moduleContent'
 import { parseInlineMarkdownSegments } from '../../utils/inlineMarkdown'
 import { normalizePhotoSource } from '../../utils/resumePhoto'
-import { findBasicInfoContent, getModuleDisplayLabel, sortResumeModulesForDisplay } from '../../utils/resumeDisplay'
+import {
+  findBasicInfoContent,
+  getModuleDisplayLabel,
+  selectResumeModulesForLivePreview,
+  sortResumeModulesForDisplay,
+} from '../../utils/resumeDisplay'
 import {
   generateResumePdfBlob,
   type ResumePdfAccentPreset,
@@ -25,12 +30,14 @@ import {
   type ResumePdfTemplateId,
   type ResumePdfDensity,
 } from '../../utils/resumePdf'
+import { SegmentedControl } from '../ui/SegmentedControl'
 
 interface PreviewPanelProps {
   modules: ResumeModule[]
   loading: boolean
   forcedMode?: PreviewMode
   hideHeader?: boolean
+  activeModuleType?: ModuleType | null
   pdfConfig?: {
     templateId: ResumePdfTemplateId
     density: ResumePdfDensity
@@ -192,37 +199,18 @@ export function PreviewPanel({
   loading,
   forcedMode,
   hideHeader = false,
+  activeModuleType,
   pdfConfig,
 }: PreviewPanelProps) {
   const shouldReduceMotion = useReducedMotion() ?? false
   const [previewMode, setPreviewMode] = useState<PreviewMode>(forcedMode ?? 'live')
   const isCompactDensity = pdfConfig?.density === 'compact'
   const sortedModules = sortResumeModulesForDisplay(modules)
-  const hasEducationModule = sortedModules.some((module) => module.moduleType === 'education')
-  const educationModules = sortedModules.filter((module) => module.moduleType === 'education')
-  const firstEducationModuleId = educationModules[0]?.id ?? null
   const projectModules = sortedModules.filter((module) => module.moduleType === 'project')
-  const firstProjectModuleId = projectModules[0]?.id ?? null
   const basicInfoContent = findBasicInfoContent(sortedModules)
-  const visibleModules = sortedModules.filter((module) => {
-    if (module.moduleType === 'job_intention') {
-      return false
-    }
-
-    if (module.moduleType === 'education') {
-      return module.id === firstEducationModuleId
-    }
-
-    if (module.moduleType === 'project') {
-      return module.id === firstProjectModuleId
-    }
-
-    return !(module.moduleType === 'award' && hasEducationModule)
-  })
+  const visibleModules = selectResumeModulesForLivePreview(sortedModules, activeModuleType)
   const standardPdfPreview = usePdfPreview(modules, 'standard', previewMode === 'pdf-standard', pdfConfig)
   const activePdfPreview = standardPdfPreview
-  const activePdfTitle = 'PDF预览'
-  const activePdfDescription = '当前模板和样式参数下的标准 A4 分页预览。'
   const activePdfIframeTitle = 'Resume Standard PDF Preview'
 
   useEffect(() => {
@@ -254,45 +242,17 @@ export function PreviewPanel({
     <div className={`flex h-full flex-col ${hideHeader ? '' : 'bg-gray-50'}`}>
       <div className="w-full">
         {!hideHeader && (
-          <div className="mb-4 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">
-                {previewMode === 'live' ? '文本预览' : activePdfTitle}
-              </h2>
-              {previewMode === 'live' ? (
-                <p className="mt-1 text-xs text-gray-500">
-                  当前展示的是编辑内容的文本预览效果。
-                </p>
-              ) : (
-                <p className="mt-1 text-xs text-gray-500">
-                  {activePdfDescription}
-                </p>
-              )}
-            </div>
-            <div className="inline-flex shrink-0 rounded-full border border-gray-200 bg-white p-1 shadow-sm">
-              <button
-                type="button"
-                onClick={() => setPreviewMode('live')}
-                className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                  previewMode === 'live'
-                    ? 'bg-gray-900 text-white'
-                    : 'text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                文本预览
-              </button>
-              <button
-                type="button"
-                onClick={() => setPreviewMode('pdf-standard')}
-                className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                  previewMode === 'pdf-standard'
-                    ? 'bg-primary-700 text-white'
-                    : 'text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                PDF预览
-              </button>
-            </div>
+          <div className="mb-4 flex justify-end">
+            <SegmentedControl
+              ariaLabel="预览模式"
+              value={previewMode}
+              options={[
+                { value: 'live', label: '文本预览' },
+                { value: 'pdf-standard', label: 'PDF预览' },
+              ]}
+              onChange={setPreviewMode}
+              className="shrink-0"
+            />
           </div>
         )}
 
@@ -328,6 +288,11 @@ export function PreviewPanel({
                 />
                 ))}
               </AnimatePresence>
+              {activeModuleType && visibleModules.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-gray-200 bg-white px-5 py-12 text-center text-sm text-gray-400">
+                  当前模块尚未添加内容
+                </div>
+              ) : null}
             </motion.div>
           </motion.div>
         )}
@@ -642,15 +607,13 @@ function ModulePreviewSection({
         const content = normalizeBasicInfoContent(module.content)
         const photoSource = normalizePhotoSource(content.photo)
         const photoFrameClassName = content.photoBorder
-          ? 'border border-primary-100 bg-slate-50'
+          ? 'border border-primary-500'
           : 'bg-slate-50'
         const contactItems = [
           ['邮箱', content.email as string],
           ['手机号', content.phone as string],
           ['微信', content.wechat as string],
           ['意向城市', content.targetCity as string],
-          ['期望薪资', content.salaryRange as string],
-          ['到岗时间', content.expectedEntryDate as string],
           ['GitHub', content.github as string],
           ['博客', content.blog as string],
           ['籍贯', content.hometown as string],
@@ -671,12 +634,6 @@ function ModulePreviewSection({
                     renderContactItem(itemLabel as string, itemValue as string)
                   ))}
                 </div>
-                {content.summary && (
-                  <p className="text-sm text-gray-600 whitespace-pre-wrap">
-                    <span className="text-gray-500">个人总结：</span>
-                    {content.summary}
-                  </p>
-                )}
               </div>
               {photoSource ? (
                 <div className="flex justify-start sm:justify-end">

@@ -6,8 +6,20 @@ export interface ResumeListItem {
   id: number
   title: string
   templateId: string
+  preview?: ResumeCardPreview
   createdAt: string
   updatedAt: string
+}
+
+export interface ResumeCardPreview {
+  name: string
+  targetRole: string
+  education: string
+  experience: string
+  project: string
+  skills: string[]
+  moduleCounts: Record<string, number>
+  filledModuleCount: number
 }
 
 export interface ResumeModule {

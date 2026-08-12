@@ -10,6 +10,8 @@ import com.itwanger.pairesume.dto.SmartOnePageModuleDecisionDTO;
 import com.itwanger.pairesume.dto.SmartOnePagePreviewMetaDTO;
 import com.itwanger.pairesume.dto.SmartOnePagePreviewRequestDTO;
 import com.itwanger.pairesume.dto.SmartOnePagePreviewResponseDTO;
+import com.itwanger.pairesume.dto.ShowcaseMetadataDTO;
+import com.itwanger.pairesume.dto.LibraryAiDraftRequestDTO;
 import com.itwanger.pairesume.entity.ResumeModule;
 import com.itwanger.pairesume.service.AiService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -52,6 +54,15 @@ public class AiServiceImpl implements AiService {
     private static final Pattern HAN_TO_ENGLISH_PATTERN = Pattern.compile("([\\p{IsHan}])([A-Za-z][A-Za-z0-9.+#/_-]*)");
     private static final Pattern ENGLISH_TO_HAN_PATTERN = Pattern.compile("([A-Za-z][A-Za-z0-9.+#/_-]*)([\\p{IsHan}])");
     private static final Pattern PLACEHOLDER_CANDIDATE_PATTERN = Pattern.compile("^(版本|方向|候选)\\s*[0-9一二三四五六七八九十]+\\s*[:：]?$");
+    private static final Pattern SHOWCASE_SCORE_LABEL_PATTERN = Pattern.compile(
+            "(?:\\d{1,3}\\s*(?:分|%|％)|高分|满分|优质|优秀|精品)"
+    );
+    private static final Pattern SHOWCASE_CONTACT_PATTERN = Pattern.compile(
+            "(?i)(?:[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}|(?<!\\d)1[3-9]\\d{9}(?!\\d))"
+    );
+    private static final Pattern SHOWCASE_ORGANIZATION_TAG_PATTERN = Pattern.compile(
+            ".*(?:大学|学院|中学|有限公司|公司)$"
+    );
     private static final Set<String> ALLOWED_ISSUE_TYPES = Set.of("missing", "weak", "format", "content");
     private static final Set<String> IGNORED_ANALYSIS_FIELDS = Set.of("basic_info.summary", "professional_summary", "skill", "专业技能");
     private static final Set<String> OPTIMIZABLE_MODULE_TYPES = Set.of("internship", "work_experience", "project", "research", "skill");
@@ -741,6 +752,100 @@ public class AiServiceImpl implements AiService {
         } catch (Exception e) {
             log.error("AI resume analysis failed: errorType={}", e.getClass().getSimpleName());
             throw new BusinessException(ResultCode.AI_SERVICE_BUSY);
+        }
+    }
+
+    @Override
+    public ShowcaseMetadataDTO generateShowcaseMetadata(String resumeTitle, List<ResumeModule> modules) {
+        validateConfiguration();
+
+        var prompt = buildShowcaseMetadataPrompt(resumeTitle, modules);
+        try {
+            var response = invokeChatCompletion(
+                    analysisModel,
+                    "你负责生成公开简历卡片的结构化元数据。只能依据输入内容概括，不能补充、猜测或编造事实。必须严格输出 JSON。",
+                    prompt,
+                    0.2,
+                    800,
+                    true,
+                    true
+            );
+
+            if (response == null) {
+                throw new BusinessException(ResultCode.AI_SERVICE_BUSY);
+            }
+            var metadata = parseShowcaseMetadataResponse(response);
+            validateShowcaseMetadataAgainstPrivateInfo(metadata, modules);
+            return metadata;
+        } catch (BusinessException e) {
+            throw e;
+        } catch (WebClientResponseException e) {
+            log.error("AI showcase metadata upstream failed: status={}, errorType={}",
+                    e.getStatusCode(), e.getClass().getSimpleName());
+            throw new BusinessException(ResultCode.AI_SERVICE_BUSY.getCode(), buildUpstreamErrorMessage(e));
+        } catch (Exception e) {
+            log.error("AI showcase metadata generation failed: errorType={}", e.getClass().getSimpleName());
+            throw new BusinessException(ResultCode.AI_SERVICE_BUSY);
+        }
+    }
+
+    @Override
+    public Map<String, Object> generateLibraryDraft(LibraryAiDraftRequestDTO request) {
+        validateConfiguration();
+        var kind = request.getKind() == null ? "" : request.getKind().strip().toUpperCase(Locale.ROOT);
+        if (!Set.of("MATERIAL", "TEMPLATE").contains(kind)) {
+            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "AI 草稿类型只能是 MATERIAL 或 TEMPLATE");
+        }
+
+        var input = new LinkedHashMap<String, Object>();
+        input.put("kind", kind);
+        input.put("moduleType", request.getModuleType());
+        input.put("targetRole", request.getTargetRole());
+        input.put("careerStage", request.getCareerStage());
+        input.put("techStack", request.getTechStack() == null ? List.of() : request.getTechStack());
+        input.put("verifiedFacts", request.getFacts() == null ? Map.of() : request.getFacts());
+
+        var outputSchema = "TEMPLATE".equals(kind)
+                ? "{\"title\":\"内容模板标题\",\"summary\":\"适用说明\",\"targetRole\":\"岗位\",\"careerStage\":\"阶段\",\"tags\":[],\"modules\":[{\"moduleType\":\"project\",\"content\":{}}]}"
+                : "{\"title\":\"素材标题\",\"moduleType\":\"" + request.getModuleType() + "\",\"tags\":[],\"content\":{}}";
+        var prompt = """
+                请根据下面的结构化条件生成一份简历官方参考草稿。
+
+                安全要求：
+                1. 这只是待管理员审核的参考草稿，不能包含姓名、手机号、邮箱、微信、头像等个人信息。
+                2. 只能把 verifiedFacts 中明确提供的内容写成事实；缺失的学校、公司、项目、论文、奖项、职责、成果和数据必须使用中文方括号占位符，不能猜测或编造。
+                3. 不得虚构百分比、用户量、性能提升、录取或获奖结果。
+                4. content 字段必须沿用 PaiResume 对应 moduleType 的结构；长文本写成可修改的参考表达。
+                5. 只输出一个 JSON 对象，不要 Markdown，不要解释。
+
+                输出结构：
+                %s
+
+                输入条件：
+                %s
+                """.formatted(outputSchema, toJsonString(input));
+
+        try {
+            var response = invokeChatCompletion(
+                    analysisModel,
+                    "你是派简历官方内容库的草稿生成器。你必须把真实性和可审核性放在表达效果之前，并严格输出 JSON。",
+                    prompt,
+                    0.25,
+                    2400,
+                    true,
+                    true
+            );
+            if (response == null) throw new BusinessException(ResultCode.AI_SERVICE_BUSY);
+            return parseLibraryDraftResponse(response, kind);
+        } catch (BusinessException e) {
+            throw e;
+        } catch (WebClientResponseException e) {
+            log.error("AI library draft upstream failed: status={}, errorType={}",
+                    e.getStatusCode(), e.getClass().getSimpleName());
+            throw new BusinessException(ResultCode.AI_SERVICE_BUSY.getCode(), buildUpstreamErrorMessage(e));
+        } catch (Exception e) {
+            log.error("AI library draft generation failed: errorType={}", e.getClass().getSimpleName());
+            throw new BusinessException(ResultCode.AI_RESPONSE_INVALID);
         }
     }
 
@@ -1532,6 +1637,107 @@ public class AiServiceImpl implements AiService {
         }
     }
 
+    private ShowcaseMetadataDTO parseShowcaseMetadataResponse(String response) {
+        try {
+            var root = objectMapper.readTree(response);
+            var content = resolveAnalysisPayload(root, response);
+            var result = objectMapper.readValue(content, ShowcaseMetadataDTO.class);
+
+            var displayLabel = truncateText(result.getDisplayLabel(), 128);
+            var summary = truncateText(result.getSummary(), 512);
+            var tags = new LinkedHashSet<String>();
+            if (result.getTags() != null) {
+                result.getTags().stream()
+                        .map(tag -> truncateText(tag, 128))
+                        .filter(tag -> !tag.isBlank())
+                        .forEach(tags::add);
+            }
+
+            if (displayLabel.length() < 2 || displayLabel.length() > 12
+                    || SHOWCASE_SCORE_LABEL_PATTERN.matcher(displayLabel).find()
+                    || summary.length() < 40 || summary.length() > 100
+                    || tags.size() < 2 || tags.size() > 4
+                    || SHOWCASE_CONTACT_PATTERN.matcher(displayLabel + " " + summary).find()
+                    || tags.stream().anyMatch(tag -> tag.length() > 12
+                            || SHOWCASE_CONTACT_PATTERN.matcher(tag).find()
+                            || SHOWCASE_ORGANIZATION_TAG_PATTERN.matcher(tag).matches())) {
+                throw new BusinessException(ResultCode.AI_RESPONSE_INVALID);
+            }
+
+            result.setDisplayLabel(displayLabel);
+            result.setSummary(summary);
+            result.setTags(List.copyOf(tags));
+            return result;
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Failed to parse showcase metadata response: errorType={}, responseLength={}",
+                    e.getClass().getSimpleName(), response == null ? 0 : response.length());
+            throw new BusinessException(ResultCode.AI_RESPONSE_INVALID);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> parseLibraryDraftResponse(String response, String kind) {
+        try {
+            var root = objectMapper.readTree(response);
+            var content = resolveAnalysisPayload(root, response);
+            Map<String, Object> result = objectMapper.readValue(content, LinkedHashMap.class);
+            if (result.isEmpty() || !result.containsKey("title")) {
+                throw new BusinessException(ResultCode.AI_RESPONSE_INVALID);
+            }
+            if ("TEMPLATE".equals(kind)) {
+                if (!(result.get("modules") instanceof List<?> modules) || modules.isEmpty()) {
+                    throw new BusinessException(ResultCode.AI_RESPONSE_INVALID);
+                }
+            } else if (!(result.get("content") instanceof Map<?, ?>)) {
+                throw new BusinessException(ResultCode.AI_RESPONSE_INVALID);
+            }
+            var serialized = objectMapper.writeValueAsString(result);
+            if (serialized.length() > 40_000 || SHOWCASE_CONTACT_PATTERN.matcher(serialized).find()) {
+                throw new BusinessException(ResultCode.AI_RESPONSE_INVALID);
+            }
+            return result;
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Failed to parse library draft: errorType={}, responseLength={}",
+                    e.getClass().getSimpleName(), response == null ? 0 : response.length());
+            throw new BusinessException(ResultCode.AI_RESPONSE_INVALID);
+        }
+    }
+
+    private void validateShowcaseMetadataAgainstPrivateInfo(
+            ShowcaseMetadataDTO metadata,
+            List<ResumeModule> modules
+    ) {
+        if (modules == null || modules.isEmpty()) {
+            return;
+        }
+
+        var publicText = String.join(" ",
+                metadata.getDisplayLabel(),
+                metadata.getSummary(),
+                String.join(" ", metadata.getTags())
+        ).toLowerCase(Locale.ROOT);
+
+        for (var module : modules) {
+            if (!"basic_info".equals(module.getModuleType()) || module.getContent() == null) {
+                continue;
+            }
+            for (var key : List.of("name", "email", "phone", "wechat")) {
+                var rawValue = module.getContent().get(key);
+                if (!(rawValue instanceof String value)) {
+                    continue;
+                }
+                var normalized = value.trim().toLowerCase(Locale.ROOT);
+                if (normalized.length() >= 2 && publicText.contains(normalized)) {
+                    throw new BusinessException(ResultCode.AI_RESPONSE_INVALID);
+                }
+            }
+        }
+    }
+
     private String resolveAnalysisPayload(com.fasterxml.jackson.databind.JsonNode root, String rawResponse) {
         var content = cleanJsonPayload(extractAssistantContent(root, false));
         if (!content.isBlank()) {
@@ -2174,6 +2380,40 @@ public class AiServiceImpl implements AiService {
                 resumeTitle == null || resumeTitle.isBlank() ? "未命名简历" : resumeTitle,
                 String.join("\n\n", moduleSummaries),
                 instructions
+        );
+    }
+
+    private String buildShowcaseMetadataPrompt(String resumeTitle, List<ResumeModule> modules) {
+        var moduleSummaries = sortResumeModules(modules).stream()
+                .filter(module -> !"basic_info".equals(module.getModuleType()))
+                .map(this::buildModuleSummary)
+                .toList();
+
+        return """
+                请根据下面这份简历生成面向求职者展示的精选卡片信息。
+
+                ## 简历标题
+                %s
+
+                ## 简历内容
+                %s
+
+                ## 生成要求
+                1. 只能使用简历中真实存在的信息，不得虚构技术栈、公司、学校、经历或结果。
+                2. displayLabel 是 2-12 个字的岗位或技术方向，例如“Java 后端”“AI 应用”，禁止输出分数、“高分”“优质”等自夸词。
+                3. summary 用 40-100 个字概括这份简历的岗位方向、核心经历与技术特点，不出现姓名、邮箱、电话、微信、照片等个人信息。
+                4. tags 输出 2-4 个真实的岗位或技术标签，每个标签不超过 12 个字；不要输出姓名、公司名或学校名。
+                5. 严格只返回 JSON，不要输出解释、标题或 Markdown 代码块。
+
+                JSON 结构：
+                {
+                  "displayLabel": "Java 后端",
+                  "summary": "摘要",
+                  "tags": ["Java", "Spring Boot", "微服务"]
+                }
+                """.formatted(
+                resumeTitle == null || resumeTitle.isBlank() ? "未命名简历" : resumeTitle,
+                moduleSummaries.isEmpty() ? "（暂无可概括内容）" : String.join("\n\n", moduleSummaries)
         );
     }
 

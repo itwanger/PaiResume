@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { buildLoginPath } from '../utils/navigation'
 import { clearAccessToken, getAccessToken, setAccessToken } from './tokenStore'
 
 type RetryableRequestConfig = {
@@ -214,7 +215,7 @@ client.interceptors.response.use(
         const apiError = toApiError(refreshError)
         processQueue(apiError, null)
         clearAccessToken()
-        window.location.href = '/login'
+        window.location.href = buildLoginPath()
         return Promise.reject(apiError)
       } finally {
         isRefreshing = false

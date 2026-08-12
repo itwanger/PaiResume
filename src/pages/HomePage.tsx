@@ -15,6 +15,7 @@ import {
   buildLoginPath,
   buildMarketplaceListingPath,
   EXCELLENT_RESUMES_PATH,
+  IS_LOCAL_DEVELOPMENT,
 } from '../utils/navigation'
 
 interface HomepageShowcaseCard {
@@ -37,8 +38,8 @@ const HERO_FEATURES: Array<{
   iconClassName: string
 }> = [
   {
-    title: '智能一页',
-    description: '不删内容、不挤版面，把多页简历合成一张连续长页，一页完整导出',
+    title: '无损智能一页',
+    description: '完整保留全部内容，不删减、不压缩、不挤版面，智能合成一张连续长页，一页完整导出',
     icon: 'one-page',
     iconClassName: 'bg-blue-100 text-blue-700',
   },
@@ -346,7 +347,7 @@ export default function HomePage() {
                     to={buildLoginPath(RESUME_CREATE_PATH)}
                     className="rounded-lg bg-primary-600 px-5 py-3 text-sm font-medium text-white transition-colors hover:bg-primary-700"
                   >
-                    扫码开始制作
+                    {IS_LOCAL_DEVELOPMENT ? '邮箱登录后开始制作' : '扫码开始制作'}
                   </Link>
                 )}
                 <Link

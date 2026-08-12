@@ -14,11 +14,15 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDateTime;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class CouponServiceImplTest {
@@ -78,6 +82,45 @@ class CouponServiceImplTest {
         assertEquals(3000, quote.getListPrice());
         assertEquals(1600, quote.getDiscountAmount());
         assertEquals(1400, quote.getPayableAmount());
+    }
+
+    @Test
+    void resendCouponByIdSendsIssuedCouponAndReturnsUpdatedAdminView() {
+        CouponCode coupon = coupon("ISSUED", "buyer@example.com", 1600);
+        coupon.setId(91L);
+        coupon.setCode("PAI5X8M2QK");
+        when(couponCodeMapper.selectById(91L)).thenReturn(coupon);
+
+        var result = couponService.resendCoupon(91L, 7L);
+
+        assertEquals(91L, result.getId());
+        assertEquals("PAI5X8M2QK", result.getCode());
+        assertNotNull(result.getEmailSentAt());
+        verify(mailService).sendCouponCode("buyer@example.com", "PAI5X8M2QK", 1600);
+        verify(couponCodeMapper).updateById(coupon);
+    }
+
+    @Test
+    void resendCouponByIdRejectsNonIssuedCoupon() {
+        CouponCode coupon = coupon("USED", "buyer@example.com", 1600);
+        when(couponCodeMapper.selectById(92L)).thenReturn(coupon);
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> couponService.resendCoupon(92L, 7L));
+
+        assertEquals(7002, exception.getCode());
+    }
+
+    @Test
+    void resendCouponByIdRejectsExpiredIssuedCoupon() {
+        CouponCode coupon = coupon("ISSUED", "buyer@example.com", 1600);
+        coupon.setExpiresAt(LocalDateTime.now().minusMinutes(1));
+        when(couponCodeMapper.selectById(93L)).thenReturn(coupon);
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> couponService.resendCoupon(93L, 7L));
+
+        assertEquals(7002, exception.getCode());
     }
 
     private CouponCode coupon(String status, String recipientEmail, int amountCents) {

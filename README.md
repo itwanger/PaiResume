@@ -4,7 +4,7 @@ PaiResume 是一个面向中文简历场景的在线简历编辑器，采用前�
 
 ## 项目特性
 
-- 派聪明服务号扫码是公开注册/登录主入口；邮箱登录与找回密码仅保留旧账号兼容
+- 生产环境启用扫码桥后，派聪明服务号扫码是公开注册/登录主入口；邮箱登录与找回密码用于旧账号兼容和本地开发测试
 - 简历列表管理：新建、重命名、删除
 - 模块化简历编辑：基础信息、教育背景、实习经历、项目经历、专业技能、论文发表、科研经历、获奖情况
 - 实时预览，编辑区与预览区联动
@@ -43,7 +43,7 @@ PaiResume 是一个面向中文简历场景的在线简历编辑器，采用前�
 - MyBatis-Plus
 - MySQL
 - Redis
-- 阿里云 OSS（仅用于人工精修 PDF 私有直传与保留）
+- 阿里云 OSS（用于简历照片和人工精修 PDF 的私有直传与受控读取）
 - JWT
 - Knife4j / OpenAPI
 - WebClient
@@ -118,7 +118,7 @@ mvn spring-boot:run
 
 说明：
 
-- 后端使用 Flyway 记录并执行版本化数据库迁移；全新空库和首次接入旧数据库都会从 V5 建立基线，再执行 `V6__ReconcilePaiResumeSchema` 创建或对齐基础结构，随后依次执行 V7 邀请码、V8 会员来源追踪/审计/异常撤销、V9 简历市场、V10 支付生命周期加固、V11 作者收益冻结/退款账务、V12 支付对账租约、V13 会员在线支付订单、V14 市场浏览量、V15 会员支付人工复核、V16 市场治理、V18 账号隐私/注销、V19 派聪明微信身份、V20 人工精修工作流、V21 匿名邀请码领取凭证、V22 关注奖励流程退役、V23 人工精修 OSS 直传、V24 优质简历访问属性和 V25 多会员方案迁移。
+- 后端使用 Flyway 记录并执行版本化数据库迁移；全新空库和首次接入旧数据库都会从 V5 建立基线，再执行 `V6__ReconcilePaiResumeSchema` 创建或对齐基础结构，随后依次执行 V7 邀请码、V8 会员来源追踪/审计/异常撤销、V9 简历市场、V10 支付生命周期加固、V11 作者收益冻结/退款账务、V12 支付对账租约、V13 会员在线支付订单、V14 市场浏览量、V15 会员支付人工复核、V16 市场治理、V18 账号隐私/注销、V19 派聪明微信身份、V20 人工精修工作流、V21 匿名邀请码领取凭证、V22 关注奖励流程退役、V23 人工精修 OSS 直传、V24 优质简历访问属性、V25 多会员方案、V26 简历资料库和 V27 私有简历照片迁移。
 - 当 `APP_ENV=development` 时，后端启动后会自动确保存在一个测试账号，默认是 `test@example.com / Test123456`，可通过 `DEV_ACCOUNT_EMAIL` 和 `DEV_ACCOUNT_PASSWORD` 覆盖。
 - 同时会自动创建一个管理员账号：`admin@example.com / Admin123456`。
 - 生产环境必须为 Flyway 配置独立的 DDL 迁移账号；应用运行账号只授予业务表所需的最小权限。
@@ -137,6 +137,28 @@ npm run dev
 
 - 前端地址：[http://localhost:5173](http://localhost:5173)
 - 前端会通过 Vite 代理把 `/api` 请求转发到后端
+
+### 4. 登录方式：本地邮箱，生产扫码
+
+前端会根据 Vite 运行模式自动区分登录入口，不需要开发者记住隐藏地址：
+
+| 运行方式 | 页面入口与行为 |
+| --- | --- |
+| `npm run dev` | 首页、导航栏和受保护页面统一显示或跳转到“本地邮箱登录”；直接访问 `/login` 也会显示邮箱密码表单 |
+| `npm run build` 后部署，或使用 `npm run preview` 检查生产构建 | 登录入口显示“扫码登录”，并进入派聪明服务号扫码页面 |
+
+本地开发账号由后端在 `APP_ENV=development` 时自动创建：
+
+| 用途 | 邮箱 | 密码 |
+| --- | --- | --- |
+| 测试普通用户功能 | `test@example.com` | `Test123456` |
+| 测试管理后台 | `admin@example.com` | `Admin123456` |
+
+启动前后端后，打开 [http://localhost:5173](http://localhost:5173)，点击“本地邮箱登录”即可使用页面自动填入的普通测试账号。切换到上表中的管理员邮箱时，页面也会自动填入对应的默认密码。普通用户和管理员是两个独立账号；测试用户端不需要先登录管理员。如果数据库里已经存在同邮箱账号，开发初始化程序不会覆盖原密码。
+
+也可以直接访问 [http://localhost:5173/login?method=email](http://localhost:5173/login?method=email)。需要在本地检查扫码页面的关闭态时，可访问 [http://localhost:5173/login?method=wechat](http://localhost:5173/login?method=wechat)；这不会绕过真实扫码依赖。
+
+真实扫码测试还需要 paicoding 持有“派聪明”服务号的 AppSecret/access_token：PaiResume 与 paicoding 两端必须启用扫码桥、使用相同的独立 HMAC 密钥和场景前缀，并确保 paicoding 能访问 PaiResume 的 `/api/public/wechat/bridge/events`。只设置 `PAICONGMING_WECHAT_LOGIN_ENABLED=true` 不能完成真实扫码测试。
 
 ## 环境变量
 
@@ -186,6 +208,10 @@ npm run dev
 | `RESUME_REVIEW_OSS_UPLOAD_URL_TTL_MINUTES` / `RESUME_REVIEW_OSS_READY_TTL_MINUTES` / `RESUME_REVIEW_OSS_MAX_PDF_BYTES` / `RESUME_REVIEW_OSS_RETENTION_DAYS` | 短期上传策略、已核验票据、单文件大小和冻结对象保留期；默认分别为 10 分钟、30 分钟、10 MiB、30 天 |
 | `RESUME_REVIEW_OSS_MAX_CONCURRENT_FINALIZATIONS` | OSS 完成冻结的全局并发上限，默认 `4`，生产允许 `1` 至 `16`；超出后立即返回 503，不排队占用数据库连接 |
 | `RESUME_REVIEW_OSS_*_CONFIRMED` | 仅供生产预检的四个确认位；私有桶、精确 CORS、生命周期和 RAM 最小权限完成真实核验并留证后才可设为 `true` |
+| `RESUME_PHOTO_OSS_ENDPOINT` / `RESUME_PHOTO_OSS_BUCKET` | 简历照片私有 OSS 的 HTTPS 地域 endpoint 与私有 Bucket；这是必备基础设施，缺少配置时应用拒绝启动 |
+| `RESUME_PHOTO_OSS_ACCESS_KEY_ID` / `RESUME_PHOTO_OSS_ACCESS_KEY_SECRET` | 照片专用 RAM 凭据，可与人工精修复用但必须按照片前缀授予最小权限；Secret 永不返回浏览器 |
+| `RESUME_PHOTO_OSS_STAGING_PREFIX` / `RESUME_PHOTO_OSS_OBJECT_PREFIX` | 待核验照片和已固化私有照片的独立前缀；数据库仅保存照片资产 ID，不保存 Base64 或永久 URL |
+| `RESUME_PHOTO_OSS_*_CONFIRMED` | 私有桶、精确 CORS、staging 生命周期和 RAM 最小权限的生产确认位；没有真实验收证据时保持 `false` |
 | `RESUME_REVIEW_PAID_ACCEPT_NEW_ORDERS` / `RESUME_REVIEW_PAYMENT_ACCEPTANCE_CONFIRMED` | 第二次及以后人工精修的新付费单开关与生产验收确认位；价格由管理后台配置，默认 0 时后端拒绝下单 |
 
 说明：
@@ -207,9 +233,9 @@ npm run dev
 
 ### 认证
 
-- 默认使用派聪明服务号临时参数二维码扫码注册/登录；AppSecret 和 access_token 只由 paicoding 持有，PaiResume 通过双向 HMAC 网关生成二维码并接收可信事件
+- 生产环境启用并验收扫码桥后，使用派聪明服务号临时参数二维码扫码注册/登录；AppSecret 和 access_token 只由 paicoding 持有，PaiResume 通过双向 HMAC 网关生成二维码并接收可信事件
 - 纯扫码账号不伪造邮箱或密码；二维码生成前须主动确认当前服务条款、隐私政策和 AI 第三方处理说明，扫码兑换时在登录事务内记录当前协议版本，不再二次跳转
-- 公开页面只提供派聪明扫码注册/登录；邮箱密码登录与找回密码仅通过指定兼容地址服务旧账号，邮箱注册接口不再作为新用户入口
+- 生产公开页面只提供派聪明扫码注册/登录；邮箱密码登录与找回密码通过指定兼容地址服务旧账号，本地开发模式自动使用邮箱入口，邮箱注册接口不再作为新用户入口
 - 注册时必须确认当前版本的服务条款、隐私政策和 AI 第三方处理说明；旧账号需补签后才能继续调用受保护接口
 - 支持邮箱验证码找回密码，重置后立即撤销旧刷新会话和旧访问令牌
 - 邮箱账号用当前密码二次确认注销；纯扫码账号必须重新扫描派聪明并使用 5 分钟内的一次性凭证。未完成订单、人工精修、待退款或作者余额未结清时会阻止注销

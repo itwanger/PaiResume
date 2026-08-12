@@ -72,16 +72,6 @@ function analyzeBasicInfo(
     })
   }
 
-  // 个人总结建议
-  if (!basicInfo.summary || basicInfo.summary.length < 50) {
-    issues.push({
-      type: 'weak',
-      field: 'summary',
-      message: '个人总结过于简单或缺失',
-      suggestion: '建议添加 50-200 字的个人总结，突出您的核心优势和职业目标'
-    })
-  }
-
   // 社交链接建议
   if (!basicInfo.github && !basicInfo.website) {
     suggestions.push('建议添加 GitHub 或个人网站链接，展示您的技术作品')
@@ -259,7 +249,6 @@ function getFieldName(field: string): string {
     phone: '手机号',
     github: 'GitHub',
     website: '个人网站',
-    summary: '个人总结',
     location: '所在地'
   }
   return fieldNames[field] || field

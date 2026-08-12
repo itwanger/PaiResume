@@ -11,6 +11,9 @@ export interface BasicInfoContent {
   wechat: string
   isPartyMember: boolean
   photo: string
+  photoId: number | null
+  photoWidth: number | null
+  photoHeight: number | null
   photoBorder: boolean
   hometown: string
   blog: string

@@ -3,6 +3,7 @@ import { useModuleContentState } from '../../hooks/useModuleContentState'
 import { normalizeSkillContent } from '../../utils/moduleContent'
 import { AutoResizeTextarea } from '../ui/AutoResizeTextarea'
 import { ModuleSaveBar } from './ModuleSaveBar'
+import { MaterialActions } from '../materials/MaterialActions'
 
 interface Props {
   resumeId: number
@@ -62,7 +63,16 @@ export function SkillForm({ resumeId, moduleId, initialContent }: Props) {
         errorMessage={errorMessage}
         hasUnsavedChanges={hasUnsavedChanges}
         onSave={saveNow}
-      />
+      >
+        <MaterialActions
+          moduleType="skill"
+          content={content}
+          defaultTitle="专业技能"
+          instanceKey={moduleId}
+          onApply={(next) => setContent(toFlatSkillContent(next))}
+          embedded
+        />
+      </ModuleSaveBar>
 
       {skillItems.map((item, index) => (
         <div key={index} className="flex min-w-0 items-start gap-2">

@@ -11,7 +11,10 @@ import com.itwanger.pairesume.mapper.ResumeMapper;
 import com.itwanger.pairesume.mapper.ResumeModuleMapper;
 import com.itwanger.pairesume.security.ResumePhotoSecurityPolicy;
 import com.itwanger.pairesume.service.ResumeModuleService;
+import com.itwanger.pairesume.service.ResumeShowcaseService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.Set;
@@ -23,10 +26,25 @@ public class ResumeModuleServiceImpl implements ResumeModuleService {
 
     private final ResumeModuleMapper moduleMapper;
     private final ResumeMapper resumeMapper;
+    private final ResumeShowcaseService resumeShowcaseService;
+    private final ResumePhotoService resumePhotoService;
 
-    public ResumeModuleServiceImpl(ResumeModuleMapper moduleMapper, ResumeMapper resumeMapper) {
+    @Autowired
+    public ResumeModuleServiceImpl(
+            ResumeModuleMapper moduleMapper,
+            ResumeMapper resumeMapper,
+            ResumeShowcaseService resumeShowcaseService,
+            ResumePhotoService resumePhotoService
+    ) {
         this.moduleMapper = moduleMapper;
         this.resumeMapper = resumeMapper;
+        this.resumeShowcaseService = resumeShowcaseService;
+        this.resumePhotoService = resumePhotoService;
+    }
+
+    public ResumeModuleServiceImpl(ResumeModuleMapper moduleMapper, ResumeMapper resumeMapper,
+                                   ResumeShowcaseService resumeShowcaseService) {
+        this(moduleMapper, resumeMapper, resumeShowcaseService, null);
     }
 
     @Override
@@ -37,26 +55,27 @@ public class ResumeModuleServiceImpl implements ResumeModuleService {
                 .eq(ResumeModule::getResumeId, resumeId)
                 .orderByAsc(ResumeModule::getSortOrder)
                 .orderByAsc(ResumeModule::getId)
-        );
+        ).stream().map(module -> hydrateForRead(module, userId)).toList();
     }
 
     @Override
+    @Transactional
     public ResumeModule create(Long resumeId, Long userId, ModuleCreateDTO dto) {
         verifyResumeOwnership(resumeId, userId);
         validateSingletonModule(resumeId, dto.getModuleType());
-        ResumePhotoSecurityPolicy.validateModuleContent(dto.getModuleType(), dto.getContent());
-
         var module = new ResumeModule();
         module.setResumeId(resumeId);
         module.setModuleType(dto.getModuleType());
-        module.setContent(dto.getContent());
+        module.setContent(prepareForPersistence(userId, dto.getModuleType(), dto.getContent()));
         module.setSortOrder(dto.getSortOrder() != null ? dto.getSortOrder() : getNextSortOrder(resumeId));
         moduleMapper.insert(module);
         touchResume(resumeId);
-        return module;
+        resumeShowcaseService.unpublishChangedResume(resumeId);
+        return hydrateForRead(module, userId);
     }
 
     @Override
+    @Transactional
     public ResumeModule update(Long resumeId, Long userId, Long moduleId, ModuleUpdateDTO dto) {
         verifyResumeOwnership(resumeId, userId);
 
@@ -65,14 +84,15 @@ public class ResumeModuleServiceImpl implements ResumeModuleService {
             throw new BusinessException(ResultCode.MODULE_NOT_FOUND);
         }
 
-        ResumePhotoSecurityPolicy.validateModuleContent(module.getModuleType(), dto.getContent());
-        module.setContent(dto.getContent());
+        module.setContent(prepareForPersistence(userId, module.getModuleType(), dto.getContent()));
         moduleMapper.updateById(module);
         touchResume(resumeId);
-        return module;
+        resumeShowcaseService.unpublishChangedResume(resumeId);
+        return hydrateForRead(module, userId);
     }
 
     @Override
+    @Transactional
     public void delete(Long resumeId, Long userId, Long moduleId) {
         verifyResumeOwnership(resumeId, userId);
 
@@ -82,6 +102,7 @@ public class ResumeModuleServiceImpl implements ResumeModuleService {
         }
         moduleMapper.deleteById(moduleId);
         touchResume(resumeId);
+        resumeShowcaseService.unpublishChangedResume(resumeId);
     }
 
     private void verifyResumeOwnership(Long resumeId, Long userId) {
@@ -128,5 +149,22 @@ public class ResumeModuleServiceImpl implements ResumeModuleService {
         resume.setId(resumeId);
         resume.setUpdatedAt(LocalDateTime.now());
         resumeMapper.updateById(resume);
+    }
+
+    private java.util.Map<String, Object> prepareForPersistence(Long userId, String moduleType,
+                                                                 java.util.Map<String, Object> content) {
+        if (resumePhotoService == null) {
+            ResumePhotoSecurityPolicy.validateModuleContent(moduleType, content);
+            return content;
+        }
+        return resumePhotoService.prepareBasicInfoForPersistence(userId, moduleType, content);
+    }
+
+    private ResumeModule hydrateForRead(ResumeModule module, Long userId) {
+        if (resumePhotoService != null && module != null) {
+            module.setContent(resumePhotoService.hydrateBasicInfoForRead(
+                    userId, module.getModuleType(), module.getContent()));
+        }
+        return module;
     }
 }

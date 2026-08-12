@@ -5,6 +5,7 @@ import { useModuleContentState } from '../../hooks/useModuleContentState'
 import { normalizeInternshipContent } from '../../utils/moduleContent'
 import { AutoResizeTextarea } from '../ui/AutoResizeTextarea'
 import { ModuleSaveBar } from './ModuleSaveBar'
+import { MaterialActions } from '../materials/MaterialActions'
 
 interface Props {
   resumeId: number
@@ -83,7 +84,16 @@ export function ExperienceModuleForm({
         errorMessage={errorMessage}
         hasUnsavedChanges={hasUnsavedChanges}
         onSave={saveNow}
-      />
+      >
+        <MaterialActions
+          moduleType={moduleType}
+          content={content}
+          defaultTitle={content.company || content.projectName || moduleLabel}
+          instanceKey={moduleId}
+          onApply={setContent}
+          embedded
+        />
+      </ModuleSaveBar>
 
       {optimizeError && optimizeErrorField === null && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

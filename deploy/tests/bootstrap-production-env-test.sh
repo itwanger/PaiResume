@@ -20,6 +20,14 @@ printf '%s\n' \
   "MYSQL_PASSWORD=${db_password}" > "$db_credentials"
 chmod 0600 "$db_credentials"
 export PAIRESUME_BOOTSTRAP_DB_CREDENTIALS_FILE="$db_credentials"
+export PAIRESUME_PHOTO_OSS_ENDPOINT='https://oss-cn-hangzhou.aliyuncs.com'
+export PAIRESUME_PHOTO_OSS_BUCKET='private-resume-test'
+export PAIRESUME_PHOTO_OSS_ACCESS_KEY_ID='oss-ak-test-only'
+export PAIRESUME_PHOTO_OSS_ACCESS_KEY_SECRET='oss-sk-test-only'
+export PAIRESUME_PHOTO_OSS_PRIVATE_BUCKET_CONFIRMED='true'
+export PAIRESUME_PHOTO_OSS_CORS_CONFIRMED='true'
+export PAIRESUME_PHOTO_OSS_STAGING_LIFECYCLE_CONFIRMED='true'
+export PAIRESUME_PHOTO_OSS_RAM_POLICY_CONFIRMED='true'
 
 printf '%s\n' \
   'PAICODING_REDIS_HOST=127.0.0.1' \
@@ -174,7 +182,15 @@ for expected in \
   "RESUME_REVIEW_OSS_PRIVATE_BUCKET_CONFIRMED='true'" \
   "RESUME_REVIEW_OSS_CORS_CONFIRMED='false'" \
   "RESUME_REVIEW_OSS_LIFECYCLE_CONFIRMED='false'" \
-  "RESUME_REVIEW_OSS_RAM_POLICY_CONFIRMED='false'"; do
+  "RESUME_REVIEW_OSS_RAM_POLICY_CONFIRMED='false'" \
+  "RESUME_PHOTO_OSS_ENDPOINT='https://oss-cn-hangzhou.aliyuncs.com'" \
+  "RESUME_PHOTO_OSS_BUCKET='private-resume-test'" \
+  "RESUME_PHOTO_OSS_ACCESS_KEY_ID='oss-ak-test-only'" \
+  "RESUME_PHOTO_OSS_ACCESS_KEY_SECRET='oss-sk-test-only'" \
+  "RESUME_PHOTO_OSS_PRIVATE_BUCKET_CONFIRMED='true'" \
+  "RESUME_PHOTO_OSS_CORS_CONFIRMED='true'" \
+  "RESUME_PHOTO_OSS_STAGING_LIFECYCLE_CONFIRMED='true'" \
+  "RESUME_PHOTO_OSS_RAM_POLICY_CONFIRMED='true'"; do
   grep -Fqx -- "$expected" "$target_env" \
     || {
       printf '目标环境文件缺少预期的安全配置项\n' >&2
@@ -314,6 +330,14 @@ assert_preflight_rejects FLYWAY_USERNAME wrong_flyway_user \
   'MYSQL_USERNAME 与 FLYWAY_USERNAME 必须都固定为 pai_resume'
 assert_preflight_rejects FLYWAY_PASSWORD different-password-test-only-0123456789 \
   'MYSQL_PASSWORD 与 FLYWAY_PASSWORD 必须完全相同'
+assert_preflight_rejects RESUME_PHOTO_OSS_ENDPOINT http://oss-cn-hangzhou.aliyuncs.com \
+  'RESUME_PHOTO_OSS_ENDPOINT 必须是无路径、无查询参数的 HTTPS OSS endpoint'
+assert_preflight_rejects RESUME_PHOTO_OSS_MAX_BYTES 3145729 \
+  'RESUME_PHOTO_OSS_MAX_BYTES 必须是 1024 到 3145728 之间的整数'
+assert_preflight_rejects RESUME_PHOTO_UPLOAD_RATE_LIMIT_IP_ATTEMPTS 10 \
+  'RESUME_PHOTO_UPLOAD_RATE_LIMIT_IP_ATTEMPTS 不得小于账号预算'
+assert_preflight_rejects RESUME_PHOTO_OSS_PRIVATE_BUCKET_CONFIRMED false \
+  '当前发布阶段要求 RESUME_PHOTO_OSS_PRIVATE_BUCKET_CONFIRMED=true'
 
 for expected in \
   "MAIL_STARTTLS_ENABLE='false'" \

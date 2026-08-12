@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   adminApi,
@@ -15,7 +15,6 @@ import {
   type MarketplacePaymentReview,
   type MarketplacePaymentReviewStatus,
   type PlatformConfig,
-  type ResumeShowcaseAccessType,
   type ResumeShowcaseAdmin,
   type UserAdmin,
   type VipInviteAdmin,
@@ -30,9 +29,23 @@ import {
 import { resumeApi, type ResumeListItem } from '../api/resume'
 import { AdminOverview } from '../components/admin/AdminOverview'
 import {
-  filterAdminUsers,
+  AdminActionDialogProvider,
+  useAdminActionDialog,
+} from '../components/admin/AdminActionDialog'
+import {
   getUserAdminLabel,
 } from '../components/admin/adminData'
+import {
+  formatAdminCents,
+  getAdminErrorMessage,
+} from '../components/admin/adminFormat'
+import {
+  CouponStatusBadge,
+  FeedbackPublishStatusBadge,
+  FeedbackReviewStatusBadge,
+  RedemptionStatusBadge,
+  VipInviteStatusBadge,
+} from '../components/admin/adminStatus'
 import {
   ADMIN_DATA_SECTION_LABELS,
   ADMIN_VIEW_LOAD_SECTIONS,
@@ -44,15 +57,66 @@ import {
 import {
   AdminShell,
 } from '../components/admin/AdminShell'
+import { AdminTableScroller } from '../components/admin/AdminUi'
 import {
   type AdminView,
   isAdminView,
 } from '../components/admin/adminNavigation'
 import { MarketplaceGovernancePanel } from '../components/admin/MarketplaceGovernancePanel'
 import { ResumeReviewAdminPanel } from '../components/admin/ResumeReviewAdminPanel'
+import { AdminShowcasePanel } from '../components/admin/AdminShowcasePanel'
+import { AdminContentLibraryPanel } from '../components/admin/AdminContentLibraryPanel'
 
-function formatCents(value: number) {
-  return `¥${(value / 100).toFixed(2)}`
+interface PlatformPriceDraft {
+  questionnaireCouponAmountYuan: string
+  resumeReviewPriceYuan: string
+}
+
+const MAX_PRICE_CENTS = 2_147_483_647
+
+function formatYuanInput(value: number | null) {
+  return value === null ? '' : (value / 100).toFixed(2)
+}
+
+function parseYuanToCents(value: string): number | null {
+  const normalized = value.trim()
+  if (!/^\d+(?:\.\d{1,2})?$/.test(normalized)) return null
+
+  const [yuan, fraction = ''] = normalized.split('.')
+  const cents = Number(yuan) * 100 + Number(fraction.padEnd(2, '0'))
+  return Number.isSafeInteger(cents) && cents <= MAX_PRICE_CENTS ? cents : null
+}
+
+function isCouponExpired(coupon: CouponAdmin): boolean {
+  if (!coupon.expiresAt) return false
+  const expiresAt = Date.parse(coupon.expiresAt.replace(' ', 'T'))
+  return Number.isFinite(expiresAt) && expiresAt <= Date.now()
+}
+
+function isCouponResendable(coupon: CouponAdmin): boolean {
+  return coupon.status === 'ISSUED' && !isCouponExpired(coupon)
+}
+
+function platformConfigToPriceDraft(config: PlatformConfig): PlatformPriceDraft {
+  return {
+    questionnaireCouponAmountYuan: formatYuanInput(config.questionnaireCouponAmountCents),
+    resumeReviewPriceYuan: formatYuanInput(config.resumeReviewPriceCents),
+  }
+}
+
+function membershipPlansToPriceDrafts(plans: MembershipPlanAdmin[]) {
+  return Object.fromEntries(plans.map((plan) => [plan.code, formatYuanInput(plan.priceCents)]))
+}
+
+function upsertShowcase(
+  current: ResumeShowcaseAdmin[],
+  nextShowcase: ResumeShowcaseAdmin,
+) {
+  const existingIndex = current.findIndex(
+    (showcase) => showcase.resumeId === nextShowcase.resumeId,
+  )
+  if (existingIndex < 0) return [...current, nextShowcase]
+  return current.map((showcase, index) => index === existingIndex ? nextShowcase : showcase)
 }
 
 function formatMembershipEntitlement(
@@ -64,18 +128,6 @@ function formatMembershipEntitlement(
 
 function getCreatorEarningIncome(earning: CreatorEarning) {
   return earning.walletCreditCents
-}
-
-const EMPTY_SHOWCASE_FORM = {
-  id: null as number | null,
-  resumeId: '',
-  slug: '',
-  scoreLabel: '',
-  summary: '',
-  tags: '',
-  accessType: 'VIP' as ResumeShowcaseAccessType,
-  displayOrder: '0',
-  publishStatus: 'DRAFT',
 }
 
 const EMPTY_INVITE_FORM = {
@@ -160,7 +212,11 @@ function formatMembershipSnapshot(
   return [status ?? '-', source ?? '-', expiresAt ?? (status === 'ACTIVE' ? '永久' : '-')].join(' / ')
 }
 
-export default function AdminPage() {
+function AdminPageContent() {
+  const {
+    confirm: confirmAdminAction,
+    prompt: promptAdminValue,
+  } = useAdminActionDialog()
   const [searchParams, setSearchParams] = useSearchParams()
   const requestedView = searchParams.get('view')
   const activeView: AdminView = isAdminView(requestedView) ? requestedView : 'overview'
@@ -169,7 +225,12 @@ export default function AdminPage() {
     questionnaireCouponAmountCents: 1000,
     resumeReviewPriceCents: 0,
   })
+  const [platformPriceDraft, setPlatformPriceDraft] = useState<PlatformPriceDraft>({
+    questionnaireCouponAmountYuan: '10.00',
+    resumeReviewPriceYuan: '0.00',
+  })
   const [membershipPlans, setMembershipPlans] = useState<MembershipPlanAdmin[]>([])
+  const [membershipPlanPriceDrafts, setMembershipPlanPriceDrafts] = useState<Record<string, string>>({})
   const [feedbacks, setFeedbacks] = useState<FeedbackSubmissionAdmin[]>([])
   const [coupons, setCoupons] = useState<CouponAdmin[]>([])
   const [vipInvites, setVipInvites] = useState<VipInviteAdmin[]>([])
@@ -179,6 +240,11 @@ export default function AdminPage() {
   const [users, setUsers] = useState<UserAdmin[]>([])
   const [userSearch, setUserSearch] = useState('')
   const [userMembershipFilter, setUserMembershipFilter] = useState<'' | 'ACTIVE' | 'FREE'>('')
+  const [userPage, setUserPage] = useState(1)
+  const [userTotal, setUserTotal] = useState(0)
+  const [userTotalPages, setUserTotalPages] = useState(1)
+  const [allUserTotal, setAllUserTotal] = useState<number | null>(null)
+  const [activeUserTotal, setActiveUserTotal] = useState<number | null>(null)
   const [showcases, setShowcases] = useState<ResumeShowcaseAdmin[]>([])
   const [marketListings, setMarketListings] = useState<AdminMarketListing[]>([])
   const [marketListingPage, setMarketListingPage] = useState(1)
@@ -206,7 +272,6 @@ export default function AdminPage() {
   const [membershipPaymentReviewFilter, setMembershipPaymentReviewFilter] = useState<'' | MembershipPaymentReviewStatus>('')
   const [selectedMembershipPaymentOrder, setSelectedMembershipPaymentOrder] = useState<MembershipPaymentAdminOrder | null>(null)
   const [resumes, setResumes] = useState<ResumeListItem[]>([])
-  const [showcaseForm, setShowcaseForm] = useState(EMPTY_SHOWCASE_FORM)
   const [inviteForm, setInviteForm] = useState(EMPTY_INVITE_FORM)
   const [loadedSections, setLoadedSections] = useState<Set<AdminDataSection>>(new Set())
   const [loadingSections, setLoadingSections] = useState<Set<AdminDataSection>>(new Set())
@@ -216,7 +281,11 @@ export default function AdminPage() {
   const [pendingResumeReviewCount, setPendingResumeReviewCount] = useState(0)
   const [savingConfig, setSavingConfig] = useState(false)
   const [savingMembershipPlanCode, setSavingMembershipPlanCode] = useState<string | null>(null)
-  const [submittingShowcase, setSubmittingShowcase] = useState(false)
+  const [showcaseActionResumeId, setShowcaseActionResumeId] = useState<number | null>(null)
+  const [showcaseActionError, setShowcaseActionError] = useState<{
+    resumeId: number
+    message: string
+  } | null>(null)
   const [creatingInvite, setCreatingInvite] = useState(false)
   const [marketListingsLoading, setMarketListingsLoading] = useState(false)
   const [creatorEarningsLoading, setCreatorEarningsLoading] = useState(false)
@@ -232,6 +301,18 @@ export default function AdminPage() {
   const [settlingEarningId, setSettlingEarningId] = useState<number | null>(null)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [feedbackActionId, setFeedbackActionId] = useState<number | null>(null)
+  const [couponActionId, setCouponActionId] = useState<number | null>(null)
+  const [membershipActionUserId, setMembershipActionUserId] = useState<number | null>(null)
+  const [auditActionFilter, setAuditActionFilter] = useState('')
+  const [auditKeyword, setAuditKeyword] = useState('')
+  const usersQueryRef = useRef<{
+    keyword: string
+    membershipStatus: '' | 'ACTIVE' | 'FREE'
+    page: number
+  }>({ keyword: '', membershipStatus: '', page: 1 })
+  const userSearchDebounceRef = useRef<number | null>(null)
+  const redemptionsPanelRef = useRef<HTMLDivElement | null>(null)
 
   const handleAdminNavigate = (view: AdminView) => {
     const nextSearchParams = new URLSearchParams(searchParams)
@@ -242,11 +323,6 @@ export default function AdminPage() {
     }
     setSearchParams(nextSearchParams)
   }
-
-  const showcaseOptions = useMemo(() => resumes.map((resume) => ({
-    label: resume.title,
-    value: String(resume.id),
-  })), [resumes])
 
   const markSectionLoading = useCallback((section: AdminDataSection) => {
     setLoadingSections((current) => {
@@ -311,6 +387,36 @@ export default function AdminPage() {
     }
   }, [markSectionFailed, markSectionFinished, markSectionLoaded, markSectionLoading])
 
+  // 用户与会员列表的服务端分页加载：记录最近一次查询，供进视图初始化与操作后刷新复用；
+  // 同时用 size=1 的查询取「有效 VIP」总数供总览页展示，避免整页拉取用户。
+  const loadUsersSection = useCallback(async (query: {
+    keyword: string
+    membershipStatus: '' | 'ACTIVE' | 'FREE'
+    page: number
+  }) => {
+    usersQueryRef.current = query
+    await runSectionLoad('users', async () => {
+      const [pageResponse, activeResponse] = await Promise.all([
+        adminApi.listUsers({
+          keyword: query.keyword || undefined,
+          membershipStatus: query.membershipStatus,
+          page: query.page,
+          size: 20,
+        }),
+        adminApi.listUsers({ membershipStatus: 'ACTIVE', page: 1, size: 1 }),
+      ])
+      const payload = pageResponse.data.data
+      setUsers(payload.records)
+      setUserPage(payload.page)
+      setUserTotal(payload.total)
+      setUserTotalPages(Math.max(1, payload.totalPages))
+      if (!query.keyword && !query.membershipStatus) {
+        setAllUserTotal(payload.total)
+      }
+      setActiveUserTotal(activeResponse.data.data.total)
+    })
+  }, [runSectionLoad])
+
   const loadSection = useCallback(async (section: AdminDataSection) => {
     await runSectionLoad(section, async () => {
       switch (section) {
@@ -319,8 +425,12 @@ export default function AdminPage() {
             adminApi.getPlatformConfig(),
             adminApi.listMembershipPlans(),
           ])
-          setPlatformConfig(configResponse.data.data)
-          setMembershipPlans(plansResponse.data.data)
+          const nextConfig = configResponse.data.data
+          const nextPlans = plansResponse.data.data
+          setPlatformConfig(nextConfig)
+          setPlatformPriceDraft(platformConfigToPriceDraft(nextConfig))
+          setMembershipPlans(nextPlans)
+          setMembershipPlanPriceDrafts(membershipPlansToPriceDrafts(nextPlans))
           return
         }
         case 'feedbacks': {
@@ -339,8 +449,10 @@ export default function AdminPage() {
           return
         }
         case 'users': {
-          const response = await adminApi.listUsers()
-          setUsers(response.data.data)
+          // 进视图统一回到未筛选的第 1 页；之后筛选/翻页由视图内状态驱动重载。
+          setUserSearch('')
+          setUserMembershipFilter('')
+          await loadUsersSection({ keyword: '', membershipStatus: '', page: 1 })
           return
         }
         case 'membershipAuditLogs': {
@@ -432,7 +544,7 @@ export default function AdminPage() {
         }
       }
     })
-  }, [runSectionLoad])
+  }, [loadUsersSection, runSectionLoad])
 
   const loadView = useCallback(async (view: AdminView) => {
     setError('')
@@ -443,13 +555,16 @@ export default function AdminPage() {
     }
   }, [loadSection])
 
-  const retryFailedSections = useCallback(async () => {
-    await Promise.allSettled(Array.from(failedSections).map((section) => loadSection(section)))
+  const retryFailedSections = useCallback(async (view: AdminView) => {
+    const sections = ADMIN_VIEW_LOAD_SECTIONS[view]
+      .filter((section) => failedSections.has(section))
+    await Promise.allSettled(sections.map((section) => loadSection(section)))
   }, [failedSections, loadSection])
 
   useEffect(() => {
     setError('')
     setSuccess('')
+    setShowcaseActionError(null)
     window.scrollTo({ top: 0 })
     void loadView(activeView)
   }, [activeView, loadView])
@@ -461,6 +576,26 @@ export default function AdminPage() {
     setSearchParams(nextSearchParams, { replace: true })
   }, [requestedView, searchParams, setSearchParams])
 
+  // 成功提示 5 秒后自动消失；视图切换或新消息会重置计时，错误提示保持手动清除。
+  useEffect(() => {
+    if (!success) return
+    const timer = window.setTimeout(() => setSuccess(''), 5000)
+    return () => window.clearTimeout(timer)
+  }, [success])
+
+  // 组件卸载时清理未触发的用户搜索防抖。
+  useEffect(() => () => {
+    if (userSearchDebounceRef.current !== null) {
+      window.clearTimeout(userSearchDebounceRef.current)
+    }
+  }, [])
+
+  // 展开兑换记录面板时滚动进可视区域（仅在 selectedInviteId 变化展开时触发）。
+  useEffect(() => {
+    if (selectedInviteId === null) return
+    redemptionsPanelRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' })
+  }, [selectedInviteId])
+
   async function refreshFeedbacks() {
     await runSectionLoad('feedbacks', async () => {
       const { data: res } = await adminApi.listFeedbackSubmissions()
@@ -469,30 +604,47 @@ export default function AdminPage() {
   }
 
   async function refreshUsers() {
-    await runSectionLoad('users', async () => {
-      const { data: res } = await adminApi.listUsers()
-      setUsers(res.data)
-    })
+    await loadUsersSection(usersQueryRef.current)
+  }
+
+  // 视图内的搜索/筛选/翻页重载：分块状态由 runSectionLoad 维护，错误落到页面级错误条。
+  async function reloadUsersPage(
+    page: number,
+    keyword = userSearch,
+    membershipStatus = userMembershipFilter,
+  ) {
+    try {
+      await loadUsersSection({ keyword: keyword.trim(), membershipStatus, page })
+    } catch (err: unknown) {
+      setError(getAdminErrorMessage(err, '用户列表加载失败'))
+    }
+  }
+
+  // 搜索框 300ms 防抖后走服务端查询；切换会员状态筛选立即查询，并取消未触发的防抖。
+  const handleUserSearchChange = (value: string) => {
+    setUserSearch(value)
+    if (userSearchDebounceRef.current !== null) {
+      window.clearTimeout(userSearchDebounceRef.current)
+    }
+    userSearchDebounceRef.current = window.setTimeout(() => {
+      userSearchDebounceRef.current = null
+      void reloadUsersPage(1, value)
+    }, 300)
+  }
+
+  const handleUserMembershipFilterChange = (value: '' | 'ACTIVE' | 'FREE') => {
+    setUserMembershipFilter(value)
+    if (userSearchDebounceRef.current !== null) {
+      window.clearTimeout(userSearchDebounceRef.current)
+      userSearchDebounceRef.current = null
+    }
+    void reloadUsersPage(1, userSearch, value)
   }
 
   async function refreshMembershipAuditLogs() {
     await runSectionLoad('membershipAuditLogs', async () => {
       const { data: res } = await adminApi.listMembershipAuditLogs()
       setMembershipAuditLogs(res.data)
-    })
-  }
-
-  async function refreshShowcases() {
-    await runSectionLoad('showcases', async () => {
-      const { data: res } = await adminApi.listShowcases()
-      setShowcases(res.data)
-    })
-  }
-
-  async function refreshCoupons() {
-    await runSectionLoad('coupons', async () => {
-      const { data: res } = await adminApi.listCoupons()
-      setCoupons(res.data)
     })
   }
 
@@ -639,7 +791,7 @@ export default function AdminPage() {
       const { data: res } = await adminApi.getMembershipPaymentOrder(orderNo)
       setSelectedMembershipPaymentOrder(res.data)
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : '会员支付订单详情加载失败')
+      setError(getAdminErrorMessage(err, '会员支付订单详情加载失败'))
     } finally {
       setMembershipPaymentDetailLoading(false)
     }
@@ -659,119 +811,184 @@ export default function AdminPage() {
       setPaymentOrderLookupResult(res.data)
     } catch (err: unknown) {
       setPaymentOrderLookupResult(null)
-      setError(err instanceof Error ? err.message : '订单查询失败')
+      setError(getAdminErrorMessage(err, '订单查询失败'))
     } finally {
       setPaymentOrderLookupLoading(false)
     }
   }
 
-  const requestRequiredReason = (message: string) => {
-    const rawReason = window.prompt(message, '')
-    if (rawReason === null) {
-      return null
-    }
-    const reason = rawReason.trim()
-    if (!reason) {
-      setError('操作原因不能为空')
-      return null
-    }
-    if (reason.length > 255) {
-      setError('操作原因不能超过 255 个字符')
-      return null
-    }
-    return reason
-  }
+  const requestRequiredReason = (message: string) => promptAdminValue({
+    title: '填写操作原因',
+    description: `${message}\n\n原因会写入审计记录，请填写可复核的真实说明。`,
+    label: '操作原因',
+    placeholder: '请填写具体原因',
+    required: true,
+    maxLength: 255,
+    multiline: true,
+    confirmText: '继续',
+  })
 
   const handleSaveConfig = async () => {
     if (!platformConfigLoaded) {
-      setError('平台配置尚未成功读取，已阻止保存默认值')
+      setError('会员价格配置尚未成功读取，已阻止保存默认值')
       return
     }
+
     const priceFields = [
-      ['会员价格', platformConfig.membershipPriceCents],
-      ['问卷优惠金额', platformConfig.questionnaireCouponAmountCents],
-      ['人工精修单次价格', platformConfig.resumeReviewPriceCents],
+      ['问卷优惠金额', platformPriceDraft.questionnaireCouponAmountYuan],
+      ['人工精修单次价格', platformPriceDraft.resumeReviewPriceYuan],
     ] as const
-    const invalidField = priceFields.find(([, value]) => !Number.isInteger(value) || value < 0)
+    const parsedPrices = priceFields.map(([label, value]) => [label, parseYuanToCents(value)] as const)
+    const invalidField = parsedPrices.find(([, value]) => value === null)
     if (invalidField) {
-      setError(`${invalidField[0]}必须是大于等于 0 的整数（单位：分）`)
+      setError(`${invalidField[0]}请输入大于等于 0 且最多两位小数的金额（元）`)
       return
     }
+    if (!Number.isInteger(platformConfig.membershipPriceCents) || platformConfig.membershipPriceCents < 0) {
+      setError('会员价格配置读取异常，请重新加载')
+      return
+    }
+
+    const nextConfig: PlatformConfig = {
+      ...platformConfig,
+      questionnaireCouponAmountCents: parsedPrices[0][1]!,
+      resumeReviewPriceCents: parsedPrices[1][1]!,
+    }
+    const confirmed = await confirmAdminAction({
+      title: '保存会员价格配置',
+      description: `问卷优惠金额：${formatAdminCents(nextConfig.questionnaireCouponAmountCents)}\n人工精修单次价格：${formatAdminCents(nextConfig.resumeReviewPriceCents)}`,
+      confirmText: '确认保存',
+    })
+    if (!confirmed) return
     setSavingConfig(true)
     setError('')
     setSuccess('')
     try {
-      const { data: res } = await adminApi.updatePlatformConfig(platformConfig)
+      const { data: res } = await adminApi.updatePlatformConfig(nextConfig)
       setPlatformConfig(res.data)
-      setSuccess('平台配置已更新')
+      setPlatformPriceDraft(platformConfigToPriceDraft(res.data))
+      setSuccess('会员价格配置已更新')
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : '平台配置更新失败'
-      setError(message)
+      setError(getAdminErrorMessage(err, '会员价格配置更新失败'))
     } finally {
       setSavingConfig(false)
     }
   }
 
   const handleSaveMembershipPlan = async (plan: MembershipPlanAdmin) => {
-    if (
-      plan.priceCents !== null
-      && (!Number.isInteger(plan.priceCents) || plan.priceCents <= 0)
-    ) {
-      setError(`${plan.name}价格必须是大于 0 的整数（单位：分）`)
+    const priceYuan = membershipPlanPriceDrafts[plan.code] ?? formatYuanInput(plan.priceCents)
+    const priceCents = priceYuan.trim() === '' ? null : parseYuanToCents(priceYuan)
+    if (priceYuan.trim() !== '' && (priceCents === null || priceCents <= 0)) {
+      setError(`${plan.name}价格请输入大于 0 且最多两位小数的金额（元）`)
       return
     }
-    if (plan.enabled && plan.priceCents === null) {
+    if (plan.enabled && priceCents === null) {
       setError(`请先填写${plan.name}价格`)
       return
     }
+
+    const confirmed = await confirmAdminAction({
+      title: `更新${plan.name}`,
+      description: `状态：${plan.enabled ? '启用' : '关闭'}\n价格：${priceCents === null ? '未配置' : formatAdminCents(priceCents)}\n权益：${formatMembershipEntitlement(plan.entitlementType, plan.membershipDays)}`,
+      confirmText: '确认更新',
+      tone: plan.enabled ? 'default' : 'danger',
+    })
+    if (!confirmed) return
 
     setSavingMembershipPlanCode(plan.code)
     setError('')
     setSuccess('')
     try {
       const { data: res } = await adminApi.updateMembershipPlan(plan.code, {
-        priceCents: plan.priceCents,
+        priceCents,
         enabled: plan.enabled,
       })
       setMembershipPlans((current) => current.map((item) => (
         item.code === res.data.code ? res.data : item
       )))
+      setMembershipPlanPriceDrafts((current) => ({
+        ...current,
+        [res.data.code]: formatYuanInput(res.data.priceCents),
+      }))
+      await refreshMembershipAuditLogs()
       setSuccess(`${res.data.name}已更新`)
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : '会员方案更新失败')
+      setError(getAdminErrorMessage(err, '会员方案更新失败'))
     } finally {
       setSavingMembershipPlanCode(null)
     }
   }
 
   const handleApprove = async (feedback: FeedbackSubmissionAdmin) => {
-    const reviewNote = window.prompt('审核备注（可选）', feedback.reviewNote ?? '') ?? ''
+    const reviewNote = await promptAdminValue({
+      title: '通过问卷审核',
+      description: '通过后，这条问卷会进入可发布评价状态。若当前活动配置了问卷奖励，系统会自动生成优惠码，可前往“支付优惠码”查看。',
+      label: '审核备注（可选）',
+      defaultValue: feedback.reviewNote ?? '',
+      maxLength: 255,
+      multiline: true,
+      confirmText: '确认通过',
+    })
+    if (reviewNote === null) return
+    setFeedbackActionId(feedback.id)
+    setError('')
+    setSuccess('')
     try {
       await adminApi.approveFeedback(feedback.id, reviewNote || undefined)
-      await Promise.all([refreshFeedbacks(), refreshCoupons()])
-      setSuccess('问卷已通过并发放优惠码')
+      await refreshFeedbacks()
+      setSuccess('问卷已通过')
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : '审核通过失败'
-      setError(message)
+      setError(getAdminErrorMessage(err, '审核通过失败'))
+    } finally {
+      setFeedbackActionId(null)
     }
   }
 
   const handleReject = async (feedback: FeedbackSubmissionAdmin) => {
-    const reviewNote = window.prompt('请输入拒绝原因', feedback.reviewNote ?? '')
-    if (!reviewNote) {
-      return
-    }
+    const reviewNote = await promptAdminValue({
+      title: '拒绝问卷',
+      description: '拒绝原因会保留在审核记录中。',
+      label: '拒绝原因',
+      defaultValue: feedback.reviewNote ?? '',
+      required: true,
+      maxLength: 255,
+      multiline: true,
+      confirmText: '确认拒绝',
+      tone: 'danger',
+    })
+    if (!reviewNote) return
+    setFeedbackActionId(feedback.id)
+    setError('')
+    setSuccess('')
     try {
       await adminApi.rejectFeedback(feedback.id, reviewNote)
-      await Promise.all([refreshFeedbacks(), refreshCoupons()])
+      await refreshFeedbacks()
       setSuccess('问卷已拒绝')
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : '拒绝问卷失败'
-      setError(message)
+      setError(getAdminErrorMessage(err, '拒绝问卷失败'))
+    } finally {
+      setFeedbackActionId(null)
     }
   }
 
   const handlePublish = async (feedback: FeedbackSubmissionAdmin, nextAction: 'publish' | 'unpublish') => {
+    if (!await confirmAdminAction(nextAction === 'publish'
+      ? {
+        title: '发布评价',
+        description: '发布后，这条评价将展示到首页用户口碑区域，所有访客可见。\n\n确认发布？',
+        confirmText: '确认发布',
+      }
+      : {
+        title: '下线评价',
+        description: '下线后，这条评价将立即从首页移除。\n\n确认下线？',
+        confirmText: '确认下线',
+        tone: 'danger',
+      })) {
+      return
+    }
+    setFeedbackActionId(feedback.id)
+    setError('')
+    setSuccess('')
     try {
       if (nextAction === 'publish') {
         await adminApi.publishFeedback(feedback.id)
@@ -781,25 +998,39 @@ export default function AdminPage() {
       await refreshFeedbacks()
       setSuccess(nextAction === 'publish' ? '评价已发布' : '评价已下线')
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : '操作失败'
-      setError(message)
+      setError(getAdminErrorMessage(err, '操作失败'))
+    } finally {
+      setFeedbackActionId(null)
     }
   }
 
-  const handleResendCoupon = async (feedback: FeedbackSubmissionAdmin) => {
+  const handleResendCoupon = async (coupon: CouponAdmin) => {
+    const confirmed = await confirmAdminAction({
+      title: '重发优惠码邮件',
+      description: `优惠码：${coupon.code}\n收件账号：${coupon.recipientEmail}\n\n确认重新发送？`,
+      confirmText: '确认重发',
+    })
+    if (!confirmed) return
+
+    setCouponActionId(coupon.id)
+    setError('')
+    setSuccess('')
     try {
-      await adminApi.resendCoupon(feedback.id)
-      await Promise.all([refreshFeedbacks(), refreshCoupons()])
+      const { data: response } = await adminApi.resendCoupon(coupon.id)
+      setCoupons((current) => current.map((item) => (
+        item.id === response.data.id ? response.data : item
+      )))
       setSuccess('优惠码已重发')
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : '重发失败'
-      setError(message)
+      setError(getAdminErrorMessage(err, '重发失败'))
+    } finally {
+      setCouponActionId(null)
     }
   }
 
   const handleMembership = async (user: UserAdmin, action: 'grant' | 'revoke') => {
     const userLabel = getUserAdminLabel(user)
-    const reason = requestRequiredReason(
+    const reason = await requestRequiredReason(
       action === 'grant'
         ? `请输入为 ${userLabel} 手工开通永久 VIP 的原因（必填）`
         : `请输入撤销 ${userLabel} VIP 权益的原因（必填）`,
@@ -807,6 +1038,15 @@ export default function AdminPage() {
     if (!reason) {
       return
     }
+    if (!await confirmAdminAction({
+      title: action === 'grant' ? '开通永久 VIP' : '撤销 VIP 权益',
+      description: action === 'grant'
+        ? `确认为 ${userLabel} 手工开通永久 VIP？\n\n操作原因会写入审计日志。`
+        : `确认撤销 ${userLabel} 当前的 VIP 权益？\n\n用户会立即失去对应会员能力，操作原因会写入审计日志。`,
+      confirmText: action === 'grant' ? '确认开通' : '确认撤销',
+      tone: action === 'revoke' ? 'danger' : 'default',
+    })) return
+    setMembershipActionUserId(user.id)
     setError('')
     setSuccess('')
     try {
@@ -818,26 +1058,44 @@ export default function AdminPage() {
       await Promise.all([refreshUsers(), refreshMembershipAuditLogs()])
       setSuccess(action === 'grant' ? '会员已开通' : '会员已撤销')
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : '会员操作失败'
-      setError(message)
+      setError(getAdminErrorMessage(err, '会员操作失败'))
+    } finally {
+      setMembershipActionUserId(null)
     }
   }
 
   const handleExtendMembership = async (user: UserAdmin) => {
     const userLabel = getUserAdminLabel(user)
-    const rawDays = window.prompt(`给 ${userLabel} 延期多少天？`, '30')
+    const rawDays = await promptAdminValue({
+      title: '延长会员有效期',
+      description: `为 ${userLabel} 增加会员有效期。`,
+      label: '延期天数',
+      defaultValue: '30',
+      required: true,
+      maxLength: 4,
+      inputMode: 'numeric',
+      confirmText: '下一步',
+      validate: (value) => {
+        const parsed = Number(value)
+        return Number.isInteger(parsed) && parsed >= 1 && parsed <= 3650
+          ? null
+          : '延期天数必须是 1-3650 之间的整数'
+      },
+    })
     if (!rawDays) {
       return
     }
     const days = Number(rawDays)
-    if (!Number.isInteger(days) || days < 1 || days > 3650) {
-      setError('延期天数必须是 1-3650 之间的整数')
-      return
-    }
-    const reason = requestRequiredReason(`请输入为 ${userLabel} 延期 ${days} 天的原因（必填）`)
+    const reason = await requestRequiredReason(`请输入为 ${userLabel} 延期 ${days} 天的原因（必填）`)
     if (!reason) {
       return
     }
+    if (!await confirmAdminAction({
+      title: '确认延长会员有效期',
+      description: `为 ${userLabel} 延期 ${days} 天。\n\n操作原因会写入审计日志。`,
+      confirmText: '确认延期',
+    })) return
+    setMembershipActionUserId(user.id)
     setError('')
     setSuccess('')
     try {
@@ -845,7 +1103,9 @@ export default function AdminPage() {
       await Promise.all([refreshUsers(), refreshMembershipAuditLogs()])
       setSuccess(`已为 ${userLabel} 延期 ${days} 天`)
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : '会员延期失败')
+      setError(getAdminErrorMessage(err, '会员延期失败'))
+    } finally {
+      setMembershipActionUserId(null)
     }
   }
 
@@ -878,7 +1138,7 @@ export default function AdminPage() {
       await Promise.all([refreshVipInvites(), refreshMembershipAuditLogs()])
       setSuccess(`VIP 邀请码 ${res.data.code} 已生成`)
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : '邀请码生成失败')
+      setError(getAdminErrorMessage(err, '邀请码生成失败'))
     } finally {
       setCreatingInvite(false)
     }
@@ -889,7 +1149,15 @@ export default function AdminPage() {
       await navigator.clipboard.writeText(text)
       setSuccess(successMessage)
     } catch {
-      window.prompt('复制下面的内容', text)
+      await promptAdminValue({
+        title: '手动复制内容',
+        description: '浏览器没有授予自动复制权限，请选中下面的内容手动复制。',
+        label: '待复制内容',
+        defaultValue: text,
+        multiline: true,
+        confirmText: '关闭',
+        cancelText: '取消',
+      })
     }
   }
 
@@ -927,12 +1195,15 @@ export default function AdminPage() {
   }
 
   const handleInvalidateInvite = async (invite: VipInviteAdmin) => {
-    if (!window.confirm(
-      `确认作废邀请码 ${invite.code}？\n\n作废只会阻止新用户继续兑换，不会影响已经领取的 VIP 权益。`,
-    )) {
+    if (!await confirmAdminAction({
+      title: `作废邀请码 ${invite.code}`,
+      description: '作废只会阻止新用户继续兑换，不会影响已经领取的 VIP 权益。',
+      confirmText: '确认作废',
+      tone: 'danger',
+    })) {
       return
     }
-    const reason = requestRequiredReason('请输入作废该邀请码的原因（必填）')
+    const reason = await requestRequiredReason('请输入作废该邀请码的原因（必填）')
     if (!reason) {
       return
     }
@@ -943,7 +1214,7 @@ export default function AdminPage() {
       await Promise.all([refreshVipInvites(), refreshMembershipAuditLogs()])
       setSuccess(`邀请码 ${invite.code} 已作废，已领取权益不受影响`)
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : '邀请码作废失败')
+      setError(getAdminErrorMessage(err, '邀请码作废失败'))
     }
   }
 
@@ -957,20 +1228,23 @@ export default function AdminPage() {
       await refreshInviteRedemptions(invite.id)
       setSelectedInviteId(invite.id)
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : '兑换记录加载失败')
+      setError(getAdminErrorMessage(err, '兑换记录加载失败'))
     }
   }
 
   const handleRevokeInviteRedemption = async (redemption: VipInviteRedemptionAdmin) => {
-    const reason = requestRequiredReason(
+    const reason = await requestRequiredReason(
       `请输入撤销 ${redemption.userEmail} 这条异常兑换的原因（必填）`,
     )
     if (!reason) {
       return
     }
-    if (!window.confirm(
-      '确认逐条撤销这次兑换？\n\n如果用户当前 VIP 仍来自这次兑换，权益会立即撤销；如果已由支付或管理员另行开通，则保留当前权益。',
-    )) {
+    if (!await confirmAdminAction({
+      title: '撤销异常邀请码兑换',
+      description: '如果用户当前 VIP 仍来自这次兑换，权益会立即撤销；如果已由支付或管理员另行开通，则保留当前权益。',
+      confirmText: '确认撤销',
+      tone: 'danger',
+    })) {
       return
     }
     setError('')
@@ -983,12 +1257,13 @@ export default function AdminPage() {
       )
       await Promise.all([
         refreshInviteRedemptions(redemption.inviteCodeId),
+        refreshVipInvites(),
         refreshUsers(),
         refreshMembershipAuditLogs(),
       ])
       setSuccess(`已撤销 ${redemption.userEmail} 的异常兑换记录`)
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : '异常兑换撤销失败')
+      setError(getAdminErrorMessage(err, '异常兑换撤销失败'))
     }
   }
 
@@ -1003,7 +1278,7 @@ export default function AdminPage() {
         : action === 'TAKEDOWN'
           ? '下架条目'
           : '恢复条目'
-    const reason = requestRequiredReason(`请输入“${actionLabel}《${listing.title}》”的原因（必填，将写入审计记录）`)
+    const reason = await requestRequiredReason(`请输入“${actionLabel}《${listing.title}》”的原因（必填，将写入审计记录）`)
     if (!reason) return
     const confirmation = action === 'APPROVE'
       ? '确认通过这次投稿？\n\n待审版本会成为新的公开版本；如果创作者在等待期间主动取消发布，审核通过也不会自动重新上架。'
@@ -1012,7 +1287,12 @@ export default function AdminPage() {
         : action === 'TAKEDOWN'
           ? '确认下架这份公开简历？\n\n下架后，除作者和管理员外的所有访问都会被阻止，包括历史买家；同时会关闭该版本尚未完成的成交。'
           : '确认恢复这份公开简历的访问资格？\n\n恢复只解除平台风控下架，不会覆盖创作者自己的发布/下架选择。'
-    if (!window.confirm(confirmation)) {
+    if (!await confirmAdminAction({
+      title: actionLabel,
+      description: confirmation,
+      confirmText: `确认${actionLabel}`,
+      tone: action === 'APPROVE' || action === 'RESTORE' ? 'default' : 'danger',
+    })) {
       return
     }
 
@@ -1025,7 +1305,7 @@ export default function AdminPage() {
       setGovernanceAuditRefreshKey((current) => current + 1)
       setSuccess(`《${listing.title}》已${actionLabel}`)
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : '公开简历审核失败')
+      setError(getAdminErrorMessage(err, '公开简历审核失败'))
     } finally {
       setModeratingListingId(null)
     }
@@ -1033,13 +1313,16 @@ export default function AdminPage() {
 
   const handleSettleCreatorEarning = async (earning: CreatorEarning) => {
     const seller = earning.sellerEmail || `作者 #${earning.sellerUserId}`
-    const settlementNote = requestRequiredReason(
+    const settlementNote = await requestRequiredReason(
       `请填写向 ${seller} 转账的流水号或结算备注（必填）`,
     )
     if (!settlementNote) return
-    if (!window.confirm(
-      `确认已向 ${seller} 线下转账 ${formatCents(getCreatorEarningIncome(earning))}？\n\n确认后该笔收益会标记为已结算。`,
-    )) {
+    if (!await confirmAdminAction({
+      title: '确认线下结算',
+      description: `确认已向 ${seller} 线下转账 ${formatAdminCents(getCreatorEarningIncome(earning))}？\n\n确认后该笔收益会标记为已结算。`,
+      confirmText: '确认已转账',
+      tone: 'danger',
+    })) {
       return
     }
 
@@ -1051,17 +1334,22 @@ export default function AdminPage() {
       await refreshPendingCreatorEarnings()
       setSuccess(`已登记 ${seller} 的线下转账，收益状态已更新为已结算`)
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : '线下结算登记失败')
+      setError(getAdminErrorMessage(err, '线下结算登记失败'))
     } finally {
       setSettlingEarningId(null)
     }
   }
 
   const handleConfirmMarketplaceRefund = async (review: MarketplacePaymentReview) => {
-    const rawReference = window.prompt(
-      '请先在支付商户平台核实并完成全额原路退款，再填写真实的商户退款单号或核验流水（必填，不会由本页面自动生成）',
-      '',
-    )
+    const rawReference = await promptAdminValue({
+      title: '登记市场订单退款',
+      description: '请先在支付商户平台核实并完成全额原路退款。本页面只登记结果，不会自动发起退款。',
+      label: '商户退款单号或核验流水',
+      required: true,
+      maxLength: 128,
+      confirmText: '下一步',
+      tone: 'danger',
+    })
     if (rawReference === null) return
     const refundReference = rawReference.trim()
     if (!refundReference || refundReference.length > 128) {
@@ -1069,7 +1357,17 @@ export default function AdminPage() {
       return
     }
 
-    const rawNote = window.prompt('请输入退款核对备注（必填，例如退款渠道、核对人和用户沟通情况）', '')
+    const rawNote = await promptAdminValue({
+      title: '补充退款核对说明',
+      description: `订单 ${review.orderNo} · ${formatAdminCents(review.amountCents)}`,
+      label: '退款核对备注',
+      placeholder: '例如退款渠道、核对人和用户沟通情况',
+      required: true,
+      maxLength: 255,
+      multiline: true,
+      confirmText: '下一步',
+      tone: 'danger',
+    })
     if (rawNote === null) return
     const note = rawNote.trim()
     if (!note || note.length > 255) {
@@ -1077,9 +1375,12 @@ export default function AdminPage() {
       return
     }
 
-    if (!window.confirm(
-      `请再次确认：你已经在 ${review.provider} 商户平台为订单 ${review.orderNo} 实际完成 ${formatCents(review.amountCents)} 的原路退款。\n\n本操作只登记退款结果，不会发起退款；确认后订单将标记为已退款。`,
-    )) {
+    if (!await confirmAdminAction({
+      title: '再次确认外部退款已完成',
+      description: `你已经在 ${review.provider} 商户平台为订单 ${review.orderNo} 实际完成 ${formatAdminCents(review.amountCents)} 的原路退款。\n\n本操作只登记退款结果，不会发起退款；确认后订单将标记为已退款。`,
+      confirmText: '确认已退款',
+      tone: 'danger',
+    })) {
       return
     }
 
@@ -1097,7 +1398,7 @@ export default function AdminPage() {
       ])
       setSuccess(`订单 ${review.orderNo} 的外部退款结果已登记`)
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : '退款结果登记失败')
+      setError(getAdminErrorMessage(err, '退款结果登记失败'))
     } finally {
       setConfirmingRefundOrderNo(null)
     }
@@ -1114,17 +1415,23 @@ export default function AdminPage() {
     }
 
     const actionName = MEMBERSHIP_PAYMENT_AUDIT_ACTION_LABELS[action]
-    const reason = requestRequiredReason(`请输入“${actionName}”的操作原因（必填，将写入审计日志）`)
+    const reason = await requestRequiredReason(`请输入“${actionName}”的操作原因（必填，将写入审计日志）`)
     if (!reason) return
 
     let refundReference = ''
     if (action === 'START_REFUND' || action === 'CONFIRM_REFUNDED') {
-      const rawReference = window.prompt(
-        action === 'CONFIRM_REFUNDED'
-          ? '请输入商户平台退款单号或核验流水（必填）。本页面不会发起退款。'
-          : '如商户平台已经生成退款单号，可在此填写（可选）。本页面只登记处理状态，不会发起退款。',
-        order.refundReference ?? '',
-      )
+      const rawReference = await promptAdminValue({
+        title: action === 'CONFIRM_REFUNDED' ? '确认会员订单退款' : '登记退款处理中',
+        description: action === 'CONFIRM_REFUNDED'
+          ? '请填写商户平台的真实退款单号或核验流水。本页面不会发起退款。'
+          : '如商户平台已经生成退款单号，可在此填写。本页面只登记处理状态，不会发起退款。',
+        label: action === 'CONFIRM_REFUNDED' ? '退款单号或核验流水' : '退款单号或核验流水（可选）',
+        defaultValue: order.refundReference ?? '',
+        required: action === 'CONFIRM_REFUNDED',
+        maxLength: 128,
+        confirmText: '下一步',
+        tone: 'danger',
+      })
       if (rawReference === null) return
       refundReference = rawReference.trim()
       if (action === 'CONFIRM_REFUNDED' && !refundReference) {
@@ -1142,7 +1449,12 @@ export default function AdminPage() {
       : action === 'START_REFUND'
         ? `确认已在商户平台开始处理会员订单 ${order.orderNo} 的退款？\n\n本操作只更新后台复核状态，不会发起退款。`
         : `确认${actionName}会员订单 ${order.orderNo}？\n\n操作原因会永久写入审计记录。`
-    if (!window.confirm(confirmation)) return
+    if (!await confirmAdminAction({
+      title: actionName,
+      description: confirmation,
+      confirmText: `确认${actionName}`,
+      tone: action === 'CLOSE_REVIEW' ? 'default' : 'danger',
+    })) return
 
     setMembershipPaymentActionOrderNo(order.orderNo)
     setError('')
@@ -1166,55 +1478,48 @@ export default function AdminPage() {
       ])
       setSuccess(`会员订单 ${order.orderNo}：${actionName}成功`)
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : `${actionName}失败`)
+      setError(getAdminErrorMessage(err, `${actionName}失败`))
     } finally {
       setMembershipPaymentActionOrderNo(null)
     }
   }
 
-  const handleSubmitShowcase = async () => {
-    setSubmittingShowcase(true)
+  const handleFeatureShowcase = async (resume: ResumeListItem) => {
+    setShowcaseActionResumeId(resume.id)
+    setShowcaseActionError(null)
     setError('')
     setSuccess('')
     try {
-      const payload = {
-        resumeId: Number(showcaseForm.resumeId),
-        slug: showcaseForm.slug.trim(),
-        scoreLabel: showcaseForm.scoreLabel.trim(),
-        summary: showcaseForm.summary.trim(),
-        tags: showcaseForm.tags.split(',').map((item) => item.trim()).filter(Boolean),
-        accessType: showcaseForm.accessType,
-        displayOrder: Number(showcaseForm.displayOrder),
-        publishStatus: showcaseForm.publishStatus,
-      }
-      if (showcaseForm.id) {
-        await adminApi.updateShowcase(showcaseForm.id, payload)
-      } else {
-        await adminApi.createShowcase(payload)
-      }
-      await refreshShowcases()
-      setShowcaseForm(EMPTY_SHOWCASE_FORM)
-      setSuccess(showcaseForm.id ? '样例已更新' : '样例已创建')
+      const response = await adminApi.featureShowcaseResume(resume.id)
+      setShowcases((current) => upsertShowcase(current, response.data.data))
+      setSuccess(`已精选「${resume.title}」`)
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : '样例保存失败'
-      setError(message)
+      setShowcaseActionError({
+        resumeId: resume.id,
+        message: getAdminErrorMessage(err, '精选失败'),
+      })
     } finally {
-      setSubmittingShowcase(false)
+      setShowcaseActionResumeId(null)
     }
   }
 
-  const editShowcase = (showcase: ResumeShowcaseAdmin) => {
-    setShowcaseForm({
-      id: showcase.id,
-      resumeId: String(showcase.resumeId),
-      slug: showcase.slug,
-      scoreLabel: showcase.scoreLabel,
-      summary: showcase.summary,
-      tags: (showcase.tags ?? []).join(', '),
-      accessType: showcase.accessType ?? 'VIP',
-      displayOrder: String(showcase.displayOrder),
-      publishStatus: showcase.publishStatus,
-    })
+  const handleUnfeatureShowcase = async (resume: ResumeListItem) => {
+    setShowcaseActionResumeId(resume.id)
+    setShowcaseActionError(null)
+    setError('')
+    setSuccess('')
+    try {
+      const response = await adminApi.unfeatureShowcaseResume(resume.id)
+      setShowcases((current) => upsertShowcase(current, response.data.data))
+      setSuccess(`已取消精选「${resume.title}」`)
+    } catch (err: unknown) {
+      setShowcaseActionError({
+        resumeId: resume.id,
+        message: getAdminErrorMessage(err, '取消精选失败'),
+      })
+    } finally {
+      setShowcaseActionResumeId(null)
+    }
   }
 
   const usersLoaded = loadedSections.has('users')
@@ -1234,19 +1539,39 @@ export default function AdminPage() {
     loadingSections,
     failedSections,
   )
-  const activeViewLoading = activeViewLoadState === 'loading'
+  // 已完整加载过（含失败）的视图在手动刷新、筛选或翻页重载期间保留现有内容，
+  // 只让对应按钮进入"刷新中…"，避免整屏骨架反复闪烁；首次进入仍显示骨架。
+  const activeViewLoadedOnce = ADMIN_VIEW_LOAD_SECTIONS[activeView].every(
+    (section) => loadedSections.has(section) || failedSections.has(section),
+  )
+  const activeViewLoading = activeViewLoadState === 'loading' && !activeViewLoadedOnce
   const activeViewFailedSections = getAdminViewFailedSections(activeView, failedSections)
-  const failedSectionLabels = Array.from(failedSections).map(
+  const failedSectionLabels = activeViewFailedSections.map(
     (section) => ADMIN_DATA_SECTION_LABELS[section],
   )
-  const retryingFailedSections = Array.from(failedSections).some((section) => loadingSections.has(section))
+  const retryingFailedSections = activeViewFailedSections.some(
+    (section) => loadingSections.has(section),
+  )
   const overviewDataComplete = OVERVIEW_LOAD_SECTIONS.every((section) => loadedSections.has(section))
-  const activeMemberCount = usersLoaded
-    ? users.filter((user) => user.membershipStatus === 'ACTIVE').length
-    : null
-  const filteredUsers = useMemo(() => {
-    return filterAdminUsers(users, userSearch, userMembershipFilter)
-  }, [userMembershipFilter, userSearch, users])
+  const overviewRefreshing = OVERVIEW_LOAD_SECTIONS.some((section) => loadingSections.has(section))
+  const usersLoading = loadingSections.has('users')
+  const membershipAuditLogsLoading = loadingSections.has('membershipAuditLogs')
+  const activeMemberCount = usersLoaded ? activeUserTotal : null
+  const selectedInvite = selectedInviteId === null
+    ? null
+    : vipInvites.find((invite) => invite.id === selectedInviteId) ?? null
+  const auditActionOptions = useMemo(() => (
+    Array.from(new Set(membershipAuditLogs.map((log) => log.action)))
+  ), [membershipAuditLogs])
+  const filteredAuditLogs = useMemo(() => {
+    const keyword = auditKeyword.trim().toLowerCase()
+    return membershipAuditLogs.filter((log) => {
+      if (auditActionFilter && log.action !== auditActionFilter) return false
+      if (!keyword) return true
+      return [log.adminEmail, log.targetUserEmail, log.reason, log.details]
+        .some((field) => (field ?? '').toLowerCase().includes(keyword))
+    })
+  }, [auditActionFilter, auditKeyword, membershipAuditLogs])
   const activeInviteCount = invitesLoaded ? vipInvites.filter(isInvitePublishable).length : null
   const publishedShowcaseCount = showcasesLoaded
     ? showcases.filter((showcase) => showcase.publishStatus === 'PUBLISHED').length
@@ -1280,7 +1605,7 @@ export default function AdminPage() {
             </span>
             <button
               type="button"
-              onClick={() => void retryFailedSections()}
+              onClick={() => void retryFailedSections(activeView)}
               disabled={retryingFailedSections}
               className="shrink-0 rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs font-semibold text-amber-800 transition hover:bg-amber-100 disabled:cursor-wait disabled:opacity-60"
             >
@@ -1348,8 +1673,8 @@ export default function AdminPage() {
                 pendingListingCount={marketListingsLoaded ? pendingMarketListingCount : null}
                 pendingResumeReviewCount={resumeReviewActionCountLoaded ? pendingResumeReviewCount : null}
                 publishedShowcaseCount={publishedShowcaseCount}
-                refreshing={activeViewLoading}
-                totalUserCount={usersLoaded ? users.length : null}
+                refreshing={overviewRefreshing}
+                totalUserCount={usersLoaded ? allUserTotal : null}
                 reconciliationFailureCount={
                   membershipSummaryLoaded
                     ? membershipPaymentSummary?.reconciliationFailuresSinceStart ?? 0
@@ -1374,7 +1699,6 @@ export default function AdminPage() {
                       <div className="flex flex-wrap items-end justify-between gap-3">
                         <div>
                           <h2 className="text-lg font-semibold text-gray-900">会员方案</h2>
-                          <p className="mt-1 text-sm text-gray-500">价格单位为分，关闭的方案会显示“待开放”。</p>
                         </div>
                       </div>
                       <div className="mt-5 grid gap-4 md:grid-cols-2">
@@ -1406,19 +1730,18 @@ export default function AdminPage() {
                               </label>
                             </div>
                             <label className="mt-4 block">
-                              <span className="mb-2 block text-sm font-medium text-gray-700">价格（分）</span>
+                              <span className="mb-2 block text-sm font-medium text-gray-700">价格（元）</span>
                               <input
                                 type="number"
-                                min={1}
-                                step={1}
-                                value={plan.priceCents ?? ''}
+                                min={0.01}
+                                step={0.01}
+                                inputMode="decimal"
+                                value={membershipPlanPriceDrafts[plan.code] ?? formatYuanInput(plan.priceCents)}
                                 disabled={!platformConfigLoaded || savingMembershipPlanCode === plan.code}
-                                onChange={(event) => {
-                                  const nextPrice = event.target.value === '' ? null : Number(event.target.value)
-                                  setMembershipPlans((current) => current.map((item) => (
-                                    item.code === plan.code ? { ...item, priceCents: nextPrice } : item
-                                  )))
-                                }}
+                                onChange={(event) => setMembershipPlanPriceDrafts((current) => ({
+                                  ...current,
+                                  [plan.code]: event.target.value,
+                                }))}
                                 placeholder="未设置"
                                 className="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none transition-colors focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
                               />
@@ -1440,25 +1763,35 @@ export default function AdminPage() {
                       <h2 className="text-lg font-semibold text-gray-900">其他价格</h2>
                       <div className="mt-5 space-y-4">
                         <label className="block">
-                          <span className="mb-2 block text-sm font-medium text-gray-700">问卷优惠金额（分）</span>
+                          <span className="mb-2 block text-sm font-medium text-gray-700">问卷优惠金额（元）</span>
                           <input
                             type="number"
+                            min={0}
+                            step={0.01}
+                            inputMode="decimal"
                             disabled={!platformConfigLoaded}
-                            value={platformConfig.questionnaireCouponAmountCents}
-                            onChange={(event) => setPlatformConfig((current) => ({ ...current, questionnaireCouponAmountCents: Number(event.target.value) }))}
+                            value={platformPriceDraft.questionnaireCouponAmountYuan}
+                            onChange={(event) => setPlatformPriceDraft((current) => ({
+                              ...current,
+                              questionnaireCouponAmountYuan: event.target.value,
+                            }))}
                             className="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none transition-colors focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
                           />
                         </label>
                         <label className="block">
-                          <span className="mb-2 block text-sm font-medium text-gray-700">人工精修单次价格（分）</span>
+                          <span className="mb-2 block text-sm font-medium text-gray-700">人工精修单次价格（元）</span>
                           <input
                             type="number"
                             min={0}
-                            step={1}
+                            step={0.01}
+                            inputMode="decimal"
                             required
                             disabled={!platformConfigLoaded}
-                            value={platformConfig.resumeReviewPriceCents}
-                            onChange={(event) => setPlatformConfig((current) => ({ ...current, resumeReviewPriceCents: Number(event.target.value) }))}
+                            value={platformPriceDraft.resumeReviewPriceYuan}
+                            onChange={(event) => setPlatformPriceDraft((current) => ({
+                              ...current,
+                              resumeReviewPriceYuan: event.target.value,
+                            }))}
                             className="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none transition-colors focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
                           />
                         </label>
@@ -1476,167 +1809,15 @@ export default function AdminPage() {
                 ) : null}
 
                 {activeView === 'showcases' ? (
-                  <div className="rounded-lg border border-gray-200 bg-white px-6 py-6">
-                <div className="flex items-center justify-between gap-4">
-                  <h2 className="text-lg font-semibold text-gray-900">官方精选简历</h2>
-                </div>
-
-                <div className="mt-5 grid gap-4 md:grid-cols-2">
-                  <label className="block">
-                    <span className="mb-2 block text-sm font-medium text-gray-700">关联简历</span>
-                    <select
-                      value={showcaseForm.resumeId}
-                      onChange={(event) => setShowcaseForm((current) => ({ ...current, resumeId: event.target.value }))}
-                      className="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none transition-colors focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
-                    >
-                      <option value="">请选择</option>
-                      {showcaseOptions.map((option) => (
-                        <option key={option.value} value={option.value}>{option.label}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="block">
-                    <span className="mb-2 block text-sm font-medium text-gray-700">slug</span>
-                    <input
-                      value={showcaseForm.slug}
-                      onChange={(event) => setShowcaseForm((current) => ({ ...current, slug: event.target.value }))}
-                      className="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none transition-colors focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="mb-2 block text-sm font-medium text-gray-700">展示标签</span>
-                    <input
-                      value={showcaseForm.scoreLabel}
-                      onChange={(event) => setShowcaseForm((current) => ({ ...current, scoreLabel: event.target.value }))}
-                      className="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none transition-colors focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="mb-2 block text-sm font-medium text-gray-700">展示顺序</span>
-                    <input
-                      type="number"
-                      value={showcaseForm.displayOrder}
-                      onChange={(event) => setShowcaseForm((current) => ({ ...current, displayOrder: event.target.value }))}
-                      className="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none transition-colors focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
-                    />
-                  </label>
-                </div>
-
-                <label className="mt-4 block">
-                  <span className="mb-2 block text-sm font-medium text-gray-700">摘要</span>
-                  <textarea
-                    value={showcaseForm.summary}
-                    onChange={(event) => setShowcaseForm((current) => ({ ...current, summary: event.target.value }))}
-                    rows={3}
-                    className="w-full rounded-lg border border-gray-300 px-4 py-3 outline-none transition-colors focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
+                  <AdminShowcasePanel
+                    resumes={resumes}
+                    showcases={showcases}
+                    actionResumeId={showcaseActionResumeId}
+                    actionError={showcaseActionError}
+                    loading={loadingSections.has('showcases') || loadingSections.has('resumes')}
+                    onFeature={(resume) => void handleFeatureShowcase(resume)}
+                    onUnfeature={(resume) => void handleUnfeatureShowcase(resume)}
                   />
-                </label>
-
-                <div className="mt-4 grid gap-4 md:grid-cols-3">
-                  <label className="block">
-                    <span className="mb-2 block text-sm font-medium text-gray-700">标签（逗号分隔）</span>
-                    <input
-                      value={showcaseForm.tags}
-                      onChange={(event) => setShowcaseForm((current) => ({ ...current, tags: event.target.value }))}
-                      className="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none transition-colors focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="mb-2 block text-sm font-medium text-gray-700">查看权限</span>
-                    <select
-                      value={showcaseForm.accessType}
-                      onChange={(event) => setShowcaseForm((current) => ({
-                        ...current,
-                        accessType: event.target.value as ResumeShowcaseAccessType,
-                      }))}
-                      className="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none transition-colors focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
-                    >
-                      <option value="FREE">公开查看</option>
-                      <option value="VIP">付费查看（VIP 权益）</option>
-                    </select>
-                  </label>
-                  <label className="block">
-                    <span className="mb-2 block text-sm font-medium text-gray-700">发布状态</span>
-                    <select
-                      value={showcaseForm.publishStatus}
-                      onChange={(event) => setShowcaseForm((current) => ({ ...current, publishStatus: event.target.value }))}
-                      className="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none transition-colors focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
-                    >
-                      <option value="DRAFT">草稿</option>
-                      <option value="PUBLISHED">已发布</option>
-                    </select>
-                  </label>
-                </div>
-
-                <div className="mt-5 flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    onClick={() => void handleSubmitShowcase()}
-                    disabled={submittingShowcase}
-                    className="rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-700 disabled:opacity-50"
-                  >
-                    {submittingShowcase ? '保存中...' : showcaseForm.id ? '更新样例' : '创建样例'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowcaseForm(EMPTY_SHOWCASE_FORM)}
-                    className="rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-gray-600 transition-colors hover:border-gray-300 hover:text-gray-900"
-                  >
-                    清空表单
-                  </button>
-                </div>
-
-                <div className="mt-6 overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200 text-sm">
-                    <thead>
-                      <tr className="text-left text-gray-500">
-                        <th className="py-3 pr-4 font-medium">slug</th>
-                        <th className="py-3 pr-4 font-medium">展示标签</th>
-                        <th className="py-3 pr-4 font-medium">查看权限</th>
-                        <th className="py-3 pr-4 font-medium">状态</th>
-                        <th className="py-3 pr-4 font-medium">排序</th>
-                        <th className="py-3 font-medium">操作</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 text-gray-700">
-                      {showcases.map((showcase) => (
-                        <tr key={showcase.id}>
-                          <td className="py-3 pr-4">{showcase.slug}</td>
-                          <td className="py-3 pr-4">{showcase.scoreLabel}</td>
-                          <td className="py-3 pr-4">
-                            <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
-                              showcase.accessType === 'FREE'
-                                ? 'bg-emerald-50 text-emerald-700'
-                                : 'bg-violet-50 text-violet-700'
-                            }`}>
-                              {showcase.accessType === 'FREE' ? '公开查看' : '付费查看（VIP 权益）'}
-                            </span>
-                          </td>
-                          <td className="py-3 pr-4">
-                            <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
-                              showcase.publishStatus === 'PUBLISHED'
-                                ? 'bg-emerald-50 text-emerald-700'
-                                : 'bg-slate-100 text-slate-600'
-                            }`}>
-                              {showcase.publishStatus === 'PUBLISHED' ? '已发布' : '草稿'}
-                            </span>
-                          </td>
-                          <td className="py-3 pr-4">{showcase.displayOrder}</td>
-                          <td className="py-3">
-                            <button
-                              type="button"
-                              onClick={() => editShowcase(showcase)}
-                              className="text-primary-700 transition-colors hover:text-primary-800"
-                            >
-                              编辑
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                  </div>
                 ) : null}
               </section>
             ) : null}
@@ -1647,14 +1828,15 @@ export default function AdminPage() {
               />
             ) : null}
 
+            {activeView === 'content-library' ? (
+              <AdminContentLibraryPanel />
+            ) : null}
+
             {activeView === 'marketplace-listings' ? (
               <section className="rounded-lg border border-blue-200 bg-white px-6 py-6">
               <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900">投稿审核与上下架</h2>
-                  <p className="mt-1 max-w-3xl text-sm leading-6 text-gray-500">
-                    通过后切换公开版本；平台下架会阻止历史买家访问，恢复不覆盖创作者选择。
-                  </p>
                 </div>
                 <div className="flex flex-wrap gap-3">
                   <select
@@ -1670,7 +1852,7 @@ export default function AdminPage() {
                         marketModerationFilter,
                         value,
                       ).catch((err: unknown) => {
-                        setError(err instanceof Error ? err.message : '投稿审核列表加载失败')
+                        setError(getAdminErrorMessage(err, '投稿审核列表加载失败'))
                       })
                     }}
                     className="rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
@@ -1688,7 +1870,7 @@ export default function AdminPage() {
                       setMarketPublicationFilter(value)
                       setMarketListingPage(1)
                       void refreshMarketplaceListings(1, value, marketModerationFilter, marketReviewFilter).catch((err: unknown) => {
-                        setError(err instanceof Error ? err.message : '公开简历列表加载失败')
+                        setError(getAdminErrorMessage(err, '公开简历列表加载失败'))
                       })
                     }}
                     className="rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
@@ -1705,7 +1887,7 @@ export default function AdminPage() {
                       setMarketModerationFilter(value)
                       setMarketListingPage(1)
                       void refreshMarketplaceListings(1, marketPublicationFilter, value, marketReviewFilter).catch((err: unknown) => {
-                        setError(err instanceof Error ? err.message : '公开简历列表加载失败')
+                        setError(getAdminErrorMessage(err, '公开简历列表加载失败'))
                       })
                     }}
                     className="rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
@@ -1717,7 +1899,7 @@ export default function AdminPage() {
                   <button
                     type="button"
                     onClick={() => void refreshMarketplaceListings().catch((err: unknown) => {
-                      setError(err instanceof Error ? err.message : '公开简历列表加载失败')
+                      setError(getAdminErrorMessage(err, '公开简历列表加载失败'))
                     })}
                     disabled={marketListingsLoading}
                     className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:border-gray-300 hover:text-gray-900 disabled:cursor-wait disabled:opacity-50"
@@ -1730,7 +1912,7 @@ export default function AdminPage() {
               {marketListingsLoading && marketListings.length === 0 ? (
                 <p className="mt-5 text-sm text-gray-500">正在加载公开简历...</p>
               ) : marketListings.length ? (
-                <div className="mt-5 overflow-x-auto">
+                <AdminTableScroller className="mt-5" label="市场投稿列表">
                   <table className="min-w-[1320px] w-full divide-y divide-gray-200 text-sm">
                     <thead>
                       <tr className="text-left text-gray-500">
@@ -1755,7 +1937,7 @@ export default function AdminPage() {
                             <span className={listingItem.accessType === 'PAID'
                               ? 'rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700'
                               : 'rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700'}>
-                              {listingItem.accessType === 'PAID' ? formatCents(listingItem.priceCents) : '免费公开'}
+                              {listingItem.accessType === 'PAID' ? formatAdminCents(listingItem.priceCents) : '免费公开'}
                             </span>
                           </td>
                           <td className="py-4 pr-4">
@@ -1845,7 +2027,7 @@ export default function AdminPage() {
                       ))}
                     </tbody>
                   </table>
-                </div>
+                </AdminTableScroller>
               ) : (
                 <p className="mt-5 rounded-lg border border-dashed border-gray-300 px-4 py-10 text-center text-sm text-gray-500">
                   暂无匹配简历
@@ -1859,7 +2041,7 @@ export default function AdminPage() {
                     type="button"
                     disabled={marketListingPage <= 1 || marketListingsLoading}
                     onClick={() => void refreshMarketplaceListings(marketListingPage - 1).catch((err: unknown) => {
-                      setError(err instanceof Error ? err.message : '公开简历列表加载失败')
+                      setError(getAdminErrorMessage(err, '公开简历列表加载失败'))
                     })}
                     className="rounded-lg border border-gray-200 px-3 py-2 disabled:cursor-not-allowed disabled:opacity-40"
                   >
@@ -1869,7 +2051,7 @@ export default function AdminPage() {
                     type="button"
                     disabled={marketListingPage >= marketListingTotalPages || marketListingsLoading}
                     onClick={() => void refreshMarketplaceListings(marketListingPage + 1).catch((err: unknown) => {
-                      setError(err instanceof Error ? err.message : '公开简历列表加载失败')
+                      setError(getAdminErrorMessage(err, '公开简历列表加载失败'))
                     })}
                     className="rounded-lg border border-gray-200 px-3 py-2 disabled:cursor-not-allowed disabled:opacity-40"
                   >
@@ -1895,9 +2077,6 @@ export default function AdminPage() {
               <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900">作者收益线下结算</h2>
-                  <p className="mt-1 text-sm leading-6 text-gray-500">
-                    实际转账后再登记流水并确认结算。
-                  </p>
                   <p className="mt-1 text-xs leading-5 text-amber-700">
                     待结算 {pendingCreatorEarningCount} 条 · 最早 200 条
                   </p>
@@ -1905,7 +2084,7 @@ export default function AdminPage() {
                 <button
                   type="button"
                   onClick={() => void refreshPendingCreatorEarnings().catch((err: unknown) => {
-                    setError(err instanceof Error ? err.message : '待结算收益加载失败')
+                    setError(getAdminErrorMessage(err, '待结算收益加载失败'))
                   })}
                   disabled={creatorEarningsLoading}
                   className="w-fit rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:border-gray-300 hover:text-gray-900 disabled:cursor-wait disabled:opacity-50"
@@ -1915,7 +2094,7 @@ export default function AdminPage() {
               </div>
 
               {pendingCreatorEarnings.length ? (
-                <div className="mt-5 overflow-x-auto">
+                <AdminTableScroller className="mt-5" label="待结算作者收益列表">
                   <table className="min-w-[960px] w-full divide-y divide-gray-200 text-sm">
                     <thead>
                       <tr className="text-left text-gray-500">
@@ -1939,10 +2118,10 @@ export default function AdminPage() {
                             <div className="mt-1 max-w-[220px] truncate text-xs text-gray-400" title={earning.orderNo ?? undefined}>{earning.orderNo ?? '原订单已不存在'}</div>
                           </td>
                           <td className="py-4 pr-4">
-                            <div>{formatCents(earning.grossAmountCents)}</div>
-                            <div className="mt-1 text-xs text-gray-400">手续费 {formatCents(earning.platformFeeCents)}</div>
+                            <div>{formatAdminCents(earning.grossAmountCents)}</div>
+                            <div className="mt-1 text-xs text-gray-400">手续费 {formatAdminCents(earning.platformFeeCents)}</div>
                           </td>
-                          <td className="py-4 pr-4 font-semibold text-emerald-700">{formatCents(getCreatorEarningIncome(earning))}</td>
+                          <td className="py-4 pr-4 font-semibold text-emerald-700">{formatAdminCents(getCreatorEarningIncome(earning))}</td>
                           <td className="py-4 pr-4 text-xs leading-5 text-gray-500">
                             <div>状态：等待线下转账</div>
                             <div>{earning.availableAt || earning.createdAt}</div>
@@ -1967,7 +2146,7 @@ export default function AdminPage() {
                       ))}
                     </tbody>
                   </table>
-                </div>
+                </AdminTableScroller>
               ) : (
                 <p className="mt-5 rounded-lg border border-dashed border-gray-300 px-4 py-10 text-center text-sm text-gray-500">
                   暂无结算申请
@@ -1985,7 +2164,7 @@ export default function AdminPage() {
                 <button
                   type="button"
                   onClick={() => void refreshMembershipPaymentDashboard().catch((err: unknown) => {
-                    setError(err instanceof Error ? err.message : '会员支付复核数据加载失败')
+                    setError(getAdminErrorMessage(err, '会员支付复核数据加载失败'))
                   })}
                   disabled={membershipPaymentsLoading || membershipPaymentSummaryLoading}
                   className="w-fit rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:border-gray-300 hover:text-gray-900 disabled:cursor-wait disabled:opacity-50"
@@ -2031,7 +2210,7 @@ export default function AdminPage() {
                     setMembershipPaymentOrderFilter(value)
                     setMembershipPaymentPage(1)
                     void refreshMembershipPaymentOrders(1, value, membershipPaymentReviewFilter).catch((err: unknown) => {
-                      setError(err instanceof Error ? err.message : '会员支付订单加载失败')
+                      setError(getAdminErrorMessage(err, '会员支付订单加载失败'))
                     })
                   }}
                   className="rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
@@ -2049,7 +2228,7 @@ export default function AdminPage() {
                     setMembershipPaymentReviewFilter(value)
                     setMembershipPaymentPage(1)
                     void refreshMembershipPaymentOrders(1, membershipPaymentOrderFilter, value).catch((err: unknown) => {
-                      setError(err instanceof Error ? err.message : '会员支付订单加载失败')
+                      setError(getAdminErrorMessage(err, '会员支付订单加载失败'))
                     })
                   }}
                   className="rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
@@ -2064,7 +2243,7 @@ export default function AdminPage() {
               {membershipPaymentsLoading && membershipPaymentOrders.length === 0 ? (
                 <p className="mt-5 text-sm text-gray-500">正在加载会员支付订单...</p>
               ) : membershipPaymentOrders.length ? (
-                <div className="mt-5 overflow-x-auto">
+                <AdminTableScroller className="mt-5" label="会员支付订单列表">
                   <table className="min-w-[1120px] w-full divide-y divide-gray-200 text-sm">
                     <thead>
                       <tr className="text-left text-gray-500">
@@ -2085,11 +2264,11 @@ export default function AdminPage() {
                             <div className="mt-1 text-xs text-gray-400">创建于 {order.createdAt}</div>
                           </td>
                           <td className="py-4 pr-4">
-                            <div className="font-semibold text-gray-900">{formatCents(order.payableAmountCents)}</div>
+                            <div className="font-semibold text-gray-900">{formatAdminCents(order.payableAmountCents)}</div>
                             <div className="mt-1 text-xs text-gray-500">
                               {order.planName} · {formatMembershipEntitlement(order.entitlementType, order.membershipDays)}
                             </div>
-                            <div className="mt-1 text-xs text-gray-400">原价 {formatCents(order.listPriceCents)}</div>
+                            <div className="mt-1 text-xs text-gray-400">原价 {formatAdminCents(order.listPriceCents)}</div>
                             <div className="mt-1 text-xs text-gray-400">{order.provider} · {order.currency}</div>
                           </td>
                           <td className="py-4 pr-4">
@@ -2133,7 +2312,7 @@ export default function AdminPage() {
                       ))}
                     </tbody>
                   </table>
-                </div>
+                </AdminTableScroller>
               ) : (
                 <p className="mt-5 rounded-lg border border-dashed border-gray-300 px-4 py-10 text-center text-sm text-gray-500">
                   暂无匹配订单
@@ -2151,7 +2330,7 @@ export default function AdminPage() {
                       membershipPaymentOrderFilter,
                       membershipPaymentReviewFilter,
                     ).catch((err: unknown) => {
-                      setError(err instanceof Error ? err.message : '会员支付订单加载失败')
+                      setError(getAdminErrorMessage(err, '会员支付订单加载失败'))
                     })}
                     className="rounded-lg border border-gray-200 px-3 py-2 disabled:cursor-not-allowed disabled:opacity-40"
                   >
@@ -2165,7 +2344,7 @@ export default function AdminPage() {
                       membershipPaymentOrderFilter,
                       membershipPaymentReviewFilter,
                     ).catch((err: unknown) => {
-                      setError(err instanceof Error ? err.message : '会员支付订单加载失败')
+                      setError(getAdminErrorMessage(err, '会员支付订单加载失败'))
                     })}
                     className="rounded-lg border border-gray-200 px-3 py-2 disabled:cursor-not-allowed disabled:opacity-40"
                   >
@@ -2206,7 +2385,7 @@ export default function AdminPage() {
                         selectedMembershipPaymentOrder.membershipDays,
                       )}
                     </div>
-                    <div>实付：{formatCents(selectedMembershipPaymentOrder.payableAmountCents)}</div>
+                    <div>实付：{formatAdminCents(selectedMembershipPaymentOrder.payableAmountCents)}</div>
                     <div>支付交易号：<span className="break-all">{selectedMembershipPaymentOrder.providerTransactionId || '未记录'}</span></div>
                     <div>支付时间：{selectedMembershipPaymentOrder.paidAt || '-'}</div>
                     <div>复核原因：{selectedMembershipPaymentOrder.paymentReviewReason || '-'}</div>
@@ -2276,7 +2455,10 @@ export default function AdminPage() {
                   <div className="mt-5">
                     <h4 className="text-sm font-semibold text-gray-900">人工处置审计记录</h4>
                     {selectedMembershipPaymentOrder.auditLogs.length ? (
-                      <div className="mt-3 overflow-x-auto rounded-lg border border-gray-200 bg-white px-3">
+                      <AdminTableScroller
+                        className="mt-3 rounded-lg border border-gray-200 bg-white"
+                        label="会员支付人工处置审计记录"
+                      >
                         <table className="min-w-[900px] w-full divide-y divide-gray-200 text-xs">
                           <thead>
                             <tr className="text-left text-gray-500">
@@ -2304,7 +2486,7 @@ export default function AdminPage() {
                             ))}
                           </tbody>
                         </table>
-                      </div>
+                      </AdminTableScroller>
                     ) : (
                       <p className="mt-3 text-xs text-gray-500">尚无人工处置记录。</p>
                     )}
@@ -2319,9 +2501,6 @@ export default function AdminPage() {
               <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900">支付异常人工复核</h2>
-                  <p className="mt-1 max-w-3xl text-sm leading-6 text-gray-500">
-                    仅登记商户平台退款结果，不发起退款。
-                  </p>
                   <p className="mt-1 text-xs leading-5 text-red-700">
                     待复核 {marketplacePaymentIssueCount} 条 · 最多 200 条
                   </p>
@@ -2334,7 +2513,7 @@ export default function AdminPage() {
                       const value = event.target.value as '' | MarketplacePaymentReviewStatus
                       setPaymentReviewFilter(value)
                       void refreshMarketplacePaymentReviews(value).catch((err: unknown) => {
-                        setError(err instanceof Error ? err.message : '支付异常列表加载失败')
+                        setError(getAdminErrorMessage(err, '支付异常列表加载失败'))
                       })
                     }}
                     className="rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
@@ -2347,7 +2526,7 @@ export default function AdminPage() {
                   <button
                     type="button"
                     onClick={() => void refreshMarketplacePaymentReviews().catch((err: unknown) => {
-                      setError(err instanceof Error ? err.message : '支付异常列表加载失败')
+                      setError(getAdminErrorMessage(err, '支付异常列表加载失败'))
                     })}
                     disabled={paymentReviewsLoading}
                     className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:border-gray-300 hover:text-gray-900 disabled:cursor-wait disabled:opacity-50"
@@ -2357,7 +2536,7 @@ export default function AdminPage() {
                   <button
                     type="button"
                     onClick={() => void refreshMarketplaceCloseWork().catch((err: unknown) => {
-                      setError(err instanceof Error ? err.message : '待关单列表加载失败')
+                      setError(getAdminErrorMessage(err, '待关单列表加载失败'))
                     })}
                     disabled={paymentCloseWorkLoading}
                     className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:border-gray-300 hover:text-gray-900 disabled:cursor-wait disabled:opacity-50"
@@ -2379,7 +2558,7 @@ export default function AdminPage() {
                 </div>
 
                 {paymentCloseWork.length ? (
-                  <div className="mt-4 overflow-x-auto rounded-lg bg-white px-3">
+                  <AdminTableScroller className="mt-4 rounded-lg bg-white" label="待支付平台关单列表">
                     <table className="min-w-[900px] w-full divide-y divide-gray-200 text-xs">
                       <thead>
                         <tr className="text-left text-gray-500">
@@ -2395,7 +2574,7 @@ export default function AdminPage() {
                           <tr key={work.id} className="align-top">
                             <td className="py-3 pr-4">
                               <div className="font-medium text-amber-800">{MARKETPLACE_ORDER_STATUS_LABELS[work.orderStatus] ?? work.orderStatus}</div>
-                              <div className="mt-1">{formatCents(work.amountCents)} · {work.provider}</div>
+                              <div className="mt-1">{formatAdminCents(work.amountCents)} · {work.provider}</div>
                             </td>
                             <td className="py-3 pr-4">
                               <div className="max-w-[240px] break-all">{work.orderNo}</div>
@@ -2418,7 +2597,7 @@ export default function AdminPage() {
                         ))}
                       </tbody>
                     </table>
-                  </div>
+                  </AdminTableScroller>
                 ) : (
                   <p className="mt-3 text-xs text-amber-800">当前没有仍待支付平台关闭确认的失效销售订单。</p>
                 )}
@@ -2438,6 +2617,7 @@ export default function AdminPage() {
                     </span>
                     <input
                       value={paymentOrderLookup}
+                      aria-label="支付平台订单号"
                       onChange={(event) => setPaymentOrderLookup(event.target.value)}
                       onKeyDown={(event) => {
                         if (event.key === 'Enter') void lookupMarketplaceOrder()
@@ -2463,7 +2643,7 @@ export default function AdminPage() {
                         <span className="rounded-full bg-gray-100 px-2.5 py-0.5 font-medium text-gray-800">
                           {MARKETPLACE_ORDER_STATUS_LABELS[paymentOrderLookupResult.orderStatus] ?? paymentOrderLookupResult.orderStatus}
                         </span>
-                        <strong className="text-sm text-gray-950">{formatCents(paymentOrderLookupResult.amountCents)}</strong>
+                        <strong className="text-sm text-gray-950">{formatAdminCents(paymentOrderLookupResult.amountCents)}</strong>
                       </div>
                       <div className="mt-2 break-all">订单号：{paymentOrderLookupResult.orderNo}</div>
                       <div className="break-all">支付交易号：{paymentOrderLookupResult.providerTransactionId || '后端未记录'}</div>
@@ -2496,7 +2676,7 @@ export default function AdminPage() {
               </div>
 
               {paymentReviews.length ? (
-                <div className="mt-5 overflow-x-auto">
+                <AdminTableScroller className="mt-5" label="市场支付异常复核列表">
                   <table className="min-w-[1260px] w-full divide-y divide-gray-200 text-sm">
                     <thead>
                       <tr className="text-left text-gray-500">
@@ -2520,7 +2700,7 @@ export default function AdminPage() {
                                 : 'rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700'}>
                               {MARKETPLACE_ORDER_STATUS_LABELS[review.orderStatus] ?? review.orderStatus}
                             </span>
-                            <div className="mt-2 font-semibold text-gray-900">{formatCents(review.amountCents)}</div>
+                            <div className="mt-2 font-semibold text-gray-900">{formatAdminCents(review.amountCents)}</div>
                             <div className="mt-1 text-xs text-gray-400">{review.currency} · {review.provider}</div>
                           </td>
                           <td className="py-4 pr-4 text-xs leading-5">
@@ -2597,7 +2777,7 @@ export default function AdminPage() {
                       ))}
                     </tbody>
                   </table>
-                </div>
+                </AdminTableScroller>
               ) : (
                 <p className="mt-5 rounded-lg border border-dashed border-gray-300 px-4 py-10 text-center text-sm text-gray-500">
                   {paymentReviewFilter === 'REFUNDED'
@@ -2673,7 +2853,7 @@ export default function AdminPage() {
                 {creatingInvite ? '生成中...' : `生成 ${inviteForm.membershipDays || '-'} 天 VIP 邀请码`}
               </button>
 
-              <div className="mt-6 overflow-x-auto">
+              <AdminTableScroller className="mt-6" label="VIP 邀请码列表">
                 <table className="min-w-full divide-y divide-gray-200 text-sm">
                   <thead>
                     <tr className="text-left text-gray-500">
@@ -2698,7 +2878,7 @@ export default function AdminPage() {
                         <td className="py-3 pr-4">{invite.redeemedCount} / {invite.maxRedemptions}</td>
                         <td className="py-3 pr-4">{invite.expiresAt ?? '-'}</td>
                         <td className="py-3 pr-4">
-                          <div>{displayStatus}</div>
+                          <div><VipInviteStatusBadge status={displayStatus} /></div>
                           {invite.invalidateReason ? (
                             <div className="mt-1 max-w-xs text-xs leading-5 text-red-600">
                               {invite.invalidatedAt ?? '已作废'} · {invite.invalidateReason}
@@ -2748,13 +2928,15 @@ export default function AdminPage() {
                     })}
                   </tbody>
                 </table>
-              </div>
+              </AdminTableScroller>
 
               {selectedInviteId !== null ? (
-                <div className="mt-5 rounded-lg border border-gray-200 bg-gray-50 px-4 py-4">
-                  <h3 className="text-sm font-semibold text-gray-900">兑换用户</h3>
+                <div ref={redemptionsPanelRef} className="mt-5 rounded-lg border border-gray-200 bg-gray-50 px-4 py-4">
+                  <h3 className="text-sm font-semibold text-gray-900">
+                    兑换用户{selectedInvite ? ` · ${selectedInvite.code}` : ''}
+                  </h3>
                   {inviteRedemptions.length ? (
-                    <div className="mt-3 overflow-x-auto">
+                    <AdminTableScroller className="mt-3" label="邀请码兑换记录列表">
                       <table className="min-w-full text-sm">
                         <thead>
                           <tr className="text-left text-gray-500">
@@ -2772,7 +2954,7 @@ export default function AdminPage() {
                               <td className="py-2 pr-4">{redemption.redeemedAt}</td>
                               <td className="py-2 pr-4">{redemption.membershipExpiresAt}</td>
                               <td className="py-2 pr-4">
-                                <div>{redemption.redemptionStatus}</div>
+                                <div><RedemptionStatusBadge status={redemption.redemptionStatus} /></div>
                                 {redemption.redemptionStatus === 'REVOKED' ? (
                                   <div className="mt-1 max-w-md text-xs leading-5 text-red-600">
                                     {redemption.revokedAt ?? '已撤销'}
@@ -2796,7 +2978,7 @@ export default function AdminPage() {
                           ))}
                         </tbody>
                       </table>
-                    </div>
+                    </AdminTableScroller>
                   ) : (
                     <p className="mt-2 text-sm text-gray-500">暂无兑换</p>
                   )}
@@ -2808,8 +2990,12 @@ export default function AdminPage() {
             {activeView === 'surveys' ? (
               <section className="rounded-lg border border-gray-200 bg-white px-6 py-6">
               <h2 className="text-lg font-semibold text-gray-900">问卷审核</h2>
+              {feedbacks.length ? (
               <div className="mt-5 space-y-4">
-                {feedbacks.map((feedback) => (
+                {feedbacks.map((feedback) => {
+                  const feedbackActionPending = feedbackActionId !== null
+                  const currentFeedbackActionPending = feedbackActionId === feedback.id
+                  return (
                   <article key={feedback.id} className="rounded-lg border border-gray-200 bg-gray-50 px-5 py-5">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
@@ -2820,10 +3006,9 @@ export default function AdminPage() {
                           {feedback.contactEmail} · 评分 {feedback.rating} / 5 · 提交于 {feedback.createdAt}
                         </div>
                       </div>
-                      <div className="flex flex-wrap gap-2 text-xs">
-                        <span className="rounded-full bg-white px-3 py-1 text-gray-600">审核 {feedback.reviewStatus}</span>
-                        <span className="rounded-full bg-white px-3 py-1 text-gray-600">发布 {feedback.publishStatus}</span>
-                        <span className="rounded-full bg-white px-3 py-1 text-gray-600">优惠码 {feedback.couponStatus}</span>
+                      <div className="flex flex-wrap items-center gap-2 text-xs">
+                        <FeedbackReviewStatusBadge status={feedback.reviewStatus} />
+                        <FeedbackPublishStatusBadge status={feedback.publishStatus} />
                       </div>
                     </div>
 
@@ -2831,111 +3016,138 @@ export default function AdminPage() {
                     {feedback.desiredFeatures ? <p className="mt-3 text-sm leading-6 text-gray-600">需求：{feedback.desiredFeatures}</p> : null}
                     {feedback.bugFeedback ? <p className="mt-3 text-sm leading-6 text-gray-600">Bug：{feedback.bugFeedback}</p> : null}
                     {feedback.reviewNote ? <p className="mt-3 text-sm leading-6 text-gray-500">审核备注：{feedback.reviewNote}</p> : null}
-                    {feedback.coupon ? (
-                      <p className="mt-3 text-sm text-primary-700">
-                        优惠码：{feedback.coupon.code} · 面额 {formatCents(feedback.coupon.amountCents)}
-                      </p>
-                    ) : null}
 
                     <div className="mt-5 flex flex-wrap gap-3">
-                      <button
-                        type="button"
-                        onClick={() => void handleApprove(feedback)}
-                        className="rounded-lg bg-primary-600 px-4 py-2 text-sm text-white transition-colors hover:bg-primary-700"
-                      >
-                        通过并发码
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void handleReject(feedback)}
-                        className="rounded-lg border border-red-200 px-4 py-2 text-sm text-red-700 transition-colors hover:border-red-300"
-                      >
-                        拒绝
-                      </button>
+                      {feedback.reviewStatus === 'PENDING' ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => void handleApprove(feedback)}
+                            disabled={feedbackActionPending}
+                            className="rounded-lg bg-primary-600 px-4 py-2 text-sm text-white transition-colors hover:bg-primary-700 disabled:cursor-wait disabled:opacity-50"
+                          >
+                            {currentFeedbackActionPending ? '处理中…' : '通过审核'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleReject(feedback)}
+                            disabled={feedbackActionPending}
+                            className="rounded-lg border border-red-200 px-4 py-2 text-sm text-red-700 transition-colors hover:border-red-300 disabled:cursor-wait disabled:opacity-50"
+                          >
+                            {currentFeedbackActionPending ? '处理中…' : '拒绝'}
+                          </button>
+                        </>
+                      ) : null}
                       {feedback.publishStatus === 'PUBLISHED' ? (
                         <button
                           type="button"
                           onClick={() => void handlePublish(feedback, 'unpublish')}
-                          className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-700 transition-colors hover:border-gray-300"
+                          disabled={feedbackActionPending}
+                          className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-700 transition-colors hover:border-gray-300 disabled:cursor-wait disabled:opacity-50"
                         >
-                          下线评价
+                          {currentFeedbackActionPending ? '处理中…' : '下线评价'}
                         </button>
-                      ) : (
+                      ) : feedback.reviewStatus === 'APPROVED' ? (
                         <button
                           type="button"
                           onClick={() => void handlePublish(feedback, 'publish')}
-                          className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-700 transition-colors hover:border-gray-300"
+                          disabled={feedbackActionPending}
+                          className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-700 transition-colors hover:border-gray-300 disabled:cursor-wait disabled:opacity-50"
                         >
-                          发布评价
-                        </button>
-                      )}
-                      {feedback.coupon ? (
-                        <button
-                          type="button"
-                          onClick={() => void handleResendCoupon(feedback)}
-                          className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-700 transition-colors hover:border-gray-300"
-                        >
-                          重发优惠码
+                          {currentFeedbackActionPending ? '处理中…' : '发布评价'}
                         </button>
                       ) : null}
                     </div>
                   </article>
-                ))}
+                  )
+                })}
               </div>
+              ) : (
+                <p className="mt-5 text-sm text-gray-500">暂无问卷提交</p>
+              )}
               </section>
             ) : null}
 
-            {activeView === 'surveys' || activeView === 'members' ? (
+            {activeView === 'coupons' || activeView === 'members' ? (
               <section>
-                {activeView === 'surveys' ? (
+                {activeView === 'coupons' ? (
                   <div className="rounded-lg border border-gray-200 bg-white px-6 py-6">
-                <h2 className="text-lg font-semibold text-gray-900">优惠码列表</h2>
-                <div className="mt-5 overflow-x-auto">
+                <h2 className="text-lg font-semibold text-gray-900">支付优惠码</h2>
+                {coupons.length ? (
+                <AdminTableScroller className="mt-5" label="优惠码列表">
                   <table className="min-w-full divide-y divide-gray-200 text-sm">
                     <thead>
                       <tr className="text-left text-gray-500">
                         <th className="py-3 pr-4 font-medium">优惠码</th>
                         <th className="py-3 pr-4 font-medium">账号</th>
                         <th className="py-3 pr-4 font-medium">面额</th>
-                        <th className="py-3 font-medium">状态</th>
+                        <th className="py-3 pr-4 font-medium">状态</th>
+                        <th className="py-3 pr-4 font-medium">有效期</th>
+                        <th className="py-3 pr-4 font-medium">邮件发送</th>
+                        <th className="py-3 font-medium">操作</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 text-gray-700">
-                      {coupons.map((coupon) => (
+                      {coupons.map((coupon) => {
+                        const currentCouponActionPending = couponActionId === coupon.id
+                        const couponExpired = isCouponExpired(coupon)
+                        const effectiveCouponStatus = coupon.status === 'ISSUED' && couponExpired
+                          ? 'EXPIRED'
+                          : coupon.status
+                        return (
                         <tr key={coupon.id}>
                           <td className="py-3 pr-4 font-medium text-gray-900">{coupon.code}</td>
                           <td className="py-3 pr-4">{coupon.recipientEmail}</td>
-                          <td className="py-3 pr-4">{formatCents(coupon.amountCents)}</td>
-                          <td className="py-3">{coupon.status}</td>
+                          <td className="py-3 pr-4">{formatAdminCents(coupon.amountCents)}</td>
+                          <td className="py-3 pr-4">
+                            <CouponStatusBadge status={effectiveCouponStatus} />
+                          </td>
+                          <td className="py-3 pr-4 text-xs text-gray-500">
+                            {coupon.expiresAt ?? '长期有效'}
+                          </td>
+                          <td className="py-3 pr-4 text-xs text-gray-500">
+                            {coupon.emailSentAt ?? '尚未发送'}
+                          </td>
+                          <td className="py-3">
+                            {isCouponResendable(coupon) ? (
+                              <button
+                                type="button"
+                                onClick={() => void handleResendCoupon(coupon)}
+                                disabled={couponActionId !== null}
+                                className="min-w-max text-primary-700 hover:text-primary-800 disabled:cursor-wait disabled:opacity-50"
+                              >
+                                {currentCouponActionPending ? '发送中…' : '重发邮件'}
+                              </button>
+                            ) : '-'}
+                          </td>
                         </tr>
-                      ))}
+                        )
+                      })}
                     </tbody>
                   </table>
-                </div>
+                </AdminTableScroller>
+                ) : (
+                  <p className="mt-5 text-sm text-gray-500">暂无优惠码</p>
+                )}
                   </div>
                 ) : null}
 
                 {activeView === 'members' ? (
                   <div className="rounded-lg border border-gray-200 bg-white px-6 py-6">
-                <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
-                  <div>
-                    <h2 className="text-lg font-semibold text-gray-900">用户会员管理</h2>
-                    <p className="mt-1 text-sm text-gray-500">
-                      共 {users.length} 个账号，其中 {activeMemberCount} 个有效 VIP。
-                    </p>
-                  </div>
+                <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+                  <p className="text-sm text-gray-500">共 {userTotal} 个账号</p>
                   <div className="flex flex-col gap-2 sm:flex-row">
                     <input
                       type="search"
                       value={userSearch}
-                      onChange={(event) => setUserSearch(event.target.value)}
+                      onChange={(event) => handleUserSearchChange(event.target.value)}
                       placeholder="搜索邮箱或昵称"
                       aria-label="搜索用户"
                       className="w-full min-w-0 rounded-lg border border-gray-300 px-3 py-2 text-sm sm:w-56"
                     />
                     <select
                       value={userMembershipFilter}
-                      onChange={(event) => setUserMembershipFilter(event.target.value as '' | 'ACTIVE' | 'FREE')}
+                      onChange={(event) => handleUserMembershipFilterChange(event.target.value as '' | 'ACTIVE' | 'FREE')}
                       aria-label="筛选会员状态"
                       className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
                     >
@@ -2945,7 +3157,10 @@ export default function AdminPage() {
                     </select>
                   </div>
                 </div>
-                <div className="mt-5 overflow-x-auto">
+                {usersLoading && !users.length ? (
+                  <p className="mt-5 text-sm text-gray-500">正在加载用户...</p>
+                ) : (
+                <AdminTableScroller className="mt-5" label="用户与会员列表">
                   <table className="min-w-full divide-y divide-gray-200 text-sm">
                     <thead>
                       <tr className="text-left text-gray-500">
@@ -2956,7 +3171,10 @@ export default function AdminPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 text-gray-700">
-                      {filteredUsers.map((user) => (
+                      {users.map((user) => {
+                        const membershipActionPending = membershipActionUserId !== null
+                        const currentUserActionPending = membershipActionUserId === user.id
+                        return (
                         <tr key={user.id}>
                           <td className="py-3 pr-4">
                             <div className="font-medium text-gray-900">{getUserAdminLabel(user)}</div>
@@ -2990,39 +3208,68 @@ export default function AdminPage() {
                                 <button
                                   type="button"
                                   onClick={() => void handleExtendMembership(user)}
-                                  className="text-emerald-700 transition-colors hover:text-emerald-800"
+                                  disabled={membershipActionPending}
+                                  className="text-emerald-700 transition-colors hover:text-emerald-800 disabled:cursor-wait disabled:opacity-50"
                                 >
-                                  {user.membershipStatus === 'ACTIVE' ? '延期' : '到期后续期'}
+                                  {currentUserActionPending
+                                    ? '处理中…'
+                                    : user.membershipStatus === 'ACTIVE' ? '延期' : '到期后续期'}
                                 </button>
                               ) : null}
                               {user.membershipStatus === 'ACTIVE' ? (
                                 <button
                                   type="button"
                                   onClick={() => void handleMembership(user, 'revoke')}
-                                  className="text-red-700 transition-colors hover:text-red-800"
+                                  disabled={membershipActionPending}
+                                  className="text-red-700 transition-colors hover:text-red-800 disabled:cursor-wait disabled:opacity-50"
                                 >
-                                  撤销会员
+                                  {currentUserActionPending ? '处理中…' : '撤销会员'}
                                 </button>
                               ) : (
                                 <button
                                   type="button"
                                   onClick={() => void handleMembership(user, 'grant')}
-                                  className="text-primary-700 transition-colors hover:text-primary-800"
+                                  disabled={membershipActionPending}
+                                  className="text-primary-700 transition-colors hover:text-primary-800 disabled:cursor-wait disabled:opacity-50"
                                 >
-                                  开通永久 VIP
+                                  {currentUserActionPending ? '处理中…' : '开通永久 VIP'}
                                 </button>
                               )}
                             </div>
                           </td>
                         </tr>
-                      ))}
+                        )
+                      })}
                     </tbody>
                   </table>
-                  {!filteredUsers.length ? (
+                  {!users.length ? (
                     <div className="border-t border-gray-100 px-4 py-12 text-center text-sm text-gray-500">
                       暂无匹配用户
                     </div>
                   ) : null}
+                </AdminTableScroller>
+                )}
+
+                <div className="mt-5 flex flex-wrap items-center justify-between gap-3 text-sm text-gray-500">
+                  <span>共 {userTotal} 条 · 第 {userPage} / {userTotalPages} 页</span>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      disabled={userPage <= 1 || usersLoading}
+                      onClick={() => void reloadUsersPage(userPage - 1)}
+                      className="rounded-lg border border-gray-200 px-3 py-2 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      上一页
+                    </button>
+                    <button
+                      type="button"
+                      disabled={userPage >= userTotalPages || usersLoading}
+                      onClick={() => void reloadUsersPage(userPage + 1)}
+                      className="rounded-lg border border-gray-200 px-3 py-2 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      下一页
+                    </button>
+                  </div>
                 </div>
                   </div>
                 ) : null}
@@ -3034,21 +3281,45 @@ export default function AdminPage() {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900">最近会员管理审计日志</h2>
-                  <p className="mt-1 text-sm leading-6 text-gray-500">
-                    最近 200 条会员与邀请码高风险操作。
-                  </p>
                 </div>
                 <button
                   type="button"
-                  onClick={() => void refreshMembershipAuditLogs()}
-                  className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:border-gray-300 hover:text-gray-900"
+                  onClick={() => void refreshMembershipAuditLogs().catch((err: unknown) => {
+                    setError(getAdminErrorMessage(err, '审计日志加载失败'))
+                  })}
+                  disabled={membershipAuditLogsLoading}
+                  className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:border-gray-300 hover:text-gray-900 disabled:cursor-wait disabled:opacity-50"
                 >
-                  刷新日志
+                  {membershipAuditLogsLoading ? '刷新中…' : '刷新日志'}
                 </button>
               </div>
 
-              {membershipAuditLogs.length ? (
-                <div className="mt-5 overflow-x-auto">
+              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                <select
+                  value={auditActionFilter}
+                  onChange={(event) => setAuditActionFilter(event.target.value)}
+                  aria-label="筛选操作类型"
+                  className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                >
+                  <option value="">全部操作类型</option>
+                  {auditActionOptions.map((action) => (
+                    <option key={action} value={action}>
+                      {MEMBERSHIP_AUDIT_ACTION_LABELS[action] ?? action}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="search"
+                  value={auditKeyword}
+                  onChange={(event) => setAuditKeyword(event.target.value)}
+                  placeholder="搜索管理员、对象、原因或详情"
+                  aria-label="搜索审计日志"
+                  className="w-full min-w-0 rounded-lg border border-gray-300 px-3 py-2 text-sm sm:w-64"
+                />
+              </div>
+
+              {filteredAuditLogs.length ? (
+                <AdminTableScroller className="mt-5" label="会员管理审计日志列表">
                   <table className="min-w-full divide-y divide-gray-200 text-sm">
                     <thead>
                       <tr className="text-left text-gray-500">
@@ -3059,7 +3330,7 @@ export default function AdminPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 text-gray-700">
-                      {membershipAuditLogs.map((log) => (
+                      {filteredAuditLogs.map((log) => (
                         <tr key={log.id} className="align-top">
                           <td className="py-3 pr-4">
                             <div>{log.createdAt}</div>
@@ -3102,7 +3373,9 @@ export default function AdminPage() {
                       ))}
                     </tbody>
                   </table>
-                </div>
+                </AdminTableScroller>
+              ) : membershipAuditLogs.length ? (
+                <p className="mt-4 text-sm text-gray-500">暂无匹配日志</p>
               ) : (
                 <p className="mt-4 text-sm text-gray-500">暂无审计记录</p>
               )}
@@ -3112,5 +3385,13 @@ export default function AdminPage() {
         )}
       </div>
     </AdminShell>
+  )
+}
+
+export default function AdminPage() {
+  return (
+    <AdminActionDialogProvider>
+      <AdminPageContent />
+    </AdminActionDialogProvider>
   )
 }

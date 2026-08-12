@@ -5,6 +5,8 @@ import com.itwanger.pairesume.dto.AiFieldOptimizeRequestDTO;
 import com.itwanger.pairesume.dto.FieldOptimizePromptConfigDTO;
 import com.itwanger.pairesume.dto.SmartOnePagePreviewRequestDTO;
 import com.itwanger.pairesume.dto.SmartOnePagePreviewResponseDTO;
+import com.itwanger.pairesume.dto.ShowcaseMetadataDTO;
+import com.itwanger.pairesume.dto.LibraryAiDraftRequestDTO;
 import com.itwanger.pairesume.entity.ResumeModule;
 
 import java.util.List;
@@ -39,6 +41,17 @@ public interface AiService {
      * 分析整份简历内容，返回结构化的 AI 评估结果
      */
     ResumeAnalysisResultDTO analyzeResume(String resumeTitle, List<ResumeModule> modules, String promptOverride);
+
+    /**
+     * 根据简历真实内容生成公开精选卡片使用的展示标签、摘要和技术标签。
+     */
+    ShowcaseMetadataDTO generateShowcaseMetadata(String resumeTitle, List<ResumeModule> modules);
+
+    /**
+     * 为管理员生成尚未发布的官方素材或内容模板草稿。
+     * 调用方必须人工审核后再通过内容库接口发布。
+     */
+    Map<String, Object> generateLibraryDraft(LibraryAiDraftRequestDTO request);
 
     /**
      * 流式分析整份简历内容，实时推送思考过程和最终结构化结果

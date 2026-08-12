@@ -69,7 +69,23 @@ body {
   border-radius: 0 !important;
 }
 
-/* 管理后台使用独立的信息密度与层级，不继承用户端的硬朗卡片规则。 */
+/* 管理后台保留较高的信息密度，但与用户端共享主品牌色、轮廓和交互反馈。 */
+.admin-shell {
+  --admin-brand: #3369e8;
+  --admin-brand-strong: #1d4ed8;
+  --admin-brand-soft: #f0f5ff;
+  --admin-border: #dce4f0;
+  --admin-border-strong: #cbd7e8;
+  --admin-canvas: #f5f8fc;
+  --admin-surface: #fff;
+  --admin-text: #0f172a;
+  --admin-muted: #64748b;
+  background:
+    radial-gradient(circle at 78% -8%, rgba(51, 105, 232, 0.09), transparent 28rem),
+    var(--admin-canvas);
+  color: var(--admin-text);
+}
+
 .admin-shell .rounded-lg {
   border-radius: 8px !important;
 }
@@ -88,36 +104,177 @@ body {
 }
 
 .admin-workspace section[class*='bg-white'] {
-  box-shadow: 0 18px 50px -38px rgba(15, 23, 42, 0.56);
+  border-color: var(--admin-border);
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.025),
+    0 18px 50px -38px rgba(15, 23, 42, 0.5);
+}
+
+.admin-workspace h2,
+.admin-workspace h3 {
+  letter-spacing: -0.012em;
+}
+
+.admin-workspace button,
+.admin-workspace a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.admin-workspace button {
+  min-height: 2.5rem;
+}
+
+.admin-workspace button:focus-visible,
+.admin-workspace a:focus-visible,
+.admin-workspace [role='button']:focus-visible,
+.admin-table-scroll:focus-visible {
+  outline: 3px solid rgba(51, 105, 232, 0.24);
+  outline-offset: 2px;
+}
+
+.admin-workspace button:disabled,
+.admin-workspace [aria-disabled='true'] {
+  box-shadow: none !important;
+}
+
+/* 历史页面里的 primary / violet 按钮都回归品牌蓝，语义性红黄绿仍保留。 */
+.admin-workspace button[class*='bg-primary-']:not(.segmented-control__option),
+.admin-workspace button[class*='bg-violet-']:not(.segmented-control__option) {
+  background-color: var(--admin-brand-strong) !important;
+  box-shadow: 0 8px 18px -12px rgba(29, 78, 216, 0.9);
+}
+
+.admin-workspace button[class*='bg-primary-']:not(.segmented-control__option):hover:not(:disabled),
+.admin-workspace button[class*='bg-violet-']:not(.segmented-control__option):hover:not(:disabled) {
+  background-color: #1e40af !important;
+}
+
+.admin-workspace button[class*='border-gray-2'],
+.admin-workspace button[class*='border-gray-3'],
+.admin-workspace button[class*='border-slate-2'],
+.admin-workspace button[class*='border-slate-3'] {
+  background-color: rgba(255, 255, 255, 0.94);
+  border-color: var(--admin-border);
+  color: #334155;
+}
+
+.admin-workspace button[class*='border-gray-2']:hover:not(:disabled),
+.admin-workspace button[class*='border-gray-3']:hover:not(:disabled),
+.admin-workspace button[class*='border-slate-2']:hover:not(:disabled),
+.admin-workspace button[class*='border-slate-3']:hover:not(:disabled) {
+  background-color: var(--admin-brand-soft);
+  border-color: #a9c4ff;
+  color: #1e40af;
 }
 
 .admin-workspace table thead {
-  background: rgba(248, 250, 252, 0.86);
+  background: rgba(248, 250, 252, 0.94);
 }
 
 .admin-workspace table th {
-  color: #64748b;
+  color: #526176;
   font-size: 0.7rem;
   font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  white-space: nowrap;
+}
+
+.admin-workspace table tr > :first-child {
+  padding-inline-start: 1rem;
+}
+
+.admin-workspace table tr > :last-child {
+  padding-inline-end: 1rem;
 }
 
 .admin-workspace table tbody tr {
-  transition: background-color 160ms ease;
+  transition: background-color 140ms ease;
 }
 
 .admin-workspace table tbody tr:hover {
-  background: rgba(248, 250, 252, 0.82);
+  background: rgba(240, 245, 255, 0.62);
+}
+
+.admin-workspace table td {
+  border-color: #edf1f7;
+}
+
+.admin-workspace .overflow-x-auto,
+.admin-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-color: #aebbd0 transparent;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
+}
+
+.admin-workspace .overflow-x-auto::-webkit-scrollbar,
+.admin-table-scroll::-webkit-scrollbar {
+  height: 7px;
+}
+
+.admin-workspace .overflow-x-auto::-webkit-scrollbar-track,
+.admin-table-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.admin-workspace .overflow-x-auto::-webkit-scrollbar-thumb,
+.admin-table-scroll::-webkit-scrollbar-thumb {
+  background: #b9c5d6;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+/*
+ * 纯 CSS 横向滚动阴影提示：两侧白色遮罩随视口固定（background-attachment: local），
+ * 阴影随内容滚动（scroll）；某侧还能继续滚动时，该侧遮罩盖住阴影之外的部分，
+ * 可滚动侧露出淡阴影，滚到底后阴影随内容移出而被遮罩完全盖住。
+ * 只设置 background-image 系列属性，保留容器自身的 background-color（如 bg-white）。
+ */
+.admin-table-scroll {
+  background-image:
+    linear-gradient(to right, #fff 30%, rgba(255, 255, 255, 0)),
+    linear-gradient(to left, #fff 30%, rgba(255, 255, 255, 0)),
+    radial-gradient(farthest-side at 0 50%, rgba(15, 23, 42, 0.14), rgba(15, 23, 42, 0)),
+    radial-gradient(farthest-side at 100% 50%, rgba(15, 23, 42, 0.14), rgba(15, 23, 42, 0));
+  background-position: left center, right center, left center, right center;
+  background-repeat: no-repeat;
+  background-size: 2.5rem 100%, 2.5rem 100%, 0.875rem 100%, 0.875rem 100%;
+  background-attachment: local, local, scroll, scroll;
+}
+
+.admin-workspace [class*='border-dashed'] {
+  border-color: #cbd7e8;
+  background:
+    radial-gradient(circle at 50% 0, rgba(51, 105, 232, 0.075), transparent 9rem),
+    rgba(248, 250, 252, 0.66);
+  color: var(--admin-muted);
 }
 
 .admin-workspace input,
 .admin-workspace select,
 .admin-workspace textarea {
   background-color: #fff;
-  border-color: #cbd5e1;
+  border-color: var(--admin-border-strong);
   border-radius: 8px !important;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.025);
+  color: var(--admin-text);
+  min-height: 2.625rem;
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.admin-workspace input::placeholder,
+.admin-workspace textarea::placeholder {
+  color: #94a3b8;
+}
+
+.admin-workspace input:disabled,
+.admin-workspace select:disabled,
+.admin-workspace textarea:disabled {
+  background-color: #f1f5f9;
+  color: #64748b;
 }
 
 .admin-workspace input:focus,
@@ -125,6 +282,356 @@ body {
 .admin-workspace textarea:focus {
   border-color: #3369e8;
   box-shadow: 0 0 0 3px rgba(51, 105, 232, 0.12);
+}
+
+/* 新后台页面可直接使用 AdminUi 组件，旧页面由上面的兼容规则托底。 */
+.admin-card {
+  border: 1px solid var(--admin-border);
+  border-radius: 16px;
+  background: var(--admin-surface);
+  padding: 1.5rem;
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.025),
+    0 18px 50px -38px rgba(15, 23, 42, 0.5);
+}
+
+.admin-card--brand {
+  border-color: #c8d9ff;
+}
+
+.admin-card--success {
+  border-color: #b7e4ce;
+}
+
+.admin-card--warning {
+  border-color: #f6d99a;
+}
+
+.admin-card--danger {
+  border-color: #fecaca;
+}
+
+.admin-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.admin-card__title {
+  color: var(--admin-text);
+  font-size: 1.0625rem;
+  font-weight: 650;
+  letter-spacing: -0.012em;
+  line-height: 1.5;
+}
+
+.admin-card__description {
+  max-width: 48rem;
+  margin-top: 0.25rem;
+  color: var(--admin-muted);
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.admin-card__action {
+  flex: none;
+}
+
+.admin-button {
+  display: inline-flex;
+  min-height: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font-weight: 600;
+  line-height: 1.25;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease,
+    box-shadow 140ms ease, transform 140ms ease;
+}
+
+.admin-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.admin-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.admin-button:focus-visible {
+  outline: 3px solid rgba(51, 105, 232, 0.24);
+  outline-offset: 2px;
+}
+
+.admin-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.admin-button--sm {
+  min-height: 2.25rem;
+  padding: 0.45rem 0.75rem;
+  font-size: 0.75rem;
+}
+
+.admin-button--md {
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+}
+
+.admin-button--primary {
+  background: var(--admin-brand-strong);
+  color: #fff;
+  box-shadow: 0 8px 18px -12px rgba(29, 78, 216, 0.9);
+}
+
+.admin-button--primary:hover:not(:disabled) {
+  background: #1e40af;
+}
+
+.admin-button--secondary {
+  border-color: #bfd7ff;
+  background: var(--admin-brand-soft);
+  color: #1e40af;
+}
+
+.admin-button--secondary:hover:not(:disabled) {
+  border-color: #8fb8ff;
+  background: #e0ebff;
+}
+
+.admin-button--quiet {
+  border-color: var(--admin-border);
+  background: #fff;
+  color: #334155;
+}
+
+.admin-button--quiet:hover:not(:disabled) {
+  border-color: #a9c4ff;
+  background: var(--admin-brand-soft);
+  color: #1e40af;
+}
+
+.admin-button--danger {
+  background: #dc2626;
+  color: #fff;
+  box-shadow: 0 8px 18px -12px rgba(220, 38, 38, 0.8);
+}
+
+.admin-button--danger:hover:not(:disabled) {
+  background: #b91c1c;
+}
+
+.admin-button__spinner {
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+  animation: admin-spin 720ms linear infinite;
+}
+
+.admin-badge {
+  display: inline-flex;
+  min-height: 1.5rem;
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 0.2rem 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.admin-badge--neutral {
+  border-color: #e2e8f0;
+  background: #f8fafc;
+  color: #475569;
+}
+
+.admin-badge--brand {
+  border-color: #c8d9ff;
+  background: var(--admin-brand-soft);
+  color: #1e40af;
+}
+
+.admin-badge--success {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #047857;
+}
+
+.admin-badge--warning {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #a16207;
+}
+
+.admin-badge--danger {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.admin-empty-state {
+  display: flex;
+  min-height: 11rem;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed #cbd7e8;
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 50% 0, rgba(51, 105, 232, 0.085), transparent 10rem),
+    rgba(248, 250, 252, 0.72);
+  padding: 2rem 1.25rem;
+  text-align: center;
+}
+
+.admin-empty-state__icon {
+  display: inline-flex;
+  width: 2.75rem;
+  height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #dbe7ff;
+  border-radius: 12px;
+  background: #fff;
+  color: var(--admin-brand);
+  box-shadow: 0 8px 20px -16px rgba(29, 78, 216, 0.9);
+}
+
+.admin-empty-state__icon svg {
+  width: 1.4rem;
+  height: 1.4rem;
+}
+
+.admin-empty-state__title {
+  margin-top: 0.875rem;
+  color: #334155;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.admin-empty-state__description {
+  max-width: 30rem;
+  margin-top: 0.35rem;
+  color: var(--admin-muted);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+
+.admin-empty-state__action {
+  margin-top: 1rem;
+}
+
+.admin-table-scroll {
+  border: 1px solid var(--admin-border);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.admin-feedback {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  border: 1px solid;
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+
+.admin-feedback__mark {
+  display: inline-flex;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.admin-feedback--info {
+  border-color: #bfd7ff;
+  background: var(--admin-brand-soft);
+  color: #1e40af;
+}
+
+.admin-feedback--info .admin-feedback__mark {
+  background: #dbe7ff;
+}
+
+.admin-feedback--success {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #047857;
+}
+
+.admin-feedback--success .admin-feedback__mark {
+  background: #dcfce7;
+}
+
+.admin-feedback--warning {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.admin-feedback--warning .admin-feedback__mark {
+  background: #fef3c7;
+}
+
+.admin-feedback--danger {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.admin-feedback--danger .admin-feedback__mark {
+  background: #fee2e2;
+}
+
+@keyframes admin-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 639px) {
+  .admin-workspace > section[class*='px-6'],
+  .admin-workspace > div > section[class*='px-6'] {
+    padding-right: 1rem;
+    padding-left: 1rem;
+  }
+
+  .admin-card {
+    padding: 1rem;
+  }
+
+  .admin-card__header {
+    flex-direction: column;
+  }
+
+  .admin-card__action,
+  .admin-card__action > * {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-workspace *,
+  .admin-workspace *::before,
+  .admin-workspace *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
 
 /* 打印样式 */
@@ -170,24 +677,28 @@ body {
   }
 }
 
-/* 自定义滚动条 */
+/* 全站滚动条：纵向轻量化，横向保留足够的拖动区域 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 4px;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 4px;
+  background: #cbd5e1;
+  border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #a1a1a1;
+  background: #94a3b8;
 }
 
 /* 多行文本省略 */

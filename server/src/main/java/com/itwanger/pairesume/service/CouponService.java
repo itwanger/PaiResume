@@ -22,6 +22,8 @@ public interface CouponService {
 
     void resendCoupon(CouponCode couponCode);
 
+    CouponAdminDTO resendCoupon(Long couponId, Long adminUserId);
+
     void invalidateFeedbackCoupon(Long submissionId);
 
     List<CouponAdminDTO> listCoupons();

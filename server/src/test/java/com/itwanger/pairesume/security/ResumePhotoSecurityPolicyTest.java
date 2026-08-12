@@ -31,6 +31,24 @@ class ResumePhotoSecurityPolicyTest {
     }
 
     @Test
+    void acceptsRemoteHttpAndHttpsPhotoLinks() {
+        assertTrue(ResumePhotoSecurityPolicy.isSafeRemotePhotoUrl(
+                "https://images.example.com/profile/photo.jpg?version=2"));
+        assertTrue(ResumePhotoSecurityPolicy.isSafeRemotePhotoUrl(
+                "http://images.example.com/profile/photo.png"));
+        assertDoesNotThrow(() -> ResumePhotoSecurityPolicy.validateModuleContent(
+                "basic_info", Map.of("photo", "https://images.example.com/profile/photo.jpg")));
+    }
+
+    @Test
+    void inspectsRasterBytesWithRealDimensionsAndMimeSignature() {
+        byte[] png = Base64.getDecoder().decode(ONE_PIXEL_PNG.substring(ONE_PIXEL_PNG.indexOf(',') + 1));
+        var dimensions = ResumePhotoSecurityPolicy.inspectRasterBytes("image/png", png, 4096, 16_000_000);
+        assertTrue(dimensions != null && dimensions.width() == 1 && dimensions.height() == 1);
+        assertTrue(ResumePhotoSecurityPolicy.inspectRasterBytes("image/jpeg", png, 4096, 16_000_000) == null);
+    }
+
+    @Test
     void rejectsLocalhostPhotoUrl() {
         assertRejected("http://127.0.0.1:8080/internal.png");
         assertRejected("http://localhost:8080/internal.png");
@@ -40,6 +58,7 @@ class ResumePhotoSecurityPolicyTest {
     void rejectsAbsoluteFilePath() {
         assertRejected("/etc/private-image.png");
         assertRejected("file:///etc/private-image.png");
+        assertRejected("javascript:alert(1)");
     }
 
     @Test

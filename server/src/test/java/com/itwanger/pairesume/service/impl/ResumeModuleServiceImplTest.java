@@ -7,6 +7,7 @@ import com.itwanger.pairesume.entity.Resume;
 import com.itwanger.pairesume.entity.ResumeModule;
 import com.itwanger.pairesume.mapper.ResumeMapper;
 import com.itwanger.pairesume.mapper.ResumeModuleMapper;
+import com.itwanger.pairesume.service.ResumeShowcaseService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -25,12 +26,13 @@ import static org.mockito.Mockito.when;
 class ResumeModuleServiceImplTest {
     @Mock private ResumeModuleMapper moduleMapper;
     @Mock private ResumeMapper resumeMapper;
+    @Mock private ResumeShowcaseService resumeShowcaseService;
 
     private ResumeModuleServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        service = new ResumeModuleServiceImpl(moduleMapper, resumeMapper);
+        service = new ResumeModuleServiceImpl(moduleMapper, resumeMapper, resumeShowcaseService);
         Resume resume = new Resume();
         resume.setId(11L);
         resume.setUserId(7L);
@@ -63,5 +65,21 @@ class ResumeModuleServiceImplTest {
         assertThrows(BusinessException.class, () -> service.update(11L, 7L, 19L, dto));
 
         verify(moduleMapper, never()).updateById(any(ResumeModule.class));
+    }
+
+    @Test
+    void updatingModuleUnpublishesFeaturedResume() {
+        ResumeModule module = new ResumeModule();
+        module.setId(19L);
+        module.setResumeId(11L);
+        module.setModuleType("project");
+        when(moduleMapper.selectById(19L)).thenReturn(module);
+        ModuleUpdateDTO dto = new ModuleUpdateDTO();
+        dto.setContent(Map.of("description", "更新后的项目经历"));
+
+        service.update(11L, 7L, 19L, dto);
+
+        verify(moduleMapper).updateById(module);
+        verify(resumeShowcaseService).unpublishChangedResume(11L);
     }
 }

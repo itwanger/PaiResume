@@ -25,6 +25,7 @@ const MarketplaceResumePage = lazy(() => import('./pages/MarketplaceResumePage')
 const CreatorMarketplacePage = lazy(() => import('./pages/CreatorMarketplacePage'))
 const PasswordResetPage = lazy(() => import('./pages/PasswordResetPage'))
 const AccountSettingsPage = lazy(() => import('./pages/AccountSettingsPage'))
+const MyMaterialsPage = lazy(() => import('./pages/MyMaterialsPage'))
 const LegalConsentPage = lazy(() => import('./pages/LegalConsentPage'))
 const VipInviteClaimPage = lazy(() => import('./pages/VipInviteClaimPage'))
 const PrivacyPolicyPage = lazy(() => import('./pages/PolicyPages').then((module) => ({ default: module.PrivacyPolicyPage })))
@@ -128,7 +129,7 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   if (!initialized) {
     return <AuthenticationLoading />
   }
-  if (!isAuthenticated) return <Navigate to="/login" replace />
+  if (!isAuthenticated) return <Navigate to={buildLoginPath('/admin')} replace />
   if (user?.legalConsentRequired) {
     return <Navigate to={buildLegalConsentPath(location)} replace />
   }
@@ -167,7 +168,7 @@ function App() {
             </GuestRoute>
           )}
         />
-        <Route path="/register" element={<Navigate to="/login" replace />} />
+        <Route path="/register" element={<Navigate to={buildLoginPath()} replace />} />
         <Route
           path="/forgot-password"
           element={(
@@ -197,6 +198,14 @@ function App() {
           element={
             <ProtectedRoute>
               <LegalConsentPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/materials"
+          element={
+            <ProtectedRoute>
+              <MyMaterialsPage />
             </ProtectedRoute>
           }
         />

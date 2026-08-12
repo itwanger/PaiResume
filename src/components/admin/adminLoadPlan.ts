@@ -37,7 +37,7 @@ export const OVERVIEW_LOAD_SECTIONS: readonly AdminDataSection[] = [
 ]
 
 export const ADMIN_DATA_SECTION_LABELS: Record<AdminDataSection, string> = {
-  platformConfig: '平台业务配置',
+  platformConfig: '会员价格配置',
   feedbacks: '问卷与评价',
   coupons: '优惠码',
   vipInvites: 'VIP 邀请福利',
@@ -66,13 +66,15 @@ export const ADMIN_VIEW_LOAD_SECTIONS: Record<AdminView, readonly AdminDataSecti
   members: ['users'],
   'vip-invites': ['vipInvites'],
   'membership-payments': ['membershipSummary', 'membershipOrders'],
+  coupons: ['coupons'],
   showcases: ['showcases', 'resumes'],
+  'content-library': [],
   'marketplace-listings': ['marketListings'],
   'marketplace-governance': ['governance'],
   'creator-earnings': ['creatorEarnings', 'creatorEarningCount'],
   'marketplace-payments': ['paymentReviews', 'marketPaymentIssues', 'paymentCloseWork'],
   'resume-reviews': ['resumeReviewActionCount'],
-  surveys: ['feedbacks', 'coupons'],
+  surveys: ['feedbacks'],
   'platform-config': ['platformConfig'],
   'audit-logs': ['membershipAuditLogs'],
 }

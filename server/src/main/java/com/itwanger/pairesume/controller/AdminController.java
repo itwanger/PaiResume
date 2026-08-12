@@ -87,16 +87,16 @@ public class AdminController {
         return Result.success(feedbackSubmissionService.unpublish(id, SecurityUtils.getCurrentUserId()));
     }
 
-    @Operation(summary = "重发优惠码")
-    @PostMapping("/feedback-submissions/{id}/resend-coupon")
-    public Result<FeedbackSubmissionAdminDTO> resendCoupon(@PathVariable Long id) {
-        return Result.success(feedbackSubmissionService.resendCoupon(id, SecurityUtils.getCurrentUserId()));
-    }
-
     @Operation(summary = "获取优惠码列表")
     @GetMapping("/coupons")
     public Result<List<CouponAdminDTO>> listCoupons() {
         return Result.success(couponService.listCoupons());
+    }
+
+    @Operation(summary = "按优惠码重发邮件")
+    @PostMapping("/coupons/{id}/resend")
+    public Result<CouponAdminDTO> resendCouponById(@PathVariable Long id) {
+        return Result.success(couponService.resendCoupon(id, SecurityUtils.getCurrentUserId()));
     }
 
     @Operation(summary = "生成 VIP 邀请码")
@@ -147,10 +147,15 @@ public class AdminController {
         ));
     }
 
-    @Operation(summary = "获取用户列表")
+    @Operation(summary = "分页搜索用户列表")
     @GetMapping("/users")
-    public Result<List<UserAdminDTO>> listUsers() {
-        return Result.success(membershipService.listUsers());
+    public Result<MarketplacePageDTO<UserAdminDTO>> listUsers(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String membershipStatus
+    ) {
+        return Result.success(membershipService.listUsers(page, size, keyword, membershipStatus));
     }
 
     @Operation(summary = "手工开通会员")
@@ -216,5 +221,23 @@ public class AdminController {
     public Result<ResumeShowcase> updateShowcase(@PathVariable Long id,
                                                  @Valid @RequestBody ResumeShowcaseUpsertDTO dto) {
         return Result.success(resumeShowcaseService.update(id, SecurityUtils.getCurrentUserId(), dto));
+    }
+
+    @Operation(summary = "一键精选简历并自动生成展示信息")
+    @PostMapping("/showcases/resumes/{resumeId}/feature")
+    public Result<ResumeShowcase> featureResume(@PathVariable Long resumeId) {
+        return Result.success(resumeShowcaseService.featureResume(
+                resumeId,
+                SecurityUtils.getCurrentUserId()
+        ));
+    }
+
+    @Operation(summary = "取消精选简历")
+    @DeleteMapping("/showcases/resumes/{resumeId}/feature")
+    public Result<ResumeShowcase> unfeatureResume(@PathVariable Long resumeId) {
+        return Result.success(resumeShowcaseService.unfeatureResume(
+                resumeId,
+                SecurityUtils.getCurrentUserId()
+        ));
     }
 }

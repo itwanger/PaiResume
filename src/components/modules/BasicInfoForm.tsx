@@ -4,11 +4,16 @@ import { useModuleContentState } from '../../hooks/useModuleContentState'
 import { normalizeBasicInfoContent } from '../../utils/moduleContent'
 import {
   BASIC_INFO_PHOTO_MAX_SIZE_MB,
-  isUploadedPhotoSource,
+  isLegacyEmbeddedPhoto,
+  inspectResumePhotoFile,
+  normalizeExternalPhotoUrl,
   normalizePhotoSource,
-  readPhotoFileAsDataUrl,
 } from '../../utils/resumePhoto'
 import { ModuleSaveBar } from './ModuleSaveBar'
+import { BasicProfileActions } from '../materials/BasicProfileActions'
+import { getBasicInfoFieldError, type BasicInfoValidationKind } from '../../utils/basicInfoValidation'
+import { resumePhotoApi } from '../../api/resumePhoto'
+import { SegmentedControl } from '../ui/SegmentedControl'
 
 interface Props {
   resumeId: number
@@ -26,6 +31,7 @@ export function BasicInfoForm({ resumeId, moduleId, initialContent }: Props) {
   const [showOptionalFields, setShowOptionalFields] = useState(() => hasOptionalBasicInfoContent(normalizeBasicInfoContent(initialContent)))
   const [photoError, setPhotoError] = useState('')
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState('')
+  const [photoUploading, setPhotoUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const update = (field: keyof BasicInfoContent, value: string | boolean) => {
@@ -34,22 +40,41 @@ export function BasicInfoForm({ resumeId, moduleId, initialContent }: Props) {
 
   const hasOptionalFields = hasOptionalBasicInfoContent(content)
   const normalizedPhotoSource = normalizePhotoSource(photoPreviewUrl || content.photo)
-  const usingUploadedPhoto = isUploadedPhotoSource(content.photo)
+  const photoUrlValue = content.photoId || isLegacyEmbeddedPhoto(content.photo) ? '' : content.photo
 
-  useEffect(() => {
-    const persistedPhoto = content.photo?.trim()
-    if (!persistedPhoto || isUploadedPhotoSource(persistedPhoto)) {
+  useEffect(() => () => {
+    if (photoPreviewUrl.startsWith('blob:')) URL.revokeObjectURL(photoPreviewUrl)
+  }, [photoPreviewUrl])
+
+  const handlePhotoUrlChange = (value: string) => {
+    setPhotoError('')
+    if (photoPreviewUrl.startsWith('blob:')) URL.revokeObjectURL(photoPreviewUrl)
+    setPhotoPreviewUrl('')
+    setContent((previous) => ({
+      ...previous,
+      photo: value,
+      photoId: null,
+      photoWidth: null,
+      photoHeight: null,
+    }))
+    setShowOptionalFields(true)
+  }
+
+  const normalizePhotoUrlInput = () => {
+    if (!photoUrlValue.trim()) {
+      setPhotoError('')
       return
     }
-
-    setPhotoPreviewUrl(persistedPhoto)
-    setContent((previous) => {
-      if (!previous.photo || isUploadedPhotoSource(previous.photo)) {
-        return previous
-      }
-      return { ...previous, photo: '' }
-    })
-  }, [content.photo, setContent])
+    const normalized = normalizeExternalPhotoUrl(photoUrlValue)
+    if (!normalized) {
+      setPhotoError('请输入有效的 http:// 或 https:// 图片链接')
+      return
+    }
+    setPhotoError('')
+    if (normalized !== photoUrlValue) {
+      setContent((previous) => ({ ...previous, photo: normalized }))
+    }
+  }
 
   const handlePhotoFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -59,29 +84,50 @@ export function BasicInfoForm({ resumeId, moduleId, initialContent }: Props) {
       return
     }
 
+    let localPreviewUrl = ''
     try {
       setPhotoError('')
-      const dataUrl = await readPhotoFileAsDataUrl(file)
+      setPhotoUploading(true)
+      localPreviewUrl = URL.createObjectURL(file)
+      setPhotoPreviewUrl(localPreviewUrl)
+      const inspected = await inspectResumePhotoFile(file)
+      const authorization = await resumePhotoApi.requestUpload({
+        fileName: file.name,
+        ...inspected,
+      })
+      await resumePhotoApi.upload(authorization.data.data, file)
+      const completed = await resumePhotoApi.completeUpload(authorization.data.data.photoNo)
+      const asset = completed.data.data
+      setContent((previous) => ({
+        ...previous,
+        photo: asset.accessUrl,
+        photoId: asset.id,
+        photoWidth: asset.width,
+        photoHeight: asset.height,
+      }))
+      URL.revokeObjectURL(localPreviewUrl)
       setPhotoPreviewUrl('')
-      update('photo', dataUrl)
       setShowOptionalFields(true)
     } catch (error: unknown) {
+      if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl)
+      setPhotoPreviewUrl('')
       setPhotoError(error instanceof Error ? error.message : '读取图片失败，请稍后重试')
-    }
-  }
-
-  const handlePhotoUrlChange = (value: string) => {
-    setPhotoError('')
-    setPhotoPreviewUrl(value)
-    if (value.trim()) {
-      setShowOptionalFields(true)
+    } finally {
+      setPhotoUploading(false)
     }
   }
 
   const clearPhoto = () => {
     setPhotoError('')
+    if (photoPreviewUrl.startsWith('blob:')) URL.revokeObjectURL(photoPreviewUrl)
     setPhotoPreviewUrl('')
-    update('photo', '')
+    setContent((previous) => ({
+      ...previous,
+      photo: '',
+      photoId: null,
+      photoWidth: null,
+      photoHeight: null,
+    }))
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
@@ -94,7 +140,9 @@ export function BasicInfoForm({ resumeId, moduleId, initialContent }: Props) {
         errorMessage={errorMessage}
         hasUnsavedChanges={hasUnsavedChanges}
         onSave={saveNow}
-      />
+      >
+        <BasicProfileActions content={content} onApply={setContent} embedded />
+      </ModuleSaveBar>
 
       <div className="editor-responsive-grid">
         <Field label="姓名" value={content.name} onChange={(v) => update('name', v)} />
@@ -136,7 +184,7 @@ export function BasicInfoForm({ resumeId, moduleId, initialContent }: Props) {
                 <div>
                   <p className="text-sm font-medium text-gray-700">照片</p>
                   <p className="mt-1 text-xs text-gray-500">
-                    本地上传仅支持 PNG/JPG；图片 URL 只在本页临时预览，不会保存、导出或公开。建议使用 3:4 证件照比例，大小不超过 {BASIC_INFO_PHOTO_MAX_SIZE_MB}MB。
+                    支持上传 PNG/JPG（不超过 {BASIC_INFO_PHOTO_MAX_SIZE_MB}MB），也可以使用图片链接。
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -149,10 +197,11 @@ export function BasicInfoForm({ resumeId, moduleId, initialContent }: Props) {
                   />
                   <button
                     type="button"
+                    disabled={photoUploading}
                     onClick={() => fileInputRef.current?.click()}
-                    className="rounded-lg border border-primary-200 bg-primary-50 px-3 py-1.5 text-xs font-medium text-primary-700 transition hover:border-primary-300 hover:bg-primary-100"
+                    className="rounded-lg border border-primary-200 bg-primary-50 px-3 py-1.5 text-xs font-medium text-primary-700 transition hover:border-primary-300 hover:bg-primary-100 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    选择文件
+                    {photoUploading ? '上传并校验中…' : '选择文件'}
                   </button>
                   {normalizedPhotoSource && (
                     <button
@@ -167,47 +216,37 @@ export function BasicInfoForm({ resumeId, moduleId, initialContent }: Props) {
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">图片 URL</label>
+                <label htmlFor="basic-info-photo-url" className="mb-1 block text-sm font-medium text-gray-700">
+                  图片链接
+                </label>
                 <input
-                  type="text"
-                  value={photoPreviewUrl}
-                  onChange={(e) => handlePhotoUrlChange(e.target.value)}
-                  placeholder={usingUploadedPhoto ? '当前保存的是已上传照片，可在这里临时预览 URL' : 'https://example.com/avatar.jpg'}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
+                  id="basic-info-photo-url"
+                  type="url"
+                  inputMode="url"
+                  value={photoUrlValue}
+                  onChange={(event) => handlePhotoUrlChange(event.target.value)}
+                  onBlur={normalizePhotoUrlInput}
+                  placeholder="https://example.com/photo.jpg"
+                  aria-invalid={Boolean(photoError)}
+                  className={`w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:ring-2 ${
+                    photoError
+                      ? 'border-red-300 focus:border-red-500 focus:ring-red-100'
+                      : 'border-gray-300 focus:border-primary-500 focus:ring-primary-500'
+                  }`}
                 />
-                {usingUploadedPhoto && !photoPreviewUrl ? (
-                  <p className="mt-1 text-xs text-gray-500">当前使用的是本地上传照片。</p>
-                ) : null}
               </div>
 
               <div>
                 <span className="mb-1 block text-sm font-medium text-gray-700">照片边框</span>
-                <div className="flex flex-wrap gap-2">
-                  {[
-                    { label: '无边框', value: false },
-                    { label: '有边框', value: true },
-                  ].map((option) => {
-                    const active = content.photoBorder === option.value
-                    const disabled = !normalizedPhotoSource
-
-                    return (
-                      <button
-                        key={option.label}
-                        type="button"
-                        disabled={disabled}
-                        onClick={() => update('photoBorder', option.value)}
-                        className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
-                          active
-                            ? 'bg-white text-primary-700 shadow-sm ring-1 ring-primary-100'
-                            : 'bg-transparent text-gray-500 hover:bg-white/80 hover:text-gray-700'
-                        } ${disabled ? 'cursor-not-allowed opacity-50' : ''}`}
-                      >
-                        {option.label}
-                      </button>
-                    )
-                  })}
-                </div>
-                <p className="mt-1 text-xs text-gray-500">只影响照片外框，不影响照片裁切比例。</p>
+                <SegmentedControl
+                  ariaLabel="照片边框"
+                  value={content.photoBorder}
+                  options={[
+                    { label: '无边框', value: false, disabled: !normalizedPhotoSource },
+                    { label: '有边框', value: true, disabled: !normalizedPhotoSource },
+                  ]}
+                  onChange={(value) => update('photoBorder', value)}
+                />
               </div>
 
               {photoError ? (
@@ -220,7 +259,7 @@ export function BasicInfoForm({ resumeId, moduleId, initialContent }: Props) {
             <div className="flex items-start justify-center lg:justify-end lg:pl-4">
               <div className={`aspect-[3/4] w-28 overflow-hidden bg-gradient-to-b from-slate-50 to-slate-100 shadow-sm ${
                 normalizedPhotoSource
-                  ? (content.photoBorder ? 'border border-gray-200' : '')
+                  ? (content.photoBorder ? 'border border-primary-500' : '')
                   : 'border border-dashed border-gray-200'
               }`}>
                 {normalizedPhotoSource ? (
@@ -243,20 +282,7 @@ export function BasicInfoForm({ resumeId, moduleId, initialContent }: Props) {
 
           <div className="editor-responsive-grid">
             <Field label="意向城市" value={content.targetCity} onChange={(v) => update('targetCity', v)} />
-            <Field label="期望薪资" value={content.salaryRange} onChange={(v) => update('salaryRange', v)} />
-            <Field label="到岗时间" value={content.expectedEntryDate} onChange={(v) => update('expectedEntryDate', v)} />
             <Field label="LeetCode" value={content.leetcode} onChange={(v) => update('leetcode', v)} />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">个人总结</label>
-            <textarea
-              value={content.summary}
-              onChange={(e) => update('summary', e.target.value)}
-              rows={4}
-              placeholder="用 50-200 字概括你的核心优势、岗位方向和代表性成果"
-              className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
-            />
           </div>
 
           <label className="flex items-center gap-2 text-sm text-gray-700">
@@ -278,24 +304,29 @@ function hasOptionalBasicInfoContent(content: BasicInfoContent) {
   return Boolean(
     content.photo
     || content.targetCity
-    || content.salaryRange
-    || content.expectedEntryDate
     || content.leetcode
-    || content.summary
     || content.isPartyMember
   )
 }
 
 function Field({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  const validationKind: BasicInfoValidationKind | null = label === '邮箱' ? 'email' : label === '手机号' ? 'phone' : label === 'GitHub' || label === '博客' ? 'url' : null
+  const inputType = validationKind === 'email' ? 'email' : validationKind === 'phone' ? 'tel' : validationKind === 'url' ? 'url' : 'text'
+  const autoComplete = label === '姓名' ? 'name' : label === '邮箱' ? 'email' : label === '手机号' ? 'tel' : 'off'
+  const validationError = validationKind ? getBasicInfoFieldError(validationKind, value) : ''
   return (
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
       <input
-        type="text"
+        type={inputType}
+        autoComplete={autoComplete}
+        inputMode={label === '手机号' ? 'tel' : undefined}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none text-sm"
+        aria-invalid={Boolean(validationError)}
+        className={`w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 ${validationError ? 'border-red-300 focus:border-red-500 focus:ring-red-100' : 'border-gray-300 focus:border-primary-500 focus:ring-primary-500'}`}
       />
+      {validationError ? <p className="mt-1 text-xs text-red-600" role="alert">{validationError}</p> : null}
     </div>
   )
 }

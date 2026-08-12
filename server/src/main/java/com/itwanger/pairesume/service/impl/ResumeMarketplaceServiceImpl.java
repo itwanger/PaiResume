@@ -571,6 +571,9 @@ public class ResumeMarketplaceServiceImpl implements ResumeMarketplaceService {
         if (!"basic_info".equals(moduleType)) {
             return;
         }
+        content.remove("photoId");
+        content.remove("photoWidth");
+        content.remove("photoHeight");
         Object photo = content.get("photo");
         if (ResumePhotoSecurityPolicy.isSafeRasterDataUrl(photo)) {
             return;

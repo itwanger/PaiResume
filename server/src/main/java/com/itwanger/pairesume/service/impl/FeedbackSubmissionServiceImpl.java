@@ -4,7 +4,6 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.itwanger.pairesume.common.BusinessException;
 import com.itwanger.pairesume.common.ResultCode;
 import com.itwanger.pairesume.dto.ApproveFeedbackSubmissionDTO;
-import com.itwanger.pairesume.dto.CouponAdminDTO;
 import com.itwanger.pairesume.dto.FeedbackSubmissionAdminDTO;
 import com.itwanger.pairesume.dto.FeedbackSubmissionCreateDTO;
 import com.itwanger.pairesume.dto.PublishedFeedbackDTO;
@@ -68,8 +67,7 @@ public class FeedbackSubmissionServiceImpl implements FeedbackSubmissionService 
     @Override
     @Transactional
     public FeedbackSubmissionAdminDTO approve(Long submissionId, Long adminUserId, ApproveFeedbackSubmissionDTO dto) {
-        FeedbackSubmission submission = getById(submissionId);
-        boolean firstApproval = !"APPROVED".equals(submission.getReviewStatus());
+        FeedbackSubmission submission = getPendingByIdForUpdate(submissionId);
 
         submission.setReviewStatus("APPROVED");
         submission.setReviewNote(blankToNull(dto == null ? null : dto.getReviewNote()));
@@ -82,7 +80,7 @@ public class FeedbackSubmissionServiceImpl implements FeedbackSubmissionService 
             submission.setCouponStatus("ISSUED");
         } else {
             submission.setCouponStatus("ISSUED");
-            if (firstApproval && couponCode.getEmailSentAt() == null) {
+            if (couponCode.getEmailSentAt() == null) {
                 couponService.resendCoupon(couponCode);
             }
         }
@@ -93,7 +91,7 @@ public class FeedbackSubmissionServiceImpl implements FeedbackSubmissionService 
     @Override
     @Transactional
     public FeedbackSubmissionAdminDTO reject(Long submissionId, Long adminUserId, RejectFeedbackSubmissionDTO dto) {
-        FeedbackSubmission submission = getById(submissionId);
+        FeedbackSubmission submission = getPendingByIdForUpdate(submissionId);
         submission.setReviewStatus("REJECTED");
         submission.setPublishStatus("UNPUBLISHED");
         submission.setCouponStatus("REJECTED");
@@ -132,22 +130,6 @@ public class FeedbackSubmissionServiceImpl implements FeedbackSubmissionService 
     }
 
     @Override
-    public FeedbackSubmissionAdminDTO resendCoupon(Long submissionId, Long adminUserId) {
-        FeedbackSubmission submission = getById(submissionId);
-        CouponCode couponCode = couponService.getByFeedbackSubmissionId(submissionId);
-        if (couponCode == null) {
-            throw new BusinessException(ResultCode.COUPON_NOT_FOUND);
-        }
-        couponService.resendCoupon(couponCode);
-        submission.setReviewedBy(adminUserId);
-        if (submission.getReviewedAt() == null) {
-            submission.setReviewedAt(LocalDateTime.now());
-        }
-        feedbackSubmissionMapper.updateById(submission);
-        return toAdminDto(submission);
-    }
-
-    @Override
     public List<PublishedFeedbackDTO> listPublishedTestimonials() {
         return feedbackSubmissionMapper.selectList(
                 new LambdaQueryWrapper<FeedbackSubmission>()
@@ -166,6 +148,17 @@ public class FeedbackSubmissionServiceImpl implements FeedbackSubmissionService 
         return submission;
     }
 
+    private FeedbackSubmission getPendingByIdForUpdate(Long submissionId) {
+        FeedbackSubmission submission = feedbackSubmissionMapper.selectByIdForUpdate(submissionId);
+        if (submission == null) {
+            throw new BusinessException(ResultCode.FEEDBACK_NOT_FOUND);
+        }
+        if (!"PENDING".equals(submission.getReviewStatus())) {
+            throw new BusinessException(ResultCode.FEEDBACK_REVIEW_STATE_INVALID);
+        }
+        return submission;
+    }
+
     private FeedbackSubmissionAdminDTO toAdminDto(FeedbackSubmission submission) {
         FeedbackSubmissionAdminDTO dto = new FeedbackSubmissionAdminDTO();
         dto.setId(submission.getId());
@@ -180,25 +173,10 @@ public class FeedbackSubmissionServiceImpl implements FeedbackSubmissionService 
         dto.setConsentToPublish(submission.getConsentToPublish() == 1);
         dto.setReviewStatus(submission.getReviewStatus());
         dto.setPublishStatus(submission.getPublishStatus());
-        dto.setCouponStatus(submission.getCouponStatus());
         dto.setReviewNote(submission.getReviewNote());
         dto.setReviewedBy(submission.getReviewedBy());
         dto.setReviewedAt(DateTimeUtils.format(submission.getReviewedAt()));
         dto.setCreatedAt(DateTimeUtils.format(submission.getCreatedAt()));
-
-        CouponCode couponCode = couponService.getByFeedbackSubmissionId(submission.getId());
-        if (couponCode != null) {
-            CouponAdminDTO couponDto = new CouponAdminDTO();
-            couponDto.setId(couponCode.getId());
-            couponDto.setCode(couponCode.getCode());
-            couponDto.setRecipientEmail(couponCode.getRecipientEmail());
-            couponDto.setAmountCents(couponCode.getAmountCents());
-            couponDto.setStatus(couponCode.getCouponStatus());
-            couponDto.setEmailSentAt(DateTimeUtils.format(couponCode.getEmailSentAt()));
-            couponDto.setUsedAt(DateTimeUtils.format(couponCode.getUsedAt()));
-            couponDto.setExpiresAt(DateTimeUtils.format(couponCode.getExpiresAt()));
-            dto.setCoupon(couponDto);
-        }
         return dto;
     }
 

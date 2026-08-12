@@ -1,9 +1,8 @@
 package com.itwanger.pairesume.service;
 
 import com.itwanger.pairesume.dto.CouponQuoteDTO;
+import com.itwanger.pairesume.dto.MarketplacePageDTO;
 import com.itwanger.pairesume.dto.UserAdminDTO;
-
-import java.util.List;
 
 public interface MembershipService {
     CouponQuoteDTO quote(Long userId, String planCode, String couponCode);
@@ -16,7 +15,7 @@ public interface MembershipService {
 
     void requireAiAccess(Long userId);
 
-    List<UserAdminDTO> listUsers();
+    MarketplacePageDTO<UserAdminDTO> listUsers(int page, int size, String keyword, String membershipStatus);
 
     UserAdminDTO grantMembership(Long userId, Long adminUserId, String reason);
 

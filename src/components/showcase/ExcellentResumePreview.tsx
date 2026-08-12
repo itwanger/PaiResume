@@ -108,8 +108,6 @@ function ResumeHeader({
   const photoSource = normalizePublicPhotoSource(basicInfo?.photo)
   const targetPosition = jobIntention?.targetPosition || basicInfo?.jobIntention || ''
   const targetCity = jobIntention?.targetCity || basicInfo?.targetCity || ''
-  const salaryRange = jobIntention?.salaryRange || basicInfo?.salaryRange || ''
-  const expectedEntryDate = jobIntention?.expectedEntryDate || basicInfo?.expectedEntryDate || ''
   const contactItems: ContactItem[] = [
     {
       label: '电话',
@@ -124,8 +122,6 @@ function ResumeHeader({
     { label: '微信', value: basicInfo?.wechat || '' },
     { label: '求职意向', value: targetPosition },
     { label: '意向城市', value: targetCity },
-    { label: '期望薪资', value: salaryRange },
-    { label: '到岗时间', value: expectedEntryDate },
     { label: '工作年限', value: basicInfo?.workYears || '' },
     { label: '籍贯', value: basicInfo?.hometown || '' },
     {
@@ -153,7 +149,7 @@ function ResumeHeader({
             <div
               className={[
                 'aspect-[3/4] w-[104px] shrink-0 overflow-hidden bg-slate-100 sm:w-[116px]',
-                basicInfo?.photoBorder ? 'border border-slate-200' : '',
+                basicInfo?.photoBorder ? 'border border-primary-500' : '',
               ].join(' ')}
             >
               <img
@@ -198,14 +194,6 @@ function ResumeHeader({
         ) : null}
       </div>
 
-      {basicInfo?.summary ? (
-        <div className="mt-6 border-t border-slate-200 pt-4 text-slate-700">
-          <span className="font-semibold text-slate-900">个人总结：</span>
-          <span className="whitespace-pre-wrap">
-            <InlineText value={basicInfo.summary} />
-          </span>
-        </div>
-      ) : null}
     </header>
   )
 }

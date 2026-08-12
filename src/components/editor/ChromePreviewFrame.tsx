@@ -8,6 +8,7 @@ import {
   type ResumePdfTemplateId,
 } from '../../utils/resumePdf'
 import { Button } from '../ui/Button'
+import { SegmentedControl } from '../ui/SegmentedControl'
 
 interface ChromePreviewFrameProps {
   resumeId: number
@@ -351,50 +352,6 @@ function TemplateTonePreview({
   }
 }
 
-function InlinePillGroup<T extends string>({
-  label,
-  ariaLabel,
-  value,
-  options,
-  onChange,
-}: {
-  label?: string
-  ariaLabel: string
-  value: T
-  options: Array<{ value: T; label: string }>
-  onChange: (nextValue: T) => void
-}) {
-  return (
-    <div
-      role="group"
-      aria-label={ariaLabel}
-      className="flex flex-wrap items-center gap-2"
-    >
-      {label ? <span className="text-xs font-medium text-slate-500">{label}</span> : null}
-      <div className="inline-flex items-stretch divide-x divide-slate-200 overflow-hidden rounded-lg border border-slate-200 bg-white">
-        {options.map((option) => {
-          const isActive = value === option.value
-          return (
-            <button
-              key={option.value}
-              type="button"
-              aria-pressed={isActive}
-              onClick={() => onChange(option.value)}
-              className={`relative min-h-9 px-3 py-2 text-xs font-medium transition focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500 ${
-                isActive
-                  ? 'bg-primary-50 text-primary-700 after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-primary-600'
-                  : 'bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-              }`}
-            >
-              {option.label}
-            </button>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
 function CompactOptionGrid<T extends string>({
   label,
   value,
@@ -486,7 +443,7 @@ export function ChromePreviewFrame({
       <div className="relative z-20 border-b border-slate-200 bg-white px-4 py-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-3">
-            <InlinePillGroup
+            <SegmentedControl
               ariaLabel="PDF 页面模式"
               value={pageMode}
               options={[
@@ -496,7 +453,7 @@ export function ChromePreviewFrame({
               onChange={selectPageMode}
             />
             <span className="hidden h-5 w-px bg-slate-200 sm:block" aria-hidden="true" />
-            <InlinePillGroup
+            <SegmentedControl
               label="内容密度"
               ariaLabel="内容密度"
               value={config.density}
@@ -553,32 +510,17 @@ export function ChromePreviewFrame({
       <div className="grid bg-slate-100 lg:h-[calc(100vh-12rem)] lg:min-h-[500px] lg:grid-cols-[232px_minmax(0,1fr)] lg:overflow-hidden">
         <aside className="border-b border-slate-200 bg-white lg:overflow-y-auto lg:border-b-0 lg:border-r">
           <div className="sticky top-0 z-10 border-b border-slate-200 bg-white p-3">
-            <div className="grid grid-cols-2 rounded-lg bg-slate-100 p-1" aria-label="预览设置">
-              <button
-                type="button"
-                aria-pressed={controlTab === 'templates'}
-                onClick={() => setControlTab('templates')}
-                className={`rounded-md px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${
-                  controlTab === 'templates'
-                    ? 'bg-white text-slate-900 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                模板
-              </button>
-              <button
-                type="button"
-                aria-pressed={controlTab === 'styles'}
-                onClick={() => setControlTab('styles')}
-                className={`rounded-md px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${
-                  controlTab === 'styles'
-                    ? 'bg-white text-slate-900 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                样式
-              </button>
-            </div>
+            <SegmentedControl
+              ariaLabel="预览设置"
+              value={controlTab}
+              options={[
+                { value: 'templates', label: '模板' },
+                { value: 'styles', label: '样式' },
+              ]}
+              onChange={setControlTab}
+              size="md"
+              fullWidth
+            />
           </div>
 
           <div className="p-3">

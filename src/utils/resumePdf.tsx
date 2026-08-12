@@ -874,7 +874,7 @@ function estimateContinuousPageHeight(modules: ResumeModule[]) {
     if (module.moduleType === 'basic_info') {
       const content = normalizeBasicInfoContent(module.content)
       hasPhoto = Boolean(normalizePhotoSource(content.photo))
-      textVolume += textLengthForPage([content.name, content.jobIntention, content.summary, content.email, content.phone, content.wechat, content.github, content.blog])
+      textVolume += textLengthForPage([content.name, content.jobIntention, content.email, content.phone, content.wechat, content.github, content.blog])
       continue
     }
 
@@ -1247,7 +1247,7 @@ function ResumePdfDocument({
     ...(hasPhotoBorder
       ? [{
           borderWidth: 1,
-          borderColor: isExecutive ? '#cbd5e1' : '#dbeafe',
+          borderColor: isExecutive ? '#e2e8f0' : theme.linkColor,
         }]
       : []),
   ]
@@ -1260,8 +1260,6 @@ function ResumePdfDocument({
         { label: '籍贯：', value: basicInfo.hometown },
         { label: '求职意向：', value: displayJobIntention },
         { label: '意向城市：', value: basicInfo.targetCity },
-        { label: '到岗时间：', value: basicInfo.expectedEntryDate },
-        { label: '期望薪资：', value: basicInfo.salaryRange },
         { label: '政治面貌：', value: basicInfo.isPartyMember ? '中共党员' : '' },
         { label: 'GitHub：', value: basicInfo.github, href: normalizeExternalUrl(basicInfo.github) },
         { label: '博客：', value: basicInfo.blog, href: normalizeExternalUrl(basicInfo.blog) },
@@ -1309,8 +1307,6 @@ function ResumePdfDocument({
           {basicInfo.phone ? <Text><Text style={headerLabelStyle}>手机号：</Text>{basicInfo.phone}</Text> : null}
           {basicInfo.wechat ? <Text><Text style={headerLabelStyle}>微信：</Text>{basicInfo.wechat}</Text> : null}
           {basicInfo.targetCity ? <Text><Text style={headerLabelStyle}>意向城市：</Text>{basicInfo.targetCity}</Text> : null}
-          {basicInfo.salaryRange ? <Text><Text style={headerLabelStyle}>期望薪资：</Text>{basicInfo.salaryRange}</Text> : null}
-          {basicInfo.expectedEntryDate ? <Text><Text style={headerLabelStyle}>到岗时间：</Text>{basicInfo.expectedEntryDate}</Text> : null}
           {basicInfo.github ? (
             <Text>
               <Text style={headerLabelStyle}>GitHub：</Text>
@@ -1327,12 +1323,6 @@ function ResumePdfDocument({
           {basicInfo.workYears ? <Text><Text style={headerLabelStyle}>工作年限：</Text>{basicInfo.workYears}</Text> : null}
           {basicInfo.leetcode ? <Text><Text style={headerLabelStyle}>LeetCode：</Text>{basicInfo.leetcode}</Text> : null}
         </View>
-        {basicInfo.summary ? (
-          <Text style={[styles.paragraph, ...(isExecutive ? [{ color: '#e2e8f0' }] : [])]}>
-            <Text style={headerLabelStyle}>个人总结：</Text>
-            {basicInfo.summary}
-          </Text>
-        ) : null}
       </View>
     ) : null
   )
@@ -1372,12 +1362,6 @@ function ResumePdfDocument({
             ))}
           </View>
         </View>
-        {basicInfo.summary ? (
-          <Text style={[styles.paragraph, { marginTop: 6 }]}>
-            <Text style={styles.label}>个人总结：</Text>
-            {basicInfo.summary}
-          </Text>
-        ) : null}
       </View>
     ) : null
   )

@@ -16,10 +16,8 @@ public class FeedbackSubmissionAdminDTO {
     private boolean consentToPublish;
     private String reviewStatus;
     private String publishStatus;
-    private String couponStatus;
     private String reviewNote;
     private Long reviewedBy;
     private String reviewedAt;
     private String createdAt;
-    private CouponAdminDTO coupon;
 }

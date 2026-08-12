@@ -45,7 +45,7 @@ export function ModuleSidebar({
   const basicInfoContent = findBasicInfoContent(modules)
   const asideClassName = variant === 'drawer'
     ? 'h-full w-full overflow-y-auto bg-white'
-    : 'sticky top-[65px] hidden min-h-[calc(100vh-65px)] max-h-[calc(100vh-65px)] w-44 shrink-0 self-start overflow-y-auto border-r border-gray-200 bg-white md:block'
+    : 'hidden h-full min-h-0 w-44 shrink-0 overflow-y-auto border-r border-gray-200 bg-white md:block'
 
   return (
     <aside

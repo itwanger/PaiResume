@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 class RealMySqlMigrationTest {
 
     @Test
-    void emptyDatabaseMigratesThroughMembershipPlanSchema() throws Exception {
+    void emptyDatabaseMigratesThroughPrivateResumePhotoSchema() throws Exception {
         String url = testSetting(
                 "pairesume.test.mysql.url", "PAIRESUME_TEST_MYSQL_URL");
         String username = testSetting(
@@ -46,16 +46,16 @@ class RealMySqlMigrationTest {
             insertLegacyMembershipOrders(connection);
         }
 
-        Flyway throughV25 = Flyway.configure()
+        Flyway throughV27 = Flyway.configure()
                 .dataSource(url, username, password)
                 .locations("classpath:db/migration")
                 .baselineVersion("5")
                 .baselineOnMigrate(true)
                 .load();
-        throughV25.migrate();
+        throughV27.migrate();
 
-        assertEquals("25",
-                throughV25.info().current().getVersion().getVersion());
+        assertEquals("27",
+                throughV27.info().current().getVersion().getVersion());
         try (var connection = DriverManager.getConnection(url, username, password)) {
             assertTrue(columnExists(connection, "resume_showcase",
                     "access_type"));
@@ -76,6 +76,14 @@ class RealMySqlMigrationTest {
                     connection, "membership_payment_order", "plan_name_snapshot"));
             assertEquals("FIXED_DAYS", columnDefault(
                     connection, "membership_payment_order", "entitlement_type"));
+            assertTrue(tableExists(connection, "user_resume_profile"));
+            assertTrue(tableExists(connection, "user_resume_material"));
+            assertTrue(tableExists(connection, "official_resume_material"));
+            assertTrue(tableExists(connection, "resume_content_template"));
+            assertTrue(tableExists(connection, "resume_material_usage"));
+            assertTrue(tableExists(connection, "resume_photo"));
+            assertTrue(columnExists(connection, "resume_photo", "object_key"));
+            assertTrue(columnExists(connection, "resume_photo", "sha256"));
         }
     }
 

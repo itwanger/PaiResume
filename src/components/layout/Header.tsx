@@ -16,8 +16,10 @@ import {
 } from '../../utils/importers'
 import { buildResumeImportPreview } from '../../utils/importers/preview'
 import {
+  buildLoginPath,
   CREATOR_MARKETPLACE_PATH,
   EXCELLENT_RESUMES_PATH,
+  getLoginEntryLabel,
 } from '../../utils/navigation'
 import {
   RESUME_TITLE_MAX_LENGTH,
@@ -27,18 +29,6 @@ import {
 import { LogoMark } from '../branding/LogoMark'
 
 const IMPORT_LOG_PREFIX = '[resume-import]'
-const NAVBAR_ACCOUNT_VISIBLE_CHARACTERS = 7
-
-function getNavbarAccountLabel(accountLabel?: string | null): string {
-  const normalizedLabel = accountLabel?.trim() || ''
-  const characters = Array.from(normalizedLabel)
-
-  if (characters.length <= NAVBAR_ACCOUNT_VISIBLE_CHARACTERS) {
-    return normalizedLabel
-  }
-
-  return `${characters.slice(0, NAVBAR_ACCOUNT_VISIBLE_CHARACTERS - 1).join('')}…`
-}
 
 function VipIcon() {
   return (
@@ -127,7 +117,7 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
   const resumeDropEnabled = readyAuthenticated && legalConsentAccepted && enableResumeDrop
   const isVipUser = user?.membershipStatus === 'ACTIVE'
   const navbarIdentity = user ? getAccountDisplayName(user) : ''
-  const navbarAccountLabel = getNavbarAccountLabel(navbarIdentity)
+  const navbarAccountLabel = navbarIdentity
   const excellentSectionActive = location.pathname === EXCELLENT_RESUMES_PATH
     || location.pathname.startsWith('/showcases/')
     || location.pathname.startsWith('/marketplace/resumes/')
@@ -429,13 +419,13 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
       <header className="sticky top-0 z-40 border-b border-gray-200 bg-white/95 backdrop-blur">
         <div className="w-full px-4 sm:px-6 lg:px-8">
           <div className="flex min-h-16 items-center justify-between gap-4">
-            <Link to="/" className="flex shrink-0 items-center gap-3" aria-label="派简历首页">
-              <LogoMark className="h-9 w-9" />
-              <span className="text-xl font-bold text-gray-900">派简历</span>
-            </Link>
+            <div className="flex min-w-0 items-center gap-8">
+              <Link to="/" className="flex shrink-0 items-center gap-3" aria-label="派简历首页">
+                <LogoMark className="h-9 w-9" />
+                <span className="text-xl font-bold text-gray-900">派简历</span>
+              </Link>
 
-            <div className="hidden min-w-0 items-center gap-5 lg:flex">
-              <nav className="flex items-center gap-5" aria-label="主导航">
+              <nav className="hidden items-center gap-5 lg:flex" aria-label="主导航">
                 <NavLink to="/" end className={navigationLinkClass}>
                   首页
                 </NavLink>
@@ -448,7 +438,9 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
                   </NavLink>
                 ) : null}
               </nav>
+            </div>
 
+            <div className="hidden min-w-0 items-center gap-5 lg:flex">
               {!initialized ? (
                 <div className="h-9 w-24 animate-pulse rounded-lg bg-gray-100" aria-label="正在加载账号信息" />
               ) : readyAuthenticated ? (
@@ -556,6 +548,14 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
                         >
                           我的简历
                         </NavLink>
+                        <NavLink
+                          to="/materials"
+                          role="menuitem"
+                          onClick={() => setAccountMenuOpen(false)}
+                          className={accountMenuLinkClass}
+                        >
+                          我的资料库
+                        </NavLink>
                         {user?.admin ? (
                           <NavLink
                             to="/admin"
@@ -590,10 +590,10 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
               ) : (
                 <div className="flex items-center gap-3 border-l border-gray-200 pl-5">
                   <Link
-                    to="/login"
+                    to={buildLoginPath()}
                     className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-700"
                   >
-                    扫码登录
+                    {getLoginEntryLabel()}
                   </Link>
                 </div>
               )}
@@ -690,6 +690,14 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
                         >
                           我的简历
                         </NavLink>
+                        <NavLink
+                          to="/materials"
+                          role="menuitem"
+                          onClick={() => setMobileMenuOpen(false)}
+                          className={accountMenuLinkClass}
+                        >
+                          我的资料库
+                        </NavLink>
                         {user?.admin ? (
                           <NavLink
                             to="/admin"
@@ -719,10 +727,10 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
                 ) : (
                   <div>
                     <Link
-                      to="/login"
+                      to={buildLoginPath()}
                       className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-700"
                     >
-                      扫码登录
+                      {getLoginEntryLabel()}
                     </Link>
                   </div>
                 )}
