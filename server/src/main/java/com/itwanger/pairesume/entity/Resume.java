@@ -16,6 +16,8 @@ public class Resume {
 
     private String templateId;
 
+    private String pageMode;
+
     private String pdfDensity;
 
     private String accentPreset;

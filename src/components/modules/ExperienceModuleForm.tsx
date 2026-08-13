@@ -9,6 +9,9 @@ import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { MonthInput } from '../ui/MonthInput'
 import { ModuleSaveBar } from './ModuleSaveBar'
 import { MaterialActions } from '../materials/MaterialActions'
+import { ExperienceProjectSorter } from './ExperienceProjectSorter'
+import { ExperienceResponsibilitySorter } from './ExperienceResponsibilitySorter'
+import { ContinueAddButton, RepeatableListHeader } from '../ui/RepeatableListControls'
 
 interface Props {
   resumeId: number
@@ -17,6 +20,9 @@ interface Props {
   moduleType: Extract<ModuleType, 'internship' | 'work_experience'>
   moduleLabel: string
   summaryPlaceholder: string
+  viewMode?: 'company' | 'projects'
+  onOpenProjects?: () => void
+  onBackToCompanies?: () => void
 }
 
 function createProject(): ExperienceProjectContent {
@@ -39,6 +45,9 @@ export function ExperienceModuleForm({
   moduleType,
   moduleLabel,
   summaryPlaceholder,
+  viewMode = 'company',
+  onOpenProjects,
+  onBackToCompanies,
 }: Props) {
   const navigate = useNavigate()
   const [content, setContent, { saveNow, saveState, errorMessage, hasUnsavedChanges }] = useModuleContentState<InternshipContent>({
@@ -50,8 +59,8 @@ export function ExperienceModuleForm({
   const [optimizingField, setOptimizingField] = useState<string | null>(null)
   const [optimizeError, setOptimizeError] = useState('')
   const [optimizeErrorField, setOptimizeErrorField] = useState<string | null>(null)
-  const [draggedProjectId, setDraggedProjectId] = useState<string | null>(null)
-  const [dragOverProjectId, setDragOverProjectId] = useState<string | null>(null)
+  const [projectSorting, setProjectSorting] = useState(false)
+  const [responsibilitySortingProjectId, setResponsibilitySortingProjectId] = useState<string | null>(null)
   const [deleteProjectId, setDeleteProjectId] = useState<string | null>(null)
   const [pendingProjectFocusId, setPendingProjectFocusId] = useState<string | null>(null)
   const [pendingResponsibilityFocus, setPendingResponsibilityFocus] = useState<{
@@ -81,6 +90,11 @@ export function ExperienceModuleForm({
     const project = createProject()
     setPendingProjectFocusId(project.id)
     setContent((previous) => ({ ...previous, projects: [...previous.projects, project] }))
+  }
+
+  const openProjectEditor = () => {
+    if (content.projects.length === 0) addProject()
+    onOpenProjects?.()
   }
 
   const addResponsibility = (projectIndex: number) => {
@@ -115,14 +129,16 @@ export function ExperienceModuleForm({
       if (projects === previous.projects) return previous
       return { ...previous, projects }
     })
-    setDraggedProjectId(null)
-    setDragOverProjectId(null)
   }
 
-  const moveProject = (projectIndex: number, direction: -1 | 1) => {
-    const targetIndex = projectIndex + direction
-    if (targetIndex < 0 || targetIndex >= content.projects.length) return
-    reorderProject(content.projects[projectIndex].id, content.projects[targetIndex].id)
+  const reorderResponsibility = (projectIndex: number, sourceIndex: number, targetIndex: number) => {
+    if (sourceIndex === targetIndex) return
+    updateProject(projectIndex, (project) => {
+      const responsibilities = [...project.responsibilities]
+      const [moved] = responsibilities.splice(sourceIndex, 1)
+      responsibilities.splice(targetIndex, 0, moved)
+      return { ...project, responsibilities }
+    })
   }
 
   const openOptimizePage = async (
@@ -163,110 +179,127 @@ export function ExperienceModuleForm({
   }
 
   return (
-    <div className="space-y-5">
-      <ModuleSaveBar saveState={saveState} errorMessage={errorMessage} hasUnsavedChanges={hasUnsavedChanges} onSave={saveNow}>
-        <MaterialActions
-          resumeId={resumeId}
-          moduleType={moduleType}
-          content={content}
-          onApply={(nextContent) => setContent(normalizeInternshipContent(nextContent as unknown as Record<string, unknown>))}
-          embedded
-        />
-      </ModuleSaveBar>
+    <div className="space-y-3">
+      {viewMode === 'company' ? (
+        <>
+          <ModuleSaveBar saveState={saveState} errorMessage={errorMessage} hasUnsavedChanges={hasUnsavedChanges} onSave={saveNow}>
+            <MaterialActions
+              resumeId={resumeId}
+              moduleType={moduleType}
+              content={content}
+              onApply={(nextContent) => setContent(normalizeInternshipContent(nextContent as unknown as Record<string, unknown>))}
+              embedded
+            />
+          </ModuleSaveBar>
 
-      <div className="editor-responsive-grid">
-        <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">公司</label>
-          <input type="text" value={content.company} onChange={(event) => updateCompany('company', event.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500" />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">职位</label>
-          <input type="text" value={content.position} onChange={(event) => updateCompany('position', event.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500" />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">开始时间</label>
-          <MonthInput value={content.startDate} onChange={(value) => updateCompany('startDate', value)} ariaLabel={`${moduleLabel}开始时间`} />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">结束时间</label>
-          <MonthInput value={content.endDate} onChange={(value) => updateCompany('endDate', value)} ariaLabel={`${moduleLabel}结束时间`} allowPresent />
-        </div>
-      </div>
+          <div className="editor-responsive-grid">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">公司</label>
+              <input type="text" value={content.company} onChange={(event) => updateCompany('company', event.target.value)}
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500" />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">职位</label>
+              <input type="text" value={content.position} onChange={(event) => updateCompany('position', event.target.value)}
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500" />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">开始时间</label>
+              <MonthInput value={content.startDate} onChange={(value) => updateCompany('startDate', value)} ariaLabel={`${moduleLabel}开始时间`} />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">结束时间</label>
+              <MonthInput value={content.endDate} onChange={(value) => updateCompany('endDate', value)} ariaLabel={`${moduleLabel}结束时间`} allowPresent />
+            </div>
+          </div>
 
-      {timelineIssues.company.length > 0 ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
-          {timelineIssues.company.map((message) => <p key={message}>{message}</p>)}
-        </div>
-      ) : null}
+          {timelineIssues.company.length > 0 ? (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+              {timelineIssues.company.map((message) => <p key={message}>{message}</p>)}
+            </div>
+          ) : null}
 
-      <div className="flex items-center justify-between border-t border-slate-200 pt-5">
-        <h3 className="text-base font-semibold text-slate-900">项目</h3>
-        <button type="button" onClick={addProject}
-          className="text-sm font-medium text-primary-600 hover:text-primary-700">+ 添加项目</button>
-      </div>
-
-      <div className="space-y-4">
-        {content.projects.map((project, projectIndex) => {
-          const projectIssues = timelineIssues.projects[project.id] ?? []
-          const projectDisplayName = project.projectName.trim()
-          return (
-            <section
-              key={project.id}
-              onDragOver={(event) => {
-                if (!draggedProjectId) return
-                event.preventDefault()
-                event.dataTransfer.dropEffect = 'move'
-                setDragOverProjectId(project.id)
+          <button
+            type="button"
+            onClick={openProjectEditor}
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-primary-200 bg-primary-50/70 px-4 py-3 text-sm font-medium text-primary-700 transition hover:border-primary-300 hover:bg-primary-100 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+          >
+            <span>{content.projects.length > 0 ? `管理项目（${content.projects.length}）` : '添加项目'}</span>
+            <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" aria-hidden="true">
+              <path d="m7 5 5 5-5 5" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+            </svg>
+          </button>
+        </>
+      ) : (
+        <>
+          <div className="flex flex-wrap items-center justify-between gap-3 px-1">
+            <button
+              type="button"
+              onClick={() => {
+                setProjectSorting(false)
+                setResponsibilitySortingProjectId(null)
+                onBackToCompanies?.()
               }}
-              onDrop={(event) => {
-                event.preventDefault()
-                if (draggedProjectId) reorderProject(draggedProjectId, project.id)
-              }}
-              className={`rounded-xl border p-4 transition ${
-                dragOverProjectId === project.id && draggedProjectId !== project.id
-                  ? 'border-primary-300 bg-primary-50/50 ring-1 ring-primary-200'
-                  : 'border-slate-200 bg-slate-50/45'
-              } ${draggedProjectId === project.id ? 'opacity-50' : ''}`}
+              className="text-sm font-medium text-primary-600 hover:text-primary-700"
             >
-              <div className="mb-4 flex items-center gap-2 border-b border-slate-200 pb-3">
-                <button
-                  type="button"
-                  draggable
-                  onDragStart={(event) => {
-                    setDraggedProjectId(project.id)
-                    event.dataTransfer.effectAllowed = 'move'
-                    event.dataTransfer.setData('text/plain', project.id)
-                  }}
-                  onDragEnd={() => {
-                    setDraggedProjectId(null)
-                    setDragOverProjectId(null)
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === 'ArrowUp') { event.preventDefault(); moveProject(projectIndex, -1) }
-                    if (event.key === 'ArrowDown') { event.preventDefault(); moveProject(projectIndex, 1) }
-                  }}
-                  aria-label={projectDisplayName
-                    ? `拖动${projectDisplayName}调整顺序，或使用上下方向键`
-                    : '拖动当前项目调整顺序，或使用上下方向键'}
-                  className="flex h-8 w-8 shrink-0 cursor-grab items-center justify-center rounded-lg text-slate-400 hover:bg-white hover:text-primary-600 active:cursor-grabbing"
-                >
-                  <svg className="h-5 w-5" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                    <circle cx="5" cy="3" r="1" /><circle cx="11" cy="3" r="1" />
-                    <circle cx="5" cy="8" r="1" /><circle cx="11" cy="8" r="1" />
-                    <circle cx="5" cy="13" r="1" /><circle cx="11" cy="13" r="1" />
-                  </svg>
-                </button>
-                {projectDisplayName ? (
-                  <p className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800">{projectDisplayName}</p>
-                ) : (
-                  <span className="flex-1" aria-hidden="true" />
-                )}
+              ← 返回{moduleLabel}
+            </button>
+            <p className="min-w-0 truncate text-sm font-medium text-slate-600">
+              {[content.company, content.position].filter(Boolean).join(' · ') || '当前公司'}
+            </p>
+          </div>
+
+          <ModuleSaveBar saveState={saveState} errorMessage={errorMessage} hasUnsavedChanges={hasUnsavedChanges} onSave={saveNow}>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center justify-end gap-2">
                 {content.projects.length > 1 ? (
-                  <button type="button" onClick={() => setDeleteProjectId(project.id)} className="text-xs text-slate-400 hover:text-red-600">删除项目</button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setResponsibilitySortingProjectId(null)
+                      setProjectSorting((current) => !current)
+                    }}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    {projectSorting ? '完成项目排序' : '调整项目顺序'}
+                  </button>
+                ) : null}
+                {!projectSorting ? (
+                  <button
+                    type="button"
+                    onClick={addProject}
+                    className="rounded-lg border border-primary-200 bg-white px-3 py-2 text-xs font-medium text-primary-700 hover:bg-primary-50"
+                  >
+                    添加项目
+                  </button>
                 ) : null}
               </div>
+            </div>
+          </ModuleSaveBar>
+
+          <section>
+        {projectSorting ? (
+          <ExperienceProjectSorter
+            projects={content.projects}
+            issuesByProjectId={timelineIssues.projects}
+            onReorder={reorderProject}
+          />
+        ) : (
+          <div className="space-y-3">
+            {content.projects.map((project, projectIndex) => {
+              const projectIssues = timelineIssues.projects[project.id] ?? []
+              return (
+                <section
+                  key={project.id}
+                  className={projectIndex === 0
+                    ? 'py-4'
+                    : 'border-t border-slate-100 py-4'}
+                >
+                {content.projects.length > 1 ? (
+                  <div className="mb-3 flex justify-end">
+                    <button type="button" onClick={() => setDeleteProjectId(project.id)} className="text-xs text-slate-400 hover:text-red-600">删除项目</button>
+                  </div>
+                ) : null}
 
               <div className="editor-responsive-grid">
                 <div>
@@ -303,14 +336,14 @@ export function ExperienceModuleForm({
                 </div>
               ) : null}
 
-              <div className="mt-4">
+              <div className="mt-3">
                 <label className="mb-1 block text-sm font-medium text-gray-700">技术栈</label>
                 <AutoResizeTextarea value={project.techStack} onChange={(event) => updateProjectField(projectIndex, 'techStack', event.target.value)} minRows={2}
                   placeholder="Java, Spring Boot, MySQL..."
                   className="w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm leading-6 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500" />
               </div>
 
-              <div className="mt-4">
+              <div className="mt-3">
                 <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
                   <label className="block text-sm font-medium text-gray-700">项目简介</label>
                   <button type="button" onClick={() => void openOptimizePage(projectIndex, 'projectDescription')}
@@ -328,15 +361,25 @@ export function ExperienceModuleForm({
                 ) : null}
               </div>
 
-              <div className="mt-4">
-                <div className="mb-2 flex items-center justify-between">
-                  <label className="text-sm font-medium text-gray-700">核心职责</label>
-                  <button type="button" onClick={() => addResponsibility(projectIndex)} className="text-sm text-primary-600 hover:text-primary-700">+ 添加职责</button>
-                </div>
-                {project.responsibilities.map((item, responsibilityIndex) => {
+              <div className="mt-3">
+                <RepeatableListHeader
+                  label="核心职责"
+                  itemCount={project.responsibilities.length}
+                  sorting={responsibilitySortingProjectId === project.id}
+                  addLabel="添加职责"
+                  sortLabel="调整职责顺序"
+                  onAdd={() => addResponsibility(projectIndex)}
+                  onToggleSorting={() => setResponsibilitySortingProjectId((current) => current === project.id ? null : project.id)}
+                />
+                {responsibilitySortingProjectId === project.id ? (
+                  <ExperienceResponsibilitySorter
+                    responsibilities={project.responsibilities}
+                    onReorder={(sourceIndex, targetIndex) => reorderResponsibility(projectIndex, sourceIndex, targetIndex)}
+                  />
+                ) : project.responsibilities.map((item, responsibilityIndex) => {
                   const fieldKey = `project-${projectIndex}-responsibility-${responsibilityIndex}`
                   return (
-                    <div key={responsibilityIndex} className={responsibilityIndex === 0 ? '' : 'mt-3'}>
+                    <div key={responsibilityIndex} className={responsibilityIndex === 0 ? '' : 'mt-2'}>
                       <div className="mb-2 flex items-center justify-end gap-3">
                         <button type="button" onClick={() => void openOptimizePage(projectIndex, 'responsibility', responsibilityIndex)}
                           disabled={optimizingField !== null || !item.trim()}
@@ -368,33 +411,30 @@ export function ExperienceModuleForm({
                     </div>
                   )
                 })}
-                {project.responsibilities.length > 0 ? (
-                  <div className="mt-4 text-center">
-                    <button
-                      type="button"
-                      onClick={() => addResponsibility(projectIndex)}
-                      className="text-sm font-medium text-primary-600 hover:text-primary-700"
-                    >
-                      + 继续添加职责
-                    </button>
-                  </div>
+                {responsibilitySortingProjectId !== project.id && project.responsibilities.length > 0 ? (
+                  <ContinueAddButton label="职责" onClick={() => addResponsibility(projectIndex)} />
                 ) : null}
               </div>
-            </section>
-          )
-        })}
-        {content.projects.length > 0 ? (
-          <div className="text-center">
-            <button
-              type="button"
-              onClick={addProject}
-              className="text-sm font-medium text-primary-600 hover:text-primary-700"
-            >
-              + 继续添加项目
-            </button>
+                </section>
+              )
+            })}
+            {content.projects.length > 0 ? (
+              <div className="pt-3">
+                <button
+                  type="button"
+                  onClick={addProject}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-primary-200 bg-primary-50/70 px-4 py-3 text-sm font-medium text-primary-700 transition hover:border-primary-300 hover:bg-primary-100 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+                >
+                  <span className="text-base leading-none" aria-hidden="true">+</span>
+                  <span>继续添加项目</span>
+                </button>
+              </div>
+            ) : null}
           </div>
-        ) : null}
-      </div>
+        )}
+          </section>
+        </>
+      )}
 
       <ConfirmDialog
         open={deleteProjectId !== null}

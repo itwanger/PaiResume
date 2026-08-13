@@ -15,6 +15,7 @@ import com.itwanger.pairesume.service.ResumeService;
 import com.itwanger.pairesume.service.ResumeShowcaseService;
 import com.itwanger.pairesume.vo.ResumeListVO;
 import com.itwanger.pairesume.vo.ResumeCardPreviewVO;
+import com.itwanger.pairesume.vo.ResumeCardProjectPreviewVO;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -96,19 +97,94 @@ public class ResumeServiceImpl implements ResumeService {
                 text(basicInfo, "jobIntention"),
                 text(jobIntention, "targetPosition"),
                 firstModuleText(modules, List.of("work_experience", "internship"), "position")));
+        preview.setBasicInfo(joinSummary(
+                preview.getTargetRole(),
+                text(basicInfo, "workYears"),
+                firstText(text(basicInfo, "targetCity"), text(jobIntention, "targetCity"))));
 
-        var education = firstContent(modules, "education");
-        preview.setEducation(joinSummary(text(education, "school"), text(education, "major")));
+        var educations = extractEducationSummaries(modules);
+        preview.setEducations(educations);
+        preview.setEducation(educations.stream().findFirst().orElse(""));
 
-        var experience = firstModuleContent(modules, List.of("work_experience", "internship"));
-        preview.setExperience(joinSummary(
-                firstText(text(experience, "company"), text(experience, "projectName")),
-                text(experience, "position")));
+        var experiences = extractExperienceSummaries(modules);
+        preview.setExperiences(experiences);
+        preview.setExperience(experiences.stream().findFirst().orElse(""));
 
-        var project = firstContent(modules, "project");
-        preview.setProject(joinSummary(text(project, "projectName"), text(project, "role")));
+        var projects = extractProjectPreviews(modules);
+        preview.setProjects(projects);
+        preview.setProject(projects.stream().findFirst().map(ResumeCardProjectPreviewVO::getTitle).orElse(""));
         preview.setSkills(extractSkills(modules));
         return preview;
+    }
+
+    private List<String> extractEducationSummaries(List<ResumeModule> modules) {
+        return modules.stream()
+                .filter(module -> "education".equals(module.getModuleType()))
+                .map(ResumeModule::getContent)
+                .filter(Objects::nonNull)
+                .filter(this::hasMeaningfulValue)
+                .map(content -> joinSummary(
+                        text(content, "school"),
+                        text(content, "degree"),
+                        text(content, "major")))
+                .filter(summary -> !summary.isBlank())
+                .limit(2)
+                .toList();
+    }
+
+    private List<String> extractExperienceSummaries(List<ResumeModule> modules) {
+        return modules.stream()
+                .filter(module -> Set.of("work_experience", "internship").contains(module.getModuleType()))
+                .map(ResumeModule::getContent)
+                .filter(Objects::nonNull)
+                .filter(this::hasMeaningfulValue)
+                .map(content -> joinSummary(
+                        firstText(text(content, "company"), text(content, "projectName")),
+                        text(content, "position")))
+                .filter(summary -> !summary.isBlank())
+                .limit(2)
+                .toList();
+    }
+
+    private List<ResumeCardProjectPreviewVO> extractProjectPreviews(List<ResumeModule> modules) {
+        var result = new ArrayList<ResumeCardProjectPreviewVO>();
+        for (ResumeModule module : modules) {
+            if (result.size() >= 4) break;
+            var content = module.getContent();
+            if (content == null) continue;
+
+            if (Set.of("work_experience", "internship").contains(module.getModuleType())) {
+                Object rawProjects = content.get("projects");
+                if (rawProjects instanceof Collection<?> projects) {
+                    for (Object rawProject : projects) {
+                        if (!(rawProject instanceof Map<?, ?> project)) continue;
+                        addProjectPreview(result,
+                                joinSummary(getMapText(project, "projectName"), getMapText(project, "role")),
+                                firstText(getMapText(project, "projectDescription"), getMapText(project, "techStack")));
+                        if (result.size() >= 4) break;
+                    }
+                } else {
+                    addProjectPreview(result,
+                            joinSummary(text(content, "projectName"), text(content, "role")),
+                            firstText(text(content, "projectDescription"), text(content, "techStack")));
+                }
+            } else if ("project".equals(module.getModuleType())) {
+                addProjectPreview(result,
+                        joinSummary(text(content, "projectName"), text(content, "role")),
+                        firstText(text(content, "description"), text(content, "techStack")));
+            }
+        }
+        return result;
+    }
+
+    private void addProjectPreview(List<ResumeCardProjectPreviewVO> target, String title, String description) {
+        if (title.isBlank() && description.isBlank()) return;
+        target.add(new ResumeCardProjectPreviewVO(title, description));
+    }
+
+    private String getMapText(Map<?, ?> content, String field) {
+        Object value = content.get(field);
+        return value instanceof String string ? string.strip() : "";
     }
 
     private List<String> extractSkills(List<ResumeModule> modules) {
@@ -119,7 +195,7 @@ public class ResumeServiceImpl implements ResumeService {
             for (Object rawCategory : collection) {
                 if (!(rawCategory instanceof Map<?, ?> category)) continue;
                 addStrings(result, category.get("items"));
-                if (result.size() >= 6) break;
+                if (result.size() >= 8) break;
             }
         }
         if (result.isEmpty()) {
@@ -134,7 +210,7 @@ public class ResumeServiceImpl implements ResumeService {
                     .filter(value -> !value.isBlank())
                     .forEach(result::add);
         }
-        return result.stream().limit(6).toList();
+        return result.stream().limit(8).toList();
     }
 
     private void addStrings(Set<String> target, Object value) {
@@ -144,7 +220,6 @@ public class ResumeServiceImpl implements ResumeService {
                 .map(String.class::cast)
                 .map(String::strip)
                 .filter(item -> !item.isBlank())
-                .limit(6)
                 .forEach(target::add);
     }
 
@@ -191,8 +266,8 @@ public class ResumeServiceImpl implements ResumeService {
         return Arrays.stream(values).filter(value -> value != null && !value.isBlank()).findFirst().orElse("");
     }
 
-    private String joinSummary(String primary, String secondary) {
-        return Arrays.stream(new String[]{primary, secondary})
+    private String joinSummary(String... values) {
+        return Arrays.stream(values)
                 .filter(value -> value != null && !value.isBlank())
                 .collect(Collectors.joining(" · "));
     }
@@ -258,6 +333,7 @@ public class ResumeServiceImpl implements ResumeService {
     @Transactional
     public ResumeListVO updateStyle(Long userId, Long resumeId, ResumeStyleUpdateDTO dto) {
         var resume = getAndVerifyOwnership(resumeId, userId);
+        resume.setPageMode(dto.getPageMode());
         resume.setTemplateId(dto.getTemplateId());
         resume.setPdfDensity(dto.getDensity());
         resume.setAccentPreset(dto.getAccentPreset());
@@ -295,6 +371,7 @@ public class ResumeServiceImpl implements ResumeService {
     }
 
     private void applyStyle(Resume resume, ResumeListVO vo) {
+        vo.setPageMode(defaultIfBlank(resume.getPageMode(), "standard"));
         vo.setTemplateId(defaultIfBlank(resume.getTemplateId(), "default"));
         vo.setDensity(defaultIfBlank(resume.getPdfDensity(), "normal"));
         vo.setAccentPreset(defaultIfBlank(resume.getAccentPreset(), "auto"));

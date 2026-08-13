@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { useAnalysis } from '../../hooks/useAnalysis'
 import { AutoResizeTextarea } from '../ui/AutoResizeTextarea'
 import { Button } from '../ui/Button'
-import { Section } from '../ui/Section'
 
 interface ResumeAnalysisProps {
   resumeId: number
@@ -131,8 +130,9 @@ export function ResumeAnalysis({ resumeId }: ResumeAnalysisProps) {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="space-y-4 rounded-xl border border-gray-200 bg-white p-5">
+    <div className="flex flex-col gap-8">
+      <section className="space-y-4">
+        <h2 className="text-base font-semibold text-slate-900">分析提示词</h2>
         <AutoResizeTextarea
           minRows={10}
           value={promptDraft}
@@ -140,83 +140,93 @@ export function ResumeAnalysis({ resumeId }: ResumeAnalysisProps) {
             setPromptDraft(event.target.value)
             setSaveHint(null)
           }}
-          className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm leading-7 text-gray-700 outline-none transition focus:border-primary-300 focus:ring-4 focus:ring-primary-100"
+          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm leading-7 text-slate-700 outline-none transition focus:border-primary-300 focus:ring-4 focus:ring-primary-100"
           placeholder="在这里编写你的简历分析提示词"
         />
 
-        <div className="flex flex-wrap items-center gap-3">
-          <Button type="button" onClick={handleSavePrompt}>
-            保存提示词
-          </Button>
-          <Button type="button" variant="outline" onClick={handleResetPrompt}>
-            恢复默认
-          </Button>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={handleSavePrompt}
+              disabled={!hasUnsavedChanges}
+              className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-primary-200 hover:text-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:cursor-default disabled:text-slate-400 disabled:hover:border-slate-200"
+            >
+              保存提示词
+            </button>
+            <button
+              type="button"
+              onClick={handleResetPrompt}
+              disabled={promptDraft === DEFAULT_ANALYSIS_PROMPT}
+              className="px-1 py-2 text-sm text-slate-500 transition hover:text-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:cursor-default disabled:text-slate-300"
+            >
+              恢复默认
+            </button>
+            {hasUnsavedChanges && (
+              <span className="text-sm text-amber-600">请先保存提示词</span>
+            )}
+          </div>
           <Button
             type="button"
             onClick={handleAnalyze}
             loading={isAnalyzing}
             disabled={hasUnsavedChanges}
+            className="min-w-28"
           >
             开始分析
           </Button>
-          {hasUnsavedChanges && (
-            <span className="text-sm text-amber-600">请先保存提示词</span>
-          )}
         </div>
 
         {saveHint && (
-          <div className="rounded-lg border border-primary-100 bg-primary-50 px-4 py-3 text-sm text-primary-700">
+          <div className="text-sm text-primary-700" role="status">
             {saveHint}
           </div>
         )}
 
         {error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
             {error}
           </div>
         )}
-      </div>
+      </section>
 
       {(isAnalyzing || analysisReasoning || analysisStatus) && (
-        <Section
-          title="分析过程"
-        >
-          <div className="rounded-2xl border border-primary-100 bg-[linear-gradient(180deg,_rgba(239,246,255,0.92)_0%,_rgba(255,255,255,0.96)_100%)] p-4 shadow-[0_18px_50px_-28px_rgba(37,99,235,0.28)]">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <span className={`inline-flex h-2.5 w-2.5 rounded-full ${isAnalyzing ? 'animate-pulse bg-primary-500' : 'bg-emerald-500'}`} />
-                <span className="text-sm font-medium text-gray-700">
-                  {analysisStatus || (isAnalyzing ? 'AI 正在分析...' : '已完成')}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowReasoning((current) => !current)}
-                className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:border-primary-200 hover:text-primary-700"
-              >
-                {showReasoning ? '收起过程' : '显示过程'}
-              </button>
+        <section className="rounded-xl bg-primary-50/70 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <h2 className="text-base font-semibold text-slate-900">分析过程</h2>
+              <span className={`inline-flex h-2.5 w-2.5 rounded-full ${isAnalyzing ? 'animate-pulse bg-primary-500' : 'bg-emerald-500'}`} />
+              <span className="text-sm text-slate-600">
+                {analysisStatus || (isAnalyzing ? 'AI 正在分析...' : '已完成')}
+              </span>
             </div>
-
-            {showReasoning && (
-              <div className="mt-4 rounded-xl border border-gray-200 bg-slate-950 px-4 py-3 text-sm leading-6 text-slate-100">
-                {analysisReasoning ? (
-                  <pre className="whitespace-pre-wrap break-words font-sans">{analysisReasoning}</pre>
-                ) : (
-                  <div className="flex items-center gap-2 text-slate-300">
-                    <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-primary-300" />
-                    <span>等待分析输出…</span>
-                  </div>
-                )}
-              </div>
-            )}
+            <button
+              type="button"
+              onClick={() => setShowReasoning((current) => !current)}
+              className="px-1 py-1.5 text-xs font-medium text-slate-500 transition hover:text-primary-700"
+            >
+              {showReasoning ? '收起过程' : '显示过程'}
+            </button>
           </div>
-        </Section>
+
+          {showReasoning && (
+            <div className="mt-4 rounded-lg bg-slate-950 px-4 py-3 text-sm leading-6 text-slate-100">
+              {analysisReasoning ? (
+                <pre className="whitespace-pre-wrap break-words font-sans">{analysisReasoning}</pre>
+              ) : (
+                <div className="flex items-center gap-2 text-slate-300">
+                  <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-primary-300" />
+                  <span>等待分析输出…</span>
+                </div>
+              )}
+            </div>
+          )}
+        </section>
       )}
 
       {analysisResult && (
         <>
-          <Section title="" description="">
+          <section className="rounded-xl bg-slate-50 p-6">
             <div className="text-center">
               <div className={`mb-2 text-6xl font-bold ${getScoreColor(analysisResult.score)}`}>
                 {analysisResult.score}
@@ -245,24 +255,25 @@ export function ResumeAnalysis({ resumeId }: ResumeAnalysisProps) {
                 </Button>
               </div>
             </div>
-          </Section>
+          </section>
 
           {analysisResult.issues.length > 0 && (
-            <Section
-              title={`发现的问题 (${analysisResult.issues.length})`}
-            >
+            <section>
+              <h2 className="mb-4 text-base font-semibold text-slate-900">
+                发现的问题（{analysisResult.issues.length}）
+              </h2>
               <div className="space-y-3">
                 {analysisResult.issues.map((issue, index) => (
                   <div
                     key={index}
-                    className={`rounded-lg border-l-4 p-4 ${
+                    className={`rounded-lg p-4 ${
                       issue.type === 'missing'
-                        ? 'border-red-500 bg-red-50'
+                        ? 'bg-red-50'
                         : issue.type === 'weak'
-                        ? 'border-yellow-500 bg-yellow-50'
+                        ? 'bg-yellow-50'
                         : issue.type === 'format'
-                        ? 'border-orange-500 bg-orange-50'
-                        : 'border-blue-500 bg-blue-50'
+                        ? 'bg-orange-50'
+                        : 'bg-blue-50'
                     }`}
                   >
                     <div className="flex items-start gap-3">
@@ -275,11 +286,12 @@ export function ResumeAnalysis({ resumeId }: ResumeAnalysisProps) {
                   </div>
                 ))}
               </div>
-            </Section>
+            </section>
           )}
 
           {analysisResult.suggestions.length > 0 && (
-            <Section title="改进建议">
+            <section>
+              <h2 className="mb-4 text-base font-semibold text-slate-900">改进建议</h2>
               <ul className="space-y-2">
                 {analysisResult.suggestions.map((suggestion, index) => (
                   <li
@@ -293,18 +305,18 @@ export function ResumeAnalysis({ resumeId }: ResumeAnalysisProps) {
                   </li>
                 ))}
               </ul>
-            </Section>
+            </section>
           )}
 
           {analysisResult.issues.length === 0 && analysisResult.suggestions.length === 0 && (
-            <Section title="" description="">
-              <div className="py-8 text-center">
+            <section className="rounded-xl bg-emerald-50 py-8 text-center">
+              <div>
                 <svg className="mx-auto mb-4 h-16 w-16 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <p className="text-lg font-medium text-gray-900">未发现明显问题</p>
               </div>
-            </Section>
+            </section>
           )}
         </>
       )}

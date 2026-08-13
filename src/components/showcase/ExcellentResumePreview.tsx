@@ -21,6 +21,7 @@ import {
 import { parseInlineMarkdownSegments } from '../../utils/inlineMarkdown'
 import { normalizePublicPhotoSource } from '../../utils/resumePhoto'
 import { normalizeInlineText } from '../../utils/resumeText'
+import { formatAwardDisplayText } from '../../utils/yearInput'
 import {
   getModuleDisplayLabel,
   sortResumeModulesForDisplay,
@@ -492,14 +493,10 @@ function ModuleGroup({
         <ResumeSection title={title}>
           <div className="space-y-2">
             {entries.map(({ module, content }) => (
-              <div
-                key={module.id}
-                className="flex break-inside-avoid flex-col gap-0.5 sm:flex-row sm:items-start sm:justify-between sm:gap-5"
-              >
-                <p className="font-medium text-slate-800">{content.awardName}</p>
-                {content.awardTime ? (
-                  <p className="shrink-0 text-slate-600">{formatMonth(content.awardTime)}</p>
-                ) : null}
+              <div key={module.id} className="break-inside-avoid">
+                <p className="font-medium text-slate-800">
+                  {formatAwardDisplayText(content.awardName, content.awardTime)}
+                </p>
               </div>
             ))}
           </div>

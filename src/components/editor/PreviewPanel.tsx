@@ -17,6 +17,7 @@ import {
 import { parseInlineMarkdownSegments } from '../../utils/inlineMarkdown'
 import { normalizePhotoSource } from '../../utils/resumePhoto'
 import { normalizeInlineText } from '../../utils/resumeText'
+import { formatAwardDisplayText } from '../../utils/yearInput'
 import {
   findBasicInfoContent,
   getModuleDisplayLabel,
@@ -39,6 +40,8 @@ interface PreviewPanelProps {
   forcedMode?: PreviewMode
   hideHeader?: boolean
   activeModuleType?: ModuleType | null
+  activeModuleId?: number | null
+  pageMode?: ResumePdfPageMode
   pdfConfig?: {
     templateId: ResumePdfTemplateId
     density: ResumePdfDensity
@@ -201,18 +204,24 @@ export function PreviewPanel({
   forcedMode,
   hideHeader = false,
   activeModuleType,
+  activeModuleId,
+  pageMode = 'standard',
   pdfConfig,
 }: PreviewPanelProps) {
   const shouldReduceMotion = useReducedMotion() ?? false
   const [previewMode, setPreviewMode] = useState<PreviewMode>(forcedMode ?? 'live')
   const isCompactDensity = pdfConfig?.density === 'compact'
   const sortedModules = sortResumeModulesForDisplay(modules)
-  const projectModules = sortedModules.filter((module) => module.moduleType === 'project')
-  const basicInfoContent = findBasicInfoContent(sortedModules)
-  const visibleModules = selectResumeModulesForLivePreview(sortedModules, activeModuleType)
-  const standardPdfPreview = usePdfPreview(modules, 'standard', previewMode === 'pdf-standard', pdfConfig)
-  const activePdfPreview = standardPdfPreview
-  const activePdfIframeTitle = 'Resume Standard PDF Preview'
+  const livePreviewModules = activeModuleId && activeModuleType
+    ? sortedModules.filter((module) => module.moduleType !== activeModuleType || module.id === activeModuleId)
+    : sortedModules
+  const projectModules = livePreviewModules.filter((module) => module.moduleType === 'project')
+  const basicInfoContent = findBasicInfoContent(livePreviewModules)
+  const visibleModules = selectResumeModulesForLivePreview(livePreviewModules, activeModuleType)
+  const activePdfPreview = usePdfPreview(modules, pageMode, previewMode === 'pdf-standard', pdfConfig)
+  const activePdfIframeTitle = pageMode === 'continuous'
+    ? 'Resume Smart One Page PDF Preview'
+    : 'Resume Standard PDF Preview'
 
   useEffect(() => {
     if (forcedMode) {
@@ -280,11 +289,11 @@ export function PreviewPanel({
                   <ModulePreviewSection
                     key={module.id}
                     module={module}
-                  modules={sortedModules}
+                  modules={livePreviewModules}
                   projectModules={projectModules}
                   index={index}
                   basicInfoContent={basicInfoContent}
-                  compactEducation={isCompactDensity}
+                  compactDensity={isCompactDensity}
                   shouldReduceMotion={shouldReduceMotion}
                 />
                 ))}
@@ -479,12 +488,6 @@ function formatMonthRange(start: string, end: string) {
   return startText || endText
 }
 
-function formatAwardDisplayTime(value: string) {
-  if (!value) return ''
-  const [year] = value.split('-')
-  return year ? `${year}年` : value
-}
-
 function normalizeExternalUrl(value: string) {
   if (!value) return ''
   return /^https?:\/\//i.test(value) ? value : `https://${value}`
@@ -544,7 +547,7 @@ function ModulePreviewSection({
   projectModules,
   index,
   basicInfoContent,
-  compactEducation,
+  compactDensity,
   shouldReduceMotion,
 }: {
   module: ResumeModule
@@ -552,11 +555,12 @@ function ModulePreviewSection({
   projectModules: ResumeModule[]
   index: number
   basicInfoContent: ReturnType<typeof findBasicInfoContent>
-  compactEducation: boolean
+  compactDensity: boolean
   shouldReduceMotion: boolean
 }) {
   const label = getModuleDisplayLabel(module.moduleType as ModuleType, basicInfoContent)
   const surfaceTone = getModuleSurfaceTone(module.moduleType, index)
+  const useFlatExperienceLayout = module.moduleType === 'internship' || module.moduleType === 'work_experience'
 
   const renderProjectEntry = (projectModule: ResumeModule) => {
     const content = normalizeProjectContent(projectModule.content)
@@ -672,7 +676,7 @@ function ModulePreviewSection({
                     key={educationModule.id}
                     className="space-y-1.5 pb-3 last:pb-0"
                   >
-                    {compactEducation ? (
+                    {compactDensity ? (
                       <div className="flex flex-col gap-2 text-sm text-gray-700 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-semibold text-gray-900">
@@ -746,11 +750,11 @@ function ModulePreviewSection({
                       {formatMonthRange(content.startDate, content.endDate)}
                     </span>
                   </div>
-                  <div className="mt-3 space-y-4">
+                  <div className="mt-3 space-y-3">
                     {visibleProjects.map((project) => {
                       const projectTitle = [project.projectName, project.role].filter(Boolean).join(' - ')
                       return (
-                        <div key={project.id}>
+                        <div key={project.id} className="bg-white/80 px-4 py-3.5">
                           <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
                             {projectTitle ? <p className="whitespace-nowrap text-sm font-semibold text-gray-800">{projectTitle}</p> : <span />}
                             {project.startDate || project.endDate ? (
@@ -859,12 +863,32 @@ function ModulePreviewSection({
           .filter((item) => item.moduleType === 'award')
           .map((item) => ({ id: item.id, content: normalizeAwardContent(item.content) }))
           .filter(({ content }) => content.awardName || content.awardTime)
+
+        if (compactDensity && awards.length >= 5) {
+          return (
+            <ul className="grid list-disc grid-cols-2 gap-x-6 gap-y-1 pl-5 text-sm text-gray-600">
+              {awards.map(({ id, content }) => (
+                <li key={id} className="min-w-0 break-words">
+                  {formatAwardDisplayText(content.awardName, content.awardTime)}
+                </li>
+              ))}
+            </ul>
+          )
+        }
+
+        if (compactDensity) {
+          return (
+            <p className="text-sm leading-relaxed text-gray-600">
+              {awards.map(({ content }) => formatAwardDisplayText(content.awardName, content.awardTime)).join('、')}
+            </p>
+          )
+        }
+
         return (
           <div className="space-y-2 text-sm text-gray-600">
             {awards.map(({ id, content }) => (
               <div key={id}>
-                {content.awardName || '奖项'}
-                {content.awardTime ? `（${formatAwardDisplayTime(content.awardTime)}）` : ''}
+                {formatAwardDisplayText(content.awardName, content.awardTime)}
               </div>
             ))}
           </div>
@@ -885,20 +909,26 @@ function ModulePreviewSection({
       initial={shouldReduceMotion ? false : 'hidden'}
       animate="visible"
       exit={shouldReduceMotion ? { opacity: 0 } : 'exit'}
-      whileHover={shouldReduceMotion ? undefined : { y: -2 }}
+      whileHover={shouldReduceMotion || useFlatExperienceLayout ? undefined : { y: -2 }}
       transition={{
         layout: {
           duration: 0.35,
           ease: [0.22, 1, 0.36, 1],
         },
       }}
-      className={`relative overflow-hidden rounded-[24px] border ${surfaceTone.container} shadow-[0_20px_45px_-35px_rgba(29,78,216,0.34)]`}
+      className={useFlatExperienceLayout
+        ? 'relative py-2'
+        : `relative overflow-hidden rounded-[24px] border ${surfaceTone.container} shadow-[0_20px_45px_-35px_rgba(29,78,216,0.34)]`}
     >
-      <div className={`absolute inset-y-0 left-0 w-1 bg-gradient-to-b ${surfaceTone.accent}`} />
-      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-white via-primary-200/80 to-transparent" />
-      <div className="relative px-5 py-4 sm:px-6 sm:py-5">
-        <div className="mb-4 border-b border-primary-100/90 pb-3">
-          <h2 className="text-base font-semibold text-primary-900">{label}</h2>
+      {!useFlatExperienceLayout ? (
+        <>
+          <div className={`absolute inset-y-0 left-0 w-1 bg-gradient-to-b ${surfaceTone.accent}`} />
+          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-white via-primary-200/80 to-transparent" />
+        </>
+      ) : null}
+      <div className={useFlatExperienceLayout ? 'relative' : 'relative px-5 py-4 sm:px-6 sm:py-5'}>
+        <div className={useFlatExperienceLayout ? 'mb-4' : 'mb-4 border-b border-primary-100/90 pb-3'}>
+          <h2 className={useFlatExperienceLayout ? 'text-lg font-semibold text-slate-900' : 'text-base font-semibold text-primary-900'}>{label}</h2>
         </div>
         {renderContent()}
       </div>

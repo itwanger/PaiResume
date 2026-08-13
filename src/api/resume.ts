@@ -1,11 +1,12 @@
 import client, { type ApiEnvelope } from './client'
 import { getAccessToken } from './tokenStore'
 import type { AnalysisResult } from '../types'
-import type { ResumePdfPreviewConfig } from '../utils/resumePdf'
+import type { ResumePdfPageMode, ResumePdfPreviewConfig } from '../utils/resumePdf'
 
 export interface ResumeListItem {
   id: number
   title: string
+  pageMode?: ResumePdfPageMode
   templateId: string
   density?: string
   accentPreset?: string
@@ -18,12 +19,21 @@ export interface ResumeListItem {
 export interface ResumeCardPreview {
   name: string
   targetRole: string
+  basicInfo?: string
   education: string
   experience: string
   project: string
+  educations?: string[]
+  experiences?: string[]
+  projects?: ResumeCardProjectPreview[]
   skills: string[]
   moduleCounts: Record<string, number>
   filledModuleCount: number
+}
+
+export interface ResumeCardProjectPreview {
+  title: string
+  description: string
 }
 
 export interface ResumeModule {
@@ -47,7 +57,7 @@ export interface ResumeImportPayload {
 }
 
 export interface AiFieldOptimizeRequest {
-  fieldType: 'project_description' | 'responsibility'
+  fieldType: 'project_description' | 'responsibility' | 'skill'
   index?: number
   prompt?: string
   systemPrompt?: string
@@ -78,6 +88,7 @@ export interface FieldOptimizePromptConfig {
   systemPrompt: string
   descriptionPrompt: string
   responsibilityPrompt: string
+  skillPrompt: string
 }
 
 export type AiFieldOptimizeStreamEventName =

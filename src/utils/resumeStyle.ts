@@ -2,6 +2,7 @@ import type {
   ResumePdfAccentPreset,
   ResumePdfDensity,
   ResumePdfHeadingStyle,
+  ResumePdfPageMode,
   ResumePdfPreviewConfig,
   ResumePdfTemplateId,
 } from './resumePdf'
@@ -14,8 +15,10 @@ const templateIds = new Set<ResumePdfTemplateId>([
 const densities = new Set<ResumePdfDensity>(['normal', 'compact'])
 const accentPresets = new Set<ResumePdfAccentPreset>(['auto', 'blue', 'slate', 'warm', 'emerald'])
 const headingStyles = new Set<ResumePdfHeadingStyle>(['auto', 'underline', 'filled', 'bar'])
+const pageModes = new Set<ResumePdfPageMode>(['standard', 'continuous'])
 
 export interface ResumeStyleSource {
+  pageMode?: string | null
   templateId?: string | null
   density?: string | null
   accentPreset?: string | null
@@ -28,6 +31,9 @@ export function normalizeResumeStyle(source?: ResumeStyleSource | null): ResumeP
     : 'default'
 
   return {
+    pageMode: source?.pageMode && pageModes.has(source.pageMode as ResumePdfPageMode)
+      ? source.pageMode as ResumePdfPageMode
+      : 'standard',
     templateId: rawTemplateId === 'compact' ? 'default' : rawTemplateId,
     density: source?.density && densities.has(source.density as ResumePdfDensity)
       ? source.density as ResumePdfDensity

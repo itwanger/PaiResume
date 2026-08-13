@@ -111,7 +111,10 @@ export const useResumeStore = create<ResumeState>((set, get) => ({
 
   updateResumeStyle: async (id, config) => {
     const { data: res } = await resumeApi.updateStyle(id, config)
-    const updatedResume = res.data
+    // The submitted config is the authoritative result of this action. Keeping
+    // it in the merged response also prevents a slower/stale API payload from
+    // reverting the just-selected preview mode in the current editor session.
+    const updatedResume = { ...res.data, ...config }
     set((state) => ({
       resumeList: state.resumeList.map((resume) =>
         resume.id === id ? { ...resume, ...updatedResume, preview: resume.preview } : resume

@@ -14,23 +14,16 @@ interface ResumeCardProps {
 const emptyPreview: ResumeCardPreview = {
   name: '',
   targetRole: '',
+  basicInfo: '',
   education: '',
   experience: '',
   project: '',
+  educations: [],
+  experiences: [],
+  projects: [],
   skills: [],
   moduleCounts: {},
   filledModuleCount: 0,
-}
-
-const sectionLabels: Record<string, string> = {
-  education: '教育',
-  internship: '实习',
-  work_experience: '工作',
-  project: '项目',
-  skill: '技能',
-  paper: '论文',
-  research: '科研',
-  award: '获奖',
 }
 
 type ThumbnailAccent = Exclude<ResumePdfAccentPreset, 'auto'>
@@ -53,6 +46,16 @@ const accentLabels: Record<ThumbnailAccent, string> = {
   warm: '暖棕',
   emerald: '森绿',
 }
+
+const densityLabels = {
+  normal: '标准模式',
+  compact: '紧凑模式',
+} as const
+
+const pageModeLabels = {
+  standard: '标准分页',
+  continuous: '智能一页',
+} as const
 
 const templateDefaultAccents: Record<ResumePdfTemplateId, ThumbnailAccent> = {
   default: 'blue',
@@ -112,81 +115,131 @@ function ResumeContentThumbnail({ preview, resume }: { preview: ResumeCardPrevie
       ? `border-l-4 ${palette.bar}`
       : `border-b ${palette.border}`
   const surfaceClassName = style.templateId === 'warm'
-    ? 'bg-stone-50/55'
+    ? 'bg-orange-50/50'
     : style.templateId === 'slate' || style.templateId === 'executive'
-      ? 'bg-slate-50/70'
-      : ''
-  const summaryRows = [
-    { label: '教育背景', value: preview.education },
-    { label: '工作/实习', value: preview.experience },
-    { label: '项目经历', value: preview.project },
-  ].filter((item) => item.value)
-  const moduleSummary = Object.entries(preview.moduleCounts || {})
-    .filter(([type]) => type !== 'basic_info' && type !== 'job_intention')
-    .map(([type, count]) => `${sectionLabels[type] || type}${count > 1 ? ` ${count}` : ''}`)
-    .slice(0, 5)
+      ? 'bg-slate-50'
+      : style.templateId === 'campus-blue' || style.templateId === 'focus'
+        ? 'bg-blue-50/45'
+        : 'bg-white'
   const hasContent = preview.filledModuleCount > 0
+  const basicInfo = preview.basicInfo || preview.targetRole
+  const experienceLabel = (preview.moduleCounts?.work_experience || 0) > 0 ? '工作经历' : '实习经历'
+  const educations = preview.educations?.length ? preview.educations : preview.education ? [preview.education] : []
+  const experiences = preview.experiences?.length ? preview.experiences : preview.experience ? [preview.experience] : []
+  const projects = preview.projects?.length
+    ? preview.projects
+    : preview.project
+      ? [{ title: preview.project, description: '' }]
+      : []
+  const mastheadClassName = style.templateId === 'executive'
+    ? 'bg-slate-800 text-white'
+    : style.templateId === 'campus-blue'
+      ? 'bg-blue-700 text-white'
+      : headingStyle === 'filled'
+        ? palette.soft
+        : ''
+  const mastheadValueClassName = style.templateId === 'executive' || style.templateId === 'campus-blue'
+    ? 'text-white/80'
+    : 'text-slate-600'
+  const sectionHeadingClassName = headingStyle === 'filled'
+    ? `${palette.soft} rounded-sm px-1.5 py-0.5`
+    : headingStyle === 'bar'
+      ? `border-l-2 ${palette.bar} pl-1.5`
+      : `border-b ${palette.border} pb-0.5`
+
+  const renderListSection = (label: string, values: string[]) => (
+    <div className="min-w-0">
+      <div className={`mb-0.5 text-[8px] font-bold leading-3 ${palette.strongText} ${sectionHeadingClassName}`}>
+        {label}
+      </div>
+      <div className="space-y-0.5">
+        {values.length ? values.map((value, index) => (
+          <div key={`${value}-${index}`} className="flex min-w-0 items-start gap-1">
+            {values.length > 1 ? <span className={`mt-[5px] h-1 w-1 shrink-0 rounded-full ${palette.dot}`} /> : null}
+            <p className="min-w-0 truncate text-[7px] leading-3 text-slate-600">{value}</p>
+          </div>
+        )) : <p className="text-[7px] leading-3 text-slate-400">待完善</p>}
+      </div>
+    </div>
+  )
 
   return (
     <div
-      className={`relative mb-4 h-40 w-full shrink-0 overflow-hidden ${surfaceClassName}`}
+      className={`relative mb-4 w-full shrink-0 overflow-hidden ${hasContent ? '' : 'h-40'} ${surfaceClassName}`}
       data-template-id={style.templateId}
       data-accent-preset={accent}
       data-heading-style={headingStyle}
       data-density={style.density}
+      data-page-mode={style.pageMode}
       aria-label={hasContent
-        ? `简历内容概览：${preview.name || '姓名待填写'}，${preview.targetRole || '求职方向待填写'}，已填写 ${preview.filledModuleCount} 个模块`
+        ? `简历内容概览：基本信息、教育背景、专业技能${experiences.length ? `、${experienceLabel}` : ''}${projects.length ? '和项目' : ''}`
         : '空白简历，尚未填写内容'}
     >
-      <div className="flex h-full flex-col overflow-hidden">
-        <div className={`${headingClassName} px-3 ${style.density === 'compact' ? 'py-1.5' : 'py-2'}`}>
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <p className={`truncate text-[11px] font-bold leading-4 ${headingStyle === 'underline' ? 'text-slate-900' : palette.strongText}`}>
-                {preview.name || '姓名待填写'}
-              </p>
-              <p className={`truncate text-[9px] leading-3.5 ${palette.text}`}>
-                {preview.targetRole || '求职方向待填写'}
-              </p>
-            </div>
-            <span className={`shrink-0 rounded-full bg-white px-1.5 py-0.5 text-[8px] font-medium text-slate-500 ring-1 ${palette.ring}`}>
-              {preview.filledModuleCount} 个模块
-            </span>
-          </div>
-        </div>
-
+      <div className={`flex flex-col overflow-hidden ${hasContent ? '' : 'h-full'}`}>
         {hasContent ? (
-          <div className="grid min-h-0 flex-1 grid-cols-[74px_minmax(0,1fr)]">
-            <aside className="border-r border-slate-100 px-2 py-2">
-              <p className="text-[8px] font-semibold tracking-wide text-slate-500">技能概览</p>
-              <div className="mt-1.5 flex flex-wrap gap-1">
-                {preview.skills.length ? preview.skills.slice(0, style.density === 'compact' ? 6 : 5).map((skill) => (
-                  <span key={skill} className={`max-w-full truncate rounded px-1 py-0.5 text-[7px] leading-3 ${palette.chip}`}>
-                    {skill}
-                  </span>
-                )) : (
-                  <span className="text-[7px] leading-3 text-slate-400">暂未填写技能</span>
-                )}
+          <>
+            <div className={`px-3 py-2 ${mastheadClassName || headingClassName}`}>
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="shrink-0 text-[9px] font-bold leading-3">基本信息</span>
+                <span className={`min-w-0 flex-1 truncate text-[8px] leading-3 ${mastheadValueClassName}`}>
+                  {basicInfo || '求职方向待完善'}
+                </span>
+                <span className={`shrink-0 text-[7px] ${mastheadValueClassName}`}>
+                  {preview.filledModuleCount} 个模块
+                </span>
               </div>
-              {moduleSummary.length ? (
-                <p className="mt-2 text-[7px] leading-3 text-slate-400">{moduleSummary.join(' · ')}</p>
-              ) : null}
-            </aside>
-
-            <div className={`min-w-0 px-2.5 py-2 ${style.density === 'compact' ? 'space-y-1.5' : 'space-y-2'}`}>
-              {summaryRows.length ? summaryRows.map((row) => (
-                <div key={row.label} className="min-w-0">
-                  <div className="mb-0.5 flex items-center gap-1">
-                    <span className={`h-1.5 w-1.5 rounded-full ${palette.dot}`} />
-                    <span className="text-[8px] font-semibold leading-3 text-slate-600">{row.label}</span>
-                  </div>
-                  <p className="truncate pl-2.5 text-[8px] leading-3 text-slate-500">{row.value}</p>
-                </div>
-              )) : (
-                <div className="h-full rounded bg-slate-50" aria-hidden="true" />
-              )}
             </div>
-          </div>
+
+            <div className={`flex min-h-0 flex-col overflow-hidden px-3 py-2 ${style.density === 'compact' ? 'gap-1' : 'gap-1.5'}`}>
+              {renderListSection('教育背景', educations.slice(0, 2))}
+
+              <section className="min-w-0">
+                <div className={`mb-0.5 text-[8px] font-bold leading-3 ${palette.strongText} ${sectionHeadingClassName}`}>
+                  专业技能
+                </div>
+                <div className="space-y-0.5">
+                  {preview.skills.length ? preview.skills.slice(0, 2).map((skill) => (
+                    <div key={skill} className="flex min-w-0 items-center gap-1">
+                      <span className={`h-1 w-1 shrink-0 rounded-full ${palette.dot}`} />
+                      <p className="min-w-0 truncate text-[7px] leading-3 text-slate-600">{skill}</p>
+                    </div>
+                  )) : <p className="text-[7px] leading-3 text-slate-400">待完善</p>}
+                </div>
+              </section>
+
+              {experiences.length ? (
+                <section className="min-h-0 min-w-0 overflow-hidden">
+                  <div className={`mb-0.5 text-[8px] font-bold leading-3 ${palette.strongText} ${sectionHeadingClassName}`}>
+                    {experienceLabel}
+                  </div>
+                  <div className="grid min-w-0 grid-cols-2 gap-x-3">
+                    {experiences.slice(0, 2).map((experience, index) => {
+                      const project = projects[index]
+                      return (
+                        <div key={`${experience}-${index}`} className="min-w-0">
+                          <p className="truncate text-[7px] font-semibold leading-[10px] text-slate-700">{experience}</p>
+                          {project?.title ? <p className="truncate text-[7px] leading-[10px] text-slate-600">{project.title}</p> : null}
+                          {project?.description ? <p className="truncate text-[6px] leading-[9px] text-slate-500">{project.description}</p> : null}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </section>
+              ) : projects.length ? (
+                <section className="min-h-0 min-w-0 overflow-hidden">
+                  <div className={`mb-0.5 text-[8px] font-bold leading-3 ${palette.strongText} ${sectionHeadingClassName}`}>项目经历</div>
+                  <div className="grid grid-cols-2 gap-x-3">
+                    {projects.slice(0, 2).map((project, index) => (
+                      <div key={`${project.title}-${index}`} className="min-w-0">
+                        <p className="truncate text-[7px] font-semibold leading-[10px] text-slate-700">{project.title}</p>
+                        <p className="truncate text-[6px] leading-[9px] text-slate-500">{project.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+            </div>
+          </>
         ) : (
           <div className="flex flex-1 flex-col items-center justify-center px-4 text-center">
             <div className="mb-2 grid w-full grid-cols-2 gap-1.5 opacity-70">
@@ -254,60 +307,67 @@ export function ResumeCard({ resume, onDelete, onRename }: ResumeCardProps) {
 
       <ResumeContentThumbnail preview={preview} resume={resume} />
 
-      <footer className="mt-auto flex min-w-0 items-center gap-3 text-xs text-gray-400">
-        <span className="min-w-0 flex-1 truncate">样式：{styleLabel}</span>
-        <span className="shrink-0">更新于 {formatDate(resume.updatedAt)}</span>
-        <div
-          ref={menuRef}
-          className="relative shrink-0"
-          onClick={(event) => event.stopPropagation()}
+      <footer className="mt-auto min-w-0 text-xs text-gray-400">
+        <span
+          className="block whitespace-normal break-words leading-5 text-gray-500"
+          title={`${densityLabels[style.density]} · ${pageModeLabels[style.pageMode]} · ${styleLabel}`}
         >
-          <button
-            type="button"
-            onClick={() => setMenuOpen((open) => !open)}
-            className="flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
-            title="更多操作"
-            aria-label={`“${resume.title}”的更多操作`}
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
+          {densityLabels[style.density]} · {pageModeLabels[style.pageMode]} · {styleLabel}
+        </span>
+        <div className="mt-1 flex items-center justify-between gap-3">
+          <span className="shrink-0">更新于 {formatDate(resume.updatedAt)}</span>
+          <div
+            ref={menuRef}
+            className="relative shrink-0"
+            onClick={(event) => event.stopPropagation()}
           >
-            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <circle cx="5" cy="12" r="1.7" />
-              <circle cx="12" cy="12" r="1.7" />
-              <circle cx="19" cy="12" r="1.7" />
-            </svg>
-          </button>
-
-          {menuOpen ? (
-            <div
-              role="menu"
-              aria-label={`“${resume.title}”的简历操作`}
-              className="absolute bottom-full right-0 z-30 mb-2 w-36 rounded-xl border border-gray-200 bg-white p-1.5 shadow-lg"
+            <button
+              type="button"
+              onClick={() => setMenuOpen((open) => !open)}
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+              title="更多操作"
+              aria-label={`“${resume.title}”的更多操作`}
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
             >
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setMenuOpen(false)
-                  onRename(resume)
-                }}
-                className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-primary-700"
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <circle cx="5" cy="12" r="1.7" />
+                <circle cx="12" cy="12" r="1.7" />
+                <circle cx="19" cy="12" r="1.7" />
+              </svg>
+            </button>
+
+            {menuOpen ? (
+              <div
+                role="menu"
+                aria-label={`“${resume.title}”的简历操作`}
+                className="absolute bottom-full right-0 z-30 mb-2 w-36 rounded-xl border border-gray-200 bg-white p-1.5 shadow-lg"
               >
-                修改简历名
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setMenuOpen(false)
-                  onDelete(resume.id)
-                }}
-                className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
-              >
-                删除简历
-              </button>
-            </div>
-          ) : null}
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setMenuOpen(false)
+                    onRename(resume)
+                  }}
+                  className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-primary-700"
+                >
+                  修改简历名
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setMenuOpen(false)
+                    onDelete(resume.id)
+                  }}
+                  className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
+                >
+                  删除简历
+                </button>
+              </div>
+            ) : null}
+          </div>
         </div>
       </footer>
     </article>

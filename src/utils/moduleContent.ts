@@ -10,6 +10,7 @@ import type {
   ResearchContent,
   SkillContent,
 } from '../types'
+import { normalizeYearInput } from './yearInput'
 
 type UnknownRecord = Record<string, unknown>
 
@@ -265,10 +266,11 @@ export function hasResearchContent(content: ResearchContent): boolean {
 
 export function normalizeAwardContent(content: Record<string, unknown>): AwardContent {
   const record = asRecord(content)
+  const awardTime = toStringValue(record.awardTime)
 
   return {
     awardName: toStringValue(record.awardName),
-    awardTime: toStringValue(record.awardTime),
+    awardTime: normalizeYearInput(awardTime) ?? awardTime,
   }
 }
 

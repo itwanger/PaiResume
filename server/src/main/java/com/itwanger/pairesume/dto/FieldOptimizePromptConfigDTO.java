@@ -7,4 +7,5 @@ public class FieldOptimizePromptConfigDTO {
     private String systemPrompt;
     private String descriptionPrompt;
     private String responsibilityPrompt;
+    private String skillPrompt;
 }

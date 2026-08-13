@@ -7,6 +7,8 @@ import { AutoResizeTextarea } from '../ui/AutoResizeTextarea'
 import { ModuleSaveBar } from './ModuleSaveBar'
 import { MaterialActions } from '../materials/MaterialActions'
 import { MonthInput } from '../ui/MonthInput'
+import { ContinueAddButton, RepeatableListHeader } from '../ui/RepeatableListControls'
+import { TextItemSorter } from '../ui/TextItemSorter'
 
 interface Props {
   resumeId: number
@@ -26,6 +28,7 @@ export function ProjectForm({ resumeId, moduleId, initialContent }: Props) {
   const [optimizeError, setOptimizeError] = useState('')
   const [optimizeErrorField, setOptimizeErrorField] = useState<string | null>(null)
   const [pendingResponsibilityFocus, setPendingResponsibilityFocus] = useState<number | null>(null)
+  const [responsibilitySorting, setResponsibilitySorting] = useState(false)
 
   const update = (field: keyof ProjectContent, value: string | string[]) => {
     setContent((prev) => ({ ...prev, [field]: value }))
@@ -44,6 +47,14 @@ export function ProjectForm({ resumeId, moduleId, initialContent }: Props) {
 
   const removeResponsibility = (index: number) => {
     update('achievements', content.achievements.filter((_, idx) => idx !== index))
+  }
+
+  const reorderResponsibility = (sourceIndex: number, targetIndex: number) => {
+    if (sourceIndex === targetIndex) return
+    const responsibilities = [...content.achievements]
+    const [moved] = responsibilities.splice(sourceIndex, 1)
+    responsibilities.splice(targetIndex, 0, moved)
+    update('achievements', responsibilities)
   }
 
   const openOptimizePage = async (field: 'description' | 'achievement', index?: number) => {
@@ -171,13 +182,23 @@ export function ProjectForm({ resumeId, moduleId, initialContent }: Props) {
       </div>
 
       <div>
-        <div className="mb-2 flex items-center justify-between">
-          <label className="text-sm font-medium text-gray-700">核心职责</label>
-          <button type="button" onClick={addResponsibility} className="text-sm text-primary-600 hover:text-primary-700">
-            + 添加职责
-          </button>
-        </div>
-        {content.achievements.map((item, index) => (
+        <RepeatableListHeader
+          label="核心职责"
+          itemCount={content.achievements.length}
+          sorting={responsibilitySorting}
+          addLabel="添加职责"
+          sortLabel="调整职责顺序"
+          onAdd={addResponsibility}
+          onToggleSorting={() => setResponsibilitySorting((current) => !current)}
+        />
+        {responsibilitySorting ? (
+          <TextItemSorter
+            items={content.achievements}
+            itemLabel="职责"
+            ariaLabel="核心职责排序"
+            onReorder={reorderResponsibility}
+          />
+        ) : content.achievements.map((item, index) => (
           <div key={index} className={index === 0 ? '' : 'mt-3'}>
             <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
               <div />
@@ -230,17 +251,9 @@ export function ProjectForm({ resumeId, moduleId, initialContent }: Props) {
             )}
           </div>
         ))}
-        {content.achievements.length > 0 && (
-          <div className="mt-4 text-center">
-            <button
-              type="button"
-              onClick={addResponsibility}
-              className="text-sm font-medium text-primary-600 hover:text-primary-700"
-            >
-              + 继续添加职责
-            </button>
-          </div>
-        )}
+        {!responsibilitySorting && content.achievements.length > 0 ? (
+          <ContinueAddButton label="职责" onClick={addResponsibility} />
+        ) : null}
       </div>
     </div>
   )

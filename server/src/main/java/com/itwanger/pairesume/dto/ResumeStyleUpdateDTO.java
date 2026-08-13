@@ -6,6 +6,10 @@ import lombok.Data;
 
 @Data
 public class ResumeStyleUpdateDTO {
+    @NotBlank(message = "请选择 PDF 页面模式")
+    @Pattern(regexp = "standard|continuous", message = "PDF 页面模式不受支持")
+    private String pageMode;
+
     @NotBlank(message = "请选择简历模板")
     @Pattern(
             regexp = "default|compact|accent|campus-blue|minimal|executive|warm|slate|focus",

@@ -30,6 +30,16 @@ body {
   min-width: 0;
 }
 
+.editor-award-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.editor-award-grid > * {
+  min-width: 0;
+}
+
 .editor-save-bar {
   align-items: stretch;
   flex-direction: column;
@@ -37,6 +47,12 @@ body {
 
 .editor-save-bar__action {
   width: 100%;
+}
+
+@container (min-width: 360px) {
+  .editor-award-grid {
+    grid-template-columns: minmax(0, 1fr) 10rem;
+  }
 }
 
 @container (min-width: 480px) {

@@ -3,10 +3,10 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { resumeApi, type AiFieldOptimizeRequest, type FieldOptimizePromptConfig, type ResumeModule } from '../api/resume'
 import { MarkdownPreview } from '../components/ui/MarkdownPreview'
 import { useResumeStore } from '../store/resumeStore'
-import { normalizeInternshipContent, normalizeProjectContent } from '../utils/moduleContent'
+import { normalizeInternshipContent, normalizeProjectContent, normalizeSkillContent } from '../utils/moduleContent'
 
 type PageStatus = 'idle' | 'streaming' | 'completed' | 'error'
-type FieldType = 'project_description' | 'responsibility'
+type FieldType = 'project_description' | 'responsibility' | 'skill'
 
 interface OptimizePageState {
   title: string
@@ -25,13 +25,14 @@ interface FieldContext {
   original: string
   multiCandidate: boolean
   request: AiFieldOptimizeRequest
-  moduleType: 'internship' | 'work_experience' | 'project'
+  moduleType: 'internship' | 'work_experience' | 'project' | 'skill'
 }
 
 const EMPTY_PROMPT_CONFIG: FieldOptimizePromptConfig = {
   systemPrompt: '',
   descriptionPrompt: '',
   responsibilityPrompt: '',
+  skillPrompt: '',
 }
 
 function appendProcessLine(prevText: string, line: string) {
@@ -101,7 +102,7 @@ function systemPromptStorageKey() {
 function replaceTemplatePlaceholders(template: string, variables: Record<string, string>) {
   return Object.entries(variables).reduce(
     (result, [key, value]) => result.split(`{{${key}}}`).join(value || ''),
-    template
+    template || ''
   )
 }
 
@@ -184,6 +185,17 @@ function deriveFieldContext(
     }
   }
 
+  if (module.moduleType === 'skill' && fieldType === 'skill' && responsibilityIndex !== null) {
+    const items = normalizeSkillContent(module.content).categories.flatMap((category) => category.items)
+    return {
+      title: `专业技能 ${responsibilityIndex + 1}`,
+      original: items[responsibilityIndex]?.trim() || '',
+      multiCandidate: true,
+      request: { fieldType: 'skill', index: responsibilityIndex },
+      moduleType: 'skill',
+    }
+  }
+
   return null
 }
 
@@ -196,6 +208,10 @@ function derivePromptVariables(
 ): Record<string, string> {
   if (!module || !fieldContext || !fieldType) {
     return {}
+  }
+
+  if (fieldType === 'skill') {
+    return { original: fieldContext.original }
   }
 
   if (fieldType === 'project_description') {
@@ -241,6 +257,10 @@ function buildDefaultPromptTemplate(
     return ''
   }
 
+  if (fieldType === 'skill') {
+    return promptConfig.skillPrompt || ''
+  }
+
   if (fieldType === 'project_description') {
     return promptConfig.descriptionPrompt
   }
@@ -256,6 +276,13 @@ function migrateStoredPromptTemplate(template: string, fieldContext: FieldContex
   if (fieldType === 'project_description') {
     return template.replace(
       /(原始项目简介：\s*\n)([\s\S]*?)(\n\s*输出要求：)/,
+      `$1{{original}}$3`
+    )
+  }
+
+  if (fieldType === 'skill') {
+    return template.replace(
+      /(原始技能：\s*\n)([\s\S]*?)(\n\s*输出要求：)/,
       `$1{{original}}$3`
     )
   }
@@ -314,6 +341,15 @@ function applyOptimizedText(
       achievements[responsibilityIndex] = optimizedText
       return { ...content, achievements }
     }
+  }
+
+  if (module.moduleType === 'skill' && fieldType === 'skill' && responsibilityIndex !== null) {
+    const content = normalizeSkillContent(module.content)
+    const items = content.categories.flatMap((category) => category.items)
+    if (responsibilityIndex >= 0 && responsibilityIndex < items.length) {
+      items[responsibilityIndex] = optimizedText
+    }
+    return { categories: [{ name: '', items }] }
   }
 
   return module.content

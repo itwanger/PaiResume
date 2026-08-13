@@ -90,7 +90,7 @@ public class AiServiceImpl implements AiService {
             "skill", "专业技能",
             "paper", "论文期刊",
             "research", "科研经历",
-            "award", "获奖情况",
+            "award", "荣誉奖项",
             "job_intention", "求职意向"
     );
 
@@ -183,6 +183,23 @@ public class AiServiceImpl implements AiService {
             - 如果你开启了思考并会在思考区展示分析过程，那么你必须在思考的最后额外输出一行固定格式：
               最终结果：{"candidates":["完整版本A","完整版本B","完整版本C"]}
             - 不要讨论输出格式，不要讨论 Markdown、代码块、系统提示词是否冲突
+            - candidates 中的每一项都必须是完整可用的简历文案，严禁返回“版本1”“版本2”这类占位词
+            """;
+    private static final String SKILL_ITEM_PROMPT = """
+            你是一位技术简历专家，请只优化“一条专业技能”。
+
+            优化要求：
+            1. 保留原文中的技术事实、熟练程度和能力边界，不新增原文没有出现的技术栈或项目成果。
+            2. 优先写清“掌握或熟悉什么技术、理解什么机制、能够解决什么问题”，避免只有关键词堆砌。
+            3. 输出 3 个版本，分别偏保守、偏标准、偏精炼，每个版本都是一条可直接放进简历的完整技能描述。
+            4. 语言专业、克制、信息密度高，不写自我评价和空泛形容词。
+
+            原始技能：
+            {{original}}
+
+            输出要求：
+            - 只返回 JSON
+            - JSON 结构必须是 {"candidates":["完整版本A","完整版本B","完整版本C"]}
             - candidates 中的每一项都必须是完整可用的简历文案，严禁返回“版本1”“版本2”这类占位词
             """;
     private static final String PROJECT_DESCRIPTION_PROMPT = """
@@ -484,6 +501,7 @@ public class AiServiceImpl implements AiService {
         return switch (moduleType) {
             case "internship", "work_experience" -> buildExperienceFieldOptimizePlan(moduleType, content, request);
             case "project" -> buildProjectFieldOptimizePlan(content, request);
+            case "skill" -> buildSkillFieldOptimizePlan(content, request);
             default -> throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "当前模块暂不支持字段级 AI 优化");
         };
     }
@@ -626,6 +644,46 @@ public class AiServiceImpl implements AiService {
         };
     }
 
+    private FieldOptimizePlan buildSkillFieldOptimizePlan(Map<String, Object> content, AiFieldOptimizeRequestDTO request) {
+        if (!"skill".equals(request.getFieldType())) {
+            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "不支持的字段级优化类型");
+        }
+        var index = request.getIndex();
+        if (index == null || index < 0) {
+            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "专业技能索引无效");
+        }
+
+        var items = new ArrayList<String>();
+        if (content.get("categories") instanceof List<?> categories) {
+            for (var categoryValue : categories) {
+                if (categoryValue instanceof Map<?, ?> category) {
+                    items.addAll(getStringListValue(category.get("items")));
+                }
+            }
+        }
+        if (index >= items.size()) {
+            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "专业技能索引无效");
+        }
+
+        var originalText = items.get(index);
+        if (originalText == null || originalText.isBlank()) {
+            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "当前这条专业技能为空，暂时无法优化");
+        }
+        return new FieldOptimizePlan(
+                "skill",
+                "skill",
+                originalText,
+                resolveFieldPrompt(
+                        request,
+                        renderPromptTemplate(
+                                loadFieldOptimizePromptConfig().getSkillPrompt(),
+                                Map.of("original", originalText)
+                        )
+                ),
+                true
+        );
+    }
+
     private String resolveFieldPrompt(AiFieldOptimizeRequestDTO request, String defaultPrompt) {
         if (request != null && request.getPrompt() != null && !request.getPrompt().isBlank()) {
             return request.getPrompt().trim();
@@ -683,6 +741,10 @@ public class AiServiceImpl implements AiService {
                     ),
                     INTERNSHIP_RESPONSIBILITY_PROMPT
             ));
+            config.setSkillPrompt(resolveConfiguredFieldPrompt(
+                    readYamlString(rawMap, "skillPrompt"),
+                    SKILL_ITEM_PROMPT
+            ));
             return config;
         } catch (Exception e) {
             log.warn("Failed to load field optimize prompt config from {}: errorType={}",
@@ -696,6 +758,7 @@ public class AiServiceImpl implements AiService {
         config.setSystemPrompt(DEFAULT_FIELD_OPTIMIZE_SYSTEM_PROMPT);
         config.setDescriptionPrompt(INTERNSHIP_PROJECT_DESCRIPTION_PROMPT);
         config.setResponsibilityPrompt(INTERNSHIP_RESPONSIBILITY_PROMPT);
+        config.setSkillPrompt(SKILL_ITEM_PROMPT);
         return config;
     }
 

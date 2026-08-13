@@ -122,7 +122,7 @@ export const MODULE_LABELS: Record<ModuleType, string> = {
   skill: '专业技能',
   paper: '论文期刊',
   research: '科研经历',
-  award: '获奖情况',
+  award: '荣誉奖项',
   job_intention: '求职意向',
 }
 

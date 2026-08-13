@@ -12,6 +12,7 @@ import { ResumeAnalysis } from '../components/analysis/ResumeAnalysis'
 import { BasicInfoForm } from '../components/modules/BasicInfoForm'
 import { EducationForm } from '../components/modules/EducationForm'
 import { EducationItemSorter } from '../components/modules/EducationItemSorter'
+import { ExperienceItemSorter } from '../components/modules/ExperienceItemSorter'
 import { InternshipForm } from '../components/modules/InternshipForm'
 import { WorkExperienceForm } from '../components/modules/WorkExperienceForm'
 import { ProjectForm } from '../components/modules/ProjectForm'
@@ -19,6 +20,7 @@ import { SkillForm } from '../components/modules/SkillForm'
 import { PaperForm } from '../components/modules/PaperForm'
 import { ResearchForm } from '../components/modules/ResearchForm'
 import { AwardForm } from '../components/modules/AwardForm'
+import { AwardItemSorter } from '../components/modules/AwardItemSorter'
 import { MembershipUpgradeModal } from '../components/membership/MembershipUpgradeModal'
 import { ResumeReviewModal } from '../components/review/ResumeReviewModal'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
@@ -41,8 +43,8 @@ import {
 } from '../utils/resumeStyle'
 
 type EditorView = 'module' | 'analysis' | 'template-selection'
-const AI_OPTIMIZABLE_MODULE_TYPES = new Set<ModuleType>(['research', 'skill'])
-const NON_REMOVABLE_MODULE_TYPES = new Set<ModuleType>(['basic_info'])
+const AI_OPTIMIZABLE_MODULE_TYPES = new Set<ModuleType>(['research'])
+const NON_REMOVABLE_MODULE_TYPES = new Set<ModuleType>(['basic_info', 'skill'])
 const PREVIEW_PANEL_COLLAPSED_STORAGE_KEY = 'pai-resume.preview-panel-collapsed'
 const COMPACT_PREVIEW_MEDIA_QUERY = '(max-width: 1279px)'
 const DESKTOP_MODULE_SIDEBAR_MEDIA_QUERY = '(min-width: 768px)'
@@ -104,6 +106,9 @@ export default function EditorPage() {
   const [compactPreviewOpen, setCompactPreviewOpen] = useState(false)
   const [mobileModuleMenuOpen, setMobileModuleMenuOpen] = useState(false)
   const [educationItemSorting, setEducationItemSorting] = useState(false)
+  const [awardItemSorting, setAwardItemSorting] = useState(false)
+  const [experienceItemSorting, setExperienceItemSorting] = useState(false)
+  const [focusedExperienceModuleId, setFocusedExperienceModuleId] = useState<number | null>(null)
   const previewToggleRef = useRef<HTMLButtonElement | null>(null)
   const mobilePreviewToggleRef = useRef<HTMLButtonElement | null>(null)
   const resumeReviewTriggerRef = useRef<HTMLButtonElement | null>(null)
@@ -257,6 +262,9 @@ export default function EditorPage() {
     setCompactPreviewOpen(false)
     setMobileModuleMenuOpen(false)
     setEducationItemSorting(false)
+    setAwardItemSorting(false)
+    setExperienceItemSorting(false)
+    setFocusedExperienceModuleId(null)
   }, [activeModuleType, editorView])
 
   useEffect(() => {
@@ -455,6 +463,7 @@ export default function EditorPage() {
   }, [resumeId, modulesLoaded, loading, initializingBasicInfo, modules, addModule])
 
   const openModuleView = useCallback((moduleType: ModuleType) => {
+    setFocusedExperienceModuleId(null)
     setActiveModuleType(moduleType)
     setEditorView('module')
     updateEditorLocation('module', moduleType)
@@ -577,6 +586,18 @@ export default function EditorPage() {
   const canAddAnotherInstance = activeModuleType ? !SINGLETON_MODULES.includes(activeModuleType) : false
   const canOptimizeActiveModule = activeModuleType ? AI_OPTIMIZABLE_MODULE_TYPES.has(activeModuleType) : false
   const canDeleteActiveModule = activeModuleType ? !NON_REMOVABLE_MODULE_TYPES.has(activeModuleType) : false
+  const isExperienceModule = activeModuleType === 'internship' || activeModuleType === 'work_experience'
+  const itemSorting = educationItemSorting || awardItemSorting || experienceItemSorting
+  const focusedExperienceModule = isExperienceModule && focusedExperienceModuleId !== null
+    ? activeModules.find((module) => module.id === focusedExperienceModuleId) ?? null
+    : null
+  const displayedActiveModules = focusedExperienceModule ? [focusedExperienceModule] : activeModules
+
+  useEffect(() => {
+    if (focusedExperienceModuleId !== null && !focusedExperienceModule) {
+      setFocusedExperienceModuleId(null)
+    }
+  }, [focusedExperienceModule, focusedExperienceModuleId])
 
   const handleReorderActiveModuleItems = useCallback(async (moduleIds: number[]) => {
     if (!activeModuleType) return
@@ -730,7 +751,7 @@ export default function EditorPage() {
     }
   }, [resumeReviewEnabled])
 
-  const renderModuleForm = (moduleId: number, content: Record<string, unknown>) => {
+  const renderModuleForm = (moduleId: number, content: Record<string, unknown>, itemIndex = 0) => {
     if (!activeModuleType) return null
     const jobIntentionModule = modules.find((module) => module.moduleType === 'job_intention')
     const mergedBasicInfoContent = activeModuleType === 'basic_info' && jobIntentionModule
@@ -744,13 +765,27 @@ export default function EditorPage() {
     switch (activeModuleType) {
       case 'basic_info': return <BasicInfoForm {...props} />
       case 'education': return <EducationForm {...props} timelineMessages={educationIssuesByModuleId.get(moduleId)} />
-      case 'internship': return <InternshipForm {...props} />
-      case 'work_experience': return <WorkExperienceForm {...props} />
+      case 'internship': return (
+        <InternshipForm
+          {...props}
+          viewMode={focusedExperienceModuleId === moduleId ? 'projects' : 'company'}
+          onOpenProjects={() => setFocusedExperienceModuleId(moduleId)}
+          onBackToCompanies={() => setFocusedExperienceModuleId(null)}
+        />
+      )
+      case 'work_experience': return (
+        <WorkExperienceForm
+          {...props}
+          viewMode={focusedExperienceModuleId === moduleId ? 'projects' : 'company'}
+          onOpenProjects={() => setFocusedExperienceModuleId(moduleId)}
+          onBackToCompanies={() => setFocusedExperienceModuleId(null)}
+        />
+      )
       case 'project': return <ProjectForm {...props} />
       case 'skill': return <SkillForm {...props} />
       case 'paper': return <PaperForm {...props} />
       case 'research': return <ResearchForm {...props} />
-      case 'award': return <AwardForm {...props} />
+      case 'award': return <AwardForm {...props} showModuleToolbar={itemIndex === 0} />
       case 'job_intention': return null
     }
   }
@@ -1004,6 +1039,7 @@ export default function EditorPage() {
                 </div>
               )}
 
+              {!focusedExperienceModule ? (
               <div className="mb-4 flex items-center justify-between gap-3">
                 {activeModuleType === 'education' && activeModules.length > 1 ? (
                   <button
@@ -1013,17 +1049,36 @@ export default function EditorPage() {
                   >
                     {educationItemSorting ? '完成排序' : '调整教育背景顺序'}
                   </button>
+                ) : activeModuleType === 'award' && activeModules.length > 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => setAwardItemSorting((current) => !current)}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:border-primary-200 hover:text-primary-700"
+                  >
+                    {awardItemSorting ? '完成排序' : '调整荣誉奖项顺序'}
+                  </button>
+                ) : isExperienceModule && activeModules.length > 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => setExperienceItemSorting((current) => !current)}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:border-primary-200 hover:text-primary-700"
+                  >
+                    {experienceItemSorting
+                      ? '完成排序'
+                      : `调整${activeModuleType === 'internship' ? '实习经历' : '工作经历'}顺序`}
+                  </button>
                 ) : <span />}
                 {activeModules.length > 0 && canAddAnotherInstance && (
                   <button
                     onClick={() => handleAddInstanceOfType(activeModuleType)}
-                    disabled={educationItemSorting}
+                    disabled={itemSorting}
                     className="text-sm text-primary-600 hover:text-primary-700"
                   >
                     + 添加
                   </button>
                 )}
               </div>
+              ) : null}
 
               {activeModuleType === 'education' && educationTimelineIssues.length > 0 ? (
                 <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
@@ -1037,15 +1092,29 @@ export default function EditorPage() {
                   issuesByModuleId={educationIssuesByModuleId}
                   onReorder={handleReorderActiveModuleItems}
                 />
+              ) : activeModules.length > 0 && activeModuleType === 'award' && awardItemSorting ? (
+                <AwardItemSorter
+                  modules={activeModules}
+                  onReorder={handleReorderActiveModuleItems}
+                />
+              ) : activeModules.length > 0 && isExperienceModule && experienceItemSorting ? (
+                <ExperienceItemSorter
+                  modules={activeModules}
+                  moduleLabel={activeModuleType === 'internship' ? '实习经历' : '工作经历'}
+                  onReorder={handleReorderActiveModuleItems}
+                />
               ) : activeModules.length > 0 ? (
                 <div className="space-y-4">
-                  {activeModules.map((mod, index) => (
-                    <div key={mod.id} className="editor-form-container rounded-xl border border-gray-200 bg-white p-4 sm:p-5">
-                      {activeModules.length > 1 && (
-                        <div className={activeModuleType === 'education'
+                  {displayedActiveModules.map((mod, index) => (
+                    <div
+                      key={mod.id}
+                      className="editor-form-container rounded-xl border border-gray-200 bg-white p-4 sm:p-5"
+                    >
+                      {!focusedExperienceModule && activeModules.length > 1 && (
+                        <div className={activeModuleType === 'education' || activeModuleType === 'award'
                           ? 'mb-2 flex items-center justify-end'
                           : 'mb-3 flex items-center justify-between border-b border-gray-100 pb-3'}>
-                          {activeModuleType !== 'education' ? (
+                          {activeModuleType !== 'education' && activeModuleType !== 'award' ? (
                             <span className="text-sm font-medium text-gray-500">
                               第 {index + 1} 条
                             </span>
@@ -1073,7 +1142,7 @@ export default function EditorPage() {
                           </div>
                         </div>
                       )}
-                      {activeModules.length === 1 && (canOptimizeActiveModule || canDeleteActiveModule) && (
+                      {!focusedExperienceModule && activeModules.length === 1 && (canOptimizeActiveModule || canDeleteActiveModule) && (
                         <div className="mb-3 flex justify-end gap-2">
                           {canOptimizeActiveModule && (
                             <button
@@ -1098,9 +1167,30 @@ export default function EditorPage() {
                           )}
                         </div>
                       )}
-                      {renderModuleForm(mod.id, mod.content)}
+                      {renderModuleForm(mod.id, mod.content, index)}
                     </div>
                   ))}
+                  {!focusedExperienceModule
+                    && !itemSorting
+                    && canAddAnotherInstance
+                    && (activeModuleType === 'education' || activeModuleType === 'award' || isExperienceModule) ? (
+                      <button
+                        type="button"
+                        onClick={() => handleAddInstanceOfType(activeModuleType)}
+                        className="flex w-full items-center justify-center gap-2 rounded-lg border border-primary-200 bg-primary-50/70 px-4 py-3 text-sm font-medium text-primary-700 transition hover:border-primary-300 hover:bg-primary-100 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+                      >
+                        <span className="text-base leading-none" aria-hidden="true">+</span>
+                        <span>
+                          {activeModuleType === 'education'
+                            ? '继续添加教育背景'
+                            : activeModuleType === 'award'
+                              ? '继续添加荣誉奖项'
+                            : activeModuleType === 'internship'
+                              ? '继续添加实习经历'
+                              : '继续添加工作经历'}
+                        </span>
+                      </button>
+                    ) : null}
                 </div>
               ) : activeModuleType === 'basic_info' && initializingBasicInfo ? (
                 <div className="text-center py-12 text-gray-400">
@@ -1173,6 +1263,8 @@ export default function EditorPage() {
                   modules={modules}
                   loading={loading}
                   activeModuleType={editorView === 'module' ? activeModuleType : null}
+                  activeModuleId={focusedExperienceModuleId}
+                  pageMode={isVip ? pdfPreviewConfig.pageMode : 'standard'}
                   pdfConfig={pdfPreviewConfig}
                 />
               )}

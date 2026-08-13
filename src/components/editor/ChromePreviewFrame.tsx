@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   RESUME_PDF_TEMPLATES,
   type ResumePdfAccentPreset,
@@ -404,8 +404,8 @@ export function ChromePreviewFrame({
   exportError = '',
 }: ChromePreviewFrameProps) {
   const [refreshKey, setRefreshKey] = useState(0)
-  const [pageMode, setPageMode] = useState<ResumePdfPageMode>('standard')
   const [controlTab, setControlTab] = useState<'templates' | 'styles'>('templates')
+  const pageMode: ResumePdfPageMode = isVip ? config.pageMode : 'standard'
   const previewPath = useMemo(() => {
     const params = new URLSearchParams({
       pageMode,
@@ -429,14 +429,8 @@ export function ChromePreviewFrame({
       onRequireVip?.()
       return
     }
-    setPageMode(nextPageMode)
+    updateConfig({ pageMode: nextPageMode })
   }
-
-  useEffect(() => {
-    if (!isVip && pageMode === 'continuous') {
-      setPageMode('standard')
-    }
-  }, [isVip, pageMode])
 
   return (
     <div className="mx-auto w-full max-w-[1600px] overflow-hidden border border-slate-200 bg-white shadow-sm">

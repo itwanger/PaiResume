@@ -22,7 +22,7 @@ interface ModuleSidebarProps {
   onSelectTemplateSelection?: () => void
 }
 
-const NON_REMOVABLE_MODULE_TYPES = new Set<ModuleType>(['basic_info'])
+const NON_REMOVABLE_MODULE_TYPES = new Set<ModuleType>(['basic_info', 'skill'])
 
 export function ModuleSidebar({
   variant = 'desktop',

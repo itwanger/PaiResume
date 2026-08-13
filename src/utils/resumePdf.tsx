@@ -29,6 +29,7 @@ import { parseInlineMarkdownSegments } from './inlineMarkdown'
 import { normalizePhotoSource } from './resumePhoto'
 import { getModuleDisplayLabel, sortResumeModulesForDisplay } from './resumeDisplay'
 import { normalizeInlineText } from './resumeText'
+import { formatAwardDisplayText } from './yearInput'
 
 function resolveFontSource(fileName: string) {
   if (typeof window === 'undefined') {
@@ -72,6 +73,7 @@ export type ResumePdfAccentPreset = 'auto' | 'blue' | 'slate' | 'warm' | 'emeral
 export type ResumePdfHeadingStyle = 'auto' | 'underline' | 'filled' | 'bar'
 
 export interface ResumePdfPreviewConfig {
+  pageMode: ResumePdfPageMode
   templateId: ResumePdfTemplateId
   density: ResumePdfDensity
   accentPreset: ResumePdfAccentPreset
@@ -179,6 +181,7 @@ export const RESUME_PDF_TEMPLATES: ResumePdfTemplateOption[] = [
 ]
 
 export const DEFAULT_RESUME_PDF_PREVIEW_CONFIG: ResumePdfPreviewConfig = {
+  pageMode: 'standard',
   templateId: 'default',
   density: 'normal',
   accentPreset: 'auto',
@@ -820,6 +823,24 @@ function createResumePdfStyles(theme: ResumePdfTheme) {
       marginRight: theme.inlineMetaItemRight,
       marginBottom: theme.inlineMetaItemBottom,
     },
+    awardGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+    },
+    awardGridItem: {
+      width: '50%',
+      flexDirection: 'row',
+      paddingRight: 8,
+      marginTop: theme.listItemTop,
+    },
+    awardBullet: {
+      width: 8,
+    },
+    awardGridText: {
+      flexGrow: 1,
+      flexShrink: 1,
+      flexBasis: 0,
+    },
     chips: {
       flexDirection: 'row',
       flexWrap: 'wrap',
@@ -952,12 +973,6 @@ function formatMonthRange(start: string, end: string) {
   const endText = formatMonth(end)
   if (startText && endText) return `${startText} - ${endText}`
   return startText || endText
-}
-
-function formatAwardDisplayTime(value: string) {
-  if (!value) return ''
-  const [year] = value.split('-')
-  return year ? `${year}年` : value
 }
 
 function tokenizeMixedText(value: string) {
@@ -1725,16 +1740,27 @@ function ResumePdfDocument({
               if (module.id !== firstAwardModuleId) {
                 return null
               }
+              const awardTexts = awardModules.map((award) => (
+                formatAwardDisplayText(award.awardName, award.awardTime)
+              ))
               return renderSectionBlock(
                 'award',
-                '获奖情况',
-                (
+                '荣誉奖项',
+                isCompactDensity && awardTexts.length >= 5 ? (
+                  <View style={styles.awardGrid}>
+                    {awardTexts.map((text, index) => (
+                      <View key={`${text}-${index}`} style={styles.awardGridItem}>
+                        <Text style={styles.awardBullet}>•</Text>
+                        <Text style={styles.awardGridText}>{text}</Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : isCompactDensity ? (
+                  <Text>{awardTexts.join('、')}</Text>
+                ) : (
                   <>
-                    {awardModules.map((award, index) => (
-                      <Text key={`${award.awardName}-${index}`} style={styles.paragraph}>
-                        {award.awardName || '奖项'}
-                        {award.awardTime ? `（${formatAwardDisplayTime(award.awardTime)}）` : ''}
-                      </Text>
+                    {awardTexts.map((text, index) => (
+                      <Text key={`${text}-${index}`} style={styles.paragraph}>{text}</Text>
                     ))}
                   </>
                 )
