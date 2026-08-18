@@ -20,7 +20,7 @@ public interface ResumeShowcaseService {
 
     ResumeShowcase update(Long showcaseId, Long adminUserId, ResumeShowcaseUpsertDTO dto);
 
-    ResumeShowcase featureResume(Long resumeId, Long adminUserId);
+    ResumeShowcase featureResume(Long resumeId, Long adminUserId, String accessType);
 
     ResumeShowcase unfeatureResume(Long resumeId, Long adminUserId);
 

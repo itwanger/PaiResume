@@ -7,6 +7,8 @@ import java.util.List;
 
 @Data
 public class ResumeAnalysisResultDTO {
+    private String scenarioCode;
+    private String scenarioName;
     private int score;
     private List<ResumeAnalysisIssueDTO> issues = new ArrayList<>();
     private List<String> suggestions = new ArrayList<>();

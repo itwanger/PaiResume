@@ -213,7 +213,15 @@ export interface AnalysisIssue {
 }
 
 export interface AnalysisResult {
+  scenarioCode?: ResumeAnalysisScenarioCode
+  scenarioName?: string
   score: number
   issues: AnalysisIssue[]
   suggestions: string[]
 }
+
+export type ResumeAnalysisScenarioCode =
+  | 'WORKING_PROFESSIONAL'
+  | 'STUDENT_DAILY_INTERNSHIP'
+  | 'STUDENT_SUMMER_INTERNSHIP'
+  | 'STUDENT_AUTUMN_RECRUITMENT'

@@ -8,7 +8,11 @@ export interface ShowcaseDetail {
   scoreLabel: string
   summary: string
   tags: string[]
+  pageMode?: string
   templateId: string
+  density?: string
+  accentPreset?: string
+  headingStyle?: string
   modules: ResumeModule[]
   updatedAt: string
 }

@@ -15,6 +15,7 @@ import {
   type MarketplacePaymentReview,
   type MarketplacePaymentReviewStatus,
   type PlatformConfig,
+  type ResumeShowcaseAccessType,
   type ResumeShowcaseAdmin,
   type UserAdmin,
   type VipInviteAdmin,
@@ -66,6 +67,7 @@ import { MarketplaceGovernancePanel } from '../components/admin/MarketplaceGover
 import { ResumeReviewAdminPanel } from '../components/admin/ResumeReviewAdminPanel'
 import { AdminShowcasePanel } from '../components/admin/AdminShowcasePanel'
 import { AdminContentLibraryPanel } from '../components/admin/AdminContentLibraryPanel'
+import { ResumeAnalysisPromptAdminPanel } from '../components/admin/ResumeAnalysisPromptAdminPanel'
 
 interface PlatformPriceDraft {
   questionnaireCouponAmountYuan: string
@@ -1484,15 +1486,23 @@ function AdminPageContent() {
     }
   }
 
-  const handleFeatureShowcase = async (resume: ResumeListItem) => {
+  const handleFeatureShowcase = async (
+    resume: ResumeListItem,
+    accessType: ResumeShowcaseAccessType,
+  ) => {
     setShowcaseActionResumeId(resume.id)
     setShowcaseActionError(null)
     setError('')
     setSuccess('')
     try {
-      const response = await adminApi.featureShowcaseResume(resume.id)
+      const wasFeatured = showcases.some(
+        (showcase) => showcase.resumeId === resume.id && showcase.publishStatus === 'PUBLISHED',
+      )
+      const response = await adminApi.featureShowcaseResume(resume.id, { accessType })
       setShowcases((current) => upsertShowcase(current, response.data.data))
-      setSuccess(`已精选「${resume.title}」`)
+      setSuccess(wasFeatured
+        ? `已更新「${resume.title}」的展示设置`
+        : `已精选「${resume.title}」`)
     } catch (err: unknown) {
       setShowcaseActionError({
         resumeId: resume.id,
@@ -1815,7 +1825,7 @@ function AdminPageContent() {
                     actionResumeId={showcaseActionResumeId}
                     actionError={showcaseActionError}
                     loading={loadingSections.has('showcases') || loadingSections.has('resumes')}
-                    onFeature={(resume) => void handleFeatureShowcase(resume)}
+                    onFeature={(resume, accessType) => void handleFeatureShowcase(resume, accessType)}
                     onUnfeature={(resume) => void handleUnfeatureShowcase(resume)}
                   />
                 ) : null}
@@ -1830,6 +1840,9 @@ function AdminPageContent() {
 
             {activeView === 'content-library' ? (
               <AdminContentLibraryPanel />
+            ) : null}
+            {activeView === 'analysis-prompts' ? (
+              <ResumeAnalysisPromptAdminPanel />
             ) : null}
 
             {activeView === 'marketplace-listings' ? (

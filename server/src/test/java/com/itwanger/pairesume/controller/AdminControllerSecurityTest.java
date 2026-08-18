@@ -5,6 +5,7 @@ import com.itwanger.pairesume.config.CorsConfig;
 import com.itwanger.pairesume.config.SecurityConfig;
 import com.itwanger.pairesume.dto.AdminMarketplaceActionDTO;
 import com.itwanger.pairesume.dto.MarketplacePageDTO;
+import com.itwanger.pairesume.dto.ResumeAnalysisPromptConfigDTO;
 import com.itwanger.pairesume.entity.User;
 import com.itwanger.pairesume.mapper.UserMapper;
 import com.itwanger.pairesume.security.JwtAuthenticationFilter;
@@ -12,6 +13,7 @@ import com.itwanger.pairesume.security.JwtTokenProvider;
 import com.itwanger.pairesume.security.LegalConsentPolicy;
 import com.itwanger.pairesume.service.MarketplaceGovernanceService;
 import com.itwanger.pairesume.service.MembershipPaymentAdminService;
+import com.itwanger.pairesume.service.ResumeAnalysisPromptConfigService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -36,16 +38,19 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(controllers = {
         MembershipPaymentAdminController.class,
-        AdminMarketplaceGovernanceController.class
+        AdminMarketplaceGovernanceController.class,
+        AdminResumeAnalysisPromptController.class
 })
 @ContextConfiguration(classes = {
         MembershipPaymentAdminController.class,
         AdminMarketplaceGovernanceController.class,
+        AdminResumeAnalysisPromptController.class,
         SecurityConfig.class,
         CorsConfig.class,
         GlobalExceptionHandler.class,
@@ -73,6 +78,9 @@ class AdminControllerSecurityTest {
 
     @MockBean
     private MarketplaceGovernanceService marketplaceGovernanceService;
+
+    @MockBean
+    private ResumeAnalysisPromptConfigService resumeAnalysisPromptConfigService;
 
     @MockBean
     private StringRedisTemplate redisTemplate;
@@ -132,6 +140,41 @@ class AdminControllerSecurityTest {
 
         verify(membershipPaymentAdminService)
                 .listOrders(3, 15, "PAID", "REFUND_PENDING");
+    }
+
+    @Test
+    void regularUserCannotReadAnalysisPrompts() throws Exception {
+        mockMvc.perform(get("/admin/resume-analysis-prompts")
+                        .header("Authorization", bearer(regularUserAccessToken)))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(resumeAnalysisPromptConfigService);
+    }
+
+    @Test
+    void administratorCanUpdateAnalysisPrompt() throws Exception {
+        var result = new ResumeAnalysisPromptConfigDTO();
+        result.setScenarioCode("WORKING_PROFESSIONAL");
+        result.setDisplayName("工作党");
+        result.setPrompt("只评估工作经历和专业技能");
+        when(resumeAnalysisPromptConfigService.update(
+                "WORKING_PROFESSIONAL",
+                "只评估工作经历和专业技能",
+                ADMIN_USER_ID
+        )).thenReturn(result);
+
+        mockMvc.perform(put("/admin/resume-analysis-prompts/WORKING_PROFESSIONAL")
+                        .header("Authorization", bearer(adminAccessToken))
+                        .contentType("application/json")
+                        .content("{\"prompt\":\"只评估工作经历和专业技能\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.scenarioCode").value("WORKING_PROFESSIONAL"));
+
+        verify(resumeAnalysisPromptConfigService).update(
+                "WORKING_PROFESSIONAL",
+                "只评估工作经历和专业技能",
+                ADMIN_USER_ID
+        );
     }
 
     @Test

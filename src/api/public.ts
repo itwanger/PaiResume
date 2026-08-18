@@ -1,4 +1,5 @@
 import client, { type ApiEnvelope } from './client'
+import type { ResumeCardPreview } from './resume'
 import type { ShowcaseDetail } from './showcase'
 
 export interface ShowcaseCard {
@@ -8,6 +9,12 @@ export interface ShowcaseCard {
   scoreLabel: string
   summary: string
   tags: string[]
+  pageMode?: string
+  templateId?: string
+  density?: string
+  accentPreset?: string
+  headingStyle?: string
+  preview?: ResumeCardPreview
   updatedAt: string
 }
 

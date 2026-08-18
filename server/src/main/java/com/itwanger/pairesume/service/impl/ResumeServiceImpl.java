@@ -78,7 +78,7 @@ public class ResumeServiceImpl implements ResumeService {
         }).toList();
     }
 
-    private ResumeCardPreviewVO buildCardPreview(List<ResumeModule> modules) {
+    static ResumeCardPreviewVO buildCardPreview(List<ResumeModule> modules) {
         var preview = new ResumeCardPreviewVO();
         var meaningfulModules = modules.stream()
                 .filter(module -> hasMeaningfulValue(module.getContent()))
@@ -117,12 +117,12 @@ public class ResumeServiceImpl implements ResumeService {
         return preview;
     }
 
-    private List<String> extractEducationSummaries(List<ResumeModule> modules) {
+    private static List<String> extractEducationSummaries(List<ResumeModule> modules) {
         return modules.stream()
                 .filter(module -> "education".equals(module.getModuleType()))
                 .map(ResumeModule::getContent)
                 .filter(Objects::nonNull)
-                .filter(this::hasMeaningfulValue)
+                .filter(ResumeServiceImpl::hasMeaningfulValue)
                 .map(content -> joinSummary(
                         text(content, "school"),
                         text(content, "degree"),
@@ -132,12 +132,12 @@ public class ResumeServiceImpl implements ResumeService {
                 .toList();
     }
 
-    private List<String> extractExperienceSummaries(List<ResumeModule> modules) {
+    private static List<String> extractExperienceSummaries(List<ResumeModule> modules) {
         return modules.stream()
                 .filter(module -> Set.of("work_experience", "internship").contains(module.getModuleType()))
                 .map(ResumeModule::getContent)
                 .filter(Objects::nonNull)
-                .filter(this::hasMeaningfulValue)
+                .filter(ResumeServiceImpl::hasMeaningfulValue)
                 .map(content -> joinSummary(
                         firstText(text(content, "company"), text(content, "projectName")),
                         text(content, "position")))
@@ -146,7 +146,7 @@ public class ResumeServiceImpl implements ResumeService {
                 .toList();
     }
 
-    private List<ResumeCardProjectPreviewVO> extractProjectPreviews(List<ResumeModule> modules) {
+    private static List<ResumeCardProjectPreviewVO> extractProjectPreviews(List<ResumeModule> modules) {
         var result = new ArrayList<ResumeCardProjectPreviewVO>();
         for (ResumeModule module : modules) {
             if (result.size() >= 4) break;
@@ -177,17 +177,17 @@ public class ResumeServiceImpl implements ResumeService {
         return result;
     }
 
-    private void addProjectPreview(List<ResumeCardProjectPreviewVO> target, String title, String description) {
+    private static void addProjectPreview(List<ResumeCardProjectPreviewVO> target, String title, String description) {
         if (title.isBlank() && description.isBlank()) return;
         target.add(new ResumeCardProjectPreviewVO(title, description));
     }
 
-    private String getMapText(Map<?, ?> content, String field) {
+    private static String getMapText(Map<?, ?> content, String field) {
         Object value = content.get(field);
         return value instanceof String string ? string.strip() : "";
     }
 
-    private List<String> extractSkills(List<ResumeModule> modules) {
+    private static List<String> extractSkills(List<ResumeModule> modules) {
         var result = new LinkedHashSet<String>();
         var skill = firstContent(modules, "skill");
         Object categories = skill.get("categories");
@@ -213,7 +213,7 @@ public class ResumeServiceImpl implements ResumeService {
         return result.stream().limit(8).toList();
     }
 
-    private void addStrings(Set<String> target, Object value) {
+    private static void addStrings(Set<String> target, Object value) {
         if (!(value instanceof Collection<?> collection)) return;
         collection.stream()
                 .filter(String.class::isInstance)
@@ -223,17 +223,17 @@ public class ResumeServiceImpl implements ResumeService {
                 .forEach(target::add);
     }
 
-    private Map<String, Object> firstContent(List<ResumeModule> modules, String moduleType) {
+    private static Map<String, Object> firstContent(List<ResumeModule> modules, String moduleType) {
         return modules.stream()
                 .filter(module -> moduleType.equals(module.getModuleType()))
                 .map(ResumeModule::getContent)
                 .filter(Objects::nonNull)
-                .filter(this::hasMeaningfulValue)
+                .filter(ResumeServiceImpl::hasMeaningfulValue)
                 .findFirst()
                 .orElseGet(Map::of);
     }
 
-    private Map<String, Object> firstModuleContent(List<ResumeModule> modules, List<String> moduleTypes) {
+    private static Map<String, Object> firstModuleContent(List<ResumeModule> modules, List<String> moduleTypes) {
         for (String moduleType : moduleTypes) {
             var content = firstContent(modules, moduleType);
             if (!content.isEmpty()) return content;
@@ -241,11 +241,11 @@ public class ResumeServiceImpl implements ResumeService {
         return Map.of();
     }
 
-    private String firstModuleText(List<ResumeModule> modules, List<String> moduleTypes, String field) {
+    private static String firstModuleText(List<ResumeModule> modules, List<String> moduleTypes, String field) {
         return text(firstModuleContent(modules, moduleTypes), field);
     }
 
-    private boolean hasMeaningfulValue(Object value) {
+    private static boolean hasMeaningfulValue(Object value) {
         if (value == null) return false;
         if (value instanceof String string) return !string.isBlank();
         if (value instanceof Boolean bool) return bool;
@@ -253,20 +253,20 @@ public class ResumeServiceImpl implements ResumeService {
         if (value instanceof Map<?, ?> map) return map.entrySet().stream()
                 .filter(entry -> !"id".equals(String.valueOf(entry.getKey())))
                 .anyMatch(entry -> hasMeaningfulValue(entry.getValue()));
-        if (value instanceof Collection<?> collection) return collection.stream().anyMatch(this::hasMeaningfulValue);
+        if (value instanceof Collection<?> collection) return collection.stream().anyMatch(ResumeServiceImpl::hasMeaningfulValue);
         return false;
     }
 
-    private String text(Map<String, Object> content, String field) {
+    private static String text(Map<String, Object> content, String field) {
         Object value = content.get(field);
         return value instanceof String string ? string.strip() : "";
     }
 
-    private String firstText(String... values) {
+    private static String firstText(String... values) {
         return Arrays.stream(values).filter(value -> value != null && !value.isBlank()).findFirst().orElse("");
     }
 
-    private String joinSummary(String... values) {
+    private static String joinSummary(String... values) {
         return Arrays.stream(values)
                 .filter(value -> value != null && !value.isBlank())
                 .collect(Collectors.joining(" · "));

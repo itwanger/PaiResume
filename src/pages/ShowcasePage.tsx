@@ -3,8 +3,8 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { publicApi } from '../api/public'
 import { showcaseApi, type ShowcaseDetail } from '../api/showcase'
+import { PreviewPanel } from '../components/editor/PreviewPanel'
 import { Header } from '../components/layout/Header'
-import { ExcellentResumePreview } from '../components/showcase/ExcellentResumePreview'
 import { useAuthStore } from '../store/authStore'
 import {
   buildLoginPath,
@@ -12,6 +12,7 @@ import {
   buildShowcasePath,
   EXCELLENT_RESUMES_PATH,
 } from '../utils/navigation'
+import { normalizeResumeStyle } from '../utils/resumeStyle'
 
 export default function ShowcasePage() {
   const { slug = '' } = useParams<{ slug: string }>()
@@ -20,6 +21,7 @@ export default function ShowcasePage() {
   const [detail, setDetail] = useState<ShowcaseDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const resumeStyle = normalizeResumeStyle(detail)
 
   useEffect(() => {
     if (!initialized || !slug) {
@@ -81,24 +83,33 @@ export default function ShowcasePage() {
             {error}
           </div>
         ) : detail ? (
-          <div className="mt-8 grid gap-8 lg:grid-cols-[340px_minmax(0,1fr)]">
-            <aside className="space-y-5">
-              <div className="rounded-lg border border-gray-200 bg-white px-5 py-5">
-                <div className="text-sm text-primary-700">{detail.scoreLabel}</div>
-                <h1 className="mt-2 text-2xl font-semibold text-gray-900">{detail.title}</h1>
-                <p className="mt-4 text-sm leading-6 text-gray-600">{detail.summary}</p>
-                <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-7">
+            <div className="mx-auto mb-6 max-w-[1120px]">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-6">
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-primary-700">{detail.scoreLabel}</div>
+                  <h1 className="mt-1 break-words text-2xl font-semibold text-gray-900">{detail.title}</h1>
+                </div>
+                <div className="flex shrink-0 flex-wrap gap-2">
                   {(detail.tags ?? []).map((tag) => (
-                    <span key={tag} className="rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-600">
+                    <span key={tag} className="bg-white px-2.5 py-1 text-xs text-gray-600 ring-1 ring-inset ring-gray-200">
                       {tag}
                     </span>
                   ))}
                 </div>
               </div>
-            </aside>
+              {detail.summary ? <p className="mt-3 text-sm leading-6 text-gray-600">{detail.summary}</p> : null}
+            </div>
 
-            <div>
-              <ExcellentResumePreview modules={detail.modules} />
+            <div className="mx-auto max-w-[1120px]">
+              <PreviewPanel
+                modules={detail.modules}
+                loading={false}
+                forcedMode="pdf-standard"
+                hideHeader
+                pageMode={resumeStyle.pageMode}
+                pdfConfig={resumeStyle}
+              />
             </div>
           </div>
         ) : null}

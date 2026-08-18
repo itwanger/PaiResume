@@ -1,6 +1,6 @@
 import client, { type ApiEnvelope } from './client'
 import { getAccessToken } from './tokenStore'
-import type { AnalysisResult } from '../types'
+import type { AnalysisResult, ResumeAnalysisScenarioCode } from '../types'
 import type { ResumePdfPageMode, ResumePdfPreviewConfig } from '../utils/resumePdf'
 
 export interface ResumeListItem {
@@ -510,28 +510,28 @@ export const resumeApi = {
     return finalResult
   },
 
-  analyze: (resumeId: number, data?: { prompt?: string }) =>
+  analyze: (resumeId: number, data: { scenarioCode: ResumeAnalysisScenarioCode }) =>
     withAiLogging(
       'resume-analysis',
       {
         resumeId,
         url: `/resumes/${resumeId}/analysis`,
-        payload: data || {},
+        payload: data,
       },
-      () => client.post<ApiEnvelope<AnalysisResult>>(`/resumes/${resumeId}/analysis`, data || {}, {
+      () => client.post<ApiEnvelope<AnalysisResult>>(`/resumes/${resumeId}/analysis`, data, {
         timeout: 70000,
       })
     ),
 
   analyzeStream: async (
     resumeId: number,
-    data?: { prompt?: string },
+    data: { scenarioCode: ResumeAnalysisScenarioCode },
     options: ResumeAnalysisStreamOptions = {}
   ) => {
     const request = {
       resumeId,
       url: `/resumes/${resumeId}/analysis/stream`,
-      payload: data || {},
+      payload: data,
     }
     logAiRequest('resume-analysis-stream', request)
 
@@ -543,7 +543,7 @@ export const resumeApi = {
         Accept: 'text/event-stream',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      body: JSON.stringify(data || {}),
+      body: JSON.stringify(data),
       credentials: 'include',
       signal: options.signal,
     })

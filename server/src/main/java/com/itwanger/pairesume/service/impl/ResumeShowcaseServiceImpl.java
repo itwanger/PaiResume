@@ -16,6 +16,8 @@ import com.itwanger.pairesume.service.AiService;
 import com.itwanger.pairesume.service.MembershipService;
 import com.itwanger.pairesume.service.ResumeShowcaseService;
 import com.itwanger.pairesume.util.DateTimeUtils;
+import com.itwanger.pairesume.vo.ResumeCardPreviewVO;
+import com.itwanger.pairesume.vo.ResumeCardProjectPreviewVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -27,6 +29,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -46,12 +50,45 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
 
     @Override
     public List<ShowcaseCardDTO> listPublishedShowcases() {
-        return resumeShowcaseMapper.selectList(
+        List<ResumeShowcase> showcases = resumeShowcaseMapper.selectList(
                 new LambdaQueryWrapper<ResumeShowcase>()
                         .eq(ResumeShowcase::getPublishStatus, "PUBLISHED")
                         .orderByAsc(ResumeShowcase::getDisplayOrder)
                         .orderByDesc(ResumeShowcase::getUpdatedAt)
-        ).stream().map(this::toCardDto).toList();
+        );
+        if (showcases.isEmpty()) return List.of();
+
+        List<Long> resumeIds = showcases.stream()
+                .map(ResumeShowcase::getResumeId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        Map<Long, Resume> resumesById = resumeIds.isEmpty()
+                ? Map.of()
+                : resumeMapper.selectBatchIds(resumeIds).stream()
+                .filter(resume -> resume.getStatus() == null || resume.getStatus() == 1)
+                .collect(Collectors.toMap(Resume::getId, Function.identity()));
+        Set<Long> activeResumeIds = resumesById.keySet();
+        Map<Long, List<ResumeModule>> modulesByResumeId = activeResumeIds.isEmpty()
+                ? Map.of()
+                : resumeModuleMapper.selectList(
+                        new LambdaQueryWrapper<ResumeModule>()
+                                .in(ResumeModule::getResumeId, activeResumeIds)
+                                .orderByAsc(ResumeModule::getSortOrder)
+                                .orderByAsc(ResumeModule::getId)
+                ).stream().collect(Collectors.groupingBy(
+                        ResumeModule::getResumeId,
+                        LinkedHashMap::new,
+                        Collectors.toList()
+                ));
+
+        return showcases.stream()
+                .map(showcase -> toCardDto(
+                        showcase,
+                        resumesById.get(showcase.getResumeId()),
+                        modulesByResumeId.getOrDefault(showcase.getResumeId(), List.of())
+                ))
+                .toList();
     }
 
     @Override
@@ -101,11 +138,16 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
     }
 
     @Override
-    public ResumeShowcase featureResume(Long resumeId, Long adminUserId) {
+    public ResumeShowcase featureResume(Long resumeId, Long adminUserId, String accessType) {
+        String normalizedAccessType = normalizeAccessTypeForWrite(accessType);
         Resume resume = requireOwnedResume(resumeId, adminUserId);
         var sourceUpdatedAt = resume.getUpdatedAt();
         ResumeShowcase showcase = findByResumeId(resumeId);
         if (showcase != null && "PUBLISHED".equals(showcase.getPublishStatus())) {
+            if (!normalizedAccessType.equals(showcase.getAccessType())) {
+                showcase.setAccessType(normalizedAccessType);
+                resumeShowcaseMapper.updateById(showcase);
+            }
             return showcase;
         }
 
@@ -123,6 +165,10 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
         var latestShowcase = findByResumeId(resumeId);
         if (latestShowcase != null) {
             if ("PUBLISHED".equals(latestShowcase.getPublishStatus())) {
+                if (!normalizedAccessType.equals(latestShowcase.getAccessType())) {
+                    latestShowcase.setAccessType(normalizedAccessType);
+                    resumeShowcaseMapper.updateById(latestShowcase);
+                }
                 return latestShowcase;
             }
             showcase = latestShowcase;
@@ -134,16 +180,14 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
             showcase.setSlug("featured-" + resumeId);
             long showcaseCount = resumeShowcaseMapper.selectCount(null);
             showcase.setDisplayOrder((int) Math.min(showcaseCount, Integer.MAX_VALUE));
-            showcase.setAccessType(ACCESS_TYPE_VIP);
+            showcase.setAccessType(normalizedAccessType);
         }
 
         showcase.setScoreLabel(metadata.getDisplayLabel());
         showcase.setSummary(metadata.getSummary());
         showcase.setTags(metadata.getTags());
         showcase.setPublishStatus("PUBLISHED");
-        if (showcase.getAccessType() == null || showcase.getAccessType().isBlank()) {
-            showcase.setAccessType(ACCESS_TYPE_VIP);
-        }
+        showcase.setAccessType(normalizedAccessType);
 
         if (creating) {
             try {
@@ -156,6 +200,10 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
                 ensureResumeStillPublishable(
                         resumeId, adminUserId, sourceUpdatedAt, concurrentShowcase
                 );
+                if (!normalizedAccessType.equals(concurrentShowcase.getAccessType())) {
+                    concurrentShowcase.setAccessType(normalizedAccessType);
+                    resumeShowcaseMapper.updateById(concurrentShowcase);
+                }
                 return concurrentShowcase;
             }
         } else {
@@ -343,8 +391,7 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
         return normalized;
     }
 
-    private ShowcaseCardDTO toCardDto(ResumeShowcase showcase) {
-        Resume resume = resumeMapper.selectById(showcase.getResumeId());
+    private ShowcaseCardDTO toCardDto(ResumeShowcase showcase, Resume resume, List<ResumeModule> modules) {
         ShowcaseCardDTO dto = new ShowcaseCardDTO();
         dto.setId(showcase.getId());
         dto.setSlug(showcase.getSlug());
@@ -352,8 +399,49 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
         dto.setScoreLabel(showcase.getScoreLabel());
         dto.setSummary(showcase.getSummary());
         dto.setTags(showcase.getTags());
+        if (resume != null) {
+            dto.setPageMode(resume.getPageMode());
+            dto.setTemplateId(resume.getTemplateId());
+            dto.setDensity(resume.getPdfDensity());
+            dto.setAccentPreset(resume.getAccentPreset());
+            dto.setHeadingStyle(resume.getHeadingStyle());
+        }
+        dto.setPreview(toPublicCardPreview(modules));
         dto.setUpdatedAt(DateTimeUtils.format(showcase.getUpdatedAt()));
         return dto;
+    }
+
+    private ResumeCardPreviewVO toPublicCardPreview(List<ResumeModule> modules) {
+        ResumeCardPreviewVO preview = ResumeServiceImpl.buildCardPreview(modules);
+        preview.setName("");
+        preview.setEducations(preview.getEducations().stream().limit(2).toList());
+        preview.setEducation(preview.getEducations().stream().findFirst().orElse(""));
+        preview.setExperiences(preview.getExperiences().stream().limit(2).toList());
+        preview.setExperience(preview.getExperiences().stream().findFirst().orElse(""));
+        preview.setProjects(preview.getProjects().stream()
+                .limit(2)
+                .map(project -> new ResumeCardProjectPreviewVO(
+                        abbreviate(project.getTitle(), 36),
+                        abbreviate(project.getDescription(), 48)
+                ))
+                .toList());
+        preview.setProject(preview.getProjects().stream()
+                .findFirst()
+                .map(ResumeCardProjectPreviewVO::getTitle)
+                .orElse(""));
+        preview.setSkills(preview.getSkills().stream()
+                .limit(2)
+                .map(skill -> abbreviate(skill, 48))
+                .toList());
+        return preview;
+    }
+
+    private String abbreviate(String value, int maxLength) {
+        if (value == null) return "";
+        String normalized = value.strip();
+        return normalized.length() <= maxLength
+                ? normalized
+                : normalized.substring(0, maxLength) + "…";
     }
 
     private ShowcaseDetailDTO toDetailDto(ResumeShowcase showcase) {
@@ -373,7 +461,11 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
         dto.setId(showcase.getId());
         dto.setSlug(showcase.getSlug());
         dto.setTitle(resume.getTitle());
+        dto.setPageMode(resume.getPageMode());
         dto.setTemplateId(resume.getTemplateId());
+        dto.setDensity(resume.getPdfDensity());
+        dto.setAccentPreset(resume.getAccentPreset());
+        dto.setHeadingStyle(resume.getHeadingStyle());
         dto.setScoreLabel(showcase.getScoreLabel());
         dto.setSummary(showcase.getSummary());
         dto.setTags(showcase.getTags());

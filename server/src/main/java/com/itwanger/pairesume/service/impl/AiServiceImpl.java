@@ -66,21 +66,6 @@ public class AiServiceImpl implements AiService {
     private static final Set<String> ALLOWED_ISSUE_TYPES = Set.of("missing", "weak", "format", "content");
     private static final Set<String> IGNORED_ANALYSIS_FIELDS = Set.of("basic_info.summary", "professional_summary", "skill", "专业技能");
     private static final Set<String> OPTIMIZABLE_MODULE_TYPES = Set.of("internship", "work_experience", "project", "research", "skill");
-    private static final String DEFAULT_ANALYSIS_INSTRUCTIONS = """
-            请站在校招技术简历评审视角分析这份简历。
-            重点要求：
-            1. 重点看项目经历、工作经历、实习经历、专业技能，这几部分权重最高。
-            2. 不要因为获奖较少、没有 AI 竞赛、没有 GPA、GitHub 没有额外包装，就明显拉低分数。
-            3. 不要把“专业技能没有分类展示”当成问题，也不要要求把整句技能改成分类标签。
-            4. 不要把“缺少个人简介 / 职业总结 / 自我评价”当成问题。
-            5. 只有在确实存在明显短板时才指出问题，避免泛泛而谈。
-            6. 对已经写得比较成熟的内容，尽量少挑边角问题。
-            7. 如果整份简历主体已经可以直接投递，分数应落在 90 分以上。
-            输出偏好：
-            1. 问题最多 4 条，建议最多 4 条。
-            2. 建议必须具体、可执行，避免空话。
-            3. 优先指出真正影响投递效果的问题，比如邮箱错误、量化成果不足、表达不够聚焦。
-            """;
     private static final Map<String, String> MODULE_LABELS = Map.of(
             "basic_info", "基本信息",
             "education", "教育背景",
@@ -803,10 +788,10 @@ public class AiServiceImpl implements AiService {
     }
 
     @Override
-    public ResumeAnalysisResultDTO analyzeResume(String resumeTitle, List<ResumeModule> modules, String promptOverride) {
+    public ResumeAnalysisResultDTO analyzeResume(String resumeTitle, List<ResumeModule> modules, String analysisInstructions) {
         validateConfiguration();
 
-        var prompt = buildResumeAnalysisPrompt(resumeTitle, modules, promptOverride);
+        var prompt = buildResumeAnalysisPrompt(resumeTitle, modules, analysisInstructions);
 
         try {
             var response = invokeChatCompletion(
@@ -934,12 +919,12 @@ public class AiServiceImpl implements AiService {
     public ResumeAnalysisResultDTO streamAnalyzeResume(
             String resumeTitle,
             List<ResumeModule> modules,
-            String promptOverride,
+            String analysisInstructions,
             Consumer<Map<String, Object>> eventConsumer
     ) {
         validateConfiguration();
 
-        var prompt = buildResumeAnalysisPrompt(resumeTitle, modules, promptOverride);
+        var prompt = buildResumeAnalysisPrompt(resumeTitle, modules, analysisInstructions);
         emitStreamEvent(eventConsumer, "status", Map.of("message", "AI 已连接，正在审阅整份简历。"));
 
         try {
@@ -2407,15 +2392,16 @@ public class AiServiceImpl implements AiService {
         }
     }
 
-    private String buildResumeAnalysisPrompt(String resumeTitle, List<ResumeModule> modules, String promptOverride) {
+    private String buildResumeAnalysisPrompt(String resumeTitle, List<ResumeModule> modules, String analysisInstructions) {
         var moduleSummaries = modules.stream()
                 .sorted(Comparator.comparing((ResumeModule module) -> module.getSortOrder() == null ? Integer.MAX_VALUE : module.getSortOrder())
                         .thenComparing(ResumeModule::getId))
                 .map(this::buildModuleSummary)
                 .toList();
-        var instructions = promptOverride == null || promptOverride.isBlank()
-                ? DEFAULT_ANALYSIS_INSTRUCTIONS
-                : promptOverride.trim();
+        if (analysisInstructions == null || analysisInstructions.isBlank()) {
+            throw new BusinessException(ResultCode.INTERNAL_ERROR.getCode(), "简历分析提示词配置缺失");
+        }
+        var instructions = analysisInstructions.trim();
 
         return """
                 请分析下面这份简历，并给出结构化评估结果。
@@ -2426,21 +2412,19 @@ public class AiServiceImpl implements AiService {
                 ## 简历模块
                 %s
 
-                ## 用户提示词
+                ## 当前求职场景评估规则
                 %s
 
                 ## 分析要求
                 1. 基于当前真实内容分析，不要臆造候选人未填写的信息。
-                2. 重点关注完整性、内容质量、表达专业度、岗位匹配度、竞争力。
-                3. 工作经历、实习经历和项目经历都很重要，不要因为名称不同而区别对待。
-                4. 专业技能可能是整句能力描述，不要机械地要求必须是技术名词列表。
-                5. 不要把“专业技能没有分类展示”当成问题，也不要建议按类别重写专业技能。
-                6. 不要把“缺少个人简介/职业总结/自我评价”当成问题，也不要建议补这一项。
-                7. 对校招技术简历，项目经历、工作经历、实习经历、专业技能是核心权重；不要因为获奖较少、没有 AI 竞赛、没有 GPA、GitHub 链接缺少补充说明而明显拉低总分。
-                8. 获奖、GPA、GitHub 包装度只能作为轻微加分项或轻微提示，不应作为主要扣分依据。
-                9. 只有在确实存在明显问题时才输出 issues，避免泛泛而谈。
-                10. suggestion 必须具体、可执行，避免空话。
-                11. issues 最多输出 4 条，suggestions 最多输出 4 条，优先保留最重要的内容。
+                2. 严格按当前求职场景决定模块权重和必需项，不得用其他场景的要求扣分。
+                3. 重点关注内容质量、表达专业度、岗位匹配度和真实竞争力。
+                4. 专业技能可能是整句能力描述，不要机械地要求必须是技术名词列表或分类标签。
+                5. 不要把“缺少个人简介/职业总结/自我评价”当成问题，也不要建议补这一项。
+                6. 不要因为没有 AI 竞赛、没有 GPA、GitHub 链接缺少额外包装而明显拉低总分。
+                7. 只有在确实存在明显问题时才输出 issues，避免泛泛而谈。
+                8. suggestion 必须具体、可执行，避免空话。
+                9. issues 最多输出 4 条，suggestions 最多输出 4 条，优先保留最重要的内容。
 
                 ## 输出格式
                 你必须严格只输出 JSON，不要输出任何解释、标题或 Markdown 代码块。

@@ -2,6 +2,7 @@ package com.itwanger.pairesume.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.itwanger.pairesume.dto.ResumeAnalysisResultDTO;
+import com.itwanger.pairesume.common.ResumeAnalysisScenario;
 import com.itwanger.pairesume.entity.ResumeAnalysisRecord;
 import com.itwanger.pairesume.mapper.ResumeAnalysisRecordMapper;
 import com.itwanger.pairesume.service.ResumeAnalysisRecordService;
@@ -42,6 +43,11 @@ public class ResumeAnalysisRecordServiceImpl implements ResumeAnalysisRecordServ
         }
 
         var dto = new ResumeAnalysisResultDTO();
+        if (record.getScenarioCode() != null && !record.getScenarioCode().isBlank()) {
+            var scenario = ResumeAnalysisScenario.fromCode(record.getScenarioCode());
+            dto.setScenarioCode(scenario.name());
+            dto.setScenarioName(scenario.getDisplayName());
+        }
         dto.setScore(record.getScore() == null ? 0 : record.getScore());
         dto.setIssues(record.getIssues() == null ? new ArrayList<>() : record.getIssues());
         dto.setSuggestions(record.getSuggestions() == null ? new ArrayList<>() : record.getSuggestions());

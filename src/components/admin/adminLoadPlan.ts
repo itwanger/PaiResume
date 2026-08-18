@@ -76,6 +76,7 @@ export const ADMIN_VIEW_LOAD_SECTIONS: Record<AdminView, readonly AdminDataSecti
   'resume-reviews': ['resumeReviewActionCount'],
   surveys: ['feedbacks'],
   'platform-config': ['platformConfig'],
+  'analysis-prompts': [],
   'audit-logs': ['membershipAuditLogs'],
 }
 

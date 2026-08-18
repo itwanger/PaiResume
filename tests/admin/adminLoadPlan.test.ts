@@ -9,7 +9,7 @@ import {
 } from '../../src/components/admin/adminLoadPlan'
 import { ADMIN_VIEWS } from '../../src/components/admin/adminNavigation'
 
-test('15 个后台视图都有明确且无重复的数据加载计划', () => {
+test('16 个后台视图都有明确且无重复的数据加载计划', () => {
   assert.deepEqual(Object.keys(ADMIN_VIEW_LOAD_SECTIONS), [...ADMIN_VIEWS])
   for (const view of ADMIN_VIEWS) {
     const sections = ADMIN_VIEW_LOAD_SECTIONS[view]
@@ -46,6 +46,7 @@ test('业务深链只声明自身必需的数据分块', () => {
   )
   assert.deepEqual(ADMIN_VIEW_LOAD_SECTIONS.surveys, ['feedbacks'])
   assert.deepEqual(ADMIN_VIEW_LOAD_SECTIONS['platform-config'], ['platformConfig'])
+  assert.deepEqual(ADMIN_VIEW_LOAD_SECTIONS['analysis-prompts'], [])
   assert.deepEqual(ADMIN_VIEW_LOAD_SECTIONS['audit-logs'], ['membershipAuditLogs'])
   assert.deepEqual(ADMIN_VIEW_LOAD_SECTIONS['marketplace-governance'], ['governance'])
   assert.deepEqual(ADMIN_VIEW_LOAD_SECTIONS['resume-reviews'], ['resumeReviewActionCount'])

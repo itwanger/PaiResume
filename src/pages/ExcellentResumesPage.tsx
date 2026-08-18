@@ -8,6 +8,10 @@ import {
   type MarketplaceListingCard,
 } from '../api/marketplace'
 import { publicApi, type ShowcaseCard } from '../api/public'
+import {
+  EMPTY_RESUME_CARD_PREVIEW,
+  ResumeContentThumbnail,
+} from '../components/dashboard/ResumeCard'
 import { Header } from '../components/layout/Header'
 import { SegmentedControl } from '../components/ui/SegmentedControl'
 import {
@@ -150,8 +154,11 @@ export default function ExcellentResumesPage() {
             <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
               {showcases.map((showcase) => (
                 <article key={showcase.id} className="group flex flex-col overflow-hidden border border-slate-200 bg-white transition hover:border-primary-200 hover:shadow-lg hover:shadow-slate-200/60">
-                  <div className="relative border-b border-slate-100 px-8 py-7">
-                    <ResumeLayoutThumbnail />
+                  <div className="relative border-b border-slate-100 px-5 pt-5">
+                    <ResumeContentThumbnail
+                      preview={showcase.preview ?? EMPTY_RESUME_CARD_PREVIEW}
+                      resume={showcase}
+                    />
                   </div>
                   <div className="flex flex-1 flex-col p-5">
                     <div>

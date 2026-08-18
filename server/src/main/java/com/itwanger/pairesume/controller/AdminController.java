@@ -225,10 +225,12 @@ public class AdminController {
 
     @Operation(summary = "一键精选简历并自动生成展示信息")
     @PostMapping("/showcases/resumes/{resumeId}/feature")
-    public Result<ResumeShowcase> featureResume(@PathVariable Long resumeId) {
+    public Result<ResumeShowcase> featureResume(@PathVariable Long resumeId,
+                                                @Valid @RequestBody ResumeShowcaseFeatureDTO dto) {
         return Result.success(resumeShowcaseService.featureResume(
                 resumeId,
-                SecurityUtils.getCurrentUserId()
+                SecurityUtils.getCurrentUserId(),
+                dto.getAccessType()
         ));
     }
 

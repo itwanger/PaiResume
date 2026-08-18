@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import type { AnalysisResult } from '../types'
+import type { AnalysisResult, ResumeAnalysisScenarioCode } from '../types'
 import { resumeApi } from '../api/resume'
 
 /**
@@ -17,7 +17,7 @@ export function useAnalysis() {
    * 执行简历分析
    * @param resumeId 简历 ID
    */
-  const analyze = useCallback(async (resumeId: number, prompt?: string) => {
+  const analyze = useCallback(async (resumeId: number, scenarioCode: ResumeAnalysisScenarioCode) => {
     setIsAnalyzing(true)
     setError(null)
     setAnalysisResult(null)
@@ -25,7 +25,7 @@ export function useAnalysis() {
     setAnalysisStatus('正在连接 AI 分析服务...')
 
     try {
-      const result = await resumeApi.analyzeStream(resumeId, { prompt }, {
+      const result = await resumeApi.analyzeStream(resumeId, { scenarioCode }, {
         onEvent: (event) => {
           if (event.event === 'status') {
             const message = typeof event.data.message === 'string' ? event.data.message : null

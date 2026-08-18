@@ -98,6 +98,12 @@ const ICON_PATHS: Record<AdminView, ReactNode> = {
       <circle cx="13" cy="18" r="2" />
     </>
   ),
+  'analysis-prompts': (
+    <>
+      <path d="M5 4.5h14v15H5zM8 8h8M8 12h5M8 16h7" />
+      <path d="m17.5 13.5 1 2 2 1-2 1-1 2-1-2-2-1 2-1 1-2Z" />
+    </>
+  ),
   'audit-logs': (
     <>
       <path d="M5 3.5h14v17H5zM8 8h8M8 12h8M8 16h5" />

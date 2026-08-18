@@ -22,6 +22,8 @@ public class ResumeAnalysisRecord {
 
     private Long resumeId;
 
+    private String scenarioCode;
+
     private String recordStatus;
 
     private Integer score;

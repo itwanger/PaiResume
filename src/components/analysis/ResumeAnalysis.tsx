@@ -1,29 +1,26 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAnalysis } from '../../hooks/useAnalysis'
-import { AutoResizeTextarea } from '../ui/AutoResizeTextarea'
+import type { ResumeAnalysisScenarioCode } from '../../types'
 import { Button } from '../ui/Button'
 
 interface ResumeAnalysisProps {
   resumeId: number
 }
 
-const ANALYSIS_PROMPT_STORAGE_KEY = 'pai-resume.analysis-prompt'
+const ANALYSIS_SCENARIO_STORAGE_KEY = 'pai-resume.analysis-scenario'
+const ANALYSIS_SCENARIOS: ReadonlyArray<{
+  code: ResumeAnalysisScenarioCode
+  label: string
+}> = [
+  { code: 'WORKING_PROFESSIONAL', label: '工作党' },
+  { code: 'STUDENT_DAILY_INTERNSHIP', label: '学生党找日常实习' },
+  { code: 'STUDENT_SUMMER_INTERNSHIP', label: '学生党找暑期实习' },
+  { code: 'STUDENT_AUTUMN_RECRUITMENT', label: '学生党冲秋招' },
+]
 
-const DEFAULT_ANALYSIS_PROMPT = `请站在校招技术简历评审视角分析这份简历。
-
-重点要求：
-1. 重点看项目经历、工作经历、实习经历、专业技能，这几部分权重最高。
-2. 不要因为获奖较少、没有 AI 竞赛、没有 GPA、GitHub 没有额外包装，就明显拉低分数。
-3. 不要把“专业技能没有分类展示”当成问题，也不要要求把整句技能改成分类标签。
-4. 不要把“缺少个人简介 / 职业总结 / 自我评价”当成问题。
-5. 只有在确实存在明显短板时才指出问题，避免泛泛而谈。
-6. 对已经写得比较成熟的内容，尽量少挑边角问题。
-7. 如果整份简历主体已经可以直接投递，分数应落在 90 分以上。
-
-输出偏好：
-1. 问题最多 4 条，建议最多 4 条。
-2. 建议必须具体、可执行，避免空话。
-3. 优先指出真正影响投递效果的问题，比如邮箱错误、量化成果不足、表达不够聚焦。`
+function isAnalysisScenarioCode(value: string | null): value is ResumeAnalysisScenarioCode {
+  return ANALYSIS_SCENARIOS.some((scenario) => scenario.code === value)
+}
 
 export function ResumeAnalysis({ resumeId }: ResumeAnalysisProps) {
   const {
@@ -36,9 +33,7 @@ export function ResumeAnalysis({ resumeId }: ResumeAnalysisProps) {
     resetAnalysis,
     error,
   } = useAnalysis()
-  const [promptDraft, setPromptDraft] = useState(DEFAULT_ANALYSIS_PROMPT)
-  const [savedPrompt, setSavedPrompt] = useState(DEFAULT_ANALYSIS_PROMPT)
-  const [saveHint, setSaveHint] = useState<string | null>(null)
+  const [scenarioCode, setScenarioCode] = useState<ResumeAnalysisScenarioCode | null>(null)
   const [showReasoning, setShowReasoning] = useState(true)
 
   useEffect(() => {
@@ -46,44 +41,31 @@ export function ResumeAnalysis({ resumeId }: ResumeAnalysisProps) {
       return
     }
 
-    const storedPrompt = window.localStorage.getItem(ANALYSIS_PROMPT_STORAGE_KEY)?.trim()
-    const nextPrompt = storedPrompt || DEFAULT_ANALYSIS_PROMPT
-    setPromptDraft(nextPrompt)
-    setSavedPrompt(nextPrompt)
+    const storedScenario = window.localStorage.getItem(ANALYSIS_SCENARIO_STORAGE_KEY)
+    if (isAnalysisScenarioCode(storedScenario)) {
+      setScenarioCode(storedScenario)
+    }
   }, [])
 
   useEffect(() => {
     void loadLatestAnalysis(resumeId)
   }, [resumeId, loadLatestAnalysis])
 
-  const hasUnsavedChanges = useMemo(
-    () => promptDraft.trim() !== savedPrompt.trim(),
-    [promptDraft, savedPrompt]
-  )
+  useEffect(() => {
+    if (!scenarioCode && analysisResult?.scenarioCode) {
+      setScenarioCode(analysisResult.scenarioCode)
+    }
+  }, [analysisResult?.scenarioCode, scenarioCode])
 
-  const handleSavePrompt = () => {
-    const nextPrompt = promptDraft.trim() || DEFAULT_ANALYSIS_PROMPT
-    window.localStorage.setItem(ANALYSIS_PROMPT_STORAGE_KEY, nextPrompt)
-    setPromptDraft(nextPrompt)
-    setSavedPrompt(nextPrompt)
-    setSaveHint('提示词已保存')
-  }
-
-  const handleResetPrompt = () => {
-    setPromptDraft(DEFAULT_ANALYSIS_PROMPT)
-    setSaveHint('已恢复默认提示词，请保存')
+  const handleScenarioChange = (nextScenarioCode: ResumeAnalysisScenarioCode) => {
+    setScenarioCode(nextScenarioCode)
+    window.localStorage.setItem(ANALYSIS_SCENARIO_STORAGE_KEY, nextScenarioCode)
   }
 
   const handleAnalyze = () => {
-    const nextPrompt = promptDraft.trim()
-    if (!nextPrompt) {
-      setSaveHint('请填写并保存提示词')
-      return
-    }
-
-    setSaveHint(null)
+    if (!scenarioCode) return
     setShowReasoning(true)
-    void analyze(resumeId, nextPrompt)
+    void analyze(resumeId, scenarioCode)
   }
 
   const getIssueIcon = (type: string) => {
@@ -131,57 +113,41 @@ export function ResumeAnalysis({ resumeId }: ResumeAnalysisProps) {
 
   return (
     <div className="flex flex-col gap-8">
-      <section className="space-y-4">
-        <h2 className="text-base font-semibold text-slate-900">分析提示词</h2>
-        <AutoResizeTextarea
-          minRows={10}
-          value={promptDraft}
-          onChange={(event) => {
-            setPromptDraft(event.target.value)
-            setSaveHint(null)
-          }}
-          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm leading-7 text-slate-700 outline-none transition focus:border-primary-300 focus:ring-4 focus:ring-primary-100"
-          placeholder="在这里编写你的简历分析提示词"
-        />
+      <section className="space-y-5">
+        <h2 className="text-base font-semibold text-slate-900">求职场景</h2>
+        <div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="选择求职场景">
+          {ANALYSIS_SCENARIOS.map((scenario) => {
+            const selected = scenario.code === scenarioCode
+            return (
+              <button
+                key={scenario.code}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                onClick={() => handleScenarioChange(scenario.code)}
+                className={`min-h-14 rounded-xl border px-4 py-3 text-left text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 ${
+                  selected
+                    ? 'border-primary-500 bg-primary-50 text-primary-800 shadow-[0_8px_24px_-20px_rgba(37,99,235,0.8)]'
+                    : 'border-slate-200 bg-white text-slate-700 hover:border-primary-200 hover:text-primary-700'
+                }`}
+              >
+                {scenario.label}
+              </button>
+            )
+          })}
+        </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={handleSavePrompt}
-              disabled={!hasUnsavedChanges}
-              className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-primary-200 hover:text-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:cursor-default disabled:text-slate-400 disabled:hover:border-slate-200"
-            >
-              保存提示词
-            </button>
-            <button
-              type="button"
-              onClick={handleResetPrompt}
-              disabled={promptDraft === DEFAULT_ANALYSIS_PROMPT}
-              className="px-1 py-2 text-sm text-slate-500 transition hover:text-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:cursor-default disabled:text-slate-300"
-            >
-              恢复默认
-            </button>
-            {hasUnsavedChanges && (
-              <span className="text-sm text-amber-600">请先保存提示词</span>
-            )}
-          </div>
+        <div className="flex justify-end">
           <Button
             type="button"
             onClick={handleAnalyze}
             loading={isAnalyzing}
-            disabled={hasUnsavedChanges}
+            disabled={!scenarioCode}
             className="min-w-28"
           >
             开始分析
           </Button>
         </div>
-
-        {saveHint && (
-          <div className="text-sm text-primary-700" role="status">
-            {saveHint}
-          </div>
-        )}
 
         {error && (
           <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
@@ -232,7 +198,9 @@ export function ResumeAnalysis({ resumeId }: ResumeAnalysisProps) {
                 {analysisResult.score}
               </div>
               <div className="mb-4 text-lg text-gray-600">
-                简历得分 - {getScoreLabel(analysisResult.score)}
+                简历得分
+                {analysisResult.scenarioName ? ` · ${analysisResult.scenarioName}` : ''}
+                {' - '}{getScoreLabel(analysisResult.score)}
               </div>
               <div className="mb-4 h-3 w-full rounded-full bg-gray-200">
                 <div
@@ -250,7 +218,7 @@ export function ResumeAnalysis({ resumeId }: ResumeAnalysisProps) {
                 <Button variant="outline" onClick={resetAnalysis}>
                   清空结果
                 </Button>
-                <Button onClick={handleAnalyze} loading={isAnalyzing} disabled={hasUnsavedChanges}>
+                <Button onClick={handleAnalyze} loading={isAnalyzing} disabled={!scenarioCode}>
                   重新分析
                 </Button>
               </div>

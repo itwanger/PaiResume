@@ -7,13 +7,14 @@ import java.sql.DriverManager;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class RealMySqlMigrationTest {
 
     @Test
-    void emptyDatabaseMigratesThroughPrivateResumePhotoSchema() throws Exception {
+    void emptyDatabaseMigratesThroughCurrentSchema() throws Exception {
         String url = testSetting(
                 "pairesume.test.mysql.url", "PAIRESUME_TEST_MYSQL_URL");
         String username = testSetting(
@@ -46,16 +47,28 @@ class RealMySqlMigrationTest {
             insertLegacyMembershipOrders(connection);
         }
 
-        Flyway throughV27 = Flyway.configure()
+        Flyway throughCurrent = Flyway.configure()
                 .dataSource(url, username, password)
                 .locations("classpath:db/migration")
                 .baselineVersion("5")
                 .baselineOnMigrate(true)
                 .load();
-        throughV27.migrate();
+        throughCurrent.migrate();
 
-        assertEquals("27",
-                throughV27.info().current().getVersion().getVersion());
+        assertEquals("30",
+                throughCurrent.info().current().getVersion().getVersion());
+
+        Flyway restart = Flyway.configure()
+                .dataSource(url, username, password)
+                .locations("classpath:db/migration")
+                .baselineVersion("5")
+                .baselineOnMigrate(true)
+                .load();
+        assertEquals(0, restart.migrate().migrationsExecuted,
+                "已迁移到 V30 后再次执行迁移不应应用任何脚本");
+        assertEquals("30",
+                restart.info().current().getVersion().getVersion());
+
         try (var connection = DriverManager.getConnection(url, username, password)) {
             assertTrue(columnExists(connection, "resume_showcase",
                     "access_type"));
@@ -84,6 +97,12 @@ class RealMySqlMigrationTest {
             assertTrue(tableExists(connection, "resume_photo"));
             assertTrue(columnExists(connection, "resume_photo", "object_key"));
             assertTrue(columnExists(connection, "resume_photo", "sha256"));
+            assertTrue(tableExists(connection, "resume_analysis_prompt_config"));
+            assertTrue(columnExists(connection, "resume_analysis_record", "scenario_code"));
+            assertTrue(indexExists(connection, "resume_analysis_record",
+                    "idx_resume_analysis_scenario"));
+            assertPromptSeedConfigs(connection);
+            assertLegacyOrdersPreserved(connection);
         }
     }
 
@@ -178,6 +197,66 @@ class RealMySqlMigrationTest {
         try (var result = connection.getMetaData().getColumns(
                 connection.getCatalog(), null, table, column)) {
             return result.next() ? result.getString("COLUMN_DEF") : null;
+        }
+    }
+
+    private boolean indexExists(java.sql.Connection connection, String table,
+                                String indexName) throws Exception {
+        try (var result = connection.getMetaData().getIndexInfo(
+                connection.getCatalog(), null, table, false, false)) {
+            while (result.next()) {
+                if (indexName.equals(result.getString("INDEX_NAME"))) {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+
+    private void assertPromptSeedConfigs(java.sql.Connection connection) throws Exception {
+        try (var statement = connection.createStatement();
+             var result = statement.executeQuery("""
+                     SELECT `scenario_code`, `display_name`, `prompt`, `sort_order`, `updated_by`
+                     FROM `resume_analysis_prompt_config`
+                     ORDER BY `sort_order`
+                     """)) {
+            String[] expectedCodes = {
+                    "WORKING_PROFESSIONAL",
+                    "STUDENT_DAILY_INTERNSHIP",
+                    "STUDENT_SUMMER_INTERNSHIP",
+                    "STUDENT_AUTUMN_RECRUITMENT"
+            };
+            String[] expectedNames = {"工作党", "学生党找日常实习", "学生党找暑期实习", "学生党冲秋招"};
+            for (int i = 0; i < expectedCodes.length; i++) {
+                assertTrue(result.next(), "resume_analysis_prompt_config 应有四条种子数据");
+                assertEquals(expectedCodes[i], result.getString("scenario_code"));
+                assertEquals(expectedNames[i], result.getString("display_name"));
+                assertFalse(result.getString("prompt").isBlank(),
+                        expectedCodes[i] + " 的种子 Prompt 不能为空");
+                assertNull(result.getObject("updated_by"),
+                        "种子数据不应被标记为管理员更新");
+            }
+            assertFalse(result.next(), "resume_analysis_prompt_config 不应有多余种子数据");
+        }
+    }
+
+    private void assertLegacyOrdersPreserved(java.sql.Connection connection) throws Exception {
+        try (var statement = connection.prepareStatement("""
+                SELECT `user_id`, `order_status`, `payable_amount_cents`, `currency`
+                FROM `membership_payment_order`
+                WHERE `order_no` IN ('PM-legacy-annual', 'PM-legacy-thirty')
+                """)) {
+            int checked = 0;
+            try (var result = statement.executeQuery()) {
+                while (result.next()) {
+                    checked++;
+                    assertEquals(9001, result.getLong("user_id"));
+                    assertEquals("CANCELED", result.getString("order_status"));
+                    assertEquals(6600, result.getInt("payable_amount_cents"));
+                    assertEquals("CNY", result.getString("currency"));
+                }
+            }
+            assertEquals(2, checked, "两条历史会员订单都应保留");
         }
     }
 

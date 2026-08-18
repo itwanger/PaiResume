@@ -20,6 +20,17 @@ export interface PlatformConfig {
   resumeReviewPriceCents: number
 }
 
+export interface ResumeAnalysisPromptAdmin {
+  scenarioCode: string
+  displayName: string
+  prompt: string
+  updatedAt: string
+}
+
+export interface UpdateResumeAnalysisPromptPayload {
+  prompt: string
+}
+
 export type MembershipPlanEntitlementType = 'FIXED_DAYS' | 'PERMANENT'
 
 export interface MembershipPlanAdmin {
@@ -187,6 +198,10 @@ export interface ResumeShowcaseAdmin {
   publishStatus: string
   createdAt: string
   updatedAt: string
+}
+
+export interface FeatureShowcasePayload {
+  accessType: ResumeShowcaseAccessType
 }
 
 export interface AdminMarketListing {
@@ -374,6 +389,17 @@ export interface MembershipPaymentAdminQuery {
 }
 
 export const adminApi = {
+  listResumeAnalysisPrompts: () =>
+    client.get<ApiEnvelope<ResumeAnalysisPromptAdmin[]>>('/admin/resume-analysis-prompts'),
+
+  updateResumeAnalysisPrompt: (
+    scenarioCode: string,
+    payload: UpdateResumeAnalysisPromptPayload,
+  ) => client.put<ApiEnvelope<ResumeAnalysisPromptAdmin>>(
+    `/admin/resume-analysis-prompts/${encodeURIComponent(scenarioCode)}`,
+    payload,
+  ),
+
   getPlatformConfig: () =>
     client.get<ApiEnvelope<PlatformConfig>>('/admin/platform-config'),
 
@@ -495,9 +521,10 @@ export const adminApi = {
   listShowcases: () =>
     client.get<ApiEnvelope<ResumeShowcaseAdmin[]>>('/admin/showcases'),
 
-  featureShowcaseResume: (resumeId: number) =>
+  featureShowcaseResume: (resumeId: number, payload: FeatureShowcasePayload) =>
     client.post<ApiEnvelope<ResumeShowcaseAdmin>>(
       `/admin/showcases/resumes/${resumeId}/feature`,
+      payload,
     ),
 
   unfeatureShowcaseResume: (resumeId: number) =>

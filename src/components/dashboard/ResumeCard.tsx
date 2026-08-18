@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import type { ResumeCardPreview, ResumeListItem } from '../../api/resume'
 import { buildResumeEditorPath } from '../../config/site'
 import type { ResumePdfAccentPreset, ResumePdfHeadingStyle, ResumePdfTemplateId } from '../../utils/resumePdf'
-import { normalizeResumeStyle } from '../../utils/resumeStyle'
+import { normalizeResumeStyle, type ResumeStyleSource } from '../../utils/resumeStyle'
 
 interface ResumeCardProps {
   resume: ResumeListItem
@@ -11,7 +11,7 @@ interface ResumeCardProps {
   onRename: (resume: ResumeListItem) => void
 }
 
-const emptyPreview: ResumeCardPreview = {
+export const EMPTY_RESUME_CARD_PREVIEW: ResumeCardPreview = {
   name: '',
   targetRole: '',
   basicInfo: '',
@@ -104,7 +104,7 @@ function resolveThumbnailHeadingStyle(templateId: ResumePdfTemplateId, headingSt
   return 'underline'
 }
 
-function ResumeContentThumbnail({ preview, resume }: { preview: ResumeCardPreview; resume: ResumeListItem }) {
+export function ResumeContentThumbnail({ preview, resume }: { preview: ResumeCardPreview; resume: ResumeStyleSource }) {
   const style = normalizeResumeStyle(resume)
   const accent = style.accentPreset === 'auto' ? templateDefaultAccents[style.templateId] : style.accentPreset
   const palette = accentClasses[accent]
@@ -256,9 +256,29 @@ function ResumeContentThumbnail({ preview, resume }: { preview: ResumeCardPrevie
   )
 }
 
+function getResumeCardStyleSummary(resume: ResumeListItem) {
+  const style = normalizeResumeStyle(resume)
+  const styleLabel = style.accentPreset === 'auto'
+    ? templateLabels[style.templateId]
+    : `${templateLabels[style.templateId]} · ${accentLabels[style.accentPreset]}`
+
+  return `${densityLabels[style.density]} · ${pageModeLabels[style.pageMode]} · ${styleLabel}`
+}
+
+export function ResumeCardStyleSummary({
+  resume,
+  className = '',
+}: {
+  resume: ResumeListItem
+  className?: string
+}) {
+  const summary = getResumeCardStyleSummary(resume)
+  return <span className={className} title={summary}>{summary}</span>
+}
+
 export function ResumeCard({ resume, onDelete, onRename }: ResumeCardProps) {
   const navigate = useNavigate()
-  const preview = resume.preview || emptyPreview
+  const preview = resume.preview || EMPTY_RESUME_CARD_PREVIEW
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement | null>(null)
 
@@ -288,10 +308,7 @@ export function ResumeCard({ resume, onDelete, onRename }: ResumeCardProps) {
     day: '2-digit',
   })
 
-  const style = normalizeResumeStyle(resume)
-  const styleLabel = style.accentPreset === 'auto'
-    ? templateLabels[style.templateId]
-    : `${templateLabels[style.templateId]} · ${accentLabels[style.accentPreset]}`
+  const styleSummary = getResumeCardStyleSummary(resume)
 
   return (
     <article
@@ -310,9 +327,9 @@ export function ResumeCard({ resume, onDelete, onRename }: ResumeCardProps) {
       <footer className="mt-auto min-w-0 text-xs text-gray-400">
         <span
           className="block whitespace-normal break-words leading-5 text-gray-500"
-          title={`${densityLabels[style.density]} · ${pageModeLabels[style.pageMode]} · ${styleLabel}`}
+          title={styleSummary}
         >
-          {densityLabels[style.density]} · {pageModeLabels[style.pageMode]} · {styleLabel}
+          {styleSummary}
         </span>
         <div className="mt-1 flex items-center justify-between gap-3">
           <span className="shrink-0">更新于 {formatDate(resume.updatedAt)}</span>

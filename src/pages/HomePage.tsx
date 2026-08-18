@@ -7,6 +7,11 @@ import {
   type MarketplaceListingCard,
 } from '../api/marketplace'
 import { publicApi, type HomeData } from '../api/public'
+import type { ResumeCardPreview } from '../api/resume'
+import {
+  EMPTY_RESUME_CARD_PREVIEW,
+  ResumeContentThumbnail,
+} from '../components/dashboard/ResumeCard'
 import { Header } from '../components/layout/Header'
 import { SiteFooter } from '../components/layout/SiteFooter'
 import { RESUME_CREATE_PATH } from '../config/site'
@@ -17,8 +22,9 @@ import {
   EXCELLENT_RESUMES_PATH,
   IS_LOCAL_DEVELOPMENT,
 } from '../utils/navigation'
+import type { ResumeStyleSource } from '../utils/resumeStyle'
 
-interface HomepageShowcaseCard {
+interface HomepageShowcaseCard extends ResumeStyleSource {
   id: number
   source: 'MARKETPLACE_FREE' | 'MARKETPLACE_PAID' | 'OFFICIAL'
   href: string
@@ -27,6 +33,7 @@ interface HomepageShowcaseCard {
   tags: string[]
   priceCents: number
   viewCount?: number
+  preview?: ResumeCardPreview
 }
 
 type HeroFeatureIcon = 'one-page' | 'score' | 'optimize' | 'library'
@@ -122,7 +129,7 @@ function ResumeLine({ width, className = 'bg-slate-200' }: { width: string; clas
   return <span className={`block h-1 rounded-full ${width} ${className}`} />
 }
 
-function ResumeShowcaseThumbnail({ index, title }: { index: number; title: string }) {
+function MarketplaceListingThumbnail({ index, title }: { index: number; title: string }) {
   const theme = SHOWCASE_PREVIEW_THEMES[index % SHOWCASE_PREVIEW_THEMES.length]
   const variant = index % 3
   const displayName = title.split('·')[0]?.trim() || '候选人'
@@ -247,15 +254,15 @@ export default function HomePage() {
   const marketplaceEnabled = homeData?.marketplaceEnabled === true
   const testimonials = homeData?.testimonials ?? []
   const marketplaceShowcases: HomepageShowcaseCard[] = (marketplaceEnabled ? marketplaceListings : []).map((listing) => ({
-        id: listing.listingId,
-        source: listing.accessType === 'PAID' ? 'MARKETPLACE_PAID' : 'MARKETPLACE_FREE',
-        href: buildMarketplaceListingPath(listing.slug),
-        title: listing.title,
-        summary: listing.summary,
-        tags: listing.tags ?? [],
-        priceCents: listing.priceCents,
-        viewCount: listing.viewCount ?? 0,
-      }))
+    id: listing.listingId,
+    source: listing.accessType === 'PAID' ? 'MARKETPLACE_PAID' : 'MARKETPLACE_FREE',
+    href: buildMarketplaceListingPath(listing.slug),
+    title: listing.title,
+    summary: listing.summary,
+    tags: listing.tags ?? [],
+    priceCents: listing.priceCents,
+    viewCount: listing.viewCount ?? 0,
+  }))
   const officialShowcases: HomepageShowcaseCard[] = (homeData?.showcases ?? []).map((showcase) => ({
     id: showcase.id,
     source: 'OFFICIAL',
@@ -264,6 +271,12 @@ export default function HomePage() {
     summary: showcase.summary,
     tags: showcase.tags ?? [],
     priceCents: 0,
+    pageMode: showcase.pageMode,
+    templateId: showcase.templateId,
+    density: showcase.density,
+    accentPreset: showcase.accentPreset,
+    headingStyle: showcase.headingStyle,
+    preview: showcase.preview,
   }))
   const showcases = [...marketplaceShowcases, ...officialShowcases].slice(0, 8)
 
@@ -413,7 +426,7 @@ export default function HomePage() {
         </section>
 
         <section className="border-y border-slate-200 bg-gradient-to-b from-slate-50 to-slate-100/80">
-          <div className="mx-auto max-w-[1536px] px-4 py-16 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
                 <div className="text-sm font-medium text-primary-700">岗位简历参考</div>
@@ -459,27 +472,34 @@ export default function HomePage() {
                       to={showcase.href}
                       className="group flex h-full flex-col overflow-hidden border border-slate-200 bg-white shadow-[0_18px_45px_-34px_rgba(15,23,42,0.5)] transition duration-300 ease-out hover:-translate-y-1.5 hover:border-primary-200 hover:shadow-[0_28px_60px_-32px_rgba(29,78,216,0.45)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 motion-reduce:transform-none motion-reduce:transition-none"
                     >
-                      <div className="relative h-72 overflow-hidden bg-gradient-to-br from-slate-100 via-white to-primary-50">
-                        <div className="h-full origin-top transition duration-300 ease-out group-hover:scale-[1.025] group-focus-visible:scale-[1.025] motion-reduce:transform-none motion-reduce:transition-none" aria-hidden="true">
-                          <ResumeShowcaseThumbnail index={index} title={showcase.title} />
+                      {official ? (
+                        <div className="border-b border-slate-100 px-5 pt-5">
+                          <ResumeContentThumbnail
+                            preview={showcase.preview ?? EMPTY_RESUME_CARD_PREVIEW}
+                            resume={showcase}
+                          />
                         </div>
-                        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/20 via-primary-50/90 to-white opacity-0 backdrop-blur-[2px] transition duration-300 group-hover:opacity-100 group-focus-visible:opacity-100 motion-reduce:transition-none" />
-                        <div
-                          aria-hidden="true"
-                          className="pointer-events-none absolute inset-x-5 bottom-5 translate-y-3 opacity-0 transition duration-300 ease-out group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100 motion-reduce:transform-none motion-reduce:transition-none"
-                        >
-                          {!official ? (
+                      ) : (
+                        <div className="relative h-72 overflow-hidden bg-gradient-to-br from-slate-100 via-white to-primary-50">
+                          <div className="h-full origin-top transition duration-300 ease-out group-hover:scale-[1.025] group-focus-visible:scale-[1.025] motion-reduce:transform-none motion-reduce:transition-none" aria-hidden="true">
+                            <MarketplaceListingThumbnail index={index} title={showcase.title} />
+                          </div>
+                          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/20 via-primary-50/90 to-white opacity-0 backdrop-blur-[2px] transition duration-300 group-hover:opacity-100 group-focus-visible:opacity-100 motion-reduce:transition-none" />
+                          <div
+                            aria-hidden="true"
+                            className="pointer-events-none absolute inset-x-5 bottom-5 translate-y-3 opacity-0 transition duration-300 ease-out group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100 motion-reduce:transform-none motion-reduce:transition-none"
+                          >
                             <div className={`inline-flex px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${badgeClassName}`}>
                               {priceLabel}
                             </div>
-                          ) : null}
-                          <p className="mt-3 text-sm leading-6 text-slate-700">{showcase.summary}</p>
-                          <div className="mt-4 flex items-center justify-between bg-primary-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-primary-950/20">
-                            <span>{actionLabel}</span>
-                            <span>→</span>
+                            <p className="mt-3 text-sm leading-6 text-slate-700">{showcase.summary}</p>
+                            <div className="mt-4 flex items-center justify-between bg-primary-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-primary-950/20">
+                              <span>{actionLabel}</span>
+                              <span>→</span>
+                            </div>
                           </div>
                         </div>
-                      </div>
+                      )}
 
                       <div className="flex flex-1 flex-col p-5">
                         <div className="flex items-start justify-between gap-4">

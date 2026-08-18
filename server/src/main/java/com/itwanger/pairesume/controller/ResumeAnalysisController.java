@@ -12,12 +12,14 @@ import com.itwanger.pairesume.entity.ResumeModule;
 import com.itwanger.pairesume.mapper.ResumeMapper;
 import com.itwanger.pairesume.mapper.ResumeModuleMapper;
 import com.itwanger.pairesume.service.ResumeAnalysisRecordService;
+import com.itwanger.pairesume.service.ResumeAnalysisPromptConfigService;
 import com.itwanger.pairesume.service.AiService;
 import com.itwanger.pairesume.service.MembershipService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -43,6 +45,7 @@ public class ResumeAnalysisController {
     private final ResumeModuleMapper moduleMapper;
     private final ObjectMapper objectMapper;
     private final MembershipService membershipService;
+    private final ResumeAnalysisPromptConfigService promptConfigService;
 
     public ResumeAnalysisController(
             AiService aiService,
@@ -50,7 +53,8 @@ public class ResumeAnalysisController {
             ResumeMapper resumeMapper,
             ResumeModuleMapper moduleMapper,
             ObjectMapper objectMapper,
-            MembershipService membershipService
+            MembershipService membershipService,
+            ResumeAnalysisPromptConfigService promptConfigService
     ) {
         this.aiService = aiService;
         this.resumeAnalysisRecordService = resumeAnalysisRecordService;
@@ -58,11 +62,12 @@ public class ResumeAnalysisController {
         this.moduleMapper = moduleMapper;
         this.objectMapper = objectMapper;
         this.membershipService = membershipService;
+        this.promptConfigService = promptConfigService;
     }
 
     @Operation(summary = "AI 分析整份简历")
     @PostMapping("/analysis")
-    public Result<ResumeAnalysisResultDTO> analyzeResume(@PathVariable Long resumeId, @RequestBody(required = false) ResumeAnalysisRequestDTO request) {
+    public Result<ResumeAnalysisResultDTO> analyzeResume(@PathVariable Long resumeId, @Valid @RequestBody ResumeAnalysisRequestDTO request) {
         var userId = getCurrentUserId();
         membershipService.requireAiAccess(userId);
         var resume = validateOwnership(resumeId, userId);
@@ -78,64 +83,73 @@ public class ResumeAnalysisController {
             throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "请先完善简历内容后再进行分析");
         }
 
-        var prompt = request == null ? null : request.getPrompt();
+        var resolvedPrompt = promptConfigService.resolve(request.getScenarioCode());
         try {
-            var result = aiService.analyzeResume(resume.getTitle(), modules, prompt);
-            resumeAnalysisRecordService.save(buildCompletedRecord(userId, resumeId, prompt, result));
+            var result = aiService.analyzeResume(resume.getTitle(), modules, resolvedPrompt.prompt());
+            applyScenario(result, resolvedPrompt);
+            resumeAnalysisRecordService.save(buildCompletedRecord(userId, resumeId, resolvedPrompt, result));
             return Result.success(result);
         } catch (BusinessException e) {
-            resumeAnalysisRecordService.save(buildErrorRecord(userId, resumeId, prompt, e.getMessage()));
+            resumeAnalysisRecordService.save(buildErrorRecord(userId, resumeId, resolvedPrompt, e.getMessage()));
             throw e;
         } catch (Exception e) {
-            resumeAnalysisRecordService.save(buildErrorRecord(userId, resumeId, prompt, e.getMessage()));
+            resumeAnalysisRecordService.save(buildErrorRecord(userId, resumeId, resolvedPrompt, e.getMessage()));
             throw e;
         }
     }
 
     @Operation(summary = "流式 AI 分析整份简历")
-    @PostMapping(value = "/analysis/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @PostMapping(value = "/analysis/stream")
     public void analyzeResumeStream(
             @PathVariable Long resumeId,
-            @RequestBody(required = false) ResumeAnalysisRequestDTO request,
+            @RequestBody ResumeAnalysisRequestDTO request,
             HttpServletResponse response
     ) {
         var userId = getCurrentUserId();
-        membershipService.requireAiAccess(userId);
-        var resume = validateOwnership(resumeId, userId);
-        var modules = loadResumeModules(resumeId);
-        if (modules.isEmpty()) {
-            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "请先完善简历内容后再进行分析");
-        }
-
-        var prompt = request == null ? null : request.getPrompt();
         response.setCharacterEncoding("UTF-8");
         response.setContentType(MediaType.TEXT_EVENT_STREAM_VALUE);
         response.setHeader("Cache-Control", "no-cache");
         response.setHeader("X-Accel-Buffering", "no");
 
+        ResumeAnalysisPromptConfigService.ResolvedPrompt resolvedPrompt = null;
         try {
+            membershipService.requireAiAccess(userId);
+            var resume = validateOwnership(resumeId, userId);
+            var modules = loadResumeModules(resumeId);
+            if (modules.isEmpty()) {
+                throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "请先完善简历内容后再进行分析");
+            }
+            resolvedPrompt = promptConfigService.resolve(request.getScenarioCode());
+
             sendSseEvent(response, "connected", Map.of(
                     "resumeId", resumeId,
                     "message", "简历分析已开始"
             ));
-            var result = aiService.streamAnalyzeResume(resume.getTitle(), modules, prompt, event ->
+            var result = aiService.streamAnalyzeResume(resume.getTitle(), modules, resolvedPrompt.prompt(), event ->
                     sendSseEvent(response, String.valueOf(event.getOrDefault("type", "message")), event)
             );
-            resumeAnalysisRecordService.save(buildCompletedRecord(userId, resumeId, prompt, result));
+            applyScenario(result, resolvedPrompt);
+            resumeAnalysisRecordService.save(buildCompletedRecord(userId, resumeId, resolvedPrompt, result));
             sendSseEvent(response, "result", Map.of(
+                    "scenarioCode", result.getScenarioCode(),
+                    "scenarioName", result.getScenarioName(),
                     "score", result.getScore(),
                     "issues", result.getIssues(),
                     "suggestions", result.getSuggestions()
             ));
             sendSseEvent(response, "done", Map.of("status", "completed"));
         } catch (BusinessException e) {
-            resumeAnalysisRecordService.save(buildErrorRecord(userId, resumeId, prompt, e.getMessage()));
+            if (resolvedPrompt != null) {
+                resumeAnalysisRecordService.save(buildErrorRecord(userId, resumeId, resolvedPrompt, e.getMessage()));
+            }
             sendSseEvent(response, "error", Map.of(
                     "code", e.getCode(),
                     "message", e.getMessage()
             ));
         } catch (Exception e) {
-            resumeAnalysisRecordService.save(buildErrorRecord(userId, resumeId, prompt, "流式简历分析失败，请稍后重试"));
+            if (resolvedPrompt != null) {
+                resumeAnalysisRecordService.save(buildErrorRecord(userId, resumeId, resolvedPrompt, "流式简历分析失败，请稍后重试"));
+            }
             log.error("[Resume Analysis][Controller] stream crashed: resumeId={}, errorType={}",
                     resumeId, e.getClass().getSimpleName());
             sendSseEvent(response, "error", Map.of(
@@ -166,10 +180,10 @@ public class ResumeAnalysisController {
     private ResumeAnalysisRecord buildCompletedRecord(
             Long userId,
             Long resumeId,
-            String prompt,
+            ResumeAnalysisPromptConfigService.ResolvedPrompt resolvedPrompt,
             ResumeAnalysisResultDTO result
     ) {
-        var record = buildBaseRecord(userId, resumeId, prompt);
+        var record = buildBaseRecord(userId, resumeId, resolvedPrompt);
         record.setRecordStatus("completed");
         record.setScore(result.getScore());
         record.setIssues(result.getIssues());
@@ -177,19 +191,37 @@ public class ResumeAnalysisController {
         return record;
     }
 
-    private ResumeAnalysisRecord buildErrorRecord(Long userId, Long resumeId, String prompt, String errorMessage) {
-        var record = buildBaseRecord(userId, resumeId, prompt);
+    private ResumeAnalysisRecord buildErrorRecord(
+            Long userId,
+            Long resumeId,
+            ResumeAnalysisPromptConfigService.ResolvedPrompt resolvedPrompt,
+            String errorMessage
+    ) {
+        var record = buildBaseRecord(userId, resumeId, resolvedPrompt);
         record.setRecordStatus("error");
         record.setErrorMessage(errorMessage);
         return record;
     }
 
-    private ResumeAnalysisRecord buildBaseRecord(Long userId, Long resumeId, String prompt) {
+    private ResumeAnalysisRecord buildBaseRecord(
+            Long userId,
+            Long resumeId,
+            ResumeAnalysisPromptConfigService.ResolvedPrompt resolvedPrompt
+    ) {
         var record = new ResumeAnalysisRecord();
         record.setUserId(userId);
         record.setResumeId(resumeId);
-        record.setPrompt(prompt);
+        record.setScenarioCode(resolvedPrompt.scenarioCode());
+        record.setPrompt(resolvedPrompt.prompt());
         return record;
+    }
+
+    private void applyScenario(
+            ResumeAnalysisResultDTO result,
+            ResumeAnalysisPromptConfigService.ResolvedPrompt resolvedPrompt
+    ) {
+        result.setScenarioCode(resolvedPrompt.scenarioCode());
+        result.setScenarioName(resolvedPrompt.displayName());
     }
 
     private Resume validateOwnership(Long resumeId, Long userId) {

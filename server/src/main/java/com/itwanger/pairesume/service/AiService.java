@@ -40,7 +40,7 @@ public interface AiService {
     /**
      * 分析整份简历内容，返回结构化的 AI 评估结果
      */
-    ResumeAnalysisResultDTO analyzeResume(String resumeTitle, List<ResumeModule> modules, String promptOverride);
+    ResumeAnalysisResultDTO analyzeResume(String resumeTitle, List<ResumeModule> modules, String analysisInstructions);
 
     /**
      * 根据简历真实内容生成公开精选卡片使用的展示标签、摘要和技术标签。
@@ -59,7 +59,7 @@ public interface AiService {
     ResumeAnalysisResultDTO streamAnalyzeResume(
             String resumeTitle,
             List<ResumeModule> modules,
-            String promptOverride,
+            String analysisInstructions,
             Consumer<Map<String, Object>> eventConsumer
     );
 

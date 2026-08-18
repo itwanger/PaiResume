@@ -13,6 +13,7 @@ export const ADMIN_VIEWS = [
   'resume-reviews',
   'surveys',
   'platform-config',
+  'analysis-prompts',
   'audit-logs',
 ] as const
 
@@ -132,6 +133,11 @@ export const ADMIN_NAVIGATION: AdminNavigationGroup[] = [
         id: 'platform-config',
         label: '会员价格配置',
         shortLabel: '价格',
+      },
+      {
+        id: 'analysis-prompts',
+        label: '简历分析提示词',
+        shortLabel: '分析提示词',
       },
       {
         id: 'audit-logs',

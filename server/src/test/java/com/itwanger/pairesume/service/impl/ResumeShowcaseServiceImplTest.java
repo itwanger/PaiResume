@@ -26,6 +26,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -67,19 +68,65 @@ class ResumeShowcaseServiceImplTest {
         vipShowcase.setResumeId(22L);
         vipShowcase.setSlug("excellent-product");
 
+        Resume freeResume = resume();
+        freeResume.setTemplateId("warm");
+        freeResume.setPageMode("continuous");
+        freeResume.setPdfDensity("compact");
+        freeResume.setAccentPreset("warm");
+        freeResume.setHeadingStyle("filled");
         Resume vipResume = resume();
         vipResume.setId(22L);
         vipResume.setTitle("产品经理");
 
+        ResumeModule basicInfo = module(31L, 21L, "basic_info", Map.of(
+                "name", "不应公开的姓名",
+                "jobIntention", "Agent 工程师",
+                "workYears", "3年",
+                "targetCity", "北京"
+        ));
+        ResumeModule education = module(32L, 21L, "education", Map.of(
+                "school", "北京邮电大学",
+                "degree", "硕士",
+                "major", "计算机科学"
+        ));
+        ResumeModule skill = module(33L, 21L, "skill", Map.of(
+                "categories", List.of(Map.of("items", List.of(
+                        "熟悉 Java 并发编程",
+                        "掌握 Spring Boot",
+                        "不应进入公开缩略图的第三条技能"
+                )))
+        ));
+        ResumeModule work = module(34L, 21L, "work_experience", Map.of(
+                "company", "字节跳动",
+                "position", "软件工程师",
+                "projects", List.of(Map.of(
+                        "projectName", "AI Agent 信用评分系统",
+                        "projectDescription", "这是一段只用于缩略图预览并且必须在服务端进行长度限制的项目简介，不能通过公开列表接口返回完整正文内容。"
+                ))
+        ));
+
         when(resumeShowcaseMapper.selectList(any())).thenReturn(List.of(freeShowcase, vipShowcase));
-        when(resumeMapper.selectById(21L)).thenReturn(resume());
-        when(resumeMapper.selectById(22L)).thenReturn(vipResume);
+        when(resumeMapper.selectBatchIds(any())).thenReturn(List.of(freeResume, vipResume));
+        when(resumeModuleMapper.selectList(any())).thenReturn(List.of(basicInfo, education, skill, work));
 
         var cards = resumeShowcaseService.listPublishedShowcases();
 
         assertEquals(2, cards.size());
         assertEquals("excellent-java", cards.get(0).getSlug());
         assertEquals("excellent-product", cards.get(1).getSlug());
+        assertEquals("warm", cards.get(0).getTemplateId());
+        assertEquals("continuous", cards.get(0).getPageMode());
+        assertEquals("compact", cards.get(0).getDensity());
+        assertEquals("warm", cards.get(0).getAccentPreset());
+        assertEquals("filled", cards.get(0).getHeadingStyle());
+        assertEquals("", cards.get(0).getPreview().getName());
+        assertEquals("Agent 工程师 · 3年 · 北京", cards.get(0).getPreview().getBasicInfo());
+        assertEquals(List.of("北京邮电大学 · 硕士 · 计算机科学"), cards.get(0).getPreview().getEducations());
+        assertEquals(List.of("熟悉 Java 并发编程", "掌握 Spring Boot"), cards.get(0).getPreview().getSkills());
+        assertEquals("字节跳动 · 软件工程师", cards.get(0).getPreview().getExperiences().get(0));
+        assertEquals("AI Agent 信用评分系统", cards.get(0).getPreview().getProjects().get(0).getTitle());
+        assertTrue(cards.get(0).getPreview().getProjects().get(0).getDescription().endsWith("…"));
+        assertEquals(49, cards.get(0).getPreview().getProjects().get(0).getDescription().length());
         verifyNoInteractions(membershipService);
     }
 
@@ -87,6 +134,10 @@ class ResumeShowcaseServiceImplTest {
     void publicUserCanViewFreeShowcaseDetail() {
         ResumeShowcase showcase = showcase("FREE");
         Resume resume = resume();
+        resume.setPageMode("continuous");
+        resume.setPdfDensity("compact");
+        resume.setAccentPreset("warm");
+        resume.setHeadingStyle("filled");
         ResumeModule module = module();
         when(resumeShowcaseMapper.selectOne(any())).thenReturn(showcase);
         when(resumeMapper.selectById(21L)).thenReturn(resume);
@@ -96,6 +147,11 @@ class ResumeShowcaseServiceImplTest {
 
         assertEquals(11L, detail.getId());
         assertEquals("Java 后端开发", detail.getTitle());
+        assertEquals("continuous", detail.getPageMode());
+        assertEquals("classic-blue", detail.getTemplateId());
+        assertEquals("compact", detail.getDensity());
+        assertEquals("warm", detail.getAccentPreset());
+        assertEquals("filled", detail.getHeadingStyle());
         assertSame(module, detail.getModules().get(0));
         verifyNoInteractions(membershipService);
     }
@@ -234,7 +290,7 @@ class ResumeShowcaseServiceImplTest {
         when(aiService.generateShowcaseMetadata(resume.getTitle(), List.of(module))).thenReturn(metadata);
         when(resumeShowcaseMapper.selectCount(null)).thenReturn(2L);
 
-        ResumeShowcase featured = resumeShowcaseService.featureResume(21L, 7L);
+        ResumeShowcase featured = resumeShowcaseService.featureResume(21L, 7L, "VIP");
 
         assertEquals("featured-21", featured.getSlug());
         assertEquals("Java 后端", featured.getScoreLabel());
@@ -253,12 +309,27 @@ class ResumeShowcaseServiceImplTest {
         when(resumeMapper.selectById(21L)).thenReturn(resume());
         when(resumeShowcaseMapper.selectOne(any())).thenReturn(published);
 
-        ResumeShowcase result = resumeShowcaseService.featureResume(21L, 7L);
+        ResumeShowcase result = resumeShowcaseService.featureResume(21L, 7L, "VIP");
 
         assertSame(published, result);
         verifyNoInteractions(aiService, resumeModuleMapper);
         verify(resumeShowcaseMapper, never()).insert(any(ResumeShowcase.class));
         verify(resumeShowcaseMapper, never()).updateById(any(ResumeShowcase.class));
+    }
+
+    @Test
+    void featuringPublishedResumeCanChangeAccessTypeWithoutRegeneratingMetadata() {
+        ResumeShowcase published = showcase("VIP");
+        published.setPublishStatus("PUBLISHED");
+        when(resumeMapper.selectById(21L)).thenReturn(resume());
+        when(resumeShowcaseMapper.selectOne(any())).thenReturn(published);
+
+        ResumeShowcase result = resumeShowcaseService.featureResume(21L, 7L, " free ");
+
+        assertSame(published, result);
+        assertEquals("FREE", result.getAccessType());
+        verify(resumeShowcaseMapper).updateById(published);
+        verifyNoInteractions(aiService, resumeModuleMapper);
     }
 
     @Test
@@ -269,7 +340,7 @@ class ResumeShowcaseServiceImplTest {
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> resumeShowcaseService.featureResume(21L, 7L)
+                () -> resumeShowcaseService.featureResume(21L, 7L, "VIP")
         );
 
         assertEquals("简历内容为空，无法精选", exception.getMessage());
@@ -288,7 +359,7 @@ class ResumeShowcaseServiceImplTest {
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> resumeShowcaseService.featureResume(21L, 7L)
+                () -> resumeShowcaseService.featureResume(21L, 7L, "VIP")
         );
 
         assertEquals("简历内容为空，无法精选", exception.getMessage());
@@ -310,7 +381,7 @@ class ResumeShowcaseServiceImplTest {
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> resumeShowcaseService.featureResume(21L, 7L)
+                () -> resumeShowcaseService.featureResume(21L, 7L, "VIP")
         );
 
         assertEquals("简历内容已更新，请重新精选", exception.getMessage());
@@ -333,7 +404,7 @@ class ResumeShowcaseServiceImplTest {
         when(resumeShowcaseMapper.insert(any(ResumeShowcase.class)))
                 .thenThrow(new DuplicateKeyException("duplicate"));
 
-        ResumeShowcase result = resumeShowcaseService.featureResume(21L, 7L);
+        ResumeShowcase result = resumeShowcaseService.featureResume(21L, 7L, "VIP");
 
         assertSame(concurrent, result);
     }
@@ -350,7 +421,7 @@ class ResumeShowcaseServiceImplTest {
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> resumeShowcaseService.featureResume(21L, 7L)
+                () -> resumeShowcaseService.featureResume(21L, 7L, "VIP")
         );
 
         assertEquals(ResultCode.AI_SERVICE_BUSY.getCode(), exception.getCode());
@@ -429,6 +500,15 @@ class ResumeShowcaseServiceImplTest {
         module.setResumeId(21L);
         module.setModuleType("project");
         module.setContent(Map.of("description", "负责 Java 服务端与 AI 应用开发"));
+        return module;
+    }
+
+    private ResumeModule module(Long id, Long resumeId, String moduleType, Map<String, Object> content) {
+        ResumeModule module = new ResumeModule();
+        module.setId(id);
+        module.setResumeId(resumeId);
+        module.setModuleType(moduleType);
+        module.setContent(content);
         return module;
     }
 

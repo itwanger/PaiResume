@@ -1,8 +1,10 @@
 package com.itwanger.pairesume.dto;
 
+import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 @Data
 public class ResumeAnalysisRequestDTO {
-    private String prompt;
+    @NotBlank(message = "请选择求职场景")
+    private String scenarioCode;
 }
