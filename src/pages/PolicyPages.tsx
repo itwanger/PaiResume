@@ -3,12 +3,11 @@ import { Link } from 'react-router-dom'
 import { LogoMark } from '../components/branding/LogoMark'
 import { SiteFooter } from '../components/layout/SiteFooter'
 import {
-  AI_PROVIDER_NAME,
-  AI_PROVIDER_PRIVACY_URL,
   LEGAL_DISCLOSURE_READY,
   OPERATOR_NAME,
   SUPPORT_EMAIL,
 } from '../config/legalDisclosure'
+import { useAiProviderDisclosure } from '../hooks/useAiProviderDisclosure'
 import { GITHUB_REPOSITORY_URL } from '../config/site'
 import { buildLoginPath, getLoginEntryLabel } from '../utils/navigation'
 
@@ -71,6 +70,7 @@ function PolicyPage({ title, summary, children }: PolicyPageProps) {
 }
 
 export function PrivacyPolicyPage() {
+  const aiProvider = useAiProviderDisclosure()
   return (
     <PolicyPage
       title="隐私政策"
@@ -99,11 +99,11 @@ export function PrivacyPolicyPage() {
 
       <PolicySection title="三、使用目的与人工智能处理">
         <p>我们仅为创建和管理账号、保存和导出简历、保障服务安全、处理订单与售后，以及改进产品而使用上述信息。</p>
-        {AI_PROVIDER_NAME && AI_PROVIDER_PRIVACY_URL ? (
+        {aiProvider.name && aiProvider.privacyUrl ? (
           <p>
             只有当你主动使用 AI 优化或分析功能时，相关简历片段才会发送给第三方人工智能服务商
-            <strong className="font-semibold text-slate-800">{AI_PROVIDER_NAME}</strong>处理。其个人信息处理规则请查看
-            <a href={AI_PROVIDER_PRIVACY_URL} target="_blank" rel="noreferrer" className="font-medium text-primary-600 hover:text-primary-700">服务商隐私政策</a>。
+            <strong className="font-semibold text-slate-800">{aiProvider.name}</strong>处理。其个人信息处理规则请查看
+            <a href={aiProvider.privacyUrl} target="_blank" rel="noreferrer" className="font-medium text-primary-600 hover:text-primary-700">服务商隐私政策</a>。
             请先删除不希望由第三方处理的联系方式、证件信息或其他敏感内容。
           </p>
         ) : (
@@ -138,6 +138,7 @@ export function PrivacyPolicyPage() {
 }
 
 export function TermsPage() {
+  const aiProvider = useAiProviderDisclosure()
   return (
     <PolicyPage
       title="服务条款"
@@ -161,8 +162,8 @@ export function TermsPage() {
       <PolicySection title="三、内容与人工智能功能">
         <p>你应确保上传、编辑、发布的内容来源合法，不侵犯他人的隐私、著作权、商业秘密或其他合法权益。你保留对自有内容的权利，并授权平台在提供所选功能所需范围内处理该内容。</p>
         <p>平台提供的官方参考内容和内容模板只用于帮助理解写法与结构，不代表你的真实经历。应用后请结合本人事实修改，不得直接把示例公司、项目、职责、成果或数据作为个人经历投递。</p>
-        {AI_PROVIDER_NAME && AI_PROVIDER_PRIVACY_URL ? (
-          <p>你主动使用 AI 功能时，相关内容会发送给<strong className="font-semibold text-slate-800">{AI_PROVIDER_NAME}</strong>处理；请同时阅读其<a href={AI_PROVIDER_PRIVACY_URL} target="_blank" rel="noreferrer" className="font-medium text-primary-600 hover:text-primary-700">隐私政策</a>。</p>
+        {aiProvider.name && aiProvider.privacyUrl ? (
+          <p>你主动使用 AI 功能时，相关内容会发送给<strong className="font-semibold text-slate-800">{aiProvider.name}</strong>处理；请同时阅读其<a href={aiProvider.privacyUrl} target="_blank" rel="noreferrer" className="font-medium text-primary-600 hover:text-primary-700">隐私政策</a>。</p>
         ) : (
           <p>第三方 AI 服务商披露尚未配置，因此此构建不能部署到生产环境，也不得向用户提供 AI 功能。</p>
         )}

@@ -55,7 +55,7 @@ class RealMySqlMigrationTest {
                 .load();
         throughCurrent.migrate();
 
-        assertEquals("30",
+        assertEquals("31",
                 throughCurrent.info().current().getVersion().getVersion());
 
         Flyway restart = Flyway.configure()
@@ -66,7 +66,7 @@ class RealMySqlMigrationTest {
                 .load();
         assertEquals(0, restart.migrate().migrationsExecuted,
                 "已迁移到 V30 后再次执行迁移不应应用任何脚本");
-        assertEquals("30",
+        assertEquals("31",
                 restart.info().current().getVersion().getVersion());
 
         try (var connection = DriverManager.getConnection(url, username, password)) {
@@ -101,6 +101,9 @@ class RealMySqlMigrationTest {
             assertTrue(columnExists(connection, "resume_analysis_record", "scenario_code"));
             assertTrue(indexExists(connection, "resume_analysis_record",
                     "idx_resume_analysis_scenario"));
+            assertTrue(tableExists(connection, "ai_provider_config"));
+            assertTrue(tableExists(connection, "ai_provider_config_audit"));
+            assertAiProviderSeedRow(connection);
             assertPromptSeedConfigs(connection);
             assertLegacyOrdersPreserved(connection);
         }
@@ -197,6 +200,22 @@ class RealMySqlMigrationTest {
         try (var result = connection.getMetaData().getColumns(
                 connection.getCatalog(), null, table, column)) {
             return result.next() ? result.getString("COLUMN_DEF") : null;
+        }
+    }
+
+    private void assertAiProviderSeedRow(java.sql.Connection connection) throws Exception {
+        try (var statement = connection.createStatement();
+             var result = statement.executeQuery("""
+                     SELECT COUNT(*) AS total,
+                            SUM(CASE WHEN `id` = 1 AND `enabled` = 0
+                                 AND `api_key_cipher` IS NULL
+                                 AND `display_name` IS NOT NULL
+                                 AND `base_url` IS NOT NULL THEN 1 ELSE 0 END) AS seed_ok
+                     FROM `ai_provider_config`
+                     """)) {
+            assertTrue(result.next());
+            assertEquals(1, result.getInt("total"), "ai_provider_config 应只有一行");
+            assertEquals(1, result.getInt("seed_ok"), "种子行必须关闭启用且不带密钥");
         }
     }
 

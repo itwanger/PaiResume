@@ -13,6 +13,7 @@ import {
   ResumeContentThumbnail,
 } from '../components/dashboard/ResumeCard'
 import { Header } from '../components/layout/Header'
+import { SiteFooter } from '../components/layout/SiteFooter'
 import { SegmentedControl } from '../components/ui/SegmentedControl'
 import {
   buildMarketplaceListingPath,
@@ -301,6 +302,8 @@ export default function ExcellentResumesPage() {
           </section>
         ) : null}
       </main>
+
+      <SiteFooter />
     </div>
   )
 }

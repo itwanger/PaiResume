@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test": "npm run test:unit && npm run test:components",
     "test:unit": "node --import tsx --test tests/importers/*.test.ts tests/admin/*.test.ts tests/resume/*.test.ts",
-    "test:components": "vitest run"
+    "test:components": "vitest run",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@radix-ui/react-select": "^2.2.6",
@@ -28,6 +29,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.15.0",
+    "@playwright/test": "^1.62.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.3",

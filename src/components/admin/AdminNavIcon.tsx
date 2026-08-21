@@ -104,6 +104,12 @@ const ICON_PATHS: Record<AdminView, ReactNode> = {
       <path d="m17.5 13.5 1 2 2 1-2 1-1 2-1-2-2-1 2-1 1-2Z" />
     </>
   ),
+  'ai-provider': (
+    <>
+      <rect x="7" y="7" width="10" height="10" rx="2.5" />
+      <path d="M10 3.5v3.5M14 3.5v3.5M10 17v3.5M14 17v3.5M3.5 10H7M3.5 14H7M17 10h3.5M17 14h3.5" />
+    </>
+  ),
   'audit-logs': (
     <>
       <path d="M5 3.5h14v17H5zM8 8h8M8 12h8M8 16h5" />

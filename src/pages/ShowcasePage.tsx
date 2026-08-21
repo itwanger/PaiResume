@@ -5,6 +5,7 @@ import { publicApi } from '../api/public'
 import { showcaseApi, type ShowcaseDetail } from '../api/showcase'
 import { PreviewPanel } from '../components/editor/PreviewPanel'
 import { Header } from '../components/layout/Header'
+import { SiteFooter } from '../components/layout/SiteFooter'
 import { useAuthStore } from '../store/authStore'
 import {
   buildLoginPath,
@@ -114,6 +115,8 @@ export default function ShowcasePage() {
           </div>
         ) : null}
       </main>
+
+      <SiteFooter />
     </div>
   )
 }

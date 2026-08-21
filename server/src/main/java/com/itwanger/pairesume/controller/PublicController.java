@@ -3,8 +3,10 @@ package com.itwanger.pairesume.controller;
 import com.itwanger.pairesume.common.Result;
 import com.itwanger.pairesume.dto.FeedbackSubmissionCreateDTO;
 import com.itwanger.pairesume.dto.HomeDTO;
+import com.itwanger.pairesume.dto.AiProviderDisclosureDTO;
 import com.itwanger.pairesume.dto.ShowcaseCardDTO;
 import com.itwanger.pairesume.dto.ShowcaseDetailDTO;
+import com.itwanger.pairesume.service.AiProviderConfigService;
 import com.itwanger.pairesume.service.FeedbackSubmissionService;
 import com.itwanger.pairesume.service.PublicHomeService;
 import com.itwanger.pairesume.service.ResumeShowcaseService;
@@ -25,11 +27,18 @@ public class PublicController {
     private final PublicHomeService publicHomeService;
     private final ResumeShowcaseService resumeShowcaseService;
     private final FeedbackSubmissionService feedbackSubmissionService;
+    private final AiProviderConfigService aiProviderConfigService;
 
     @Operation(summary = "公开首页聚合数据")
     @GetMapping("/home")
     public Result<HomeDTO> home() {
         return Result.success(publicHomeService.getHome());
+    }
+
+    @Operation(summary = "用户端第三方 AI 处理披露信息")
+    @GetMapping("/ai-disclosure")
+    public Result<AiProviderDisclosureDTO> aiDisclosure() {
+        return Result.success(aiProviderConfigService.disclosure());
     }
 
     @Operation(summary = "公开优质简历列表")

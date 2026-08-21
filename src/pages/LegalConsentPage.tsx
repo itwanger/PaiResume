@@ -3,16 +3,16 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { authApi } from '../api/auth'
 import { LogoMark } from '../components/branding/LogoMark'
 import {
-  AI_PROVIDER_NAME,
-  AI_PROVIDER_PRIVACY_URL,
   LEGAL_DISCLOSURE_READY,
   OPERATOR_NAME,
 } from '../config/legalDisclosure'
+import { useAiProviderDisclosure } from '../hooks/useAiProviderDisclosure'
 import { AUTHENTICATED_HOME_PATH } from '../config/site'
 import { useAuthStore } from '../store/authStore'
 import { getSafeInternalPath } from '../utils/navigation'
 
 export default function LegalConsentPage() {
+  const aiProvider = useAiProviderDisclosure()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const refreshUser = useAuthStore((state) => state.refreshUser)
@@ -66,8 +66,8 @@ export default function LegalConsentPage() {
           <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700">
             <p>服务运营主体：<strong className="font-semibold text-slate-900">{OPERATOR_NAME}</strong></p>
             <p>
-              AI 服务商：<strong className="font-semibold text-slate-900">{AI_PROVIDER_NAME}</strong>（
-              <a href={AI_PROVIDER_PRIVACY_URL} target="_blank" rel="noreferrer" className="font-medium text-primary-600 hover:text-primary-700">查看服务商隐私政策</a>）
+              AI 服务商：<strong className="font-semibold text-slate-900">{aiProvider.name}</strong>（
+              <a href={aiProvider.privacyUrl} target="_blank" rel="noreferrer" className="font-medium text-primary-600 hover:text-primary-700">查看服务商隐私政策</a>）
             </p>
           </div>
         )}
@@ -86,7 +86,7 @@ export default function LegalConsentPage() {
           />
           <span>
             我已阅读并同意当前版本《服务条款》和《隐私政策》，并知悉主动使用 AI 功能时相关简历内容会发送给
-            {AI_PROVIDER_NAME || '尚未配置的第三方模型服务商'}处理。
+            {aiProvider.name || '尚未配置的第三方模型服务商'}处理。
           </span>
         </label>
 

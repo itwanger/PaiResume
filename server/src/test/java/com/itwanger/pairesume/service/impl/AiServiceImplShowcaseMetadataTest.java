@@ -23,7 +23,7 @@ class AiServiceImplShowcaseMetadataTest {
 
     @BeforeEach
     void setUp() {
-        aiService = new AiServiceImpl(new ObjectMapper());
+        aiService = new AiServiceImpl(new ObjectMapper(), aiProviderConfigStub());
     }
 
     @Test
@@ -96,5 +96,13 @@ class AiServiceImplShowcaseMetadataTest {
         } catch (Exception e) {
             throw new IllegalStateException(e);
         }
+    }
+
+    private static com.itwanger.pairesume.service.AiProviderConfigService aiProviderConfigStub() {
+        var stub = org.mockito.Mockito.mock(com.itwanger.pairesume.service.AiProviderConfigService.class);
+        org.mockito.Mockito.when(stub.resolveActive()).thenReturn(
+                new com.itwanger.pairesume.service.AiProviderConfigService.ActiveAiConfig(
+                        "test", "http://localhost/v1", "test-key", "general-model", "analysis-model", false));
+        return stub;
     }
 }

@@ -1,6 +1,10 @@
-import { useState, useCallback } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import type { AnalysisResult, ResumeAnalysisScenarioCode } from '../types'
 import { resumeApi } from '../api/resume'
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === 'AbortError'
+}
 
 /**
  * 简历分析 Hook
@@ -12,12 +16,16 @@ export function useAnalysis() {
   const [error, setError] = useState<string | null>(null)
   const [analysisReasoning, setAnalysisReasoning] = useState('')
   const [analysisStatus, setAnalysisStatus] = useState<string | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
 
   /**
    * 执行简历分析
    * @param resumeId 简历 ID
    */
   const analyze = useCallback(async (resumeId: number, scenarioCode: ResumeAnalysisScenarioCode) => {
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
     setIsAnalyzing(true)
     setError(null)
     setAnalysisResult(null)
@@ -26,7 +34,11 @@ export function useAnalysis() {
 
     try {
       const result = await resumeApi.analyzeStream(resumeId, { scenarioCode }, {
+        signal: controller.signal,
         onEvent: (event) => {
+          if (controller.signal.aborted) {
+            return
+          }
           if (event.event === 'status') {
             const message = typeof event.data.message === 'string' ? event.data.message : null
             setAnalysisStatus(message)
@@ -50,16 +62,34 @@ export function useAnalysis() {
           }
         },
       })
+      if (controller.signal.aborted) {
+        return
+      }
       setAnalysisResult(result)
     } catch (err) {
+      if (controller.signal.aborted || isAbortError(err)) {
+        setAnalysisReasoning('')
+        setAnalysisStatus(null)
+        return
+      }
       if (import.meta.env.DEV) {
         console.error('分析失败:', err instanceof Error ? err.name : 'Error')
       }
       setError(err instanceof Error ? err.message : '分析失败，请重试')
       setAnalysisStatus(null)
     } finally {
+      if (abortRef.current === controller) {
+        abortRef.current = null
+      }
       setIsAnalyzing(false)
     }
+  }, [])
+
+  /**
+   * 取消进行中的分析，不展示错误
+   */
+  const cancelAnalysis = useCallback(() => {
+    abortRef.current?.abort()
   }, [])
 
   const loadLatestAnalysis = useCallback(async (resumeId: number) => {
@@ -80,6 +110,7 @@ export function useAnalysis() {
    * 重置分析结果
    */
   const resetAnalysis = useCallback(() => {
+    abortRef.current?.abort()
     setAnalysisResult(null)
     setError(null)
     setAnalysisReasoning('')
@@ -92,6 +123,7 @@ export function useAnalysis() {
     analysisStatus,
     isAnalyzing,
     analyze,
+    cancelAnalysis,
     loadLatestAnalysis,
     resetAnalysis,
     error,

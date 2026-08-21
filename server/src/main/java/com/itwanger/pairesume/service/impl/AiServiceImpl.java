@@ -13,6 +13,7 @@ import com.itwanger.pairesume.dto.SmartOnePagePreviewResponseDTO;
 import com.itwanger.pairesume.dto.ShowcaseMetadataDTO;
 import com.itwanger.pairesume.dto.LibraryAiDraftRequestDTO;
 import com.itwanger.pairesume.entity.ResumeModule;
+import com.itwanger.pairesume.service.AiProviderConfigService;
 import com.itwanger.pairesume.service.AiService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -82,18 +83,7 @@ public class AiServiceImpl implements AiService {
     private final WebClient webClient;
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
-
-    @Value("${ai.api-key}")
-    private String apiKey;
-
-    @Value("${ai.base-url}")
-    private String baseUrl;
-
-    @Value("${ai.model}")
-    private String model;
-
-    @Value("${ai.analysis-model:${ai.model}}")
-    private String analysisModel;
+    private final AiProviderConfigService aiProviderConfigService;
 
     @Value("${ai.timeout}")
     private int timeout;
@@ -248,12 +238,17 @@ public class AiServiceImpl implements AiService {
             - candidates 中的每一项都必须是完整可用的简历文案，严禁返回“版本1”“版本2”这类占位词
             """;
 
-    public AiServiceImpl(ObjectMapper objectMapper) {
+    public AiServiceImpl(ObjectMapper objectMapper, AiProviderConfigService aiProviderConfigService) {
         this.objectMapper = objectMapper;
+        this.aiProviderConfigService = aiProviderConfigService;
         this.webClient = WebClient.builder().build();
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(30))
                 .build();
+    }
+
+    private AiProviderConfigService.ActiveAiConfig activeConfig() {
+        return aiProviderConfigService.resolveActive();
     }
 
     private record FieldOptimizePlan(
@@ -284,7 +279,7 @@ public class AiServiceImpl implements AiService {
         var prompt = String.format(SYSTEM_PROMPT, contentJson);
 
         try {
-            var response = invokeChatCompletion(model, prompt, "请优化这份简历内容", 0.7, 4000, false, false);
+            var response = invokeChatCompletion(activeConfig().generalModel(), prompt, "请优化这份简历内容", 0.7, 4000, false, false);
 
             if (response == null) {
                 throw new BusinessException(ResultCode.AI_SERVICE_BUSY);
@@ -322,7 +317,7 @@ public class AiServiceImpl implements AiService {
 
         try {
             var candidateOutput = plan.candidateOutput();
-            var targetModel = model;
+            var targetModel = activeConfig().generalModel();
             var systemPrompt = resolveFieldSystemPrompt(request);
             var response = invokeChatCompletion(
                     targetModel,
@@ -349,7 +344,7 @@ public class AiServiceImpl implements AiService {
                     log.warn("[AI Optimize][Service] unusable project description candidates detected, retrying: moduleType={}, count={}",
                             plan.moduleType(), candidates.size());
                     var retryResponse = invokeChatCompletion(
-                            model,
+                            activeConfig().generalModel(),
                             systemPrompt,
                             PROJECT_DESCRIPTION_RETRY_PROMPT.formatted(plan.originalText()),
                             0.35,
@@ -421,7 +416,7 @@ public class AiServiceImpl implements AiService {
         emitStreamEvent(eventConsumer, "status", Map.of("message", "AI 已连接，正在生成结果。"));
 
         try {
-            var targetModel = model;
+            var targetModel = activeConfig().generalModel();
             var systemPrompt = resolveFieldSystemPrompt(request);
             var streamResult = streamChatCompletion(
                     targetModel,
@@ -795,7 +790,7 @@ public class AiServiceImpl implements AiService {
 
         try {
             var response = invokeChatCompletion(
-                    analysisModel,
+                    activeConfig().analysisModel(),
                     "你是一位严格、专业、懂技术招聘的资深简历顾问。你需要基于候选人当前简历内容给出真实、克制、可执行的分析结果，并且必须严格输出 JSON。",
                     prompt,
                     0.3,
@@ -828,7 +823,7 @@ public class AiServiceImpl implements AiService {
         var prompt = buildShowcaseMetadataPrompt(resumeTitle, modules);
         try {
             var response = invokeChatCompletion(
-                    analysisModel,
+                    activeConfig().analysisModel(),
                     "你负责生成公开简历卡片的结构化元数据。只能依据输入内容概括，不能补充、猜测或编造事实。必须严格输出 JSON。",
                     prompt,
                     0.2,
@@ -893,7 +888,7 @@ public class AiServiceImpl implements AiService {
 
         try {
             var response = invokeChatCompletion(
-                    analysisModel,
+                    activeConfig().analysisModel(),
                     "你是派简历官方内容库的草稿生成器。你必须把真实性和可审核性放在表达效果之前，并严格输出 JSON。",
                     prompt,
                     0.25,
@@ -929,7 +924,7 @@ public class AiServiceImpl implements AiService {
 
         try {
             var streamResult = streamChatCompletion(
-                    analysisModel,
+                    activeConfig().analysisModel(),
                     "你是一位严格、专业、懂技术招聘的资深简历顾问。你需要基于候选人当前简历内容给出真实、克制、可执行的分析结果，并且必须严格输出 JSON。",
                     prompt,
                     0.3,
@@ -1171,7 +1166,7 @@ public class AiServiceImpl implements AiService {
         validateContentLength(module.getContent());
 
         var response = invokeChatCompletion(
-                model,
+                activeConfig().generalModel(),
                 """
                 你是一位中文技术简历优化专家。
                 你的任务是把单个简历模块压缩为更适合一页/两页投递的表达。
@@ -1422,14 +1417,15 @@ public class AiServiceImpl implements AiService {
     }
 
     private void validateConfiguration() {
+        var active = activeConfig();
         var missing = new ArrayList<String>();
-        if (apiKey == null || apiKey.isBlank()) {
+        if (active.apiKey() == null || active.apiKey().isBlank()) {
             missing.add("AI_API_KEY");
         }
-        if (baseUrl == null || baseUrl.isBlank()) {
+        if (active.baseUrl() == null || active.baseUrl().isBlank()) {
             missing.add("AI_BASE_URL");
         }
-        if (model == null || model.isBlank()) {
+        if (active.generalModel() == null || active.generalModel().isBlank()) {
             missing.add("AI_MODEL");
         }
         if (!missing.isEmpty()) {
@@ -1507,7 +1503,7 @@ public class AiServiceImpl implements AiService {
 
         return webClient.post()
                 .uri(buildChatCompletionUrl())
-                .header("Authorization", "Bearer " + apiKey)
+                .header("Authorization", "Bearer " + activeConfig().apiKey())
                 .header("Content-Type", "application/json")
                 .bodyValue(requestBody)
                 .retrieve()
@@ -1541,7 +1537,7 @@ public class AiServiceImpl implements AiService {
         var request = HttpRequest.newBuilder()
                 .uri(URI.create(buildChatCompletionUrl()))
                 .timeout(Duration.ofSeconds(Math.max(timeout, 180)))
-                .header("Authorization", "Bearer " + apiKey)
+                .header("Authorization", "Bearer " + activeConfig().apiKey())
                 .header("Content-Type", "application/json")
                 .header("Accept", "text/event-stream")
                 .POST(HttpRequest.BodyPublishers.ofString(requestJson, StandardCharsets.UTF_8))
@@ -1585,10 +1581,11 @@ public class AiServiceImpl implements AiService {
     }
 
     private String buildChatCompletionUrl() {
-        if (baseUrl.endsWith("/chat/completions")) {
-            return baseUrl;
+        var activeBaseUrl = activeConfig().baseUrl();
+        if (activeBaseUrl.endsWith("/chat/completions")) {
+            return activeBaseUrl;
         }
-        return baseUrl + "/chat/completions";
+        return activeBaseUrl + "/chat/completions";
     }
 
     private String buildUpstreamErrorMessage(WebClientResponseException e) {

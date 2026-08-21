@@ -77,6 +77,7 @@ export const ADMIN_VIEW_LOAD_SECTIONS: Record<AdminView, readonly AdminDataSecti
   surveys: ['feedbacks'],
   'platform-config': ['platformConfig'],
   'analysis-prompts': [],
+  'ai-provider': [],
   'audit-logs': ['membershipAuditLogs'],
 }
 

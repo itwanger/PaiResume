@@ -13,6 +13,7 @@ import {
 } from '../api/marketplace'
 import type { ResumeModule } from '../api/resume'
 import { Header } from '../components/layout/Header'
+import { SiteFooter } from '../components/layout/SiteFooter'
 import { PaymentQrModal } from '../components/marketplace/PaymentQrModal'
 import { ExcellentResumePreview } from '../components/showcase/ExcellentResumePreview'
 import { useAuthStore } from '../store/authStore'
@@ -500,6 +501,8 @@ export default function MarketplaceResumePage() {
           </section>
         </div>
       ) : null}
+
+      <SiteFooter />
     </div>
   )
 }

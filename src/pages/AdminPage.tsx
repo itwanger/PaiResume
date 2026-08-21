@@ -68,6 +68,7 @@ import { ResumeReviewAdminPanel } from '../components/admin/ResumeReviewAdminPan
 import { AdminShowcasePanel } from '../components/admin/AdminShowcasePanel'
 import { AdminContentLibraryPanel } from '../components/admin/AdminContentLibraryPanel'
 import { ResumeAnalysisPromptAdminPanel } from '../components/admin/ResumeAnalysisPromptAdminPanel'
+import { AiProviderAdminPanel } from '../components/admin/AiProviderAdminPanel'
 
 interface PlatformPriceDraft {
   questionnaireCouponAmountYuan: string
@@ -1843,6 +1844,9 @@ function AdminPageContent() {
             ) : null}
             {activeView === 'analysis-prompts' ? (
               <ResumeAnalysisPromptAdminPanel />
+            ) : null}
+            {activeView === 'ai-provider' ? (
+              <AiProviderAdminPanel />
             ) : null}
 
             {activeView === 'marketplace-listings' ? (

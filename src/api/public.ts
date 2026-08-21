@@ -58,6 +58,9 @@ export const publicApi = {
   showcaseDetail: (slug: string) =>
     client.get<ApiEnvelope<ShowcaseDetail>>(`/public/showcases/${encodeURIComponent(slug)}`),
 
+  aiDisclosure: () =>
+    client.get<ApiEnvelope<{ aiProviderName: string; aiProviderPrivacyUrl: string }>>('/public/ai-disclosure'),
+
   submitFeedback: (payload: FeedbackSubmissionPayload) =>
     client.post('/public/feedback-submissions', payload),
 }

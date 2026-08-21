@@ -224,6 +224,12 @@ ai:
   model: ${AI_MODEL:${DEEPSEEK_MODEL:deepseek-chat}}
   analysis-model: ${AI_ANALYSIS_MODEL:${DEEPSEEK_ANALYSIS_MODEL:${AI_MODEL:${DEEPSEEK_MODEL:deepseek-chat}}}}
   timeout: 60
+  provider:
+    # 管理后台加密 API Key 的主密钥（Base64 的 32 字节），只允许放在权限 0600 的环境文件中。
+    master-key: ${AI_PROVIDER_MASTER_KEY:}
+    # 未启用后台配置时的用户端披露回退：服务商名称与隐私政策链接。
+    disclosure-name: ${AI_PROVIDER_NAME:}
+    disclosure-url: ${AI_PROVIDER_PRIVACY_URL:}
 
 springdoc:
   api-docs:

@@ -45,3 +45,7 @@ lerna-debug.log*
 /tmp
 /tests
 /tests
+
+# Playwright E2E
+/test-results/
+/playwright-report/

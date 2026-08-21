@@ -21,9 +21,9 @@ test('非法后台视图不会通过类型守卫', () => {
   assert.equal(isAdminView('unknown-view'), false)
 })
 
-test('16 个后台视图都有唯一且完整的导航元数据', () => {
+test('17 个后台视图都有唯一且完整的导航元数据', () => {
   const items = ADMIN_NAVIGATION.flatMap((group) => group.items)
-  assert.equal(items.length, 16)
+  assert.equal(items.length, 17)
   assert.deepEqual(items.map((item) => item.id), [...ADMIN_VIEWS])
   assert.equal(new Set(items.map((item) => item.id)).size, ADMIN_VIEWS.length)
   assert.equal(new Set(items.map((item) => item.label)).size, ADMIN_VIEWS.length)

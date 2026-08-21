@@ -29,6 +29,7 @@ export function ResumeAnalysis({ resumeId }: ResumeAnalysisProps) {
     analysisStatus,
     isAnalyzing,
     analyze,
+    cancelAnalysis,
     loadLatestAnalysis,
     resetAnalysis,
     error,
@@ -137,7 +138,12 @@ export function ResumeAnalysis({ resumeId }: ResumeAnalysisProps) {
           })}
         </div>
 
-        <div className="flex justify-end">
+        <div className="flex justify-end gap-3">
+          {isAnalyzing && (
+            <Button type="button" variant="outline" onClick={cancelAnalysis}>
+              取消分析
+            </Button>
+          )}
           <Button
             type="button"
             onClick={handleAnalyze}
@@ -214,10 +220,15 @@ export function ResumeAnalysis({ resumeId }: ResumeAnalysisProps) {
                   style={{ width: `${analysisResult.score}%` }}
                 />
               </div>
-              <div className="flex justify-center gap-4">
+              <div className="flex justify-center gap-3">
                 <Button variant="outline" onClick={resetAnalysis}>
                   清空结果
                 </Button>
+                {isAnalyzing && (
+                  <Button variant="outline" onClick={cancelAnalysis}>
+                    取消分析
+                  </Button>
+                )}
                 <Button onClick={handleAnalyze} loading={isAnalyzing} disabled={!scenarioCode}>
                   重新分析
                 </Button>

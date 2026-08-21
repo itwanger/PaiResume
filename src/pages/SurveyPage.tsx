@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { publicApi } from '../api/public'
 import { Header } from '../components/layout/Header'
+import { SiteFooter } from '../components/layout/SiteFooter'
 
 const INITIAL_FORM = {
   contactEmail: '',
@@ -165,6 +166,8 @@ export default function SurveyPage() {
           </form>
         </div>
       </main>
+
+      <SiteFooter />
     </div>
   )
 }

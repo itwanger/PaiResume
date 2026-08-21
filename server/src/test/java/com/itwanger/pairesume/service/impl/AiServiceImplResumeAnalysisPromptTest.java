@@ -15,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class AiServiceImplResumeAnalysisPromptTest {
     @Test
     void workingProfessionalPromptKeepsScenarioBoundary() {
-        var aiService = new AiServiceImpl(new ObjectMapper());
+        var aiService = new AiServiceImpl(new ObjectMapper(), aiProviderConfigStub());
         var module = new ResumeModule();
         module.setId(1L);
         module.setModuleType("work_experience");
@@ -34,5 +34,13 @@ class AiServiceImplResumeAnalysisPromptTest {
         assertTrue(prompt.contains("不得用其他场景的要求扣分"));
         assertFalse(prompt.contains("工作经历、实习经历和项目经历都很重要"));
         assertFalse(prompt.contains("## 用户提示词"));
+    }
+
+    private static com.itwanger.pairesume.service.AiProviderConfigService aiProviderConfigStub() {
+        var stub = org.mockito.Mockito.mock(com.itwanger.pairesume.service.AiProviderConfigService.class);
+        org.mockito.Mockito.when(stub.resolveActive()).thenReturn(
+                new com.itwanger.pairesume.service.AiProviderConfigService.ActiveAiConfig(
+                        "test", "http://localhost/v1", "test-key", "general-model", "analysis-model", false));
+        return stub;
     }
 }

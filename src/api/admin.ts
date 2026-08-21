@@ -388,7 +388,46 @@ export interface MembershipPaymentAdminQuery {
   reviewStatus?: MembershipPaymentReviewStatus | ''
 }
 
+export interface AiProviderConfigView {
+  displayName: string
+  baseUrl: string
+  generalModel: string
+  analysisModel: string
+  apiKeyMask: string
+  apiKeyConfigured: boolean
+  privacyPolicyUrl: string
+  enabled: boolean
+  masterKeyConfigured: boolean
+  updatedAt: string
+}
+
+export interface AiProviderConfigUpdatePayload {
+  displayName: string
+  baseUrl: string
+  generalModel: string
+  analysisModel: string
+  /** 留空表示保留已配置的 API Key。 */
+  apiKey: string
+  privacyPolicyUrl: string
+  enabled: boolean
+}
+
+export interface AiProviderTestResult {
+  success: boolean
+  latencyMillis: number
+  message: string
+}
+
 export const adminApi = {
+  getAiProviderConfig: () =>
+    client.get<ApiEnvelope<AiProviderConfigView>>('/admin/ai-provider'),
+
+  updateAiProviderConfig: (payload: AiProviderConfigUpdatePayload) =>
+    client.put<ApiEnvelope<AiProviderConfigView>>('/admin/ai-provider', payload),
+
+  testAiProviderConnection: () =>
+    client.post<ApiEnvelope<AiProviderTestResult>>('/admin/ai-provider/test'),
+
   listResumeAnalysisPrompts: () =>
     client.get<ApiEnvelope<ResumeAnalysisPromptAdmin[]>>('/admin/resume-analysis-prompts'),
 
