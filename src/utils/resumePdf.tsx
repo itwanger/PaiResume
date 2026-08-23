@@ -63,6 +63,7 @@ export type ResumePdfTemplateId =
   | 'compact'
   | 'accent'
   | 'campus-blue'
+  | 'technical-black'
   | 'minimal'
   | 'executive'
   | 'warm'
@@ -132,6 +133,15 @@ export const RESUME_PDF_TEMPLATES: ResumePdfTemplateOption[] = [
     previewTitle: '校园技术蓝',
     previewSummary: '参考优质校招简历的紧凑排版，让教育背景、项目经历和技术成果更易扫描。',
     previewHighlights: ['浅蓝分区栏', '照片左置', '联系分栏'],
+  },
+  {
+    id: 'technical-black',
+    icon: '▰',
+    name: '黑白技术',
+    description: '居中抬头、右置照片和多列经历标题，适合高密度技术简历。',
+    previewTitle: '黑白技术',
+    previewSummary: '参考高质量后端校招简历，用克制的黑白层级承载教育、实习、项目与科研成果。',
+    previewHighlights: ['居中抬头', '多列经历', '高密度正文'],
   },
   {
     id: 'minimal',
@@ -336,6 +346,43 @@ function getResolvedResumePdfThemeConfig(options?: Pick<ResumePdfOptions, 'templ
 
 function getBaseResumePdfTheme(templateId: ResolvedResumePdfTemplateId): ResumePdfTheme {
   switch (templateId) {
+    case 'technical-black':
+      return {
+        pagePadding: 20,
+        baseFontSize: 9.7,
+        titleSize: 20,
+        subtitleSize: 10.5,
+        lineHeight: 1.34,
+        headerBottom: 7,
+        headerRowGap: 8,
+        headerRowBottom: 3,
+        contactGap: 7,
+        sectionGap: 6,
+        itemGap: 4,
+        sectionTitleSize: 12.4,
+        sectionTitleBottom: 4,
+        sectionTitlePaddingBottom: 2,
+        sectionTitleColor: '#111111',
+        sectionTitleBorderColor: '#111111',
+        labelColor: '#262626',
+        bodyColor: '#333333',
+        mutedColor: '#4b4b4b',
+        linkColor: '#1268d6',
+        chipTextColor: '#1268d6',
+        chipBackgroundColor: '#e8f2ff',
+        paragraphTop: 2,
+        listItemTop: 1,
+        orderedIndent: 9,
+        inlineMetaRowGap: 2,
+        inlineMetaColumnGap: 7,
+        inlineMetaItemRight: 7,
+        inlineMetaItemBottom: 1,
+        chipGap: 3,
+        chipTop: 1,
+        chipFontSize: 7.8,
+        chipHorizontalPadding: 4,
+        chipVerticalPadding: 1.2,
+      }
     case 'campus-blue':
       return {
         pagePadding: 18,
@@ -975,6 +1022,20 @@ function formatMonthRange(start: string, end: string) {
   return startText || endText
 }
 
+function formatTechnicalMonth(value: string) {
+  if (!value) return ''
+  const [year, month] = value.split('-')
+  if (!year || !month) return value
+  return `${year}.${month}`
+}
+
+function formatTechnicalMonthRange(start: string, end: string) {
+  const startText = formatTechnicalMonth(start)
+  const endText = formatTechnicalMonth(end)
+  if (startText && endText) return `${startText}-${endText}`
+  return startText || endText
+}
+
 function tokenizeMixedText(value: string) {
   const rawTokens = value.match(/[\u3400-\u9fff\uf900-\ufaff，。；：？！、】【（）]|[A-Za-z0-9+#./:_-]+|\s+|./g) || []
   const attachToPrevious = new Set(['，', '。', '；', '：', '？', '！', '、', ',', '.', ';', ':', '?', '!', '）', '】', ')', ']'])
@@ -1132,6 +1193,8 @@ function getResumePdfSectionHeadingVariant(
   switch (templateId) {
     case 'campus-blue':
       return 'filled'
+    case 'technical-black':
+      return 'underline'
     case 'executive':
     case 'slate':
       return 'filled'
@@ -1170,6 +1233,7 @@ function ResumePdfDocument({
   const styles = createResumePdfStyles(theme)
   const isCompactDensity = resolvedThemeConfig.density === 'compact'
   const isCampusBlue = resolvedThemeConfig.templateId === 'campus-blue'
+  const isTechnicalBlack = resolvedThemeConfig.templateId === 'technical-black'
   const isMinimal = resolvedThemeConfig.templateId === 'minimal'
   const isExecutive = resolvedThemeConfig.templateId === 'executive'
   const isSlate = resolvedThemeConfig.templateId === 'slate'
@@ -1193,6 +1257,7 @@ function ResumePdfDocument({
   const useCompactPhotoEducationLayout = isCompactDensity
     && hasPhoto
     && !isCampusBlue
+    && !isTechnicalBlack
     && educationModules.length > 0
     && firstContentModuleType === 'education'
   const internshipModules = sortedModules.filter((module) => module.moduleType === 'internship')
@@ -1358,6 +1423,55 @@ function ResumePdfDocument({
     ) : null
   )
 
+  const technicalContactItems: Array<{ value: string; href?: string }> = basicInfo
+    ? [
+        { value: basicInfo.phone },
+        { value: basicInfo.email },
+        { value: basicInfo.wechat },
+        { value: basicInfo.github, href: normalizeExternalUrl(basicInfo.github) },
+        { value: basicInfo.blog, href: normalizeExternalUrl(basicInfo.blog) },
+        { value: basicInfo.targetCity },
+      ].filter((item) => Boolean(item.value))
+    : []
+
+  const renderTechnicalBlackHeaderBlock = () => (
+    basicInfo ? (
+      <View style={[styles.header, { minHeight: hasPhoto ? 66 : 46, position: 'relative', marginBottom: 6 }]}>
+        <View style={{ alignItems: 'center', paddingHorizontal: hasPhoto ? 74 : 18 }}>
+          <Text style={{ fontSize: theme.titleSize, fontWeight: 700, color: '#2f2f2f' }}>
+            {basicInfo.name || '未填写'}
+          </Text>
+          {technicalContactItems.length > 0 ? (
+            <View style={{ marginTop: 6, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 6 }}>
+              {technicalContactItems.map((item, index) => (
+                <Text key={`${item.value}-${index}`} style={styles.muted}>
+                  {item.href ? <Link src={item.href} style={styles.link}>{item.value}</Link> : item.value}
+                </Text>
+              ))}
+            </View>
+          ) : null}
+        </View>
+        {hasPhoto ? (
+          <View
+            style={[
+              styles.photoFrame,
+              {
+                position: 'absolute',
+                top: 0,
+                right: 0,
+                width: 56,
+                height: 72,
+                ...(hasPhotoBorder ? { borderWidth: 1, borderColor: '#b8b8b8' } : {}),
+              },
+            ]}
+          >
+            <Image src={photoSource} style={styles.photoImage} />
+          </View>
+        ) : null}
+      </View>
+    ) : null
+  )
+
   const renderCampusBlueHeaderBlock = () => (
     basicInfo ? (
       <View style={[styles.header, { marginBottom: theme.headerBottom }]}>
@@ -1431,7 +1545,21 @@ function ResumePdfDocument({
                   : []),
               ]}
             >
-              {isCampusBlue ? (
+              {isTechnicalBlack ? (
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
+                  <Text style={[styles.strong, { flexGrow: 1, flexShrink: 1, flexBasis: 0 }]}>
+                    {content.school || '未填写'}
+                    {schoolTags.length > 0 ? `（${schoolTags.join(' / ')}）` : ''}
+                  </Text>
+                  <Text style={[styles.strong, { width: 72, textAlign: 'center' }]}>{content.degree}</Text>
+                  <Text style={[styles.strong, { width: 150, textAlign: 'center' }]}>
+                    {content.major || content.department}
+                  </Text>
+                  <Text style={[styles.strong, { width: 108, textAlign: 'right' }]}>
+                    {formatTechnicalMonthRange(content.startDate, content.endDate)}
+                  </Text>
+                </View>
+              ) : isCampusBlue ? (
                 <View style={styles.rowBetween}>
                   <Text style={[styles.strong, { flexGrow: 1, flexBasis: 0 }]}>
                     {content.school || '未填写'}
@@ -1499,10 +1627,18 @@ function ResumePdfDocument({
 
     return (
       <View key={projectModule.id} style={styles.item}>
-        <View style={styles.rowBetween}>
-          <Text style={styles.strong}>{titleLine || '项目 - 角色'}</Text>
-          <Text style={styles.muted}>{formatMonthRange(content.startDate, content.endDate)}</Text>
-        </View>
+        {isTechnicalBlack ? (
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
+            <Text style={[styles.strong, { flexGrow: 1, flexShrink: 1, flexBasis: 0 }]}>{content.projectName || '项目'}</Text>
+            <Text style={[styles.strong, { width: 110, textAlign: 'center' }]}>{content.role}</Text>
+            <Text style={[styles.strong, { width: 108, textAlign: 'right' }]}>{formatTechnicalMonthRange(content.startDate, content.endDate)}</Text>
+          </View>
+        ) : (
+          <View style={styles.rowBetween}>
+            <Text style={styles.strong}>{titleLine || '项目 - 角色'}</Text>
+            <Text style={styles.muted}>{formatMonthRange(content.startDate, content.endDate)}</Text>
+          </View>
+        )}
         {content.techStack
           ? renderWrappedLabeledText(
               styles,
@@ -1521,7 +1657,7 @@ function ResumePdfDocument({
             <Text><Text style={styles.label}>核心职责：</Text></Text>
             {content.achievements.map((item, index) => (
               <View key={`${index}-${item}`} style={styles.listItem}>
-                {isCampusBlue
+                {isCampusBlue || isTechnicalBlack
                   ? renderBulletItem(styles, item, `project-${projectModule.id}-${index}`)
                   : renderOrderedItem(styles, item, index, `project-${projectModule.id}-${index}`)}
               </View>
@@ -1535,7 +1671,9 @@ function ResumePdfDocument({
   return (
     <Document title={documentTitle} onRender={onRender}>
       <Page size={pageSize} style={styles.page}>
-        {isCampusBlue ? (
+        {isTechnicalBlack ? (
+          renderTechnicalBlackHeaderBlock()
+        ) : isCampusBlue ? (
           renderCampusBlueHeaderBlock()
         ) : useCompactPhotoEducationLayout ? (
           <View style={topSectionWithPhotoStyle}>
@@ -1597,10 +1735,18 @@ function ResumePdfDocument({
                       })
                       return (
                         <View key={experienceModule.id} style={styles.item}>
-                          <View style={styles.rowBetween}>
-                            <Text style={styles.strong}>{companyTitle || '公司 - 职位'}</Text>
-                            <Text style={styles.muted}>{formatMonthRange(content.startDate, content.endDate)}</Text>
-                          </View>
+                          {isTechnicalBlack ? (
+                            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
+                              <Text style={[styles.strong, { flexGrow: 1, flexShrink: 1, flexBasis: 0 }]}>{content.company || '公司'}</Text>
+                              <Text style={[styles.strong, { width: 122, textAlign: 'center' }]}>{content.position}</Text>
+                              <Text style={[styles.strong, { width: 108, textAlign: 'right' }]}>{formatTechnicalMonthRange(content.startDate, content.endDate)}</Text>
+                            </View>
+                          ) : (
+                            <View style={styles.rowBetween}>
+                              <Text style={styles.strong}>{companyTitle || '公司 - 职位'}</Text>
+                              <Text style={styles.muted}>{formatMonthRange(content.startDate, content.endDate)}</Text>
+                            </View>
+                          )}
                           {visibleProjects.map((project, projectIndex) => {
                             const projectTitle = [project.projectName, project.role].filter(Boolean).join(' - ')
                             return (
@@ -1612,10 +1758,18 @@ function ResumePdfDocument({
                                 ]}
                               >
                                 {projectTitle || project.startDate || project.endDate ? (
-                                  <View style={styles.rowBetween}>
-                                    <Text style={styles.strong}>{projectTitle}</Text>
-                                    <Text style={styles.muted}>{formatMonthRange(project.startDate, project.endDate)}</Text>
-                                  </View>
+                                  isTechnicalBlack ? (
+                                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
+                                      <Text style={[styles.strong, { flexGrow: 1, flexShrink: 1, flexBasis: 0 }]}>{project.projectName}</Text>
+                                      <Text style={[styles.strong, { width: 110, textAlign: 'center' }]}>{project.role}</Text>
+                                      <Text style={[styles.strong, { width: 108, textAlign: 'right' }]}>{formatTechnicalMonthRange(project.startDate, project.endDate)}</Text>
+                                    </View>
+                                  ) : (
+                                    <View style={styles.rowBetween}>
+                                      <Text style={styles.strong}>{projectTitle}</Text>
+                                      <Text style={styles.muted}>{formatMonthRange(project.startDate, project.endDate)}</Text>
+                                    </View>
+                                  )
                                 ) : null}
                                 {project.projectDescription ? (
                                   <View style={styles.paragraph}>
@@ -1635,7 +1789,7 @@ function ResumePdfDocument({
                                     <Text><Text style={styles.label}>核心职责：</Text></Text>
                                     {project.responsibilities.filter(Boolean).map((line, index) => (
                                       <View key={`${index}-${line}`} style={styles.listItem}>
-                                        {isCampusBlue
+                                        {isCampusBlue || isTechnicalBlack
                                           ? renderBulletItem(styles, line, `duty-${experienceModule.id}-${projectIndex}-${index}`)
                                           : renderOrderedItem(styles, line, index, `duty-${experienceModule.id}-${projectIndex}-${index}`)}
                                       </View>
@@ -1661,18 +1815,26 @@ function ResumePdfDocument({
             }
             case 'skill': {
               const content = normalizeSkillContent(module.content)
+              const visibleCategories = content.categories
+                .map((category) => ({
+                  ...category,
+                  items: category.items.filter((item) => item.trim().length > 0),
+                }))
+                .filter((category) => category.items.length > 0)
               return renderSectionBlock(
                 module.id,
                 '专业技能',
                 (
                   <>
-                  {content.categories
-                    .map((category) => ({
-                      ...category,
-                      items: category.items.filter((item) => item.trim().length > 0),
-                    }))
-                    .filter((category) => category.items.length > 0)
-                    .map((category, index) => {
+                  {isTechnicalBlack ? visibleCategories.map((category, index) => (
+                    <View key={index} style={styles.listItem}>
+                      {renderBulletItem(
+                        styles,
+                        `${category.name ? `**${category.name}：** ` : ''}${category.items.join('；')}`,
+                        `technical-skill-${index}`
+                      )}
+                    </View>
+                  )) : visibleCategories.map((category, index) => {
                       const hasTitle = Boolean(category.name.trim())
                       const shouldRenderAsList = !hasTitle || category.items.some((item) => item.length > 20 || /[，。；]/.test(item))
 
@@ -1727,8 +1889,17 @@ function ResumePdfDocument({
                 '科研经历',
                 (
                   <>
-                  <Text style={styles.strong}>{content.projectName || '科研项目'}</Text>
-                  {content.projectCycle ? <Text>{content.projectCycle}</Text> : null}
+                  {isTechnicalBlack ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
+                      <Text style={[styles.strong, { flexGrow: 1, flexShrink: 1, flexBasis: 0 }]}>{content.projectName || '科研项目'}</Text>
+                      {content.projectCycle ? <Text style={[styles.strong, { width: 132, textAlign: 'right' }]}>{content.projectCycle}</Text> : null}
+                    </View>
+                  ) : (
+                    <>
+                      <Text style={styles.strong}>{content.projectName || '科研项目'}</Text>
+                      {content.projectCycle ? <Text>{content.projectCycle}</Text> : null}
+                    </>
+                  )}
                   {content.background ? <Text style={styles.paragraph}>背景：{content.background}</Text> : null}
                   {content.workContent ? <Text style={styles.paragraph}>工作：{content.workContent}</Text> : null}
                   {content.achievements ? <Text style={styles.paragraph}>成果：{content.achievements}</Text> : null}

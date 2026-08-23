@@ -91,6 +91,39 @@ function TemplateTonePreview({
   const previewTextClassName = 'break-all leading-4'
 
   switch (templateId) {
+    case 'technical-black':
+      return (
+        <div className={`${frameClassName} shadow-[inset_0_0_0_1px_rgba(203,213,225,0.95)]`}>
+          <div className="space-y-1.5 px-3 py-3 text-[10px] text-slate-600">
+            <div className="relative min-h-11 border-b border-slate-800 pb-2 text-center">
+              <div className="text-[13px] font-bold text-slate-800">{name}</div>
+              <MiniLine className="mx-auto mt-2 w-2/3 bg-slate-300" />
+              <div className="absolute right-0 top-0 h-10 w-8 bg-slate-200 ring-1 ring-slate-300" />
+              <div className="absolute left-0 top-0">
+                <PreviewStatusBadge isActive={isActive} />
+              </div>
+            </div>
+            <div className="grid grid-cols-[1.2fr_.65fr_1fr] gap-1 font-semibold text-slate-700">
+              <span>学校 / 公司</span>
+              <span className="text-center">角色</span>
+              <span className="text-right">时间</span>
+            </div>
+            <div className="border-b border-slate-800 pb-0.5 font-bold text-slate-800">项目经历</div>
+            <div className="space-y-1">
+              {previewLines[0] ? <div className={previewTextClassName}>{previewLines[0]}</div> : null}
+              {previewLines[1] ? <div className={previewTextClassName}>{previewLines[1]}</div> : <MiniLine className="w-full bg-slate-200" />}
+              {previewLines[2] ? <div className={previewTextClassName}>{previewLines[2]}</div> : <MiniLine className="w-4/5 bg-slate-200" />}
+            </div>
+            <div className="grid grid-cols-3 gap-1">
+              {previewHighlights.map((highlight, index) => (
+                <div key={`${templateId}-highlight-${index}`} className="truncate bg-slate-100 px-1.5 py-1 text-center font-medium text-slate-700">
+                  {highlight || ' '}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )
     case 'campus-blue':
       return (
         <div className={`${frameClassName} shadow-[inset_0_0_0_1px_rgba(190,208,235,0.95)]`}>

@@ -33,6 +33,7 @@ const templateLabels: Record<ResumePdfTemplateId, string> = {
   compact: '紧凑模式',
   accent: '蓝调重点',
   'campus-blue': '校园技术蓝',
+  'technical-black': '黑白技术',
   minimal: '极简留白',
   executive: '深色抬头',
   warm: '暖灰质感',
@@ -62,6 +63,7 @@ const templateDefaultAccents: Record<ResumePdfTemplateId, ThumbnailAccent> = {
   compact: 'blue',
   accent: 'blue',
   'campus-blue': 'blue',
+  'technical-black': 'slate',
   minimal: 'slate',
   executive: 'slate',
   warm: 'warm',
@@ -135,6 +137,8 @@ export function ResumeContentThumbnail({ preview, resume }: { preview: ResumeCar
     ? 'bg-slate-800 text-white'
     : style.templateId === 'campus-blue'
       ? 'bg-blue-700 text-white'
+      : style.templateId === 'technical-black'
+        ? 'border-b border-slate-800 bg-white text-slate-900'
       : headingStyle === 'filled'
         ? palette.soft
         : ''
