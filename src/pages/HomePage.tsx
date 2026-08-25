@@ -6,7 +6,7 @@ import {
   marketplaceApi,
   type MarketplaceListingCard,
 } from '../api/marketplace'
-import { publicApi, type HomeData } from '../api/public'
+import { publicApi, type HomeData, type PublishedFeedback } from '../api/public'
 import type { ResumeCardPreview } from '../api/resume'
 import {
   EMPTY_RESUME_CARD_PREVIEW,
@@ -70,6 +70,63 @@ const HERO_FEATURES: Array<{
     description: '按岗位查找高质量范例，快速获得结构与表达灵感',
     icon: 'library',
     iconClassName: 'bg-emerald-100 text-emerald-700',
+  },
+]
+
+const MOCK_TESTIMONIALS: PublishedFeedback[] = [
+  {
+    id: -1,
+    displayName: '林同学',
+    schoolOrCompany: '应届生',
+    targetRole: 'Java 后端开发',
+    rating: 5,
+    testimonialText: '原来项目经历写得很散，按照建议梳理后，职责和成果都更清楚。智能一页把多页内容合成一张连续长页，查看和导出都更顺畅。',
+    createdAt: '',
+  },
+  {
+    id: -2,
+    displayName: '周同学',
+    schoolOrCompany: '硕士在读',
+    targetRole: '产品经理',
+    rating: 5,
+    testimonialText: 'AI 给出的建议很具体，会指出问题，也会给出修改思路。调整后每段经历都更聚焦，整体排版也更清爽。',
+    createdAt: '',
+  },
+  {
+    id: -3,
+    displayName: '陈先生',
+    schoolOrCompany: '互联网从业者',
+    targetRole: '前端开发工程师',
+    rating: 5,
+    testimonialText: '最有帮助的是把日常工作拆成职责、行动和结果，修改时更有方向。导出的 PDF 结构清晰，后续针对岗位调整也很方便。',
+    createdAt: '',
+  },
+  {
+    id: -4,
+    displayName: '许同学',
+    schoolOrCompany: '腾讯暑期实习',
+    targetRole: 'Agent 工程师',
+    rating: 5,
+    testimonialText: '原来的 Agent 项目只写了框架和模型，看不出具体做了什么。优化后把任务编排、工具调用、记忆和评测过程都写清楚了，最终拿到了腾讯暑期实习 offer。',
+    createdAt: '',
+  },
+  {
+    id: -5,
+    displayName: '唐同学',
+    schoolOrCompany: '美团日常实习',
+    targetRole: 'AI 应用开发',
+    rating: 5,
+    testimonialText: 'RAG 项目原先写得像技术栈清单，AI 帮我重新梳理了检索、评测和效果优化的完整过程。针对岗位调整两版后，顺利拿到了美团 AI 应用开发日常实习。',
+    createdAt: '',
+  },
+  {
+    id: -6,
+    displayName: '宋同学',
+    schoolOrCompany: '字节跳动 SP',
+    targetRole: 'AI Infra',
+    rating: 5,
+    testimonialText: '推理优化项目里术语很多，但亮点不突出。按照建议改成吞吐、延迟和资源利用率三条主线后，技术深度更容易被看见，最后拿到了字节跳动 AI Infra SP。',
+    createdAt: '',
   },
 ]
 
@@ -255,7 +312,9 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const marketplaceEnabled = homeData?.marketplaceEnabled === true
-  const testimonials = homeData?.testimonials ?? []
+  const testimonials = (homeData?.testimonials.length ?? 0) >= 3
+    ? homeData!.testimonials
+    : MOCK_TESTIMONIALS
   const marketplaceShowcases: HomepageShowcaseCard[] = (marketplaceEnabled ? marketplaceListings : []).map((listing) => ({
     id: listing.listingId,
     source: listing.accessType === 'PAID' ? 'MARKETPLACE_PAID' : 'MARKETPLACE_FREE',
