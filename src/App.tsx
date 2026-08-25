@@ -28,7 +28,6 @@ const PasswordResetPage = lazy(() => import('./pages/PasswordResetPage'))
 const AccountSettingsPage = lazy(() => import('./pages/AccountSettingsPage'))
 const MyMaterialsPage = lazy(() => import('./pages/MyMaterialsPage'))
 const LegalConsentPage = lazy(() => import('./pages/LegalConsentPage'))
-const VipInviteClaimPage = lazy(() => import('./pages/VipInviteClaimPage'))
 const PrivacyPolicyPage = lazy(() => import('./pages/PolicyPages').then((module) => ({ default: module.PrivacyPolicyPage })))
 const TermsPage = lazy(() => import('./pages/PolicyPages').then((module) => ({ default: module.TermsPage })))
 const RefundPolicyPage = lazy(() => import('./pages/PolicyPages').then((module) => ({ default: module.RefundPolicyPage })))
@@ -159,7 +158,7 @@ function App() {
         <Route path="/terms" element={<TermsPage />} />
         <Route path="/refund-policy" element={<RefundPolicyPage />} />
         <Route path="/customer-service" element={<CustomerServicePage />} />
-        <Route path="/vip/claim" element={<VipInviteClaimPage />} />
+        <Route path="/vip/claim" element={<Navigate to="/login?method=wechat" replace />} />
         <Route path="/showcases/:slug" element={<ShowcasePage />} />
         <Route path="/survey" element={<SurveyPage />} />
         <Route

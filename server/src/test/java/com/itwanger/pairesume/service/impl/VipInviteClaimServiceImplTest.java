@@ -141,15 +141,22 @@ class VipInviteClaimServiceImplTest {
 
         assertNotEquals(firstHash, freshHash);
         when(claimMapper.selectByIdForUpdate(91L)).thenReturn(claim);
-        service.bindUserAfterLogin(91L, firstChallenge, 7L);
+        service.bindAndCompleteAfterLogin(91L, firstChallenge, 7L);
         assertNull(claim.getUserId());
 
         when(userMapper.selectById(7L)).thenReturn(activeUser(true));
-        service.bindUserAfterLogin(91L, freshChallenge, 7L);
+        when(userMapper.selectByIdForUpdate(7L)).thenReturn(activeUser(true));
+        VipInviteRedemptionDTO granted = new VipInviteRedemptionDTO(
+                "ACTIVE", "2026-07-23 10:00:00", "2026-08-22 10:00:00", "VIP_INVITE"
+        );
+        when(vipInviteService.redeemClaim(7L, 55L)).thenReturn(granted);
+        when(redemptionMapper.selectOne(any(Wrapper.class))).thenReturn(redemption());
+        service.bindAndCompleteAfterLogin(91L, freshChallenge, 7L);
 
         assertEquals(7L, claim.getUserId());
-        assertEquals(VipInviteClaimServiceImpl.PENDING_REDEMPTION, claim.getClaimStatus());
-        verify(claimMapper, times(3)).updateById(claim);
+        assertEquals(VipInviteClaimServiceImpl.REDEEMED, claim.getClaimStatus());
+        verify(vipInviteService).redeemClaim(7L, 55L);
+        verify(claimMapper, times(4)).updateById(claim);
     }
 
     @Test
@@ -160,7 +167,7 @@ class VipInviteClaimServiceImplTest {
         claim.setClaimStatus(VipInviteClaimServiceImpl.PENDING_REDEMPTION);
         when(claimMapper.selectByIdForUpdate(91L)).thenReturn(claim);
 
-        service.bindUserAfterLogin(91L, "B".repeat(43), 8L);
+        service.bindAndCompleteAfterLogin(91L, "B".repeat(43), 8L);
 
         assertEquals(7L, claim.getUserId());
         verify(userMapper, never()).selectById(any());
@@ -175,7 +182,7 @@ class VipInviteClaimServiceImplTest {
         User user = activeUser(false);
         when(userMapper.selectById(7L)).thenReturn(user);
 
-        service.bindUserAfterLogin(91L, "B".repeat(43), 7L);
+        service.bindAndCompleteAfterLogin(91L, "B".repeat(43), 7L);
 
         assertEquals(7L, claim.getUserId());
         assertEquals(VipInviteClaimServiceImpl.PENDING_CONSENT, claim.getClaimStatus());

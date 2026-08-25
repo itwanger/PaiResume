@@ -132,7 +132,7 @@ public class VipInviteClaimServiceImpl implements VipInviteClaimService {
 
     @Override
     @Transactional
-    public void bindUserAfterLogin(Long claimId, String challengeId, Long userId) {
+    public void bindAndCompleteAfterLogin(Long claimId, String challengeId, Long userId) {
         if (claimId == null || userId == null || !isOpaqueToken(challengeId)) {
             return;
         }
@@ -162,6 +162,9 @@ public class VipInviteClaimServiceImpl implements VipInviteClaimService {
         claim.setClaimStatus(LegalConsentPolicy.isRequired(user)
                 ? PENDING_CONSENT : PENDING_REDEMPTION);
         requireUpdated(claimMapper.updateById(claim));
+        if (PENDING_REDEMPTION.equals(claim.getClaimStatus())) {
+            completeBoundClaim(userId, claim);
+        }
     }
 
     @Override
@@ -191,6 +194,10 @@ public class VipInviteClaimServiceImpl implements VipInviteClaimService {
             return new VipInviteClaimResultDTO(FAILED, UNAVAILABLE_MESSAGE, null);
         }
 
+        return completeBoundClaim(userId, claim);
+    }
+
+    private VipInviteClaimResultDTO completeBoundClaim(Long userId, VipInviteClaim claim) {
         User user = userMapper.selectByIdForUpdate(userId);
         if (user == null || user.getStatus() == null || user.getStatus() == 0
                 || user.getAccountDeletedAt() != null) {

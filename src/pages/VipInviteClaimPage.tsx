@@ -7,7 +7,7 @@ import {
   type VipInviteClaimResult,
   type VipInviteRedemption,
 } from '../api/membership'
-import { LegalConsentCheckbox } from '../components/auth/LegalConsentCheckbox'
+import { LegalConsentNotice } from '../components/auth/LegalConsentNotice'
 import { LogoMark } from '../components/branding/LogoMark'
 import { AUTHENTICATED_HOME_PATH } from '../config/site'
 import { useAuthStore } from '../store/authStore'
@@ -177,7 +177,6 @@ export default function VipInviteClaimPage() {
   const [inviteCode, setInviteCode] = useState('')
   const [claim, setClaim] = useState<StoredClaim | null>(initialClaimState.claim)
   const [creatingClaim, setCreatingClaim] = useState(false)
-  const [agreementsAccepted, setAgreementsAccepted] = useState(false)
   const [qrPhase, setQrPhase] = useState<QrPhase>('idle')
   const [qrDisplay, setQrDisplay] = useState<WechatChallengeCreateData | null>(null)
   const [qrRefreshKey, setQrRefreshKey] = useState(0)
@@ -339,7 +338,6 @@ export default function VipInviteClaimPage() {
       || isAuthenticated
       || !claim
       || redemption
-      || !agreementsAccepted
       || claim.expiresAt <= Date.now()
     ) {
       return
@@ -399,7 +397,6 @@ export default function VipInviteClaimPage() {
             await completeWechatLogin(
               challenge.challengeId,
               challenge.pollToken,
-              agreementsAccepted,
             )
           } catch {
             failQr('扫码已确认，但登录未完成。二维码可能已过期，请刷新后重试。')
@@ -500,7 +497,6 @@ export default function VipInviteClaimPage() {
       stopPolling()
     }
   }, [
-    agreementsAccepted,
     claim,
     completeWechatLogin,
     initialized,
@@ -560,7 +556,6 @@ export default function VipInviteClaimPage() {
       setInviteCode('')
       setNow(Date.now())
       setQrRefreshKey(0)
-      setAgreementsAccepted(false)
       setQrPhase('idle')
       setCompletionPhase('idle')
       setCompletionAttempt(0)
@@ -580,7 +575,6 @@ export default function VipInviteClaimPage() {
     challengeRequestRef.current = null
     setClaim(null)
     setQrDisplay(null)
-    setAgreementsAccepted(false)
     setQrPhase('idle')
     setCompletionPhase('idle')
     setCompletionAttempt(0)
@@ -609,14 +603,6 @@ export default function VipInviteClaimPage() {
     setCompletionPhase('idle')
     setError('')
     setCompletionAttempt((value) => value + 1)
-  }
-
-  const handleAgreementsAcceptedChange = (checked: boolean) => {
-    setAgreementsAccepted(checked)
-    if (!checked) {
-      setQrDisplay(null)
-      setQrPhase('idle')
-    }
   }
 
   const qrUnavailable = qrPhase === 'expired' || qrPhase === 'consumed' || qrPhase === 'error'
@@ -755,16 +741,9 @@ export default function VipInviteClaimPage() {
                   使用派聪明扫码确认
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-slate-500">
-                  这个微信以前绑定过派简历时会登录原微信账号；从未绑定过时会在本次确认协议后创建新的微信账号。
+                  这个微信以前绑定过派简历时会登录原微信账号；从未绑定过时会创建新的微信账号。
                 </p>
               </div>
-
-              <LegalConsentCheckbox
-                checked={agreementsAccepted}
-                onChange={handleAgreementsAcceptedChange}
-                disabled={qrPhase === 'exchanging'}
-                className="mt-5 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3"
-              />
 
               <div className="mt-5 flex flex-col items-center">
                 <div
@@ -777,10 +756,6 @@ export default function VipInviteClaimPage() {
                       alt="派聪明服务号 VIP 邀请码领取二维码"
                       className={`h-full w-full object-contain ${qrUnavailable ? 'opacity-20' : ''}`}
                     />
-                  ) : qrPhase === 'idle' ? (
-                    <div className="px-5 text-center text-sm leading-6 text-slate-500">
-                      请先阅读并勾选上方协议，随后生成领取二维码
-                    </div>
                   ) : (
                     <div className="flex flex-col items-center gap-3 text-slate-400">
                       <LoadingSpinner />
@@ -819,6 +794,8 @@ export default function VipInviteClaimPage() {
                   </div>
                 ) : null}
               </div>
+
+              <LegalConsentNotice className="mt-3" />
 
               <div className="mt-4 rounded-lg bg-blue-50 px-4 py-3 text-sm leading-6 text-blue-800">
                 <strong className="font-semibold">正在手机上打开？</strong>

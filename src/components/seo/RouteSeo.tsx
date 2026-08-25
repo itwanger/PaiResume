@@ -73,8 +73,8 @@ const EXACT_ROUTES: Record<string, RouteSeoConfig> = {
     indexable: false,
   },
   '/vip/claim': {
-    title: '领取知识星球 VIP - 派简历',
-    description: '使用知识星球邀请码和派聪明服务号扫码，领取派简历 VIP 会员权益。',
+    title: '扫码登录 - 派简历',
+    description: '使用派聪明服务号扫码登录派简历。',
     indexable: false,
   },
   '/admin': {

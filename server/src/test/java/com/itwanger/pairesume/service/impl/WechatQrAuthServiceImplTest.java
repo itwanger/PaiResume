@@ -391,6 +391,47 @@ class WechatQrAuthServiceImplTest {
     }
 
     @Test
+    void inviteQrExchangeReturnsTheAutomaticallyGrantedVipMembership() {
+        String challengeId = "A".repeat(43);
+        String pollToken = "B".repeat(43);
+        long subscribedAt = Instant.now().toEpochMilli();
+        doAnswer(invocation -> {
+            RedisScript<?> script = invocation.getArgument(0);
+            if (String.class.equals(script.getResultType())) {
+                return "OK:wx1234567890abcdef:openid_1234567890:"
+                        + subscribedAt + ":91";
+            }
+            return 1L;
+        }).when(redisTemplate).execute(any(RedisScript.class), anyList(), any(Object[].class));
+        UserInfoDTO freeUser = new UserInfoDTO(
+                7L, null, "微信用户", "", "USER", "FREE", null, null,
+                false, false, false, false, true, true
+        );
+        UserInfoDTO vipUser = new UserInfoDTO(
+                7L, null, "微信用户", "", "USER", "ACTIVE", null, null,
+                false, false, false, false, true, true
+        );
+        TokenDTO token = new TokenDTO("access", "refresh", 900L, freeUser);
+        when(authService.loginOrRegisterPaicongming(
+                eq("wx1234567890abcdef"),
+                eq("openid_1234567890"),
+                any(),
+                eq(true),
+                eq(true)
+        )).thenReturn(token);
+        when(authService.getCurrentUserInfo(7L)).thenReturn(vipUser);
+        LegalConsentDTO consent = new LegalConsentDTO();
+        consent.setTermsAccepted(true);
+        consent.setPrivacyAccepted(true);
+
+        TokenDTO result = service.exchangeLoginChallenge(challengeId, pollToken, consent);
+
+        assertEquals("ACTIVE", result.getUserInfo().getMembershipStatus());
+        verify(vipInviteClaimService).bindAndCompleteAfterLogin(91L, challengeId, 7L);
+        verify(authService).getCurrentUserInfo(7L);
+    }
+
+    @Test
     void inviteBindingFailureNeverBlocksAValidWechatLogin() {
         String challengeId = "A".repeat(43);
         String pollToken = "B".repeat(43);
@@ -412,12 +453,12 @@ class WechatQrAuthServiceImplTest {
                 eq("wx1234567890abcdef"), eq("openid_1234567890"), any()
         )).thenReturn(token);
         doThrow(new IllegalStateException("claim database temporarily unavailable"))
-                .when(vipInviteClaimService).bindUserAfterLogin(91L, challengeId, 7L);
+                .when(vipInviteClaimService).bindAndCompleteAfterLogin(91L, challengeId, 7L);
 
         TokenDTO result = service.exchangeLoginChallenge(challengeId, pollToken);
 
         assertEquals("access", result.getAccessToken());
-        verify(vipInviteClaimService).bindUserAfterLogin(91L, challengeId, 7L);
+        verify(vipInviteClaimService).bindAndCompleteAfterLogin(91L, challengeId, 7L);
     }
 
     @Test

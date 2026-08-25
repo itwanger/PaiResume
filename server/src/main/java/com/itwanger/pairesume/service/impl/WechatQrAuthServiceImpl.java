@@ -185,7 +185,7 @@ public class WechatQrAuthServiceImpl implements WechatQrAuthService {
                             termsAccepted,
                             privacyAccepted
                     );
-            bindVipClaimWithoutBlockingLogin(claimed, challengeId, token);
+            completeVipClaimWithoutBlockingLogin(claimed, challengeId, token);
             finish(challengeId, claimed.claimId());
             return token;
         } catch (RuntimeException exception) {
@@ -486,7 +486,7 @@ public class WechatQrAuthServiceImpl implements WechatQrAuthService {
         }
     }
 
-    private void bindVipClaimWithoutBlockingLogin(
+    private void completeVipClaimWithoutBlockingLogin(
             ClaimedIdentity claimed,
             String challengeId,
             TokenDTO token
@@ -496,9 +496,10 @@ public class WechatQrAuthServiceImpl implements WechatQrAuthService {
             return;
         }
         try {
-            vipInviteClaimService.bindUserAfterLogin(
+            vipInviteClaimService.bindAndCompleteAfterLogin(
                     claimed.vipClaimId(), challengeId, token.getUserInfo().getId()
             );
+            token.setUserInfo(authService.getCurrentUserInfo(token.getUserInfo().getId()));
         } catch (RuntimeException exception) {
             // The QR challenge represents authentication first. A transient or terminal
             // invite failure must never strand a valid login or create another account.

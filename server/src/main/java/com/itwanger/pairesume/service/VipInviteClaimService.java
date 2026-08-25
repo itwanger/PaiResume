@@ -11,7 +11,7 @@ public interface VipInviteClaimService {
 
     void releaseChallenge(Long claimId, String challengeId);
 
-    void bindUserAfterLogin(Long claimId, String challengeId, Long userId);
+    void bindAndCompleteAfterLogin(Long claimId, String challengeId, Long userId);
 
     VipInviteClaimResultDTO complete(Long userId, String claimToken);
 }
