@@ -81,8 +81,8 @@ public class GlobalExceptionHandler {
                 || code == ResultCode.RESUME_REVIEW_FORBIDDEN.getCode()
                 || code == ResultCode.RESUME_REVIEW_UPLOAD_FORBIDDEN.getCode()
                 || code == ResultCode.VIP_INVITE_CLAIM_FORBIDDEN.getCode()
-                || code == ResultCode.MEMBERSHIP_REQUIRED.getCode()
                 || code == ResultCode.AI_MEMBERSHIP_REQUIRED.getCode()
+                || code == ResultCode.RESUME_REVIEW_MEMBERSHIP_REQUIRED.getCode()
                 || code == ResultCode.SHOWCASE_MEMBERSHIP_REQUIRED.getCode()) {
             return HttpStatus.FORBIDDEN;
         }
@@ -101,9 +101,9 @@ public class GlobalExceptionHandler {
                 || code == ResultCode.WECHAT_GATEWAY_UNAVAILABLE.getCode()
                 || code == ResultCode.PAYMENT_NOT_ENABLED.getCode()
                 || code == ResultCode.RESUME_REVIEW_PAID_NOT_ENABLED.getCode()
-                || code == ResultCode.RESUME_REVIEW_DISABLED.getCode()
                 || code == ResultCode.RESUME_REVIEW_STORAGE_NOT_CONFIGURED.getCode()
                 || code == ResultCode.RESUME_REVIEW_STORAGE_UNAVAILABLE.getCode()
+                || code == ResultCode.RESUME_PHOTO_STORAGE_UNAVAILABLE.getCode()
                 || code == ResultCode.MARKETPLACE_DISABLED.getCode()) {
             return HttpStatus.SERVICE_UNAVAILABLE;
         }

@@ -16,10 +16,10 @@ PaiResume 是一个面向中文简历场景的在线简历编辑器，采用前�
 - 用户简历市场治理：先审后发、举报/侵权投诉、创作者申诉、平台下架/恢复与完整审计
 - 知识星球 VIP 邀请码：支持批次生成、限额、截止时间、兑换记录、风控、审计、异常权益撤销和会员延期
 - 内置“校园技术蓝”等多套推荐排版
-- VIP 支持导出 PDF
+- 所有用户均可在浏览器本地导出标准 PDF
 - 提供健康检查与就绪检查接口
 - 提供基础 SEO、CI 质量门禁以及 Nginx、systemd、备份恢复、回滚与生产预检材料
-- 人工简历精修：首次免费，第二次及以后逐单付费
+- 人工简历精修仅对有效会员开放；会员可免费排队，加急插队按自选金额单独付费
 
 ## 技术栈
 
@@ -179,7 +179,8 @@ npm run dev
 | `MYSQL_HOST` / `MYSQL_PORT` / `MYSQL_DATABASE` / `MYSQL_USERNAME` / `MYSQL_PASSWORD` | MySQL 连接配置 |
 | `FLYWAY_ENABLED` / `FLYWAY_USERNAME` / `FLYWAY_PASSWORD` | Flyway 开关与独立迁移账号；生产迁移账号负责 DDL，业务账号使用最小权限 |
 | `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` / `REDIS_DATABASE` | Redis 连接与逻辑库配置；生产与其他项目复用进程时必须使用独立逻辑库 |
-| `PAICONGMING_WECHAT_LOGIN_ENABLED` / `PAICONGMING_WECHAT_GATEWAY_BASE_URL` / `PAICONGMING_WECHAT_BRIDGE_SECRET` / `PAICONGMING_WECHAT_APP_ID` | 派聪明服务号扫码登录开关、paicoding 内部二维码网关、独立 HMAC 密钥和服务号 AppID；PaiResume 不保存 AppSecret/access_token |
+| `PAICONGMING_WECHAT_LOGIN_ENABLED` / `PAICONGMING_WECHAT_GATEWAY_BASE_URL` / `PAICONGMING_WECHAT_BRIDGE_SECRET` / `PAICONGMING_WECHAT_APP_ID` | 派聪明服务号扫码登录、paicoding 内部二维码网关、独立 HMAC 密钥和服务号 AppID；知识星球生产灰度必须启用，PaiResume 不保存 AppSecret/access_token |
+| `PLANET_CORE_ACCEPTANCE_CONFIRMED` | 知识星球会员核心功能的生产验收确认位；只有扫码注册、邀请码开通 VIP、编辑保存、排版导出和 AI 分析完成真实验收后才可设为 `true` |
 | `VIP_INVITE_RATE_LIMIT_WINDOW_SECONDS` / `VIP_INVITE_RATE_LIMIT_ACCOUNT_ATTEMPTS` / `VIP_INVITE_RATE_LIMIT_IP_ATTEMPTS` | 邀请码兑换窗口及账号/IP 尝试次数限制 |
 | `VIP_INVITE_CLAIM_TTL_SECONDS` / `VIP_INVITE_CLAIM_RETENTION_DAYS` | 未登录邀请码领取凭证的有效期与失败/过期记录保留期；默认分别为 `600` 秒和 `30` 天 |
 | `JWT_SECRET` | JWT 密钥，生产环境必须替换 |
@@ -199,20 +200,12 @@ npm run dev
 | `WECHAT_PAY_APP_ID` / `WECHAT_PAY_MERCHANT_ID` | 微信支付 AppID 与商户号 |
 | `WECHAT_PAY_PRIVATE_KEY` / `WECHAT_PAY_MERCHANT_SERIAL_NUMBER` / `WECHAT_PAY_API_V3_KEY` | 微信支付 API v3 商户密钥、证书序列号与 API v3 Key；只配置在后端 |
 | `WECHAT_PAY_NOTIFY_URL` | 微信支付回调公网 HTTPS 地址，必须精确指向 `/api/public/payments/wechat/notify` |
-| `RESUME_REVIEW_RECIPIENT_EMAIL` / `RESUME_REVIEW_MESSAGE_ID_DOMAIN` | 人工精修服务的固定私密收件箱和稳定邮件 Message-ID 域；生产必填 |
-| `RESUME_REVIEW_MAIL_OUTBOX_MAX_ATTEMPTS` | 人工精修邮件自动投递的最大尝试次数，默认 `10`，生产允许 `1` 至 `50`；确定性附件校验失败不继续自动重试 |
-| `RESUME_REVIEW_UPLOAD_RATE_LIMIT_WINDOW_SECONDS` / `RESUME_REVIEW_UPLOAD_RATE_LIMIT_ACCOUNT_ATTEMPTS` / `RESUME_REVIEW_UPLOAD_RATE_LIMIT_IP_ATTEMPTS` | 人工精修上传授权与完成冻结的限流窗口、账号预算和 IP 预算；默认 `900` 秒、每账号 `20` 次、每 IP `200` 次，`authorize` / `complete` 分动作计数且 IP 预算不得小于账号预算 |
-| `RESUME_REVIEW_OSS_ENABLED` / `RESUME_REVIEW_OSS_ENDPOINT` / `RESUME_REVIEW_OSS_BUCKET` | 人工精修 PDF 私有 OSS 开关、HTTPS 地域 endpoint 与私有 Bucket；普通 PDF 导出不使用 OSS |
-| `RESUME_REVIEW_OSS_ACCESS_KEY_ID` / `RESUME_REVIEW_OSS_ACCESS_KEY_SECRET` | 应用 RAM 凭据，用于签发短期上传策略以及校验、复制、读取专用前缀对象；二者不得预置进前端变量或日志，Secret 永不返回浏览器，ID 仅作为短期 POST 表单的非秘密字段按需返回 |
-| `RESUME_REVIEW_OSS_STAGING_PREFIX` / `RESUME_REVIEW_OSS_OBJECT_PREFIX` | 待核验上传与已冻结对象的两个独立、互不包含的相对前缀；仅允许字母、数字、`/`、`_`、`-`，必须以 `/` 结尾且不能含 `//` |
-| `RESUME_REVIEW_OSS_UPLOAD_URL_TTL_MINUTES` / `RESUME_REVIEW_OSS_READY_TTL_MINUTES` / `RESUME_REVIEW_OSS_MAX_PDF_BYTES` / `RESUME_REVIEW_OSS_RETENTION_DAYS` | 短期上传策略、已核验票据、单文件大小和冻结对象保留期；默认分别为 10 分钟、30 分钟、10 MiB、30 天 |
-| `RESUME_REVIEW_OSS_MAX_CONCURRENT_FINALIZATIONS` | OSS 完成冻结的全局并发上限，默认 `4`，生产允许 `1` 至 `16`；超出后立即返回 503，不排队占用数据库连接 |
-| `RESUME_REVIEW_OSS_*_CONFIRMED` | 仅供生产预检的四个确认位；私有桶、精确 CORS、生命周期和 RAM 最小权限完成真实核验并留证后才可设为 `true` |
-| `RESUME_PHOTO_OSS_ENDPOINT` / `RESUME_PHOTO_OSS_BUCKET` | 简历照片私有 OSS 的 HTTPS 地域 endpoint 与私有 Bucket；这是必备基础设施，缺少配置时应用拒绝启动 |
-| `RESUME_PHOTO_OSS_ACCESS_KEY_ID` / `RESUME_PHOTO_OSS_ACCESS_KEY_SECRET` | 照片专用 RAM 凭据，可与人工精修复用但必须按照片前缀授予最小权限；Secret 永不返回浏览器 |
+| `RESUME_REVIEW_RECIPIENT_EMAIL` / `RESUME_REVIEW_MESSAGE_ID_DOMAIN` | 人工精修可选的独立收件邮箱和稳定邮件 Message-ID 域；收件邮箱为空时直接复用 `MAIL_FROM` |
+| `RESUME_REVIEW_MAIL_OUTBOX_MAX_ATTEMPTS` | 历史人工精修邮件 outbox 的最大尝试次数，默认 `10`；新申请在用户点击发送时直接投递附件 |
+| `RESUME_REVIEW_UPLOAD_RATE_LIMIT_WINDOW_SECONDS` / `RESUME_REVIEW_UPLOAD_RATE_LIMIT_ACCOUNT_ATTEMPTS` / `RESUME_REVIEW_UPLOAD_RATE_LIMIT_IP_ATTEMPTS` | 人工精修 PDF 提交的限流窗口、账号预算和 IP 预算 |
+| Admin「照片 OSS 配置」 | 管理私有 OSS Endpoint、Bucket、加密 AccessKey、启停状态和安全确认；未启用时仅照片上传不可用，不阻断应用启动 |
 | `RESUME_PHOTO_OSS_STAGING_PREFIX` / `RESUME_PHOTO_OSS_OBJECT_PREFIX` | 待核验照片和已固化私有照片的独立前缀；数据库仅保存照片资产 ID，不保存 Base64 或永久 URL |
-| `RESUME_PHOTO_OSS_*_CONFIRMED` | 私有桶、精确 CORS、staging 生命周期和 RAM 最小权限的生产确认位；没有真实验收证据时保持 `false` |
-| `RESUME_REVIEW_PAID_ACCEPT_NEW_ORDERS` / `RESUME_REVIEW_PAYMENT_ACCEPTANCE_CONFIRMED` | 第二次及以后人工精修的新付费单开关与生产验收确认位；价格由管理后台配置，默认 0 时后端拒绝下单 |
+| `RESUME_REVIEW_PAYMENT_ACCEPTANCE_CONFIRMED` | 人工精修真实支付、邮件和退款的生产验收确认位；不是业务开关，价格由管理后台配置 |
 
 说明：
 
@@ -256,19 +249,16 @@ npm run dev
 - 验证码通过后端 SMTP 投递为 UTF-8 HTML 邮件，并附带纯文本降级内容；邮件中的有效期直接读取 `VERIFICATION_CODE_TTL_SECONDS`，默认 5 分钟。
 - 验证码邮件会展示 `APP_PUBLIC_URL`，默认是 [https://resume.paicoding.com](https://resume.paicoding.com)；未配置 SMTP、认证失败或投递失败都会返回错误，不会降级为日志明文验证码。
 - 生产环境必须显式设置 `APP_ENV=production`、独立的 `JWT_SECRET` 与 `VERIFICATION_CODE_SECRET`、安全 Cookie、HTTPS CORS、数据库 TLS、Redis 密码和有效 SMTP 授权码，否则服务拒绝启动。
-- paicoding 侧必须用同一独立共享密钥开启 `PAIRESUME_WECHAT_BRIDGE_ENABLED`，把回调指向 `/api/public/wechat/bridge/events`；两个系统都默认关闭，未完成真实派聪明回调验收前不得宣称扫码登录已上线。
+- paicoding 侧必须用同一独立共享密钥开启 `PAIRESUME_WECHAT_BRIDGE_ENABLED`，把回调指向 `/api/public/wechat/bridge/events`；本地开发可以默认关闭，知识星球生产灰度必须启用。未完成真实派聪明回调验收前不得宣称完整扫码注册流程已经可用。
 
 ### 人工简历精修
 
 - 普通“导出 PDF”完全由浏览器使用当前预览数据生成并下载，不经过后端、OSS 或邮件链路，生产环境不需要 Node/PDF worker。
-- 申请人工精修时，用户必须自行选择最终确认的 PDF。浏览器先计算 SHA-256，再取得只允许当前随机 staging 对象、PDF 类型和限定大小的短期上传策略，直接把文件提交到私有 OSS；浏览器只会收到 POST 表单所需的非秘密 AccessKey ID，永远拿不到 AccessKey Secret，也不能指定对象键、外部 URL、本地路径或收件人。
-- 上传完成后，服务端先从 OSS 流式读取 staging 一次，校验大小、类型、完整 SHA-256 与 `%PDF-`，再按源 ETag 在 OSS 内复制到随机冻结对象；全局最多同时执行 `RESUME_REVIEW_OSS_MAX_CONCURRENT_FINALIZATIONS` 路，超出立即返回 503，不排队占用数据库连接。申请只绑定服务端记录的冻结对象键、ETag、文件名、大小和 SHA-256，后续编辑不会覆盖本次文件。staging 不在业务事务中立即删除，以便 OSS 复制成功但数据库事务失败时安全重试，最迟由独立短生命周期规则清理。
-- 邮件 outbox 保持单 worker 顺序处理。每次投递前，服务端从私有 OSS 把不超过配置上限的冻结对象临时读取一次到 JVM 内存并再次校验完整 SHA-256，只发送到配置好的固定私密收件箱，不写服务器本地 PDF。SMTP 接受后副本无法远程召回。
-- 用户需要单独验证联系邮箱，并分别确认人工处理授权、OSS 直传与固定邮箱发送授权。
-- 第一份人工精修免费；第一份邮件被 SMTP 接受时才核销机会，发送失败不扣次数。
-- 第二份及以后每份独立下单。服务端只读取管理后台保存的价格；默认价格为 0、独立新单开关默认关闭，任一条件不满足都拒绝创建付费单。
-- 邮件自动投递遇到确定性附件校验失败时立即停止，其他 OSS/SMTP 故障达到 `RESUME_REVIEW_MAIL_OUTBOX_MAX_ATTEMPTS` 后停止，避免永久故障无限重试；管理员仍可在核明原因后手动重试或退回。
-- 后台可处理邮件重试、接受、完成、退回、退款确认和审计记录。已发送的免费单即使退回也不恢复次数；付费退回必须先进入退款复核。
+- 申请人工精修时，用户直接选择已经导出的本地 PDF。创建申请只记录文件名、大小和 SHA-256，不上传到 OSS。
+- 普通排队立即发送；加急排队在支付确认后发送。服务端在内存中复核文件名、大小、MIME、`%PDF-` 文件头和 SHA-256，然后作为附件直接投递到 admin 配置的私密收件箱。服务器不持久化 PDF；SMTP 接受后申请才进入公开队列。
+- 用户需要验证用于接收精修建议的联系邮箱；选择 PDF 并提交申请即开始上传和邮件投递流程。
+- 有效 VIP 可以免费提交人工精修并按入队时间等待；非会员必须先开通会员。会员自愿填写大于 `0` 的加急金额时，才按该金额创建独立订单；加急金额越高，等待位置越靠前，同金额按入队时间排列。支付配置未就绪时仍允许免费排队，但拒绝创建加急订单。
+- 邮件投递失败时，申请保持待发送，用户重新选择同一份 PDF 后可重试。后台可处理接受、完成、退回、退款确认和审计记录。
 
 ### 权限规则
 
@@ -279,12 +269,12 @@ npm run dev
 | 导入 Markdown / TXT | 支持 | 支持 |
 | AI 模块/字段优化 | 不支持 | 支持 |
 | AI 整份简历分析 | 不支持 | 支持 |
-| AI 智能一页 | 不支持 | 支持 |
-| PDF 导出 | 不支持 | 支持 |
+| 智能一页 PDF | 支持 | 支持 |
+| PDF 导出 | 支持 | 支持 |
 | 查看公开优质简历 | 支持 | 支持 |
 | 查看 VIP 权益优质简历 | 不支持 | 支持 |
 
-AI 与需要 VIP 权益解锁的优质简历权限由服务端实时校验。PDF 文件本身在浏览器生成，不存在可绕过的服务端渲染接口；前端仍须基于服务端返回的当前会员状态决定是否展示导出能力。
+AI 与需要 VIP 权益解锁的优质简历权限由服务端实时校验。标准 PDF 与“智能一页”排版均对所有用户开放，文件完全在浏览器生成并下载。
 
 ### 简历编辑
 
@@ -292,20 +282,21 @@ AI 与需要 VIP 权益解锁的优质简历权限由服务端实时校验。PDF
 - 左侧为模块导航，中间为模块表单，右侧为实时预览
 - 支持同类模块多实例的有：实习经历、项目经历、论文发表、科研经历、获奖情况等
 - 有效 VIP 支持对单个模块、字段发起 AI 优化
-- 有效 VIP 支持对整份简历执行 AI 分析和智能一页生成
+- 有效 VIP 支持对整份简历执行 AI 分析
+- 所有用户均可使用智能一页排版
 
 ### 导入与导出
 
 - 当前已启用：Markdown / TXT 导入
 - 当前未启用：Word 导入、PDF 导入
-- 有效 VIP 已支持浏览器本地生成并下载 PDF，导出文件名会尽量根据姓名、学校、求职意向生成；普通导出不会上传到 OSS
+- 所有用户均可在浏览器本地生成并下载标准 PDF，导出文件名会尽量根据姓名、学校、求职意向生成；普通导出不会上传到 OSS
 
 ### 优质简历与会员
 
 - `/excellent-resumes` 展示管理员发布的优质简历标题、摘要和标签，不返回完整简历模块
 - 管理员可逐条设置“公开查看”或“付费查看（VIP 权益）”；列表不提前显示访问属性，用户点击后由详情接口判定
 - 公开简历允许游客和登录用户直接查看；需要 VIP 权益的简历会引导游客先登录、普通用户进入会员开通与报价页
-- VIP 可解锁全部优质简历详情和 PDF 导出
+- VIP 可解锁需要 VIP 权益的优质简历详情
 - 知识星球 VIP 邀请码与支付优惠码是两套独立能力：邀请码直接兑换该批次配置的 VIP 天数，优惠码仅在年卡报价/支付时抵扣金额
 - 邀请码每个批次默认赠送 `30` 天，管理员创建时可选择 `30`、`90` 或 `365` 天；兑换成功后从实际兑换时间起获得完整批次权益，批次截止时间只限制领取时间
 - 未登录领取时，邀请码只换取默认 10 分钟的高熵领取凭证，凭证和扫码 challenge 在服务端只保存摘要；邀请码、领取令牌都不进入 URL 或二维码。二维码过期可在领取凭证有效期内更新，只有最新二维码能绑定领取
@@ -328,7 +319,7 @@ AI 与需要 VIP 权益解锁的优质简历权限由服务端实时校验。PDF
 
 - 用户简历市场代码路径已实现但默认关闭；首阶段仅展示平台官方精选，完成内容治理和真实小额商户验收后才按运行手册开放
 - 作者可将自己的简历发布为免费公开或一次性付费解锁；同一账号对同一已购版本刷新、重复打开不会再次扣费。付费价格和内容都在下单时保存不可变快照，后续修改不会悄悄改变已购买版本
-- `PAYMENT_PROVIDER=disabled` 是默认值，且不能同时开启新订单；`mock` 仅允许开发/测试，`wechat-native` 使用微信支付 Native 下单、API v3 回调验签和主动查单。市场支付只有显式开启 `MARKETPLACE_PAYMENT_ACCEPT_NEW_ORDERS` 才展示支付入口并创建订单；生产维护时只关闭业务开关，保留微信网关处理回调和历史订单
+- 开发环境默认使用 `PAYMENT_PROVIDER=mock`；生产环境因人工精修常驻，必须使用 `wechat-native`，通过微信支付 Native 下单、API v3 回调验签和主动查单。市场支付仍只有显式开启 `MARKETPLACE_PAYMENT_ACCEPT_NEW_ORDERS` 才创建订单
 - 本地订单会先提交，再向微信发起预下单；回调和主动查单共用同一个幂等落账入口，原子生成永久查看权益、作者收益和钱包余额
 - 新收益先进入 `HOLDING` 冻结余额，默认 7 天后才转为 `AVAILABLE`；冻结期内按可配置的稀疏间隔查单，到期后必须再取得一次晚于冻结截止点的主动查单 `PAID` 验真结果才会放款，延迟或重放的原支付回调不能充当最终验真。网络或支付平台异常只会延后放款，不会绕过最终验真
 - 下架、转免费、替换版本或平台暂停时，会给既有活动订单写入销售截止点，并由持久化补偿任务分批查询/关闭支付平台订单；本地时间或网络异常不会直接释放活动订单占位
@@ -357,11 +348,11 @@ AI 与需要 VIP 权益解锁的优质简历权限由服务端实时校验。PDF
 
 ### 人工精修接口
 
-- `GET /api/resume-reviews/eligibility` / `GET /api/resume-reviews/current`：查询下一次权益和恢复当前活动申请
+- `GET /api/resume-reviews/eligibility` / `GET /api/resume-reviews/current`：查询当前单价、付费可用性和恢复当前活动申请
 - `POST /api/resume-reviews/uploads`：为当前账号、当前简历和声明的 PDF 元数据创建短期、单对象 OSS 直传凭证
 - `POST /api/resume-reviews/uploads/{uploadNo}/complete`：由服务端核验 staging 对象并在 OSS 内冻结，成功后返回 `READY`
 - `POST /api/resume-reviews/contact-email/code` / `POST /api/resume-reviews`：验证联系邮箱，并使用同账号、同简历且未过期的 `uploadNo` 创建人工精修申请
-- `POST /api/resume-reviews/{requestNo}/payment/refresh`：第二次及以后付费单主动查单
+- `POST /api/resume-reviews/{requestNo}/payment/refresh`：人工精修付费单主动查单
 - `GET /api/admin/resume-reviews` 及其 `accept`、`complete`、`return`、`mail/retry`、`refund/confirm` 子接口：后台人工处理与退款留痕
 
 ### 简历接口

@@ -21,6 +21,8 @@ public class PlatformConfig {
 
     private Integer resumeReviewPriceCents;
 
+    private String resumeReviewRecipientEmail;
+
     private Long updatedBy;
 
     @TableField(fill = FieldFill.INSERT)

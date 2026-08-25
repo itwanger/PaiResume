@@ -9,7 +9,7 @@ import {
 } from '../../src/components/admin/adminLoadPlan'
 import { ADMIN_VIEWS } from '../../src/components/admin/adminNavigation'
 
-test('16 个后台视图都有明确且无重复的数据加载计划', () => {
+test('18 个后台视图都有明确且无重复的数据加载计划', () => {
   assert.deepEqual(Object.keys(ADMIN_VIEW_LOAD_SECTIONS), [...ADMIN_VIEWS])
   for (const view of ADMIN_VIEWS) {
     const sections = ADMIN_VIEW_LOAD_SECTIONS[view]

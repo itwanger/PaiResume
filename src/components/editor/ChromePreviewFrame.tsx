@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type Ref } from 'react'
 import {
   RESUME_PDF_TEMPLATES,
   type ResumePdfAccentPreset,
@@ -15,8 +15,8 @@ interface ChromePreviewFrameProps {
   config: ResumePdfPreviewConfig
   onConfigChange: (nextConfig: ResumePdfPreviewConfig) => void
   onExportPdf?: (pageMode: ResumePdfPageMode) => void
-  isVip?: boolean
-  onRequireVip?: () => void
+  onRequestReview?: () => void
+  reviewButtonRef?: Ref<HTMLButtonElement>
   exporting?: boolean
   exportError?: string
 }
@@ -431,14 +431,14 @@ export function ChromePreviewFrame({
   config,
   onConfigChange,
   onExportPdf,
-  isVip = false,
-  onRequireVip,
+  onRequestReview,
+  reviewButtonRef,
   exporting = false,
   exportError = '',
 }: ChromePreviewFrameProps) {
   const [refreshKey, setRefreshKey] = useState(0)
   const [controlTab, setControlTab] = useState<'templates' | 'styles'>('templates')
-  const pageMode: ResumePdfPageMode = isVip ? config.pageMode : 'standard'
+  const pageMode = config.pageMode
   const previewPath = useMemo(() => {
     const params = new URLSearchParams({
       pageMode,
@@ -458,10 +458,6 @@ export function ChromePreviewFrame({
     })
   }
   const selectPageMode = (nextPageMode: ResumePdfPageMode) => {
-    if (nextPageMode === 'continuous' && !isVip) {
-      onRequireVip?.()
-      return
-    }
     updateConfig({ pageMode: nextPageMode })
   }
 
@@ -475,7 +471,7 @@ export function ChromePreviewFrame({
               value={pageMode}
               options={[
                 { value: 'standard', label: '标准 PDF（可能分页）' },
-                { value: 'continuous', label: isVip ? '智能一页（内容无损）' : '智能一页（内容无损）· VIP' },
+                { value: 'continuous', label: '智能一页（内容无损）' },
               ]}
               onChange={selectPageMode}
             />
@@ -524,6 +520,16 @@ export function ChromePreviewFrame({
               >
                 导出 PDF
               </Button>
+            ) : null}
+            {onRequestReview ? (
+              <button
+                ref={reviewButtonRef}
+                type="button"
+                onClick={onRequestReview}
+                className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg border border-primary-200 bg-primary-50 px-4 py-2 text-sm font-semibold text-primary-700 transition hover:border-primary-300 hover:bg-primary-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+              >
+                人工精修
+              </button>
             ) : null}
           </div>
         </div>

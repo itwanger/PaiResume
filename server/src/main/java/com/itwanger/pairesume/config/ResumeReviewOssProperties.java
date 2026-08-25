@@ -17,7 +17,7 @@ public class ResumeReviewOssProperties {
     private String objectPrefix = "pairesume/resume-review/objects/";
     private int uploadUrlTtlMinutes = 10;
     private int readyTtlMinutes = 30;
-    private long maxPdfBytes = 10L * 1024L * 1024L;
+    private long maxPdfBytes = 5L * 1024L * 1024L;
     private int maxConcurrentFinalizations = 4;
     private int retentionDays = 30;
     private boolean privateBucketConfirmed = false;

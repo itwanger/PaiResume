@@ -76,42 +76,18 @@ app:
     report-daily-ip-limit: ${MARKETPLACE_REPORT_DAILY_IP_LIMIT:10}
     report-duplicate-window-hours: ${MARKETPLACE_REPORT_DUPLICATE_WINDOW_HOURS:24}
   resume-review:
-    # 人工精修总开关默认关闭。关闭时不接受首次免费或付费新请求，
-    # 但历史查单、退款、支付回调和对账继续工作。
-    enabled: ${RESUME_REVIEW_ENABLED:false}
-    # 只控制第二次及以后的人工精修付费新单；历史回调、查单和对账不受影响。
-    paid-accept-new-orders: ${RESUME_REVIEW_PAID_ACCEPT_NEW_ORDERS:false}
+    # 人工精修是常驻服务，PDF 在提交时作为邮件附件直接投递。
     payment-order-expire-minutes: ${RESUME_REVIEW_PAYMENT_ORDER_EXPIRE_MINUTES:30}
-    recipient-email: ${RESUME_REVIEW_RECIPIENT_EMAIL:}
+    # 未单独指定时直接复用现有 SMTP 发件邮箱，避免同一 163 邮箱重复配置。
+    recipient-email: ${RESUME_REVIEW_RECIPIENT_EMAIL:${MAIL_FROM:${MAIL_USERNAME:}}}
     message-id-domain: ${RESUME_REVIEW_MESSAGE_ID_DOMAIN:resume.paicoding.com}
     mail-outbox-max-attempts: ${RESUME_REVIEW_MAIL_OUTBOX_MAX_ATTEMPTS:10}
     upload-rate-limit:
       window-seconds: ${RESUME_REVIEW_UPLOAD_RATE_LIMIT_WINDOW_SECONDS:900}
       account-attempt-limit: ${RESUME_REVIEW_UPLOAD_RATE_LIMIT_ACCOUNT_ATTEMPTS:20}
       ip-attempt-limit: ${RESUME_REVIEW_UPLOAD_RATE_LIMIT_IP_ATTEMPTS:200}
-    oss:
-      enabled: ${RESUME_REVIEW_OSS_ENABLED:false}
-      endpoint: ${RESUME_REVIEW_OSS_ENDPOINT:}
-      bucket: ${RESUME_REVIEW_OSS_BUCKET:}
-      access-key-id: ${RESUME_REVIEW_OSS_ACCESS_KEY_ID:}
-      access-key-secret: ${RESUME_REVIEW_OSS_ACCESS_KEY_SECRET:}
-      staging-prefix: ${RESUME_REVIEW_OSS_STAGING_PREFIX:pairesume/resume-review/staging/}
-      object-prefix: ${RESUME_REVIEW_OSS_OBJECT_PREFIX:pairesume/resume-review/objects/}
-      upload-url-ttl-minutes: ${RESUME_REVIEW_OSS_UPLOAD_URL_TTL_MINUTES:10}
-      ready-ttl-minutes: ${RESUME_REVIEW_OSS_READY_TTL_MINUTES:30}
-      max-pdf-bytes: ${RESUME_REVIEW_OSS_MAX_PDF_BYTES:10485760}
-      max-concurrent-finalizations: ${RESUME_REVIEW_OSS_MAX_CONCURRENT_FINALIZATIONS:4}
-      retention-days: ${RESUME_REVIEW_OSS_RETENTION_DAYS:30}
-      private-bucket-confirmed: ${RESUME_REVIEW_OSS_PRIVATE_BUCKET_CONFIRMED:false}
-      cors-confirmed: ${RESUME_REVIEW_OSS_CORS_CONFIRMED:false}
-      lifecycle-confirmed: ${RESUME_REVIEW_OSS_LIFECYCLE_CONFIRMED:false}
-      ram-policy-confirmed: ${RESUME_REVIEW_OSS_RAM_POLICY_CONFIRMED:false}
   resume-photo:
     oss:
-      endpoint: ${RESUME_PHOTO_OSS_ENDPOINT:}
-      bucket: ${RESUME_PHOTO_OSS_BUCKET:}
-      access-key-id: ${RESUME_PHOTO_OSS_ACCESS_KEY_ID:}
-      access-key-secret: ${RESUME_PHOTO_OSS_ACCESS_KEY_SECRET:}
       staging-prefix: ${RESUME_PHOTO_OSS_STAGING_PREFIX:pairesume/resume-photo/staging/}
       object-prefix: ${RESUME_PHOTO_OSS_OBJECT_PREFIX:pairesume/resume-photo/objects/}
       upload-url-ttl-minutes: ${RESUME_PHOTO_OSS_UPLOAD_URL_TTL_MINUTES:10}
@@ -122,10 +98,6 @@ app:
       rate-limit-window-seconds: ${RESUME_PHOTO_UPLOAD_RATE_LIMIT_WINDOW_SECONDS:900}
       account-attempt-limit: ${RESUME_PHOTO_UPLOAD_RATE_LIMIT_ACCOUNT_ATTEMPTS:20}
       ip-attempt-limit: ${RESUME_PHOTO_UPLOAD_RATE_LIMIT_IP_ATTEMPTS:200}
-      private-bucket-confirmed: ${RESUME_PHOTO_OSS_PRIVATE_BUCKET_CONFIRMED:false}
-      cors-confirmed: ${RESUME_PHOTO_OSS_CORS_CONFIRMED:false}
-      staging-lifecycle-confirmed: ${RESUME_PHOTO_OSS_STAGING_LIFECYCLE_CONFIRMED:false}
-      ram-policy-confirmed: ${RESUME_PHOTO_OSS_RAM_POLICY_CONFIRMED:false}
   payment:
     provider: ${PAYMENT_PROVIDER:disabled}
     # Deprecated fail-closed compatibility switch. It must stay false; use the
@@ -152,6 +124,11 @@ app:
       notify-url: ${WECHAT_PAY_NOTIFY_URL:${app.public-url}/api/public/payments/wechat/notify}
 
 spring:
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
+      file-size-threshold: 5MB
   lifecycle:
     timeout-per-shutdown-phase: ${SHUTDOWN_TIMEOUT:30s}
   jackson:

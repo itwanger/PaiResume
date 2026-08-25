@@ -19,6 +19,7 @@ export interface PlatformConfig {
   membershipPriceCents: number
   questionnaireCouponAmountCents: number
   resumeReviewPriceCents: number
+  resumeReviewRecipientEmail: string
 }
 
 export interface ResumeAnalysisPromptAdmin {
@@ -419,6 +420,41 @@ export interface AiProviderTestResult {
   message: string
 }
 
+export interface ResumePhotoOssConfigView {
+  endpoint: string
+  bucket: string
+  accessKeyIdMask: string | null
+  accessKeySecretMask: string | null
+  credentialsConfigured: boolean
+  privateBucketConfirmed: boolean
+  corsConfirmed: boolean
+  stagingLifecycleConfirmed: boolean
+  ramPolicyConfirmed: boolean
+  enabled: boolean
+  masterKeyConfigured: boolean
+  updatedAt: string | null
+}
+
+export interface ResumePhotoOssConfigUpdatePayload {
+  endpoint: string
+  bucket: string
+  /** 留空表示保留已加密的现有值。 */
+  accessKeyId: string
+  /** 留空表示保留已加密的现有值。 */
+  accessKeySecret: string
+  privateBucketConfirmed: boolean
+  corsConfirmed: boolean
+  stagingLifecycleConfirmed: boolean
+  ramPolicyConfirmed: boolean
+  enabled: boolean
+}
+
+export interface ResumePhotoOssTestResult {
+  success: boolean
+  latencyMillis: number
+  message: string
+}
+
 export const adminApi = {
   getAiProviderConfig: () =>
     client.get<ApiEnvelope<AiProviderConfigView>>('/admin/ai-provider'),
@@ -428,6 +464,15 @@ export const adminApi = {
 
   testAiProviderConnection: () =>
     client.post<ApiEnvelope<AiProviderTestResult>>('/admin/ai-provider/test'),
+
+  getResumePhotoOssConfig: () =>
+    client.get<ApiEnvelope<ResumePhotoOssConfigView>>('/admin/resume-photo-oss'),
+
+  updateResumePhotoOssConfig: (payload: ResumePhotoOssConfigUpdatePayload) =>
+    client.put<ApiEnvelope<ResumePhotoOssConfigView>>('/admin/resume-photo-oss', payload),
+
+  testResumePhotoOssConnection: () =>
+    client.post<ApiEnvelope<ResumePhotoOssTestResult>>('/admin/resume-photo-oss/test'),
 
   listResumeAnalysisPrompts: () =>
     client.get<ApiEnvelope<ResumeAnalysisPromptAdmin[]>>('/admin/resume-analysis-prompts'),

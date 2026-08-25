@@ -69,10 +69,10 @@ import { AdminShowcasePanel } from '../components/admin/AdminShowcasePanel'
 import { AdminContentLibraryPanel } from '../components/admin/AdminContentLibraryPanel'
 import { ResumeAnalysisPromptAdminPanel } from '../components/admin/ResumeAnalysisPromptAdminPanel'
 import { AiProviderAdminPanel } from '../components/admin/AiProviderAdminPanel'
+import { ResumePhotoOssAdminPanel } from '../components/admin/ResumePhotoOssAdminPanel'
 
 interface PlatformPriceDraft {
   questionnaireCouponAmountYuan: string
-  resumeReviewPriceYuan: string
 }
 
 const MAX_PRICE_CENTS = 2_147_483_647
@@ -103,7 +103,6 @@ function isCouponResendable(coupon: CouponAdmin): boolean {
 function platformConfigToPriceDraft(config: PlatformConfig): PlatformPriceDraft {
   return {
     questionnaireCouponAmountYuan: formatYuanInput(config.questionnaireCouponAmountCents),
-    resumeReviewPriceYuan: formatYuanInput(config.resumeReviewPriceCents),
   }
 }
 
@@ -227,10 +226,10 @@ function AdminPageContent() {
     membershipPriceCents: 6600,
     questionnaireCouponAmountCents: 1000,
     resumeReviewPriceCents: 0,
+    resumeReviewRecipientEmail: '',
   })
   const [platformPriceDraft, setPlatformPriceDraft] = useState<PlatformPriceDraft>({
     questionnaireCouponAmountYuan: '10.00',
-    resumeReviewPriceYuan: '0.00',
   })
   const [membershipPlans, setMembershipPlans] = useState<MembershipPlanAdmin[]>([])
   const [membershipPlanPriceDrafts, setMembershipPlanPriceDrafts] = useState<Record<string, string>>({})
@@ -839,7 +838,6 @@ function AdminPageContent() {
 
     const priceFields = [
       ['问卷优惠金额', platformPriceDraft.questionnaireCouponAmountYuan],
-      ['人工精修单次价格', platformPriceDraft.resumeReviewPriceYuan],
     ] as const
     const parsedPrices = priceFields.map(([label, value]) => [label, parseYuanToCents(value)] as const)
     const invalidField = parsedPrices.find(([, value]) => value === null)
@@ -851,15 +849,21 @@ function AdminPageContent() {
       setError('会员价格配置读取异常，请重新加载')
       return
     }
+    const reviewRecipientEmail = platformConfig.resumeReviewRecipientEmail.trim().toLowerCase()
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(reviewRecipientEmail)) {
+      setError('请输入有效的人工精修收件邮箱')
+      return
+    }
 
     const nextConfig: PlatformConfig = {
       ...platformConfig,
       questionnaireCouponAmountCents: parsedPrices[0][1]!,
-      resumeReviewPriceCents: parsedPrices[1][1]!,
+      resumeReviewPriceCents: 0,
+      resumeReviewRecipientEmail: reviewRecipientEmail,
     }
     const confirmed = await confirmAdminAction({
       title: '保存会员价格配置',
-      description: `问卷优惠金额：${formatAdminCents(nextConfig.questionnaireCouponAmountCents)}\n人工精修单次价格：${formatAdminCents(nextConfig.resumeReviewPriceCents)}`,
+      description: `问卷优惠金额：${formatAdminCents(nextConfig.questionnaireCouponAmountCents)}\n人工精修收件邮箱：${nextConfig.resumeReviewRecipientEmail}`,
       confirmText: '确认保存',
     })
     if (!confirmed) return
@@ -1180,8 +1184,8 @@ function AdminPageContent() {
       '2. 未登录用户使用派聪明扫码注册领取，已登录用户直接领取。',
       '',
       `兑换成功后，从兑换成功的时间开始获得完整 ${invite.membershipDays} 天 VIP。`,
-      '普通用户可以编辑、保存和导入简历，也可以查看公开的优质简历。',
-      'VIP 用户可使用 AI 优化与分析、PDF 导出，并解锁需要 VIP 权益的优质简历。',
+      '普通用户可以编辑、保存、导入和导出简历，也可以查看公开的优质简历。',
+      'VIP 用户可使用 AI 优化与分析、解锁需要 VIP 权益的优质简历，并免费排队申请人工精修。',
       '',
       `兑换截止：${invite.expiresAt ?? '以后台状态为准'}`,
       `剩余名额：${remaining}/${invite.maxRedemptions}，先到先得。`,
@@ -1772,7 +1776,7 @@ function AdminPageContent() {
                     </div>
 
                     <div className="rounded-lg border border-gray-200 bg-white px-6 py-6">
-                      <h2 className="text-lg font-semibold text-gray-900">其他价格</h2>
+                      <h2 className="text-lg font-semibold text-gray-900">其他配置</h2>
                       <div className="mt-5 space-y-4">
                         <label className="block">
                           <span className="mb-2 block text-sm font-medium text-gray-700">问卷优惠金额（元）</span>
@@ -1791,18 +1795,16 @@ function AdminPageContent() {
                           />
                         </label>
                         <label className="block">
-                          <span className="mb-2 block text-sm font-medium text-gray-700">人工精修单次价格（元）</span>
+                          <span className="mb-2 block text-sm font-medium text-gray-700">人工精修收件邮箱</span>
                           <input
-                            type="number"
-                            min={0}
-                            step={0.01}
-                            inputMode="decimal"
+                            type="email"
+                            autoComplete="email"
                             required
                             disabled={!platformConfigLoaded}
-                            value={platformPriceDraft.resumeReviewPriceYuan}
-                            onChange={(event) => setPlatformPriceDraft((current) => ({
+                            value={platformConfig.resumeReviewRecipientEmail}
+                            onChange={(event) => setPlatformConfig((current) => ({
                               ...current,
-                              resumeReviewPriceYuan: event.target.value,
+                              resumeReviewRecipientEmail: event.target.value,
                             }))}
                             className="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none transition-colors focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
                           />
@@ -1848,6 +1850,9 @@ function AdminPageContent() {
             ) : null}
             {activeView === 'ai-provider' ? (
               <AiProviderAdminPanel />
+            ) : null}
+            {activeView === 'resume-photo-oss' ? (
+              <ResumePhotoOssAdminPanel />
             ) : null}
 
             {activeView === 'marketplace-listings' ? (

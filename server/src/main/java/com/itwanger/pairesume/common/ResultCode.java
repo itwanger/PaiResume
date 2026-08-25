@@ -54,7 +54,6 @@ public enum ResultCode {
     RESUME_LIMIT_REACHED(3002, "简历数量已达上限"),
     MODULE_NOT_FOUND(3003, "模块不存在"),
     MODULE_ALREADY_EXISTS(3004, "该模块只能添加一份"),
-    MEMBERSHIP_REQUIRED(3005, "开通会员后才可导出简历"),
     EXPORT_FAILED(3006, "导出失败，请稍后重试"),
     RESUME_PHOTO_UPLOAD_NOT_FOUND(3011, "照片上传凭证不存在"),
     RESUME_PHOTO_UPLOAD_FORBIDDEN(3012, "无权使用该照片"),
@@ -145,7 +144,7 @@ public enum ResultCode {
     RESUME_REVIEW_EMAIL_NOT_VERIFIED(7505, "请先验证联系邮箱"),
     RESUME_REVIEW_STATE_INVALID(7506, "当前人工精修状态不允许该操作"),
     RESUME_REVIEW_REFUND_REFERENCE_CONFLICT(7510, "人工精修退款流水已被使用"),
-    RESUME_REVIEW_STORAGE_NOT_CONFIGURED(7511, "人工精修文件存储暂未配置"),
+    RESUME_REVIEW_STORAGE_NOT_CONFIGURED(7511, "旧版人工精修上传已停止使用"),
     RESUME_REVIEW_UPLOAD_NOT_FOUND(7512, "人工精修 PDF 上传凭证不存在"),
     RESUME_REVIEW_UPLOAD_FORBIDDEN(7513, "无权使用该 PDF 上传凭证"),
     RESUME_REVIEW_UPLOAD_EXPIRED(7514, "PDF 上传凭证已过期，请重新选择文件"),
@@ -153,7 +152,7 @@ public enum ResultCode {
     RESUME_REVIEW_UPLOAD_STATE_INVALID(7516, "当前 PDF 上传状态不允许该操作"),
     RESUME_REVIEW_STORAGE_UNAVAILABLE(7517, "人工精修文件存储暂时不可用，请稍后重试"),
     RESUME_REVIEW_UPLOAD_RATE_LIMITED(7518, "PDF 上传操作过于频繁，请稍后再试"),
-    RESUME_REVIEW_DISABLED(7519, "人工精修暂未开放"),
+    RESUME_REVIEW_MEMBERSHIP_REQUIRED(7519, "开通派简历会员后才可申请人工精修"),
 
     // Creator earnings: 73xx
     CREATOR_EARNING_NOT_FOUND(7301, "收益记录不存在"),

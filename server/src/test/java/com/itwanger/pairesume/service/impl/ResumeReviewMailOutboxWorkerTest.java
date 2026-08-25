@@ -12,6 +12,7 @@ import com.itwanger.pairesume.mapper.ResumeReviewRequestMapper;
 import com.itwanger.pairesume.mapper.ResumeReviewAuditLogMapper;
 import com.itwanger.pairesume.service.MailService;
 import com.itwanger.pairesume.service.ResumeReviewObjectStorage;
+import com.itwanger.pairesume.service.PlatformConfigService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -19,6 +20,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -31,6 +33,7 @@ class ResumeReviewMailOutboxWorkerTest {
     @Mock private ResumeReviewAuditLogMapper auditMapper;
     @Mock private ResumeReviewObjectStorage objectStorage;
     @Mock private MailService mailService;
+    @Mock private PlatformConfigService platformConfigService;
     private ResumeReviewMailDeliveryService deliveryService;
     private ResumeReviewProperties properties;
     private ResumeReviewMailOutbox outbox;
@@ -40,10 +43,11 @@ class ResumeReviewMailOutboxWorkerTest {
     @BeforeEach
     void setUp() {
         properties = new ResumeReviewProperties();
-        properties.setEnabled(true);
         properties.setRecipientEmail("review@paicoding.com");
         deliveryService = new ResumeReviewMailDeliveryService(outboxMapper, requestMapper, ledgerMapper, auditMapper,
-                objectStorage, mailService, properties);
+                objectStorage, mailService, platformConfigService, properties);
+        lenient().when(platformConfigService.getResumeReviewRecipientEmail())
+                .thenReturn("review@paicoding.com");
         outbox = new ResumeReviewMailOutbox();
         outbox.setId(1L);
         outbox.setRequestId(2L);
@@ -66,22 +70,6 @@ class ResumeReviewMailOutboxWorkerTest {
     }
 
     @Test
-    void disabledFeatureNeitherPollsOutboxNorClaimsDirectDelivery() {
-        properties.setEnabled(false);
-        ResumeReviewMailOutboxWorker worker =
-                new ResumeReviewMailOutboxWorker(outboxMapper, deliveryService, properties);
-
-        worker.deliverDue();
-        BusinessException exception = org.junit.jupiter.api.Assertions.assertThrows(
-                BusinessException.class, () -> deliveryService.deliverOne(1L));
-
-        assertEquals(ResultCode.RESUME_REVIEW_DISABLED.getCode(), exception.getCode());
-        verify(outboxMapper, never()).selectDueIds();
-        verify(outboxMapper, never()).claim(anyLong());
-        verifyNoInteractions(objectStorage, mailService);
-    }
-
-    @Test
     void smtpAcceptanceAtomicallyMarksRequestAndCreditConsumed() {
         when(objectStorage.readVerifiedPdf(
                 request.getPdfObjectKey(), request.getPdfSizeBytes(), request.getPdfSha256()))
@@ -91,6 +79,7 @@ class ResumeReviewMailOutboxWorkerTest {
         deliveryService.deliverOne(1L);
 
         assertEquals("EMAILED", request.getRequestStatus());
+        assertNotNull(request.getQueuedAt());
         assertEquals("CONSUMED", ledger.getLedgerStatus());
         assertEquals("SENT", outbox.getOutboxStatus());
         verify(mailService).sendResumeReview(eq("review@paicoding.com"),

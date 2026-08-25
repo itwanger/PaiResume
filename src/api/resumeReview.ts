@@ -1,7 +1,7 @@
 import client, { type ApiEnvelope } from './client'
 
 // FOLLOW_REWARD 仅用于读取下线前的历史申请，不能再创建或领取。
-export type ResumeReviewEntitlement = 'WELCOME_FREE' | 'FOLLOW_REWARD' | 'PAID'
+export type ResumeReviewEntitlement = 'WELCOME_FREE' | 'FOLLOW_REWARD' | 'MEMBERSHIP' | 'PAID'
 
 export type ResumeReviewStatus =
   | 'AWAITING_PAYMENT'
@@ -23,91 +23,62 @@ export type ResumeReviewPaymentStatus =
   | 'REFUNDED'
 
 export interface ResumeReviewEligibility {
-  enabled: boolean
-  welcomeFreeAvailable: boolean
+  memberEligible: boolean
   paidReviewAvailable: boolean
   priceCents: number
+  maxPriorityFeeCents: number
   notice: string
 }
 
 export interface ResumeReviewRequest {
   requestNo: string
-  resumeId: number
+  resumeId: number | null
   contactEmail: string
   contentHash: string
+  pdfFileName: string
+  pdfSizeBytes: number
   entitlementType: ResumeReviewEntitlement
   requestStatus: ResumeReviewStatus
   priceCents: number
+  basePriceCents: number
+  priorityFeeCents: number
   orderNo: string | null
   paymentStatus: ResumeReviewPaymentStatus | null
   codeUrl: string | null
   qrCodeDataUrl: string | null
   paymentExpiresAt: string | null
   paidAt: string | null
+  dispatchedAt: string | null
+  queuedAt: string | null
   createdAt: string
   refundReason: string | null
 }
 
 export interface CreateResumeReviewRequest {
-  resumeId: number
+  resumeId?: number | null
   idempotencyKey: string
-  uploadNo: string
+  fileName: string
+  sizeBytes: number
+  sha256: string
+  priorityFeeCents: number
   contactEmail: string
   verificationCode?: string
-  manualReviewConsent: true
-  emailDeliveryConsent: true
 }
 
-export interface CreateResumeReviewUpload {
-  resumeId: number
-  fileName: string
-  sizeBytes: number
-  sha256: string
-}
-
-export interface ResumeReviewUploadCredential {
-  uploadNo: string
-  uploadUrl: string
-  method: 'POST'
-  headers: Record<string, string>
-  fields: Record<string, string>
-  expiresAt: string
-  maxSizeBytes: number
-}
-
-export interface CompletedResumeReviewUpload {
-  uploadNo: string
-  fileName: string
-  sizeBytes: number
-  sha256: string
-  status: 'READY'
-}
-
-async function uploadPdfToOss(credential: ResumeReviewUploadCredential, file: File) {
-  if (credential.method !== 'POST') {
-    throw new Error('服务端返回了不支持的上传方式')
-  }
-  const form = new FormData()
-  Object.entries(credential.fields).forEach(([name, value]) => {
-    form.append(name, value)
-  })
-  form.append('file', file, file.name)
-
-  const response = await fetch(credential.uploadUrl, {
-    method: credential.method,
-    headers: credential.headers,
-    body: form,
-    credentials: 'omit',
-    cache: 'no-store',
-    referrerPolicy: 'no-referrer',
-  })
-
-  if (!response.ok) {
-    throw new Error(`PDF 上传失败（HTTP ${response.status}）`)
-  }
+export interface ResumeReviewQueueItem {
+  position: number
+  publicCode: string
+  queueStatus: 'WAITING' | 'IN_PROGRESS'
+  priority: boolean
+  priorityFeeCents: number
+  paidAmountCents: number
+  queuedAt: string | null
 }
 
 export const resumeReviewApi = {
+  publicQueue: () =>
+    client.get<ApiEnvelope<ResumeReviewQueueItem[]>>('/public/resume-reviews/queue'),
+
   eligibility: () =>
     client.get<ApiEnvelope<ResumeReviewEligibility>>('/resume-reviews/eligibility'),
 
@@ -117,18 +88,6 @@ export const resumeReviewApi = {
   sendContactEmailCode: (contactEmail: string) =>
     client.post<ApiEnvelope<null>>('/resume-reviews/contact-email/code', { contactEmail }),
 
-  requestUpload: (params: CreateResumeReviewUpload) =>
-    client.post<ApiEnvelope<ResumeReviewUploadCredential>>('/resume-reviews/uploads', params),
-
-  uploadPdf: (credential: ResumeReviewUploadCredential, file: File) =>
-    uploadPdfToOss(credential, file),
-
-  completeUpload: (uploadNo: string) =>
-    client.post<ApiEnvelope<CompletedResumeReviewUpload>>(
-      `/resume-reviews/uploads/${encodeURIComponent(uploadNo)}/complete`,
-      {},
-    ),
-
   create: (params: CreateResumeReviewRequest) =>
     client.post<ApiEnvelope<ResumeReviewRequest>>('/resume-reviews', params),
 
@@ -137,8 +96,30 @@ export const resumeReviewApi = {
       `/resume-reviews/${encodeURIComponent(requestNo)}`,
     ),
 
+  updateContactEmail: (requestNo: string, contactEmail: string, verificationCode?: string) =>
+    client.patch<ApiEnvelope<ResumeReviewRequest>>(
+      `/resume-reviews/${encodeURIComponent(requestNo)}/contact-email`,
+      { contactEmail, verificationCode },
+    ),
+
+  upgradePriority: (requestNo: string, priorityFeeCents: number) =>
+    client.post<ApiEnvelope<ResumeReviewRequest>>(
+      `/resume-reviews/${encodeURIComponent(requestNo)}/priority`,
+      { priorityFeeCents },
+    ),
+
   refreshPayment: (requestNo: string) =>
     client.post<ApiEnvelope<ResumeReviewRequest>>(
       `/resume-reviews/${encodeURIComponent(requestNo)}/payment/refresh`,
     ),
+
+  dispatch: (requestNo: string, file: File) => {
+    const form = new FormData()
+    form.append('file', file, file.name)
+    return client.post<ApiEnvelope<ResumeReviewRequest>>(
+      `/resume-reviews/${encodeURIComponent(requestNo)}/dispatch`,
+      form,
+      { headers: { 'Content-Type': 'multipart/form-data' } },
+    )
+  },
 }

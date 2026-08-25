@@ -3,7 +3,6 @@ package com.itwanger.pairesume.service.impl;
 import com.itwanger.pairesume.common.BusinessException;
 import com.itwanger.pairesume.common.ResultCode;
 import com.itwanger.pairesume.config.ResumeReviewOssProperties;
-import com.itwanger.pairesume.config.ResumeReviewProperties;
 import com.itwanger.pairesume.dto.CreateResumeReviewUploadDTO;
 import com.itwanger.pairesume.entity.Resume;
 import com.itwanger.pairesume.entity.ResumeReviewUpload;
@@ -36,7 +35,6 @@ class ResumeReviewUploadServiceTest {
     @Mock private ResumeReviewObjectStorage objectStorage;
 
     private ResumeReviewOssProperties properties;
-    private ResumeReviewProperties reviewProperties;
     private ResumeReviewUploadService service;
 
     @BeforeEach
@@ -46,14 +44,14 @@ class ResumeReviewUploadServiceTest {
         properties.setMaxPdfBytes(10L * 1024L * 1024L);
         properties.setUploadUrlTtlMinutes(10);
         properties.setReadyTtlMinutes(30);
-        reviewProperties = new ResumeReviewProperties();
-        reviewProperties.setEnabled(true);
         service = new ResumeReviewUploadService(uploadMapper, requestMapper, userMapper,
-                resumeService, objectStorage, properties, reviewProperties);
+                resumeService, objectStorage, properties);
 
         User user = new User();
         user.setId(7L);
         user.setStatus(1);
+        user.setMembershipStatus("ACTIVE");
+        user.setMembershipExpiresAt(LocalDateTime.now().plusDays(30));
         lenient().when(userMapper.selectByIdForUpdate(7L)).thenReturn(user);
         Resume resume = new Resume();
         resume.setId(11L);
@@ -63,22 +61,6 @@ class ResumeReviewUploadServiceTest {
             invocation.<ResumeReviewUpload>getArgument(0).setId(99L);
             return 1;
         }).when(uploadMapper).insert(any(ResumeReviewUpload.class));
-    }
-
-    @Test
-    void masterSwitchRejectsAuthorizeAndCompleteBeforeDatabaseOrOssAccess() {
-        reviewProperties.setEnabled(false);
-
-        BusinessException authorize = assertThrows(BusinessException.class,
-                () -> service.authorize(7L, uploadDto()));
-        BusinessException complete = assertThrows(BusinessException.class,
-                () -> service.complete(7L, "RU-upload"));
-
-        assertEquals(ResultCode.RESUME_REVIEW_DISABLED.getCode(), authorize.getCode());
-        assertEquals(ResultCode.RESUME_REVIEW_DISABLED.getCode(), complete.getCode());
-        verifyNoInteractions(requestMapper, resumeService, objectStorage);
-        verify(userMapper, never()).selectByIdForUpdate(anyLong());
-        verify(uploadMapper, never()).selectByUploadNoForUpdate(anyString());
     }
 
     @Test
@@ -107,6 +89,24 @@ class ResumeReviewUploadServiceTest {
         assertTrue(upload.getStagingObjectKey().endsWith(".pdf"));
         assertTrue(upload.getFinalObjectKey().endsWith(".pdf"));
         assertFalse(upload.getFinalObjectKey().equals(upload.getStagingObjectKey()));
+    }
+
+    @Test
+    void authorizeStandaloneExportedPdfWithoutReadingAResumeRecord() {
+        when(objectStorage.createPdfUploadTarget(
+                anyString(), eq(1024L), eq("a".repeat(64)), any()))
+                .thenReturn(new ResumeReviewObjectStorage.UploadTarget(
+                        "https://bucket.oss.example/", "POST", Map.of(), Map.of()));
+        CreateResumeReviewUploadDTO dto = uploadDto();
+        dto.setResumeId(null);
+
+        service.authorize(7L, dto);
+
+        verifyNoInteractions(resumeService);
+        ArgumentCaptor<ResumeReviewUpload> uploadCaptor =
+                ArgumentCaptor.forClass(ResumeReviewUpload.class);
+        verify(uploadMapper).insert(uploadCaptor.capture());
+        assertNull(uploadCaptor.getValue().getResumeId());
     }
 
     @Test
@@ -219,6 +219,21 @@ class ResumeReviewUploadServiceTest {
 
         assertEquals(ResultCode.USER_NOT_FOUND.getCode(), exception.getCode());
         verifyNoInteractions(objectStorage);
+    }
+
+    @Test
+    void authorizeRejectsNonMemberBeforeIssuingOssCredentials() {
+        User nonMember = new User();
+        nonMember.setId(7L);
+        nonMember.setStatus(1);
+        nonMember.setMembershipStatus("FREE");
+        when(userMapper.selectByIdForUpdate(7L)).thenReturn(nonMember);
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> service.authorize(7L, uploadDto()));
+
+        assertEquals(ResultCode.RESUME_REVIEW_MEMBERSHIP_REQUIRED.getCode(), exception.getCode());
+        verifyNoInteractions(objectStorage, resumeService);
     }
 
     private CreateResumeReviewUploadDTO uploadDto() {

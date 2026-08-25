@@ -13,12 +13,16 @@ public class ResumeReviewRequestDTO {
     private String entitlementType;
     private String requestStatus;
     private Integer priceCents;
+    private Integer basePriceCents;
+    private Integer priorityFeeCents;
     private String orderNo;
     private String paymentStatus;
     private String codeUrl;
     private String qrCodeDataUrl;
     private String paymentExpiresAt;
     private String paidAt;
+    private String dispatchedAt;
+    private String queuedAt;
     private String createdAt;
     private String refundReason;
 }

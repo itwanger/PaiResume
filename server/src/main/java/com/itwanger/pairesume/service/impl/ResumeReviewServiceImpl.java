@@ -16,7 +16,9 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.LocalDateTime;
@@ -29,6 +31,9 @@ public class ResumeReviewServiceImpl implements ResumeReviewService {
     private static final String REVIEW_CONSENT_VERSION = "resume-review-upload-v2";
     private static final String EMAIL_CONSENT_VERSION = "resume-review-email-v2";
     private static final String PAYMENT_DESCRIPTION = "PaiResume 人工简历精修";
+    private static final int MAX_PRIORITY_FEE_CENTS = 100_000;
+    private static final long MAX_PDF_BYTES = 5L * 1024L * 1024L;
+    private static final byte[] PDF_MAGIC = "%PDF-".getBytes(StandardCharsets.US_ASCII);
 
     private final ResumeReviewRequestMapper requestMapper;
     private final ResumeReviewCreditLedgerMapper ledgerMapper;
@@ -37,10 +42,9 @@ public class ResumeReviewServiceImpl implements ResumeReviewService {
     private final ResumeReviewAuditLogMapper auditMapper;
     private final UserMapper userMapper;
     private final UserAuthIdentityMapper identityMapper;
-    private final ResumeReviewUploadService uploadService;
-    private final PlatformConfigService platformConfigService;
     private final VerificationCodeService verificationCodeService;
     private final MailService mailService;
+    private final PlatformConfigService platformConfigService;
     private final MarketplacePaymentGateway paymentGateway;
     private final QrCodeDataUrlGenerator qrCodeGenerator;
     private final ResumeReviewProperties properties;
@@ -48,30 +52,17 @@ public class ResumeReviewServiceImpl implements ResumeReviewService {
     @Override
     public ResumeReviewEligibilityDTO eligibility(Long userId) {
         ResumeReviewEligibilityDTO dto = new ResumeReviewEligibilityDTO();
-        dto.setEnabled(properties.isEnabled());
-        if (!properties.isEnabled()) {
-            dto.setWelcomeFreeAvailable(false);
-            dto.setPaidReviewAvailable(false);
-            dto.setNextEntitlement(null);
-            dto.setPriceCents(0);
-            dto.setNotice("人工精修暂未开放");
-            return dto;
-        }
+        User user = userMapper.selectById(userId);
+        boolean memberEligible = isActiveMember(user);
+        boolean priorityPaymentAvailable = paymentProviderReady();
 
-        String subject = quotaSubject(userId);
-        boolean welcome = ledgerMapper.selectActiveEntitlement("WELCOME:" + subject) == null;
-        PlatformConfig config = platformConfigService.getConfigEntity();
-        int price = config.getResumeReviewPriceCents() == null ? 0 : config.getResumeReviewPriceCents();
-        boolean paid = !welcome && properties.isPaidAcceptNewOrders()
-                && price > 0 && "wechat".equals(paymentGateway.provider());
-
-        dto.setWelcomeFreeAvailable(welcome);
-        dto.setPaidReviewAvailable(paid);
-        dto.setNextEntitlement(welcome ? "WELCOME_FREE" : "PAID");
-        dto.setPriceCents(price);
-        dto.setNotice(welcome ? "首次人工精修免费"
-                : paid ? "第二次及以后需单独付费，一份快照对应一个订单"
-                : "付费精修暂未开放");
+        dto.setMemberEligible(memberEligible);
+        dto.setPaidReviewAvailable(priorityPaymentAvailable);
+        dto.setPriceCents(0);
+        dto.setMaxPriorityFeeCents(MAX_PRIORITY_FEE_CENTS);
+        dto.setNotice(memberEligible
+                ? "会员可以免费排队；如需插队，可自选加急金额"
+                : "开通派简历会员后才可申请人工精修");
         return dto;
     }
 
@@ -83,7 +74,6 @@ public class ResumeReviewServiceImpl implements ResumeReviewService {
 
     @Override
     public void sendContactVerificationCode(Long userId, String email, String clientIp) {
-        requireFeatureEnabled();
         String normalized = normalizeEmail(email);
         if (isVerifiedAccountEmail(userId, normalized)) {
             return;
@@ -100,7 +90,6 @@ public class ResumeReviewServiceImpl implements ResumeReviewService {
     @Override
     @Transactional
     public ResumeReviewRequestDTO create(Long userId, CreateResumeReviewRequestDTO dto, String clientIp) {
-        requireFeatureEnabled();
         ResumeReviewRequest idempotent = requestMapper.selectIdempotent(userId, dto.getIdempotencyKey().trim());
         if (idempotent != null) {
             return toDto(idempotent);
@@ -108,6 +97,9 @@ public class ResumeReviewServiceImpl implements ResumeReviewService {
         User user = userMapper.selectByIdForUpdate(userId);
         if (user == null || user.getStatus() == null || user.getStatus() == 0 || user.getAccountDeletedAt() != null) {
             throw new BusinessException(ResultCode.USER_NOT_FOUND);
+        }
+        if (!isActiveMember(user)) {
+            throw new BusinessException(ResultCode.RESUME_REVIEW_MEMBERSHIP_REQUIRED);
         }
         idempotent = requestMapper.selectIdempotent(userId, dto.getIdempotencyKey().trim());
         if (idempotent != null) {
@@ -120,26 +112,15 @@ public class ResumeReviewServiceImpl implements ResumeReviewService {
 
         String contactEmail = normalizeEmail(dto.getContactEmail());
         String subject = quotaSubject(userId);
-        String entitlement;
-        String entitlementKey;
-        int price;
-        if (ledgerMapper.selectActiveEntitlement("WELCOME:" + subject) == null) {
-            entitlement = "WELCOME_FREE";
-            entitlementKey = "WELCOME:" + subject;
-            price = 0;
-        } else {
-            PlatformConfig config = platformConfigService.getConfigEntity();
-            price = config.getResumeReviewPriceCents() == null ? 0 : config.getResumeReviewPriceCents();
-            if (!properties.isPaidAcceptNewOrders() || price <= 0
-                    || !"wechat".equals(paymentGateway.provider())) {
-                throw new BusinessException(ResultCode.RESUME_REVIEW_PAID_NOT_ENABLED);
-            }
-            entitlement = "PAID";
-            entitlementKey = null;
+        int priorityFee = dto.getPriorityFeeCents() == null ? 0 : dto.getPriorityFeeCents();
+        if (priorityFee > 0 && !paymentProviderReady()) {
+            throw new BusinessException(ResultCode.RESUME_REVIEW_PAID_NOT_ENABLED);
         }
-
-        ResumeReviewUpload upload = uploadService.requireReadyForCreate(
-                userId, dto.getUploadNo().trim(), dto.getResumeId());
+        if (priorityFee < 0 || priorityFee > MAX_PRIORITY_FEE_CENTS) {
+            throw new BusinessException(ResultCode.BAD_REQUEST);
+        }
+        String fileName = normalizePdfFileName(dto.getFileName());
+        String pdfSha256 = dto.getSha256().trim().toLowerCase(Locale.ROOT);
 
         verifyContactEmail(userId, contactEmail, dto.getVerificationCode());
 
@@ -151,28 +132,28 @@ public class ResumeReviewServiceImpl implements ResumeReviewService {
         request.setIdempotencyKey(dto.getIdempotencyKey().trim());
         request.setActiveUserKey(activeUserKey(userId));
         request.setContactEmail(contactEmail);
-        // snapshot_json remains a non-null legacy column. New requests are
-        // immutable through a server-recorded private OSS object instead.
+        // snapshot_json remains a non-null legacy column. New requests retain
+        // only PDF metadata; the actual bytes go directly to the review inbox.
         request.setSnapshotJson("{}");
-        request.setContentHash(upload.getSha256());
-        request.setPdfObjectKey(upload.getFinalObjectKey());
-        request.setPdfObjectEtag(upload.getObjectEtag());
-        request.setPdfOriginalFileName(upload.getOriginalFileName());
-        request.setPdfSizeBytes(upload.getSizeBytes());
-        request.setPdfSha256(upload.getSha256());
-        request.setPdfUploadedAt(LocalDateTime.now());
+        request.setContentHash(pdfSha256);
+        request.setPdfObjectKey(null);
+        request.setPdfObjectEtag(null);
+        request.setPdfOriginalFileName(fileName);
+        request.setPdfSizeBytes(dto.getSizeBytes());
+        request.setPdfSha256(pdfSha256);
+        request.setPdfUploadedAt(null);
         LocalDateTime now = LocalDateTime.now();
         request.setReviewConsentVersion(REVIEW_CONSENT_VERSION);
         request.setReviewConsentAt(now);
         request.setEmailConsentVersion(EMAIL_CONSENT_VERSION);
         request.setEmailConsentAt(now);
-        request.setEntitlementType(entitlement);
-        request.setPriceCents(price);
-
-        if (price == 0) {
-            request.setRequestStatus("EMAIL_PENDING");
-        } else {
-            request.setRequestStatus("AWAITING_PAYMENT");
+        boolean priorityOrder = priorityFee > 0;
+        request.setEntitlementType(priorityOrder ? "PAID" : "MEMBERSHIP");
+        request.setPriceCents(priorityFee);
+        request.setBasePriceCents(0);
+        request.setPriorityFeeCents(priorityFee);
+        request.setRequestStatus(priorityOrder ? "AWAITING_PAYMENT" : "EMAIL_PENDING");
+        if (priorityOrder) {
             request.setOrderNo("PS" + compactUuid());
             request.setProvider(paymentGateway.provider());
             request.setPayChannel("NATIVE_QR");
@@ -184,21 +165,18 @@ public class ResumeReviewServiceImpl implements ResumeReviewService {
         } catch (DuplicateKeyException exception) {
             throw new BusinessException(ResultCode.RESUME_REVIEW_ACTIVE_EXISTS);
         }
-        uploadService.markConsumed(upload, request.getId());
-
-        ResumeReviewCreditLedger ledger = new ResumeReviewCreditLedger();
-        ledger.setUserId(userId);
-        ledger.setRequestId(request.getId());
-        ledger.setCreditType(entitlement);
-        ledger.setLedgerStatus("RESERVED");
-        ledger.setActiveEntitlementKey(entitlementKey == null ? "PAID:" + request.getOrderNo() : entitlementKey);
-        ledgerMapper.insert(ledger);
-        audit(request, userId, "USER", "CREATE", null, request.getRequestStatus(), entitlement);
-
-        if (price == 0) {
-            createOutbox(request);
-        } else {
+        if (priorityOrder) {
+            ResumeReviewCreditLedger ledger = new ResumeReviewCreditLedger();
+            ledger.setUserId(userId);
+            ledger.setRequestId(request.getId());
+            ledger.setCreditType("PAID");
+            ledger.setLedgerStatus("RESERVED");
+            ledger.setActiveEntitlementKey("PAID:" + request.getOrderNo());
+            ledgerMapper.insert(ledger);
+            audit(request, userId, "USER", "CREATE", null, request.getRequestStatus(), "PRIORITY_PAID");
             createNativePrepay(request, clientIp);
+        } else {
+            audit(request, userId, "USER", "CREATE", null, request.getRequestStatus(), "MEMBERSHIP_QUEUE");
         }
         return toDto(request);
     }
@@ -209,6 +187,82 @@ public class ResumeReviewServiceImpl implements ResumeReviewService {
         if (!Objects.equals(request.getUserId(), userId)) {
             throw new BusinessException(ResultCode.RESUME_REVIEW_FORBIDDEN);
         }
+        return toDto(request);
+    }
+
+    @Override
+    @Transactional
+    public ResumeReviewRequestDTO updateContactEmail(Long userId, String requestNo,
+                                                     String contactEmail, String verificationCode) {
+        ResumeReviewRequest request = requireForUpdate(requestNo);
+        if (!Objects.equals(request.getUserId(), userId)) {
+            throw new BusinessException(ResultCode.RESUME_REVIEW_FORBIDDEN);
+        }
+        if (!Set.of("AWAITING_PAYMENT", "EMAIL_PENDING").contains(request.getRequestStatus())
+                || request.getDispatchedAt() != null || request.getQueuedAt() != null) {
+            throw new BusinessException(ResultCode.RESUME_REVIEW_STATE_INVALID);
+        }
+        String normalized = normalizeEmail(contactEmail);
+        if (normalized.equals(normalizeEmail(request.getContactEmail()))) {
+            return toDto(request);
+        }
+        verifyContactEmail(userId, normalized, verificationCode);
+        request.setContactEmail(normalized);
+        requestMapper.updateById(request);
+        audit(request, userId, "USER", "UPDATE_CONTACT_EMAIL",
+                request.getRequestStatus(), request.getRequestStatus(), null);
+        return toDto(request);
+    }
+
+    @Override
+    @Transactional
+    public ResumeReviewRequestDTO upgradePriority(Long userId, String requestNo,
+                                                  Integer priorityFeeCents, String clientIp) {
+        ResumeReviewRequest request = requireForUpdate(requestNo);
+        if (!Objects.equals(request.getUserId(), userId)) {
+            throw new BusinessException(ResultCode.RESUME_REVIEW_FORBIDDEN);
+        }
+        if ("PAID".equals(request.getEntitlementType())) {
+            return toDto(request);
+        }
+        if (!"MEMBERSHIP".equals(request.getEntitlementType())
+                || !"EMAIL_PENDING".equals(request.getRequestStatus())
+                || request.getDispatchedAt() != null
+                || request.getQueuedAt() != null
+                || request.getOrderNo() != null) {
+            throw new BusinessException(ResultCode.RESUME_REVIEW_STATE_INVALID);
+        }
+        int priorityFee = priorityFeeCents == null ? 0 : priorityFeeCents;
+        if (priorityFee < 1 || priorityFee > MAX_PRIORITY_FEE_CENTS) {
+            throw new BusinessException(ResultCode.BAD_REQUEST);
+        }
+        if (!paymentProviderReady()) {
+            throw new BusinessException(ResultCode.RESUME_REVIEW_PAID_NOT_ENABLED);
+        }
+
+        String previousStatus = request.getRequestStatus();
+        LocalDateTime now = LocalDateTime.now();
+        request.setEntitlementType("PAID");
+        request.setPriceCents(priorityFee);
+        request.setBasePriceCents(0);
+        request.setPriorityFeeCents(priorityFee);
+        request.setRequestStatus("AWAITING_PAYMENT");
+        request.setOrderNo("PS" + compactUuid());
+        request.setProvider(paymentGateway.provider());
+        request.setPayChannel("NATIVE_QR");
+        request.setPaymentStatus("CREATED");
+        request.setPaymentExpiresAt(now.plusMinutes(properties.getPaymentOrderExpireMinutes()));
+
+        ResumeReviewCreditLedger ledger = new ResumeReviewCreditLedger();
+        ledger.setUserId(userId);
+        ledger.setRequestId(request.getId());
+        ledger.setCreditType("PAID");
+        ledger.setLedgerStatus("RESERVED");
+        ledger.setActiveEntitlementKey("PAID:" + request.getOrderNo());
+        ledgerMapper.insert(ledger);
+        audit(request, userId, "USER", "UPGRADE_PRIORITY", previousStatus,
+                "AWAITING_PAYMENT", String.valueOf(priorityFee));
+        createNativePrepay(request, clientIp);
         return toDto(request);
     }
 
@@ -227,6 +281,65 @@ public class ResumeReviewServiceImpl implements ResumeReviewService {
         ProviderPaymentResult result = paymentGateway.queryOrder(request.getOrderNo());
         applyProviderResult(request, result);
         return toDto(request);
+    }
+
+    @Override
+    @Transactional
+    public ResumeReviewRequestDTO dispatch(Long userId, String requestNo, MultipartFile file) {
+        ResumeReviewRequest request = requestMapper.selectByRequestNoForUpdate(requestNo);
+        if (request == null) throw new BusinessException(ResultCode.RESUME_REVIEW_NOT_FOUND);
+        if (!Objects.equals(request.getUserId(), userId)) {
+            throw new BusinessException(ResultCode.RESUME_REVIEW_FORBIDDEN);
+        }
+        if (Set.of("EMAILED", "ACCEPTED", "COMPLETED").contains(request.getRequestStatus())) {
+            return toDto(request);
+        }
+        if (!"EMAIL_PENDING".equals(request.getRequestStatus())) {
+            throw new BusinessException(ResultCode.RESUME_REVIEW_STATE_INVALID);
+        }
+        if ("PAID".equals(request.getEntitlementType()) && !"PAID".equals(request.getPaymentStatus())) {
+            throw new BusinessException(ResultCode.RESUME_REVIEW_STATE_INVALID);
+        }
+        byte[] pdf = validateDispatchPdf(request, file);
+        String recipientEmail = platformConfigService.getResumeReviewRecipientEmail();
+        if (!StringUtils.hasText(recipientEmail)) {
+            throw new BusinessException(ResultCode.MAIL_NOT_CONFIGURED);
+        }
+        String messageId = "<resume-review-" + request.getRequestNo().toLowerCase(Locale.ROOT)
+                + "@" + properties.getMessageIdDomain() + ">";
+        mailService.sendResumeReview(recipientEmail, messageId, request.getRequestNo(),
+                request.getContactEmail(), pdf, request.getPdfOriginalFileName());
+
+        LocalDateTime now = LocalDateTime.now();
+        request.setDispatchedAt(now);
+        request.setPdfUploadedAt(now);
+        request.setQueuedAt(now);
+        request.setRequestStatus("EMAILED");
+        requestMapper.updateById(request);
+        consumeLedger(request.getId());
+        audit(request, userId, "USER", "DISPATCH", "EMAIL_PENDING", "EMAILED", null);
+        return toDto(request);
+    }
+
+    @Override
+    public List<ResumeReviewQueueItemDTO> publicQueue() {
+        List<ResumeReviewRequest> requests = requestMapper.selectPublicQueue();
+        List<ResumeReviewQueueItemDTO> queue = new ArrayList<>(requests.size());
+        for (int index = 0; index < requests.size(); index++) {
+            ResumeReviewRequest request = requests.get(index);
+            ResumeReviewQueueItemDTO dto = new ResumeReviewQueueItemDTO();
+            dto.setPosition(index + 1);
+            dto.setPublicCode(publicQueueCode(request.getRequestNo()));
+            dto.setQueueStatus("ACCEPTED".equals(request.getRequestStatus())
+                    ? "IN_PROGRESS" : "WAITING");
+            int priorityFee = request.getPriorityFeeCents() == null ? 0 : request.getPriorityFeeCents();
+            dto.setPriority(priorityFee > 0);
+            dto.setPriorityFeeCents(priorityFee);
+            dto.setPaidAmountCents(request.getPriceCents() == null ? 0 : request.getPriceCents());
+            dto.setQueuedAt(DateTimeUtils.format(request.getQueuedAt()));
+            queue.add(dto);
+        }
+        return queue;
     }
 
     @Override
@@ -344,8 +457,8 @@ public class ResumeReviewServiceImpl implements ResumeReviewService {
         } else {
             transition(request, adminId, "RETURN_AND_RELEASE", "RETURNED", reason);
             request.setActiveUserKey(null);
-            // SMTP 接受前才返还首次免费额度；一旦已投递，邮件副本无法召回。
-            // 历史 FOLLOW_REWARD 请求仅释放流水，不再重新签发关注奖励。
+            // 未付款的新订单以及历史免费请求均只释放流水；
+            // 旧的免费权益不再重新签发。
             if (Set.of("AWAITING_PAYMENT", "EMAIL_PENDING").contains(originalStatus)) {
                 releaseLedger(request);
             }
@@ -357,7 +470,6 @@ public class ResumeReviewServiceImpl implements ResumeReviewService {
     @Override
     @Transactional
     public ResumeReviewRequestDTO adminRetryMail(String requestNo, Long adminId, String reason) {
-        requireFeatureEnabled();
         ResumeReviewRequest request = requireForUpdate(requestNo);
         if (!"EMAIL_PENDING".equals(request.getRequestStatus())) {
             throw new BusinessException(ResultCode.RESUME_REVIEW_STATE_INVALID);
@@ -446,7 +558,6 @@ public class ResumeReviewServiceImpl implements ResumeReviewService {
             } else {
                 request.setPaymentStatus("PAID");
                 request.setRequestStatus("EMAIL_PENDING");
-                createOutbox(request);
                 audit(request, null, "SYSTEM", "PAYMENT_PAID",
                         previousRequestStatus, "EMAIL_PENDING", null);
             }
@@ -622,6 +733,8 @@ public class ResumeReviewServiceImpl implements ResumeReviewService {
         dto.setEntitlementType(request.getEntitlementType());
         dto.setRequestStatus(request.getRequestStatus());
         dto.setPriceCents(request.getPriceCents());
+        dto.setBasePriceCents(request.getBasePriceCents());
+        dto.setPriorityFeeCents(request.getPriorityFeeCents());
         dto.setOrderNo(request.getOrderNo());
         dto.setPaymentStatus(request.getPaymentStatus());
         dto.setCodeUrl(request.getCodeUrl());
@@ -630,6 +743,8 @@ public class ResumeReviewServiceImpl implements ResumeReviewService {
         }
         dto.setPaymentExpiresAt(DateTimeUtils.format(request.getPaymentExpiresAt()));
         dto.setPaidAt(DateTimeUtils.format(request.getPaidAt()));
+        dto.setDispatchedAt(DateTimeUtils.format(request.getDispatchedAt()));
+        dto.setQueuedAt(DateTimeUtils.format(request.getQueuedAt()));
         dto.setCreatedAt(DateTimeUtils.format(request.getCreatedAt()));
         dto.setRefundReason(request.getRefundReason());
         return dto;
@@ -647,6 +762,8 @@ public class ResumeReviewServiceImpl implements ResumeReviewService {
         dto.setEntitlementType(request.getEntitlementType());
         dto.setRequestStatus(request.getRequestStatus());
         dto.setPriceCents(request.getPriceCents());
+        dto.setBasePriceCents(request.getBasePriceCents());
+        dto.setPriorityFeeCents(request.getPriorityFeeCents());
         dto.setOrderNo(request.getOrderNo());
         dto.setProvider(request.getProvider());
         dto.setPayChannel(request.getPayChannel());
@@ -654,6 +771,7 @@ public class ResumeReviewServiceImpl implements ResumeReviewService {
         dto.setProviderTransactionId(request.getProviderTransactionId());
         dto.setPaymentExpiresAt(DateTimeUtils.format(request.getPaymentExpiresAt()));
         dto.setPaidAt(DateTimeUtils.format(request.getPaidAt()));
+        dto.setQueuedAt(DateTimeUtils.format(request.getQueuedAt()));
         dto.setRefundReason(request.getRefundReason());
         dto.setRefundReference(request.getRefundReference());
         dto.setHandledBy(request.getHandledBy());
@@ -673,20 +791,85 @@ public class ResumeReviewServiceImpl implements ResumeReviewService {
     }
 
     private String activeUserKey(Long userId) { return "RESUME_REVIEW:" + userId; }
-    private void requireFeatureEnabled() {
-        if (!properties.isEnabled()) {
-            throw new BusinessException(ResultCode.RESUME_REVIEW_DISABLED);
-        }
+    private boolean paymentProviderReady() {
+        String provider = paymentGateway.provider();
+        return "wechat".equals(provider) || "mock".equals(provider);
+    }
+    private boolean isActiveMember(User user) {
+        return user != null && "ACTIVE".equals(user.getMembershipStatus())
+                && (user.getMembershipExpiresAt() == null
+                || user.getMembershipExpiresAt().isAfter(LocalDateTime.now()));
+    }
+    private String publicQueueCode(String requestNo) {
+        if (!StringUtils.hasText(requestNo)) return "精修单";
+        String normalized = requestNo.trim();
+        int start = Math.max(0, normalized.length() - 8);
+        return "精修单 · " + normalized.substring(start).toUpperCase(Locale.ROOT);
     }
     private String normalizeEmail(String email) {
         if (!StringUtils.hasText(email)) throw new BusinessException(ResultCode.BAD_REQUEST);
         return email.trim().toLowerCase(Locale.ROOT);
+    }
+    private String normalizePdfFileName(String fileName) {
+        if (!StringUtils.hasText(fileName)) {
+            throw new BusinessException(ResultCode.RESUME_REVIEW_UPLOAD_INVALID);
+        }
+        String normalized = fileName.replace('\\', '/');
+        normalized = normalized.substring(normalized.lastIndexOf('/') + 1)
+                .replaceAll("[\\p{Cntrl}]", "").trim();
+        if (normalized.isEmpty() || normalized.length() > 200
+                || !normalized.toLowerCase(Locale.ROOT).endsWith(".pdf")) {
+            throw new BusinessException(ResultCode.RESUME_REVIEW_UPLOAD_INVALID);
+        }
+        return normalized;
+    }
+    private byte[] validateDispatchPdf(ResumeReviewRequest request, MultipartFile file) {
+        if (file == null || file.isEmpty() || file.getSize() < PDF_MAGIC.length
+                || file.getSize() > MAX_PDF_BYTES
+                || request.getPdfSizeBytes() == null
+                || file.getSize() != request.getPdfSizeBytes()) {
+            throw new BusinessException(ResultCode.RESUME_REVIEW_UPLOAD_INVALID);
+        }
+        String contentType = file.getContentType();
+        if (StringUtils.hasText(contentType)
+                && !"application/pdf".equalsIgnoreCase(contentType.trim())) {
+            throw new BusinessException(ResultCode.RESUME_REVIEW_UPLOAD_INVALID);
+        }
+        String fileName = normalizePdfFileName(file.getOriginalFilename());
+        if (!fileName.equals(request.getPdfOriginalFileName())) {
+            throw new BusinessException(ResultCode.RESUME_REVIEW_UPLOAD_INVALID);
+        }
+        try {
+            byte[] pdf = file.getBytes();
+            if (pdf.length != file.getSize()) {
+                throw new BusinessException(ResultCode.RESUME_REVIEW_UPLOAD_INVALID);
+            }
+            for (int index = 0; index < PDF_MAGIC.length; index++) {
+                if (pdf[index] != PDF_MAGIC[index]) {
+                    throw new BusinessException(ResultCode.RESUME_REVIEW_UPLOAD_INVALID);
+                }
+            }
+            String actualSha256 = sha256(pdf);
+            if (!actualSha256.equalsIgnoreCase(request.getPdfSha256())) {
+                throw new BusinessException(ResultCode.RESUME_REVIEW_UPLOAD_INVALID);
+            }
+            return pdf;
+        } catch (IOException exception) {
+            throw new BusinessException(ResultCode.RESUME_REVIEW_UPLOAD_INVALID);
+        }
     }
     private String compactUuid() { return UUID.randomUUID().toString().replace("-", ""); }
     private String sha256(String value) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
                     .digest(value.getBytes(StandardCharsets.UTF_8)));
+        } catch (Exception exception) {
+            throw new IllegalStateException("SHA-256 unavailable", exception);
+        }
+    }
+    private String sha256(byte[] value) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value));
         } catch (Exception exception) {
             throw new IllegalStateException("SHA-256 unavailable", exception);
         }

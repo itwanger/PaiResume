@@ -10,14 +10,6 @@ class GlobalExceptionHandlerTest {
     private final GlobalExceptionHandler handler = new GlobalExceptionHandler();
 
     @Test
-    void pdfMembershipRequirementUsesForbiddenStatus() {
-        var response = handler.handleBusiness(new BusinessException(ResultCode.MEMBERSHIP_REQUIRED));
-
-        assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
-        assertEquals(ResultCode.MEMBERSHIP_REQUIRED.getCode(), response.getBody().getCode());
-    }
-
-    @Test
     void showcaseMembershipRequirementUsesForbiddenStatus() {
         var response = handler.handleBusiness(new BusinessException(ResultCode.SHOWCASE_MEMBERSHIP_REQUIRED));
 

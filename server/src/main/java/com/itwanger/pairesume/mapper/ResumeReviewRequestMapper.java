@@ -33,13 +33,29 @@ public interface ResumeReviewRequestMapper extends BaseMapper<ResumeReviewReques
     @Select("SELECT * FROM resume_review_request WHERE provider=#{provider} AND provider_transaction_id=#{tx} LIMIT 1")
     ResumeReviewRequest selectByProviderTransaction(@Param("provider") String provider, @Param("tx") String tx);
 
-    @Select("SELECT * FROM resume_review_request ORDER BY created_at DESC, id DESC LIMIT 300")
+    @Select("SELECT * FROM resume_review_request ORDER BY "
+            + "CASE WHEN request_status='ACCEPTED' THEN 0 "
+            + "WHEN request_status IN ('EMAIL_PENDING','EMAILED') THEN 1 ELSE 2 END, "
+            + "CASE WHEN request_status='ACCEPTED' THEN accepted_at END, "
+            + "CASE WHEN request_status IN ('EMAIL_PENDING','EMAILED') THEN priority_fee_cents END DESC, "
+            + "CASE WHEN request_status IN ('EMAIL_PENDING','EMAILED') AND priority_fee_cents>0 THEN paid_at END, "
+            + "CASE WHEN request_status IN ('EMAIL_PENDING','EMAILED') AND priority_fee_cents=0 THEN queued_at END, "
+            + "created_at DESC, id DESC LIMIT 300")
     List<ResumeReviewRequest> selectAdminQueue();
+
+    @Select("SELECT * FROM resume_review_request "
+            + "WHERE request_status IN ('EMAILED','ACCEPTED') "
+            + "ORDER BY CASE WHEN request_status='ACCEPTED' THEN 0 ELSE 1 END, "
+            + "CASE WHEN request_status='ACCEPTED' THEN accepted_at END, "
+            + "priority_fee_cents DESC, "
+            + "CASE WHEN priority_fee_cents>0 THEN paid_at END, "
+            + "CASE WHEN priority_fee_cents=0 THEN queued_at END, id LIMIT 300")
+    List<ResumeReviewRequest> selectPublicQueue();
 
     @Select("SELECT COUNT(*) FROM resume_review_request r "
             + "LEFT JOIN resume_review_mail_outbox o ON o.request_id=r.id "
             + "WHERE r.request_status IN ('EMAILED','ACCEPTED','REFUND_REQUIRED') OR "
-            + "(r.request_status='EMAIL_PENDING' AND (o.outbox_status='FAILED' OR o.id IS NULL))")
+            + "(r.request_status='EMAIL_PENDING' AND o.outbox_status='FAILED')")
     long countAdminActionQueue();
 
     @Select("SELECT COUNT(*) FROM resume_review_request WHERE user_id=#{userId} AND request_status IN "

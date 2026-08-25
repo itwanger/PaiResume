@@ -432,6 +432,9 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
                 <NavLink to={EXCELLENT_RESUMES_PATH} className={excellentNavigationLinkClass}>
                   优质简历
                 </NavLink>
+                <NavLink to="/resume-review" className={navigationLinkClass}>
+                  人工精修
+                </NavLink>
                 {readyAuthenticated && user?.marketplaceEnabled ? (
                   <NavLink to={CREATOR_MARKETPLACE_PATH} className={navigationLinkClass}>
                     创作者中心
@@ -628,6 +631,9 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
                 </NavLink>
                 <NavLink to={EXCELLENT_RESUMES_PATH} className={excellentNavigationLinkClass}>
                   优质简历
+                </NavLink>
+                <NavLink to="/resume-review" className={navigationLinkClass}>
+                  人工精修
                 </NavLink>
                 {readyAuthenticated && user?.marketplaceEnabled ? (
                   <NavLink to={CREATOR_MARKETPLACE_PATH} className={navigationLinkClass}>

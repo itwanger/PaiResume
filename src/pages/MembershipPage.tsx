@@ -657,10 +657,10 @@ export default function MembershipPage() {
             <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_420px]">
               <section className="border border-slate-200 bg-white p-6" aria-labelledby="membership-benefits-title">
                 <h2 id="membership-benefits-title" className="text-lg font-semibold text-slate-950">
-                  全部方案均包含
+                  会员权益与增值服务
                 </h2>
                 <ul className="mt-5 grid gap-3 text-sm text-slate-700 sm:grid-cols-2">
-                  {['AI 简历分析与优化', '智能一页排版', 'PDF 导出', 'VIP 内容查看'].map((benefit) => (
+                  {['AI 简历分析与优化', 'VIP 内容查看', '人工精修免费排队'].map((benefit) => (
                     <li key={benefit} className="flex items-center gap-2">
                       <span className="text-emerald-600" aria-hidden="true">✓</span>
                       {benefit}

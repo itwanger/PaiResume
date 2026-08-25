@@ -22,7 +22,6 @@ import { ResearchForm } from '../components/modules/ResearchForm'
 import { AwardForm } from '../components/modules/AwardForm'
 import { AwardItemSorter } from '../components/modules/AwardItemSorter'
 import { MembershipUpgradeModal } from '../components/membership/MembershipUpgradeModal'
-import { ResumeReviewModal } from '../components/review/ResumeReviewModal'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { flushResumeAutoSaves } from '../hooks/useAutoSave'
 import { SINGLETON_MODULES, type ModuleType } from '../types'
@@ -94,7 +93,6 @@ export default function EditorPage() {
   const [membershipNavigationError, setMembershipNavigationError] = useState('')
   const [membershipNavigationPending, setMembershipNavigationPending] = useState(false)
   const [membershipModalOpen, setMembershipModalOpen] = useState(false)
-  const [resumeReviewModalOpen, setResumeReviewModalOpen] = useState(false)
   const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState | null>(null)
   const [deletingModuleId, setDeletingModuleId] = useState<number | null>(null)
   const [initializingBasicInfo, setInitializingBasicInfo] = useState(false)
@@ -132,7 +130,6 @@ export default function EditorPage() {
     : requestedViewParam === 'chrome-preview' || requestedViewParam === 'template-selection'
       ? 'template-selection'
       : 'module'
-  const resumeReviewEnabled = user?.resumeReviewEnabled === true
   const initialModuleType = requestedModuleType && requestedModuleType in getDefaultContentMap()
     ? requestedModuleType as ModuleType
     : requestedView === 'module'
@@ -694,7 +691,7 @@ export default function EditorPage() {
   const mobileWorkspaceLabel = editorView === 'analysis'
     ? '简历分析'
     : editorView === 'template-selection'
-      ? '预览与导出'
+      ? '排版导出'
       : activeModuleType
         ? getModuleDisplayLabelFromModules(activeModuleType, modules)
         : '选择模块'
@@ -702,11 +699,6 @@ export default function EditorPage() {
   const handleExportPdf = useCallback(async (pageMode: ResumePdfPageMode) => {
     if (modules.length === 0) {
       setExportError('请先完善简历内容后再导出 PDF')
-      return
-    }
-
-    if (user?.membershipStatus !== 'ACTIVE') {
-      setMembershipModalOpen(true)
       return
     }
 
@@ -731,25 +723,21 @@ export default function EditorPage() {
       })
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : '导出 PDF 失败，请稍后重试'
-      if (message.includes('会员')) {
-        setMembershipModalOpen(true)
-      }
       setExportError(message)
     } finally {
       setExporting(false)
     }
-  }, [modules.length, pdfPreviewConfig.accentPreset, pdfPreviewConfig.density, pdfPreviewConfig.headingStyle, pdfPreviewConfig.templateId, resumeId, resumeTitle, user?.membershipStatus])
+  }, [modules.length, pdfPreviewConfig.accentPreset, pdfPreviewConfig.density, pdfPreviewConfig.headingStyle, pdfPreviewConfig.templateId, resumeId, resumeTitle])
 
-  const closeResumeReviewModal = useCallback(() => {
-    setResumeReviewModalOpen(false)
-    window.requestAnimationFrame(() => resumeReviewTriggerRef.current?.focus())
-  }, [])
-
-  useEffect(() => {
-    if (!resumeReviewEnabled) {
-      setResumeReviewModalOpen(false)
+  const openResumeReviewPage = useCallback(async () => {
+    setExportError('')
+    try {
+      await flushResumeAutoSaves(resumeId)
+      navigate('/resume-review')
+    } catch (error: unknown) {
+      setExportError(error instanceof Error ? error.message : '简历保存失败，请保存后再申请人工精修')
     }
-  }, [resumeReviewEnabled])
+  }, [navigate, resumeId])
 
   const renderModuleForm = (moduleId: number, content: Record<string, unknown>, itemIndex = 0) => {
     if (!activeModuleType) return null
@@ -849,6 +837,11 @@ export default function EditorPage() {
                   openAnalysisView()
                   closeMobileModuleMenu()
                 }}
+                resumeReviewActive={false}
+                onSelectResumeReview={() => {
+                  void openResumeReviewPage()
+                  closeMobileModuleMenu()
+                }}
                 templateSelectionActive={editorView === 'template-selection'}
                 onSelectTemplateSelection={() => {
                   openTemplateSelectionView()
@@ -924,6 +917,8 @@ export default function EditorPage() {
           onReorderModuleTypes={handleReorderModuleTypes}
           analysisActive={editorView === 'analysis'}
           onSelectAnalysis={openAnalysisView}
+          resumeReviewActive={false}
+          onSelectResumeReview={() => void openResumeReviewPage()}
           templateSelectionActive={editorView === 'template-selection'}
           onSelectTemplateSelection={openTemplateSelectionView}
         />
@@ -976,25 +971,6 @@ export default function EditorPage() {
             ) : null}
           </div>
 
-          {resumeReviewEnabled ? (
-            <div className="mb-4 flex justify-end">
-              <button
-                ref={resumeReviewTriggerRef}
-                type="button"
-                onClick={() => setResumeReviewModalOpen(true)}
-                className="group inline-flex min-h-12 w-full items-center justify-center gap-3 rounded-xl border border-primary-200 bg-white px-4 py-2.5 text-left shadow-sm transition hover:border-primary-300 hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 sm:w-auto"
-                aria-haspopup="dialog"
-              >
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-100 text-primary-700 transition group-hover:bg-primary-200" aria-hidden="true">
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L8 18l-4 1 1-4L16.5 3.5z" />
-                  </svg>
-                </span>
-                <span className="text-sm font-semibold text-slate-900">请二哥帮我改简历</span>
-              </button>
-            </div>
-          ) : null}
-
           {editorView === 'analysis' ? (
             <div className={analysisContainerClassName}>
               {exportError && (
@@ -1026,8 +1002,8 @@ export default function EditorPage() {
               config={pdfPreviewConfig}
               onConfigChange={handlePdfPreviewConfigChange}
               onExportPdf={(pageMode) => void handleExportPdf(pageMode)}
-              isVip={isVip}
-              onRequireVip={() => setMembershipModalOpen(true)}
+              onRequestReview={() => void openResumeReviewPage()}
+              reviewButtonRef={resumeReviewTriggerRef}
               exporting={exporting}
               exportError={exportError}
             />
@@ -1264,7 +1240,7 @@ export default function EditorPage() {
                   loading={loading}
                   activeModuleType={editorView === 'module' ? activeModuleType : null}
                   activeModuleId={focusedExperienceModuleId}
-                  pageMode={isVip ? pdfPreviewConfig.pageMode : 'standard'}
+                  pageMode={pdfPreviewConfig.pageMode}
                   pdfConfig={pdfPreviewConfig}
                 />
               )}
@@ -1305,15 +1281,6 @@ export default function EditorPage() {
         onClose={() => setMembershipModalOpen(false)}
       />
 
-      {user && resumeReviewEnabled ? (
-        <ResumeReviewModal
-          open={resumeReviewModalOpen}
-          resumeId={resumeId}
-          userId={user.id}
-          accountEmail={user.email}
-          onClose={closeResumeReviewModal}
-        />
-      ) : null}
     </div>
   )
 }

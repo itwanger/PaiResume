@@ -87,17 +87,17 @@ const FILTER_OPTIONS: Array<{ value: ReviewFilter; label: string }> = [
 ]
 
 function entitlementLabel(request: ResumeReviewAdminRequest) {
-  if (request.entitlementType === 'WELCOME_FREE') return '首次免费'
+  if (request.entitlementType === 'WELCOME_FREE') return '历史首次免费（已取消）'
   if (request.entitlementType === 'FOLLOW_REWARD') return '历史免费权益（已停用）'
-  return `逐次付费 ${formatAdminCents(request.priceCents)}`
+  if (request.entitlementType === 'MEMBERSHIP') return '普通排队'
+  return `会员加急 ${formatAdminCents(request.priorityFeeCents)}`
 }
 
 function needsAdminAction(request: ResumeReviewAdminRequest) {
   return request.requestStatus === 'EMAILED'
     || request.requestStatus === 'ACCEPTED'
     || request.requestStatus === 'REFUND_REQUIRED'
-    || (request.requestStatus === 'EMAIL_PENDING'
-      && (request.mailStatus === 'FAILED' || request.mailStatus === null))
+    || (request.requestStatus === 'EMAIL_PENDING' && request.mailStatus === 'FAILED')
 }
 
 export function ResumeReviewAdminPanel({
@@ -138,7 +138,8 @@ export function ResumeReviewAdminPanel({
         review.requestNo,
         review.orderNo,
         review.contactEmail,
-        String(review.resumeId),
+        review.pdfFileName,
+        review.resumeId === null ? '' : String(review.resumeId),
       ].some((value) => value?.toLowerCase().includes(normalizedQuery))
     })
   }, [filter, query, reviews])
@@ -147,6 +148,7 @@ export function ResumeReviewAdminPanel({
     actionRequired: reviews.filter(needsAdminAction).length,
     emailed: reviews.filter((review) => review.requestStatus === 'EMAILED').length,
     accepted: reviews.filter((review) => review.requestStatus === 'ACCEPTED').length,
+    priority: reviews.filter((review) => review.priorityFeeCents > 0 && ACTIVE_STATUSES.has(review.requestStatus)).length,
     refundRequired: reviews.filter((review) => review.requestStatus === 'REFUND_REQUIRED').length,
   }), [reviews])
 
@@ -229,9 +231,9 @@ export function ResumeReviewAdminPanel({
 
   async function handleAction(request: ResumeReviewAdminRequest, action: ReviewAction) {
     const actionLabel = action === 'ACCEPT'
-      ? '接受申请'
+      ? '开始精修'
       : action === 'COMPLETE'
-        ? '标记完成'
+        ? '设置已精修'
         : action === 'RETURN'
           ? '退回申请'
           : '重试邮件投递'
@@ -242,13 +244,13 @@ export function ResumeReviewAdminPanel({
       ? request.paidAt
         ? `确认退回 ${request.requestNo}？\n\n该申请已经付款，只会转为“待人工退款”，本页面不会向微信发起退款。`
         : request.requestStatus === 'EMAILED' || request.requestStatus === 'ACCEPTED'
-          ? `确认退回 ${request.requestNo}？\n\nPDF 邮件已经发出，无法远程召回；已使用的免费次数也不会返还。`
-          : `确认退回 ${request.requestNo}？\n\n邮件尚未确认投递，符合条件的免费次数会由服务端释放。`
+          ? `确认退回 ${request.requestNo}？\n\nPDF 邮件已经发出，无法远程召回。`
+          : `确认退回 ${request.requestNo}？\n\n邮件尚未确认投递，未付款订单会由服务端关闭。`
       : action === 'RETRY_MAIL'
         ? `确认重新调度 ${request.requestNo} 的邮件投递？\n\n这里只会重置邮件队列，不代表邮件已经发送成功。`
         : action === 'COMPLETE'
-          ? `确认 ${request.requestNo} 的人工精修确已完成？\n\n完成后用户可以申请下一次服务。`
-          : `确认接受 ${request.requestNo}？\n\n接受后该申请会进入人工处理中。`
+          ? `确认 ${request.requestNo} 已完成精修？\n\n完成后该申请会移出公开排队池，用户可以申请下一次服务。`
+          : `确认开始精修 ${request.requestNo}？\n\n开始后该申请会进入“正在精修”。`
     if (!await confirmAdminAction({
       title: actionLabel,
       description: confirmation,
@@ -428,11 +430,12 @@ export function ResumeReviewAdminPanel({
       {error ? <div role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
       {success ? <div role="status" className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{success}</div> : null}
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {[
           ['需要处理', stats.actionRequired, 'text-violet-700'],
           ['已发送待接单', stats.emailed, 'text-blue-700'],
           ['处理中', stats.accepted, 'text-emerald-700'],
+          ['加急排队', stats.priority, 'text-amber-700'],
           ['待人工退款', stats.refundRequired, 'text-red-700'],
         ].map(([label, value, tone]) => (
           <div key={String(label)} className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-4">
@@ -456,7 +459,7 @@ export function ResumeReviewAdminPanel({
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="搜索申请号、订单号、邮箱或简历 ID"
+          placeholder="搜索申请号、订单号、邮箱或 PDF 文件名"
           aria-label="搜索人工精修申请"
           className="min-h-11 min-w-0 flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
         />
@@ -477,18 +480,20 @@ export function ResumeReviewAdminPanel({
                       {STATUS_LABELS[request.requestStatus]}
                     </span>
                     <span className="break-all text-sm font-semibold text-gray-900">{request.requestNo}</span>
+                    {request.priorityFeeCents > 0 && ACTIVE_STATUSES.has(request.requestStatus) ? (
+                      <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">插队中 · +{formatAdminCents(request.priorityFeeCents)}</span>
+                    ) : null}
                   </div>
                   <p className="mt-2 break-all text-sm text-gray-700">{request.contactEmail}</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {request.requestStatus === 'EMAILED' ? (
-                    <ActionButton busy={working} disabled={actionInFlight} onClick={() => void handleAction(request, 'ACCEPT')}>接受</ActionButton>
+                    <ActionButton busy={working} disabled={actionInFlight} onClick={() => void handleAction(request, 'ACCEPT')}>开始精修</ActionButton>
                   ) : null}
                   {request.requestStatus === 'ACCEPTED' ? (
-                    <ActionButton busy={working} disabled={actionInFlight} onClick={() => void handleAction(request, 'COMPLETE')}>完成</ActionButton>
+                    <ActionButton busy={working} disabled={actionInFlight} onClick={() => void handleAction(request, 'COMPLETE')}>设置已精修</ActionButton>
                   ) : null}
-                  {request.requestStatus === 'EMAIL_PENDING'
-                    && (request.mailStatus === 'FAILED' || request.mailStatus === null) ? (
+                  {request.requestStatus === 'EMAIL_PENDING' && request.mailStatus === 'FAILED' ? (
                     <ActionButton busy={working} disabled={actionInFlight} onClick={() => void handleAction(request, 'RETRY_MAIL')}>重试邮件</ActionButton>
                   ) : null}
                   {['AWAITING_PAYMENT', 'EMAIL_PENDING', 'EMAILED', 'ACCEPTED'].includes(request.requestStatus) ? (
@@ -510,11 +515,11 @@ export function ResumeReviewAdminPanel({
               </div>
 
               <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
-                <div><dt className="text-xs text-gray-400">快照 / 资格</dt><dd className="mt-1 text-gray-800">简历 #{request.resumeId} · {entitlementLabel(request)}</dd></div>
+                <div><dt className="text-xs text-gray-400">PDF / 资格</dt><dd className="mt-1 break-all text-gray-800">{request.pdfFileName || (request.resumeId ? `简历 #${request.resumeId}` : '用户上传 PDF')} · {entitlementLabel(request)}</dd></div>
                 <div><dt className="text-xs text-gray-400">用户 / 处理人</dt><dd className="mt-1 text-gray-800">用户 #{request.userId} · {request.handledBy ? `管理员 #${request.handledBy}` : '尚未接单'}</dd></div>
                 <div><dt className="text-xs text-gray-400">创建 / 付款</dt><dd className="mt-1 text-gray-800">{formatAdminDateTime(request.createdAt)}{request.paidAt ? ` · ${formatAdminDateTime(request.paidAt)}` : ''}</dd></div>
                 <div className="min-w-0"><dt className="text-xs text-gray-400">支付订单</dt><dd className="mt-1 break-all text-gray-800">{request.orderNo || '免费申请，无支付订单'}</dd></div>
-                <div><dt className="text-xs text-gray-400">支付通道 / 金额</dt><dd className="mt-1 text-gray-800">{request.provider ? `${request.provider} · ${request.paymentStatus || '待确认'}` : '无需支付'} · {formatAdminCents(request.priceCents)}</dd></div>
+                <div><dt className="text-xs text-gray-400">支付通道 / 金额</dt><dd className="mt-1 text-gray-800">{request.provider ? `${request.provider} · ${request.paymentStatus || '待确认'}` : '无需支付'} · 基础 {formatAdminCents(request.basePriceCents)}{request.priorityFeeCents > 0 ? ` + 加急 ${formatAdminCents(request.priorityFeeCents)}` : ''} · 合计 {formatAdminCents(request.priceCents)}</dd></div>
                 <div className="min-w-0"><dt className="text-xs text-gray-400">支付交易号</dt><dd className="mt-1 break-all text-gray-800">{request.providerTransactionId || '未记录'}</dd></div>
                 <div><dt className="text-xs text-gray-400">邮件投递</dt><dd className="mt-1 text-gray-800">{request.mailStatus ? MAIL_STATUS_LABELS[request.mailStatus] || request.mailStatus : '尚未建立投递任务'}{request.mailAttemptCount !== null ? ` · ${request.mailAttemptCount} 次尝试` : ''}</dd></div>
                 <div><dt className="text-xs text-gray-400">邮件时间</dt><dd className="mt-1 text-gray-800">{request.mailSentAt ? `已发送 ${formatAdminDateTime(request.mailSentAt)}` : `下次 ${formatAdminDateTime(request.mailNextAttemptAt)}`}</dd></div>

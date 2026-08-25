@@ -9,7 +9,6 @@ import lombok.Data;
 
 @Data
 public class CreateResumeReviewUploadDTO {
-    @NotNull
     private Long resumeId;
     @NotBlank
     @Size(max = 200)

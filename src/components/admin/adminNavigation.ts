@@ -15,6 +15,7 @@ export const ADMIN_VIEWS = [
   'platform-config',
   'analysis-prompts',
   'ai-provider',
+  'resume-photo-oss',
   'audit-logs',
 ] as const
 
@@ -144,6 +145,11 @@ export const ADMIN_NAVIGATION: AdminNavigationGroup[] = [
         id: 'ai-provider',
         label: 'AI 服务商配置',
         shortLabel: 'AI 服务商',
+      },
+      {
+        id: 'resume-photo-oss',
+        label: '照片 OSS 配置',
+        shortLabel: '照片 OSS',
       },
       {
         id: 'audit-logs',

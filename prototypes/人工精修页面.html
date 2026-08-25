@@ -1,0 +1,623 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>人工精修 · 排队大厅 - 派简历</title>
+<style>
+  :root {
+    --primary: #1d4ed8;
+    --primary-700: #1e40af;
+    --primary-50: #f0f5ff;
+    --primary-100: #e0ebff;
+    --amber: #f59e0b;
+    --amber-50: #fffbeb;
+    --amber-700: #b45309;
+    --green: #059669;
+    --green-50: #ecfdf5;
+    --green-700: #047857;
+    --slate-50: #f8fafc;
+    --slate-100: #f1f5f9;
+    --slate-200: #e2e8f0;
+    --slate-300: #cbd5e1;
+    --slate-400: #94a3b8;
+    --slate-500: #64748b;
+    --slate-600: #475569;
+    --slate-900: #0f172a;
+    --slate-950: #020617;
+    --border: #e2e8f0;
+    --shadow: 0 1px 2px rgba(15,23,42,.04), 0 1px 3px rgba(15,23,42,.06);
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+    background: var(--slate-50);
+    color: var(--slate-900);
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; text-decoration: none; }
+
+  /* ---------- 顶栏 ---------- */
+  .topbar { background:#fff; border-bottom:1px solid var(--border); position:sticky; top:0; z-index:30; }
+  .topbar__inner { max-width:1180px; margin:0 auto; padding:0 24px; height:64px; display:flex; align-items:center; gap:24px; }
+  .brand { font-size:18px; font-weight:700; color:var(--slate-950); display:flex; align-items:center; gap:8px; }
+  .brand__dot { width:22px; height:22px; border-radius:4px; background:var(--primary); color:#fff; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; }
+  .nav { display:flex; gap:20px; font-size:14px; color:var(--slate-600); }
+  .nav a.active { color:var(--primary); font-weight:600; }
+  .topbar__right { margin-left:auto; display:flex; align-items:center; gap:12px; font-size:14px; }
+  .badge-vip { display:inline-flex; align-items:center; gap:5px; background:linear-gradient(135deg,#f6d365,#fda085); color:#7a3e00; font-weight:700; font-size:12px; padding:4px 10px; border-radius:999px; }
+  .avatar { width:32px; height:32px; border-radius:999px; background:var(--primary-100); color:var(--primary-700); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; }
+
+  .main { max-width:1180px; margin:0 auto; padding:0 24px 80px; }
+
+  /* ================= 排队大厅 ================= */
+  .hall {
+    margin-top:24px;
+    border-radius:10px;
+    border:1px solid var(--border);
+    background:#fff;
+    padding:26px 28px 30px;
+    box-shadow:var(--shadow);
+    position:relative; overflow:hidden;
+  }
+  .hall::before { content:""; position:absolute; inset:0; background:linear-gradient(180deg, var(--primary-50) 0%, #ffffff 26%); opacity:.5; pointer-events:none; }
+
+  .hall__head { position:relative; display:flex; flex-wrap:wrap; align-items:center; gap:14px 24px; }
+  .hall__title { display:flex; align-items:center; gap:12px; font-size:23px; font-weight:700; color:var(--slate-950); letter-spacing:-.01em; }
+  .live { display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:600; color:var(--green-700); background:var(--green-50); border:1px solid #bbf7d0; padding:4px 11px; border-radius:999px; }
+  .live__dot { width:7px; height:7px; border-radius:999px; background:var(--green); animation:pulse 1.6s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.35;} }
+
+  .hall__pills { margin-left:auto; display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .pill { font-size:13px; color:var(--slate-600); background:#fff; border:1px solid var(--border); border-radius:999px; padding:6px 13px; display:flex; align-items:center; gap:7px; }
+  .pill b { font-size:16px; font-weight:700; color:var(--slate-900); font-variant-numeric:tabular-nums; }
+  .pill--gold b { color:var(--amber-700); }
+
+  /* 正在精修 spotlight */
+  .hall__spot { position:relative; margin-top:22px; display:grid; grid-template-columns:minmax(0,1fr) auto; gap:20px; align-items:center; }
+  .spot-card {
+    display:flex; gap:20px; align-items:center;
+    background:#fff; border:1px solid var(--border); border-left:4px solid var(--primary);
+    border-radius:0; padding:18px 22px; box-shadow:var(--shadow);
+  }
+  .spot-card__thumb { flex:none; }
+  .spot-card__body { flex:1; min-width:0; display:flex; align-items:center; gap:24px; flex-wrap:wrap; }
+  .spot-card__meta { min-width:0; flex:1; }
+  .spot-card__tag { display:inline-flex; font-size:11px; font-weight:600; color:var(--primary-700); background:var(--primary-50); padding:3px 10px; border-radius:999px; }
+  .spot-card__name { font-size:17px; font-weight:700; color:var(--slate-950); margin-top:10px; }
+  .spot-card__file { font-size:12px; color:var(--slate-500); margin-top:3px; }
+  .spot-card__bar { margin-top:13px; height:6px; background:var(--slate-100); border-radius:999px; overflow:hidden; max-width:420px; }
+  .spot-card__bar > i { display:block; height:100%; width:30%; border-radius:999px; background:var(--primary); animation:progress 2.4s ease-in-out infinite; }
+  @keyframes progress { 0%{width:10%;} 70%{width:82%;} 100%{width:94%;} }
+  .spot-card__hint { font-size:12px; color:var(--slate-500); margin-top:8px; }
+
+  /* 精修处理环节时间线 */
+  .spot-steps { display:flex; align-items:center; flex:none; margin-left:auto; }
+  .spot-step { display:flex; align-items:center; }
+  .spot-step__dot { width:12px; height:12px; border-radius:999px; border:2px solid var(--slate-300); background:#fff; flex:none; }
+  .spot-step__label { font-size:12px; color:var(--slate-400); margin-left:7px; white-space:nowrap; }
+  .spot-step__link { width:26px; height:2px; background:var(--slate-200); margin:0 6px; }
+  .spot-step.is-done .spot-step__dot { border-color:var(--green); background:var(--green); }
+  .spot-step.is-done .spot-step__label { color:var(--green-700); }
+  .spot-step.is-done .spot-step__link { background:var(--green); }
+  .spot-step.is-active .spot-step__dot { border-color:var(--primary); background:#fff; box-shadow:0 0 0 3px var(--primary-100); }
+  .spot-step.is-active .spot-step__label { color:var(--primary); font-weight:700; }
+  .spot-step.is-active .spot-step__link { background:var(--slate-200); }
+
+  .hall__you { position:relative; flex:none; text-align:center; }
+  .hall__you .ring { width:104px; height:104px; border-radius:999px; margin:0 auto; display:flex; align-items:center; justify-content:center; background:#fff; border:2px solid var(--primary); }
+  .hall__you .inner { display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .hall__you .inner b { font-size:25px; font-weight:800; color:var(--primary); line-height:1; }
+  .hall__you .inner span { font-size:11px; color:var(--slate-500); margin-top:3px; }
+  .hall__you p { font-size:12px; color:var(--slate-500); margin:12px 0 0; }
+
+  /* 等待队列 marquee */
+  .hall__wait { position:relative; margin-top:22px; }
+  .hall__wait-label { display:flex; align-items:center; gap:12px; font-size:13px; font-weight:600; color:var(--slate-500); margin-bottom:12px; }
+  .hall__wait-label::after { content:""; flex:1; height:1px; background:var(--border); }
+  .marquee { position:relative; overflow:hidden; -webkit-mask-image:linear-gradient(90deg,transparent,#000 4%,#000 96%,transparent); mask-image:linear-gradient(90deg,transparent,#000 4%,#000 96%,transparent); }
+  .marquee__track { display:flex; gap:12px; width:max-content; animation:scroll 46s linear infinite; }
+  .marquee:hover .marquee__track { animation-play-state:paused; }
+  @keyframes scroll { from{transform:translateX(0);} to{transform:translateX(-50%);} }
+
+  /* 排队卡 */
+  .ticket { width:176px; flex:none; border-radius:0; padding:14px 14px 12px; position:relative; background:#fff; border:1px solid var(--border); transition:transform .22s, border-color .22s, box-shadow .22s; }
+  .ticket:hover { transform:translateY(-5px); border-color:var(--primary-100); box-shadow:0 12px 24px -14px rgba(15,23,42,.25); }
+  .ticket__top { display:flex; align-items:center; justify-content:space-between; }
+  .ticket__pos { font-size:12px; font-weight:700; color:var(--slate-400); font-variant-numeric:tabular-nums; }
+  .ticket__state { font-size:10px; font-weight:600; padding:2px 7px; border-radius:999px; }
+  .ticket__state.wait { color:var(--slate-500); background:var(--slate-100); }
+  .ticket__state.mine { color:#fff; background:var(--primary); }
+  .ticket__state.prio { color:var(--amber-700); background:var(--amber-50); }
+  .ticket__thumb { margin-top:11px; position:relative; }
+  .crown { position:absolute; top:-11px; right:-6px; font-size:22px; line-height:1; filter:drop-shadow(0 1px 1px rgba(180,83,9,.25)); }
+  .ticket__name { font-size:13px; font-weight:600; color:var(--slate-900); margin-top:10px; }
+  .ticket__name .at { color:var(--slate-400); font-weight:500; }
+  .ticket__fee { margin-top:8px; font-size:12px; font-weight:600; }
+  .ticket__fee.zero { color:var(--slate-400); }
+  .ticket__fee.gold { color:var(--amber-700); font-weight:700; }
+  .ticket__fee .amt { font-variant-numeric:tabular-nums; }
+
+  /* 插队(加急)卡：克制的金色尊贵 */
+  .ticket--priority { border-color:var(--amber); }
+  .ticket--priority:hover { border-color:var(--amber); box-shadow:0 12px 24px -14px rgba(245,158,11,.4); }
+  .ticket--priority .ticket__pos { color:var(--amber-700); }
+
+  .ticket.pop { animation:pop .5s cubic-bezier(.18,.9,.32,1.25) both; }
+  @keyframes pop { from{opacity:0; transform:translateY(18px) scale(.9);} to{opacity:1; transform:translateY(0) scale(1);} }
+
+  /* ================= 申请卡 ================= */
+  .apply { margin-top:34px; display:grid; grid-template-columns:minmax(0,1fr) 340px; gap:24px; align-items:start; }
+  @media (max-width:900px){ .apply{grid-template-columns:1fr;} }
+  @media (max-width:520px){
+    .hall__spot { grid-template-columns:1fr; }
+    .hall__you { text-align:center; margin-top:6px; }
+    .hall__title { font-size:20px; }
+    .spot-card__body { flex-direction:column; align-items:flex-start; gap:14px; }
+    .spot-steps { margin-left:0; }
+  }
+  .card { background:#fff; border:1px solid var(--border); border-radius:10px; box-shadow:var(--shadow); }
+  .card__head { padding:18px 22px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:16px; }
+  .card__head h2 { margin:0; font-size:17px; font-weight:700; color:var(--slate-950); }
+  .card__head .hint { font-size:12px; color:var(--slate-500); }
+  .card__body { padding:22px; }
+
+  .step { display:flex; gap:14px; }
+  .step__num { flex:none; width:26px; height:26px; border-radius:999px; background:var(--primary-100); color:var(--primary); font-weight:700; font-size:13px; display:flex; align-items:center; justify-content:center; }
+  .step__title { font-size:15px; font-weight:600; color:var(--slate-950); margin:2px 0 0; }
+  .step__sub { font-size:12px; color:var(--slate-500); margin-top:4px; }
+  .step-group { margin-top:26px; }
+
+  .queue-toggle { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:14px; }
+  .qt { border:1px solid var(--border); border-radius:8px; padding:14px; cursor:pointer; transition:.12s; }
+  .qt:hover { border-color:var(--primary-100); }
+  .qt.selected { border-color:var(--primary); background:var(--primary-50); }
+  .qt__title { font-weight:700; font-size:14px; color:var(--slate-900); display:flex; align-items:center; gap:6px; }
+  .qt__tag { font-size:11px; font-weight:600; padding:2px 8px; border-radius:999px; }
+  .tag-free { background:var(--slate-100); color:var(--slate-600); }
+  .tag-priority { background:var(--amber-50); color:var(--amber-700); }
+  .qt__sub { font-size:12px; color:var(--slate-500); margin-top:6px; line-height:18px; }
+
+  .amount-row { margin-top:14px; }
+  .amount-tabs { display:flex; gap:8px; flex-wrap:wrap; }
+  .amount-chip { border:1px solid var(--border); border-radius:8px; padding:9px 15px 8px; font-size:15px; font-weight:700; cursor:pointer; transition:.12s; color:var(--slate-900); text-align:center; }
+  .amount-chip small { font-weight:500; color:var(--slate-400); display:block; font-size:10px; margin-top:2px; }
+  .amount-chip:hover { border-color:var(--amber); }
+  .amount-chip.selected { border-color:var(--amber); background:var(--amber-50); color:var(--amber-700); }
+  .amount-chip.selected small { color:var(--amber-700); }
+
+  .pos-preview { margin-top:16px; background:var(--primary-50); border:1px dashed var(--primary); border-radius:8px; padding:14px 16px; display:flex; align-items:center; gap:14px; }
+  .pos-preview__num { font-size:28px; font-weight:800; color:var(--primary); line-height:1; }
+  .pos-preview__sub { font-size:12px; color:var(--slate-600); margin-top:4px; }
+
+  .delivery { margin-top:14px; border:1px solid var(--border); border-radius:8px; }
+  .delivery__email { display:flex; align-items:center; gap:10px; padding:12px 16px; }
+  .delivery__email .lbl { font-size:12px; color:var(--slate-500); flex:none; }
+  .delivery__email .val { font-weight:600; font-size:14px; color:var(--slate-900); }
+  .delivery__email .editable { margin-left:auto; font-size:12px; color:var(--primary); cursor:pointer; }
+  .dropzone { border-top:1px solid var(--border); padding:22px 16px; text-align:center; cursor:pointer; transition:.12s; }
+  .dropzone:hover, .dropzone.dragover { background:var(--primary-50); }
+  .dropzone__main { font-size:14px; font-weight:600; color:var(--slate-900); margin-top:6px; }
+  .dropzone__sub { font-size:12px; color:var(--slate-500); margin-top:4px; }
+  .file-chip { display:flex; align-items:center; gap:10px; background:var(--slate-100); border-radius:6px; padding:10px 12px; margin-top:10px; font-size:13px; }
+  .file-chip .f-name { font-weight:600; }
+  .file-chip .f-size { color:var(--slate-500); margin-left:auto; }
+  .file-chip .f-remove { cursor:pointer; color:var(--slate-500); font-weight:700; padding:0 4px; }
+
+  .guard { margin-top:20px; background:var(--slate-50); border:1px solid var(--border); border-radius:8px; padding:14px 16px; display:flex; gap:12px; align-items:flex-start; }
+  .guard__text { font-size:13px; line-height:20px; color:var(--slate-600); }
+  .guard__link { color:var(--primary); font-weight:600; }
+
+  .submit { margin-top:20px; display:flex; align-items:center; gap:14px; }
+  .btn-primary { flex:1; min-height:50px; border:none; border-radius:8px; background:var(--primary); color:#fff; font-size:15px; font-weight:700; cursor:pointer; transition:.12s; }
+  .btn-primary:hover { background:var(--primary-700); }
+  .btn-primary:disabled { background:var(--slate-200); color:var(--slate-500); cursor:not-allowed; }
+
+  .rules .card__body { padding:0; }
+  .rules ul { margin:0; padding:18px 22px 18px 40px; color:var(--slate-600); font-size:13px; line-height:24px; display:grid; gap:8px; }
+
+  /* 门槛 */
+  .gate { border:1px solid var(--amber); background:#fff; border-radius:10px; padding:32px; text-align:center; box-shadow:var(--shadow); }
+  .gate__icon { font-size:40px; }
+  .gate__title { font-size:19px; font-weight:700; color:var(--slate-950); margin-top:8px; }
+  .gate__text { font-size:14px; color:var(--slate-600); line-height:23px; margin-top:10px; max-width:440px; margin-left:auto; margin-right:auto; }
+  .gate__benefits { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin-top:16px; }
+  .gate__benefit { font-size:13px; padding:8px 12px; border-radius:8px; background:var(--slate-50); border:1px solid var(--border); color:var(--slate-600); }
+  .gate .btn-primary { flex:none; min-width:190px; margin-top:20px; }
+
+  .toast { position:fixed; bottom:28px; left:50%; transform:translateX(-50%) translateY(20px); opacity:0; transition:.2s; background:var(--slate-950); color:#fff; padding:13px 22px; border-radius:10px; font-size:14px; box-shadow:0 10px 30px rgba(0,0,0,.2); z-index:60; }
+  .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+  .footnotes { margin-top:26px; font-size:12px; color:var(--slate-500); line-height:20px; }
+</style>
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="topbar__inner">
+      <div class="brand"><span class="brand__dot">派</span>派简历</div>
+      <nav class="nav">
+        <a href="#">工作台</a>
+        <a href="#" class="active">人工精修</a>
+        <a href="#">会员</a>
+      </nav>
+      <div class="topbar__right">
+        <span id="vipBadge" class="badge-vip">✦ 派简历会员</span>
+        <span class="avatar">张</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="main">
+
+    <!-- ============ 排队大厅 ============ -->
+    <section class="hall" id="hall">
+      <div class="hall__head">
+        <div class="hall__title">精修排队大厅 <span class="live"><span class="live__dot"></span>实时</span></div>
+        <div class="hall__pills">
+          <span class="pill">排队中 <b id="pillWaiting">0</b></span>
+          <span class="pill pill--gold">插队中 <b id="pillGold">0</b></span>
+          <span class="pill">正在精修 <b id="pillProgress">1</b></span>
+        </div>
+      </div>
+
+      <!-- 正在精修 -->
+      <div class="hall__spot">
+        <div class="spot-card">
+          <div class="spot-card__thumb" id="spotThumb"></div>
+          <div class="spot-card__body">
+            <div class="spot-card__meta">
+              <span class="spot-card__tag">正在精修</span>
+              <div class="spot-card__name" id="spotName"></div>
+              <div class="spot-card__file" id="spotFile"></div>
+              <div class="spot-card__bar"><i></i></div>
+              <div class="spot-card__hint" id="spotHint"></div>
+            </div>
+            <div class="spot-steps" id="spotSteps"></div>
+          </div>
+        </div>
+        <div class="hall__you">
+          <div class="ring"><div class="inner"><b id="youPos">–</b><span>你的位置</span></div></div>
+          <p id="youHint">提交简历后自动排入</p>
+        </div>
+      </div>
+
+      <!-- 等待队列 -->
+      <div class="hall__wait">
+        <div class="hall__wait-label">等待中的简历</div>
+        <div class="marquee">
+          <div class="marquee__track" id="track"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 申请卡 ============ -->
+    <section id="gateSection" class="apply" hidden>
+      <div class="gate" style="grid-column:1/-1;">
+        <div class="gate__icon">🔒</div>
+        <div class="gate__title">人工精修仅对派简历会员开放</div>
+        <p class="gate__text">人工精修由真人逐份处理，需要先成为派简历会员，才能申请并进入精修队列。</p>
+        <div class="gate__benefits">
+          <span class="gate__benefit">人工精修资格</span>
+          <span class="gate__benefit">加急插队</span>
+          <span class="gate__benefit">优先处理</span>
+        </div>
+        <button class="btn-primary" onclick="toast('演示：跳转会员购买页')">成为派简历会员</button>
+      </div>
+    </section>
+
+    <section id="appSection" class="apply">
+      <div class="card">
+        <div class="card__head">
+          <div>
+            <h2>申请精修</h2>
+            <div class="hint" style="margin-top:2px;">上传 PDF → 选择排队方式</div>
+          </div>
+        </div>
+        <div class="card__body">
+
+          <!-- 步骤1 上传PDF简历 -->
+          <div class="step">
+            <div class="step__num" id="stepPdfNum">1</div>
+            <div class="step__body">
+              <div class="step__title">选择要精修的 PDF 简历</div>
+              <div class="delivery">
+                <div class="delivery__email">
+                  <span class="lbl">精修收件邮箱</span>
+                  <span class="val" id="reviewEmail">review@paicoding.com</span>
+                  <span class="editable" onclick="toast('演示：由 admin 端配置收件邮箱')">由 admin 配置</span>
+                </div>
+                <div class="dropzone" id="dropzone">
+                  <div class="dropzone__main">点击选择或拖入 PDF</div>
+                  <div class="dropzone__sub">仅支持 PDF，单份不超过 10MB</div>
+                </div>
+                <div id="fileWrap"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 步骤2 排队方式 -->
+          <div class="step-group"></div>
+          <div class="step">
+            <div class="step__num" id="stepQueueNum">2</div>
+            <div class="step__body">
+              <div class="step__title">选择排队方式</div>
+              <div class="queue-toggle" id="queueToggle">
+                <div class="qt selected" data-mode="free">
+                  <div class="qt__title">普通排队 <span class="qt__tag tag-free">免费</span></div>
+                  <div class="qt__sub">按申请顺序在队尾等待，不插队。</div>
+                </div>
+                <div class="qt" data-mode="priority">
+                  <div class="qt__title">加急插队 <span class="qt__tag tag-priority">付费</span></div>
+                  <div class="qt__sub">金额越高越靠前，插到队伍前面。</div>
+                </div>
+              </div>
+
+              <div class="amount-row" id="amountRow" hidden>
+                <div class="amount-tabs" id="amountTabs"></div>
+              </div>
+
+              <div class="pos-preview" id="posPreview" hidden>
+                <div class="pos-preview__num" id="posNum">3</div>
+                <div class="pos-preview__sub" id="posSub"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="guard">
+            <div class="guard__text">
+              提交即视为同意本次精修按真实单价独立计价（与会员赠送次数无关），并允许将你的简历发送至精修收件邮箱。<a class="guard__link">《人工精修服务与授权说明》</a>
+            </div>
+          </div>
+
+          <div class="submit">
+            <button class="btn-primary" id="submitBtn" disabled>提交并进入排队大厅</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card rules">
+        <div class="card__head"><h2>排队规则</h2></div>
+        <div class="card__body">
+          <ul>
+            <li>正在精修的简历优先处理，不受后来订单影响。</li>
+            <li>插队按加急金额从高到低排列，同金额按付款先后排列。</li>
+            <li>普通排队按申请先后在队尾等待，可随时加急提前。</li>
+            <li>每份简历独立精修，提交即进入队列。</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <p class="footnotes">
+      原型说明：前端交互演示，不接后端。排队大厅为模拟滚动；金额、收件邮箱与位置皆为演示逻辑。
+    </p>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+
+  // ---------- 演示状态 ----------
+  const state = { isMember: true, mode: 'free', amount: 0, file: null };
+  const reviewEmail = 'review@paicoding.com';
+  const amounts = [ {v:66,label:'¥66'}, {v:233,label:'¥233'}, {v:520,label:'¥520'}, {v:888,label:'¥888'}, {v:1314,label:'¥1314'} ];
+
+  // ---------- 队列数据 ----------
+  let spot = { name:'匿名 · 封面之光', file:'张伟_产品经理_终稿.pdf', thumb:'#1d4ed8,#8fb8ff,#34d399', seed:3 };
+  let waiting = [];
+  let mineId = null;
+
+  const handles = ['上岸预备役','已读不回','面霸本霸','凌晨三点的应届生','offer收割机','改到第17版','简历裁缝','终面选手','大厂梦中人','投递百发','跳槽火箭','自带BGM','反向背调','Boss直聘常客','简历艺术家'];
+  const palettes = ['#1d4ed8,#8fb8ff,#34d399','#f59e0b,#8fb8ff,#1d4ed8','#34d399,#8fb8ff,#1d4ed8','#f43f5e,#f59e0b,#8fb8ff','#8fb8ff,#a78bfa,#1d4ed8','#22c55e,#f59e0b,#8fb8ff'];
+  const fees = [0,0,0,66,233,520,888,1314];
+
+  function thumb(palette, seed) {
+    const colors = palette.split(',');
+    const el = document.createElement('div');
+    el.style.cssText = 'width:150px;height:100px;border-radius:4px;background:#fff;border:1px solid #e2e8f0;padding:9px;box-shadow:0 4px 10px -6px rgba(15,23,42,.15);';
+    let html = '<div style="display:flex;align-items:center;gap:7px;">' +
+      '<div style="width:26px;height:26px;border-radius:50%;background:'+colors[seed%3]+';flex:none;"></div>' +
+      '<div style="flex:1;"><div style="height:7px;width:70%;border-radius:4px;background:'+colors[seed%3]+';opacity:.85;"></div>' +
+      '<div style="height:5px;width:44%;border-radius:4px;background:#e2e8f0;margin-top:4px;"></div></div></div>';
+    const rows = [100,86,92,64];
+    rows.forEach((w,i)=>{ html += '<div style="height:6px;width:'+w+'%;border-radius:4px;background:#eef1f6;margin-top:'+(i?6:0)+'px;"></div>'; });
+    el.innerHTML = html;
+    return el;
+  }
+
+  function sortedWaiting() {
+    return waiting.slice().sort((a,b) => {
+      if ((b.fee>0) !== (a.fee>0)) return b.fee>0 ? 1 : -1;
+      if (b.fee !== a.fee) return b.fee - a.fee;
+      return a.order - b.order;
+    });
+  }
+
+  // 我的真实排队位置：spot 恒为第 1，waiting 从第 2 开始
+  function minePosition() {
+    if (!mineId) return 0;
+    const idx = sortedWaiting().findIndex(w => w.id === mineId);
+    return idx >= 0 ? idx + 2 : 1;
+  }
+
+  function renderStats() {
+    const g = waiting.filter(w => w.fee>0).length;
+    $('pillWaiting').textContent = waiting.length;
+    $('pillGold').textContent = g;
+    $('pillProgress').textContent = 1;
+    if (mineId) {
+      const idx = sortedWaiting().findIndex(w => w.id === mineId);
+      $('youPos').textContent = idx >= 0 ? '#'+(idx+2) : '#1';
+      $('youHint').textContent = idx>=0 ? (waiting.find(w=>w.id===mineId).fee>0 ? '已插到前面' : '已进入队尾') : '精修中';
+    } else {
+      $('youPos').textContent = '–';
+      $('youHint').textContent = '提交简历后自动排入';
+    }
+  }
+
+  const REVIEW_STEPS = ['收件','排版润色','校对','交付'];
+  function renderSpot() {
+    $('spotName').textContent = spot.name;
+    $('spotFile').textContent = spot.file;
+    $('spotHint').textContent = '正在排版润色 · 预计还需 ' + (30 - 6*(spot.seed%5)) + ' 分钟';
+    const t = $('spotThumb'); t.innerHTML = ''; t.appendChild(thumb(spot.thumb, spot.seed));
+    // 处理环节时间线：当前处于“排版润色”(索引 1)
+    const activeIdx = 1;
+    const steps = $('spotSteps'); steps.innerHTML = '';
+    REVIEW_STEPS.forEach((label, i) => {
+      const role = i < activeIdx ? 'is-done' : (i === activeIdx ? 'is-active' : '');
+      const link = i < REVIEW_STEPS.length - 1 ? '<span class="spot-step__link"></span>' : '';
+      steps.innerHTML += '<div class="spot-step '+role+'"><span class="spot-step__dot"></span><span class="spot-step__label">'+label+'</span>'+link+'</div>';
+    });
+  }
+
+  function renderTrack() {
+    const list = sortedWaiting();
+    const track = $('track');
+    let html = '';
+    const build = (l) => {
+      l.forEach((w) => {
+        const cls = w.fee>0 ? 'ticket ticket--priority' : 'ticket';
+        const stateBadge = w.id===mineId ? '<span class="ticket__state mine">我的</span>'
+                          : w.fee>0 ? '<span class="ticket__state prio">插队</span>'
+                          : '<span class="ticket__state wait">排队中</span>';
+        const fee = w.fee>0
+          ? '<div class="ticket__fee gold">加急 <span class="amt">¥'+w.fee+'</span></div>'
+          : '<div class="ticket__fee zero">普通</div>';
+        const crown = w.fee>0 ? '<span class="crown">👑</span>' : '';
+        html += '<div class="'+cls+'" data-id="'+w.id+'">'+'<div class="ticket__top"><span class="ticket__pos"></span>'+stateBadge+'</div>'
+          + '<div class="ticket__thumb" data-thumb="'+w.thumb+'" data-seed="'+w.seed+'">'+crown+'</div>'
+          + '<div class="ticket__name"><span class="at">匿名 · </span>'+w.name+'</div>'+fee+'</div>';
+      });
+    };
+    build(list);
+    build(list);
+    track.innerHTML = html;
+    track.querySelectorAll('.ticket__thumb').forEach(el => {
+      const t = thumb(el.dataset.thumb, +el.dataset.seed);
+      t.style.width = '100%'; t.style.height = '82px';
+      el.appendChild(t);
+    });
+    const n = list.length;
+    const disp = track.querySelectorAll('.ticket');
+    disp.forEach((el, i) => {
+      el.querySelector('.ticket__pos').textContent = '#' + ((i % n) + 2);
+    });
+  }
+
+  function renderHall() { renderStats(); renderSpot(); renderTrack(); }
+
+  // ---------- 模拟滚动 ----------
+  let order = 0;
+  function newArrival() {
+    const fee = fees[(Math.random()*fees.length)|0];
+    const id = 'arr-'+(++order);
+    waiting.push({ id, name: handles[(Math.random()*handles.length)|0], thumb: palettes[(Math.random()*palettes.length)|0], seed:(Math.random()*6)|0, fee, order });
+    renderHall();
+    const el = $('track').querySelector('[data-id="'+id+'"]');
+    if (el) el.classList.add('pop');
+  }
+
+  // ---------- 申请流程 ----------
+  function renderAmounts() {
+    const wrap = $('amountTabs'); wrap.innerHTML = '';
+    amounts.forEach(a => {
+      const el = document.createElement('div');
+      el.className = 'amount-chip' + (state.amount===a.v ? ' selected' : '');
+      el.innerHTML = a.label + '<small>插队</small>';
+      el.onclick = () => { state.amount = a.v; renderAmounts(); updatePosPreview(); updateSubmit(); };
+      wrap.appendChild(el);
+    });
+  }
+  function estimatedPosition() {
+    const myFee = state.mode==='priority' ? state.amount : 0;
+    const before = sortedWaiting().filter(w => w.fee>0 && (w.fee>myFee || (w.fee===myFee && w.order<order+1))).length;
+    return 1 + before + 1;
+  }
+  function updatePosPreview() {
+    const prev = $('posPreview');
+    if (state.mode!=='priority') { prev.hidden = true; return; }
+    prev.hidden = false;
+    const pos = estimatedPosition();
+    $('posNum').textContent = '#'+pos;
+    $('posSub').textContent = '加急 ¥'+state.amount+' · 预计排到第 '+pos+' 位（在普通排队之前）';
+  }
+  function updateSubmit() {
+    $('submitBtn').disabled = !(state.file !== null);
+  }
+
+  document.querySelectorAll('#queueToggle .qt').forEach(el => {
+    el.onclick = () => {
+      document.querySelectorAll('#queueToggle .qt').forEach(x=>x.classList.remove('selected'));
+      el.classList.add('selected');
+      state.mode = el.dataset.mode;
+      $('amountRow').hidden = state.mode!=='priority';
+      if (state.mode!=='priority') state.amount = 0;
+      updatePosPreview(); updateSubmit();
+    };
+  });
+
+  const dz = $('dropzone');
+  dz.onclick = () => setDemoFile();
+  dz.ondragover = e => { e.preventDefault(); dz.classList.add('dragover'); };
+  dz.ondragleave = () => dz.classList.remove('dragover');
+  dz.ondrop = e => { e.preventDefault(); dz.classList.remove('dragover'); setDemoFile(); };
+  function setDemoFile() { state.file = { name: '张伟-前端开发工程师.pdf', size:'1.2 MB' }; renderFile(); }
+  function renderFile() {
+    const wrap = $('fileWrap');
+    if (!state.file) { wrap.innerHTML = ''; updateSubmit(); return; }
+    wrap.innerHTML = '<div class="file-chip"><span>📄</span><span class="f-name">'+state.file.name+'</span><span class="f-size">'+state.file.size+'</span><span class="f-remove" onclick="window.__clearFile()">✕</span></div>';
+    updateSubmit();
+  }
+  window.__clearFile = function(){ state.file=null; renderFile(); };
+
+  $('submitBtn').onclick = () => {
+    const fee = state.mode==='priority' ? state.amount : 0;
+    const id = 'mine-1';
+    mineId = id;
+    waiting.push({ id, name:'我自己', thumb:'#1d4ed8,#8fb8ff,#34d399', seed:1, fee, order:(++order) });
+    renderHall();
+    const el = $('track').querySelector('[data-id="'+id+'"]');
+    if (el) el.classList.add('pop');
+    const pos = minePosition();
+    toast(state.mode==='priority' ? '已插队，排到第 '+pos+' 位' : '已加入队尾，排到第 '+pos+' 位');
+    $('submitBtn').disabled = true;
+    state.file=null; renderFile();
+    updatePosPreview();
+  };
+
+  let tTimer;
+  function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(tTimer); tTimer=setTimeout(()=>t.classList.remove('show'),2600); }
+  window.toast = toast;
+
+  window.toggleMember = function(){ state.isMember=!state.isMember; renderMembership(); };
+  function renderMembership(){
+    $('gateSection').hidden = state.isMember;
+    $('appSection').hidden = !state.isMember;
+    $('vipBadge').style.display = state.isMember ? '' : 'none';
+  }
+
+  // ---------- init ----------
+  for (let i=0;i<9;i++){
+    const id = 'seed-'+(i+1);
+    waiting.push({ id, name: handles[(i*2)%handles.length], thumb: palettes[i%palettes.length], seed:i%6, fee:[0,0,0,520,0,233,0,0,888][i], order:i+1 });
+  }
+  renderAmounts(); renderHall(); renderMembership();
+  setInterval(newArrival, 4200);
+})();
+</script>
+
+<!-- 演示控制器 -->
+<div style="position:fixed;right:20px;bottom:20px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 8px 24px rgba(15,23,42,.12);padding:14px 16px;font-size:13px;z-index:70;max-width:230px;">
+  <b>演示控制器</b>
+  <div style="margin-top:8px;color:#64748b;line-height:18px;">切换 会员/非会员，观察门槛；排队大厅会持续刷新。</div>
+  <button onclick="toggleMember()" style="margin-top:10px;width:100%;min-height:38px;border:none;border-radius:8px;background:#1d4ed8;color:#fff;font-weight:700;cursor:pointer;">切换会员状态</button>
+</div>
+
+</body>
+</html>

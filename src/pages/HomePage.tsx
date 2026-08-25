@@ -39,7 +39,7 @@ interface HomepageShowcaseCard extends ResumeStyleSource {
   preview?: ResumeCardPreview
 }
 
-type HeroFeatureIcon = 'one-page' | 'score' | 'optimize'
+type HeroFeatureIcon = 'one-page' | 'score' | 'optimize' | 'library'
 
 const HERO_FEATURES: Array<{
   title: string
@@ -64,6 +64,12 @@ const HERO_FEATURES: Array<{
     description: '逐段打磨内容，让职责、行动与成果表达得更具体',
     icon: 'optimize',
     iconClassName: 'bg-violet-100 text-violet-700',
+  },
+  {
+    title: '优质简历参考',
+    description: '按岗位查找高质量范例，快速获得结构与表达灵感',
+    icon: 'library',
+    iconClassName: 'bg-emerald-100 text-emerald-700',
   },
 ]
 
@@ -92,6 +98,15 @@ function FeatureIcon({ icon }: { icon: HeroFeatureIcon }) {
     return (
       <svg className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" aria-hidden="true">
         <path strokeLinecap="round" strokeLinejoin="round" d="m15 4 .7 2.1L18 7l-2.3.9L15 10l-.7-2.1L12 7l2.3-.9L15 4ZM7.5 10l1.2 3.3L12 14.5l-3.3 1.2L7.5 19l-1.2-3.3L3 14.5l3.3-1.2L7.5 10ZM18.5 13l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2Z" />
+      </svg>
+    )
+  }
+
+  if (icon === 'library') {
+    return (
+      <svg className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M6 4.5h11A1.5 1.5 0 0 1 18.5 6v13H7.25A2.25 2.25 0 0 1 5 16.75V5.5A1 1 0 0 1 6 4.5Z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M5 16.75A2.25 2.25 0 0 1 7.25 14.5h11.25M9 8h5" />
       </svg>
     )
   }

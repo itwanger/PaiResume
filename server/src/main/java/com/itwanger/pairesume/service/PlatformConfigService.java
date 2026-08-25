@@ -9,4 +9,6 @@ public interface PlatformConfigService {
     PlatformConfigDTO updateConfig(Long adminUserId, PlatformConfigDTO dto);
 
     PlatformConfig getConfigEntity();
+
+    String getResumeReviewRecipientEmail();
 }

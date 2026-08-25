@@ -40,7 +40,9 @@ public class SmartOnePageController {
     @PostMapping("/preview")
     public Result<?> preview(@PathVariable Long resumeId, @RequestBody SmartOnePagePreviewRequestDTO request) {
         var userId = getCurrentUserId();
-        membershipService.requireAiAccess(userId);
+        if (request != null && "optimize_and_layout".equals(request.getMode())) {
+            membershipService.requireAiAccess(userId);
+        }
         var resume = resumeMapper.selectById(resumeId);
         if (resume == null || !resume.getUserId().equals(userId) || resume.getStatus() == 0) {
             throw new BusinessException(ResultCode.RESUME_NOT_FOUND);

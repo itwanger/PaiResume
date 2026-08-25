@@ -68,7 +68,7 @@ for name in DEPLOY_STAGE APP_ENV APP_PUBLIC_URL APP_CORS_ALLOWED_ORIGIN_PATTERNS
   PAIRESUME_BACKUP_MYSQL_USERNAME PAIRESUME_BACKUP_MYSQL_SOCKET \
   REDIS_HOST REDIS_PASSWORD REDIS_DATABASE REDIS_KEY_PREFIX \
   MAIL_HOST MAIL_PORT MAIL_USERNAME MAIL_SSL_ENABLE \
-  MAIL_PASSWORD MAIL_FROM AI_API_KEY AI_BASE_URL AI_MODEL VITE_SUPPORT_EMAIL \
+  MAIL_PASSWORD MAIL_FROM AI_API_KEY AI_BASE_URL AI_MODEL AI_ANALYSIS_MODEL VITE_SUPPORT_EMAIL \
   VITE_OPERATOR_NAME VITE_AI_PROVIDER_NAME VITE_AI_PROVIDER_PRIVACY_URL \
   FORWARD_HEADERS_STRATEGY RELEASE_ROOT FIELD_OPTIMIZE_PROMPTS_FILE PAYMENT_PROVIDER \
   SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE \
@@ -76,18 +76,13 @@ for name in DEPLOY_STAGE APP_ENV APP_PUBLIC_URL APP_CORS_ALLOWED_ORIGIN_PATTERNS
   SERVER_TOMCAT_MAX_CONNECTIONS SERVER_TOMCAT_ACCEPT_COUNT \
   MEMBERSHIP_ORDER_EXPIRE_MINUTES \
   PAICONGMING_WECHAT_LOGIN_ENABLED \
-  RESUME_PHOTO_OSS_ENDPOINT RESUME_PHOTO_OSS_BUCKET \
-  RESUME_PHOTO_OSS_ACCESS_KEY_ID RESUME_PHOTO_OSS_ACCESS_KEY_SECRET \
+  PLANET_CORE_ACCEPTANCE_CONFIRMED \
   RESUME_PHOTO_OSS_STAGING_PREFIX RESUME_PHOTO_OSS_OBJECT_PREFIX \
   RESUME_PHOTO_OSS_UPLOAD_URL_TTL_MINUTES RESUME_PHOTO_OSS_ACCESS_URL_TTL_MINUTES \
   RESUME_PHOTO_OSS_MAX_BYTES RESUME_PHOTO_OSS_MAX_DIMENSION RESUME_PHOTO_OSS_MAX_PIXELS \
   RESUME_PHOTO_UPLOAD_RATE_LIMIT_WINDOW_SECONDS \
   RESUME_PHOTO_UPLOAD_RATE_LIMIT_ACCOUNT_ATTEMPTS \
   RESUME_PHOTO_UPLOAD_RATE_LIMIT_IP_ATTEMPTS \
-  RESUME_PHOTO_OSS_PRIVATE_BUCKET_CONFIRMED RESUME_PHOTO_OSS_CORS_CONFIRMED \
-  RESUME_PHOTO_OSS_STAGING_LIFECYCLE_CONFIRMED RESUME_PHOTO_OSS_RAM_POLICY_CONFIRMED \
-  RESUME_REVIEW_ENABLED \
-  RESUME_REVIEW_PAID_ACCEPT_NEW_ORDERS \
   RESUME_REVIEW_PAYMENT_ACCEPTANCE_CONFIRMED; do
   require_value "$name"
 done
@@ -95,39 +90,18 @@ done
 for name in JWT_SECRET VERIFICATION_CODE_SECRET MYSQL_USERNAME MYSQL_PASSWORD \
   FLYWAY_USERNAME FLYWAY_PASSWORD \
   REDIS_PASSWORD MAIL_USERNAME MAIL_PASSWORD MAIL_FROM AI_API_KEY VITE_SUPPORT_EMAIL \
-  VITE_OPERATOR_NAME VITE_AI_PROVIDER_NAME VITE_AI_PROVIDER_PRIVACY_URL \
-  RESUME_PHOTO_OSS_ENDPOINT RESUME_PHOTO_OSS_BUCKET \
-  RESUME_PHOTO_OSS_ACCESS_KEY_ID RESUME_PHOTO_OSS_ACCESS_KEY_SECRET; do
+  VITE_OPERATOR_NAME VITE_AI_PROVIDER_NAME VITE_AI_PROVIDER_PRIVACY_URL; do
   reject_placeholder "$name"
 done
 
-require_boolean RESUME_REVIEW_ENABLED
-require_boolean RESUME_REVIEW_PAID_ACCEPT_NEW_ORDERS
 require_boolean RESUME_REVIEW_PAYMENT_ACCEPTANCE_CONFIRMED
-if [[ "${RESUME_REVIEW_ENABLED:-false}" == "true" ]]; then
-  for name in RESUME_REVIEW_RECIPIENT_EMAIL RESUME_REVIEW_MESSAGE_ID_DOMAIN \
+for name in RESUME_REVIEW_MESSAGE_ID_DOMAIN \
     RESUME_REVIEW_MAIL_OUTBOX_MAX_ATTEMPTS \
     RESUME_REVIEW_UPLOAD_RATE_LIMIT_WINDOW_SECONDS \
     RESUME_REVIEW_UPLOAD_RATE_LIMIT_ACCOUNT_ATTEMPTS \
-    RESUME_REVIEW_UPLOAD_RATE_LIMIT_IP_ATTEMPTS \
-    RESUME_REVIEW_OSS_ENABLED RESUME_REVIEW_OSS_ENDPOINT RESUME_REVIEW_OSS_BUCKET \
-    RESUME_REVIEW_OSS_ACCESS_KEY_ID RESUME_REVIEW_OSS_ACCESS_KEY_SECRET \
-    RESUME_REVIEW_OSS_STAGING_PREFIX RESUME_REVIEW_OSS_OBJECT_PREFIX \
-    RESUME_REVIEW_OSS_UPLOAD_URL_TTL_MINUTES RESUME_REVIEW_OSS_READY_TTL_MINUTES \
-    RESUME_REVIEW_OSS_MAX_PDF_BYTES RESUME_REVIEW_OSS_MAX_CONCURRENT_FINALIZATIONS \
-    RESUME_REVIEW_OSS_RETENTION_DAYS \
-    RESUME_REVIEW_OSS_PRIVATE_BUCKET_CONFIRMED RESUME_REVIEW_OSS_CORS_CONFIRMED \
-    RESUME_REVIEW_OSS_LIFECYCLE_CONFIRMED RESUME_REVIEW_OSS_RAM_POLICY_CONFIRMED; do
+    RESUME_REVIEW_UPLOAD_RATE_LIMIT_IP_ATTEMPTS; do
     require_value "$name"
-  done
-  for name in RESUME_REVIEW_RECIPIENT_EMAIL \
-    RESUME_REVIEW_OSS_ENDPOINT RESUME_REVIEW_OSS_BUCKET \
-    RESUME_REVIEW_OSS_ACCESS_KEY_ID RESUME_REVIEW_OSS_ACCESS_KEY_SECRET; do
-    reject_placeholder "$name"
-  done
-else
-  require_false RESUME_REVIEW_PAID_ACCEPT_NEW_ORDERS
-fi
+done
 
 if [[ "${APP_ENV:-}" != "production" ]]; then
   echo "APP_ENV 必须为 production" >&2
@@ -195,19 +169,10 @@ if [[ -n "$jwt_secret" && "$jwt_secret" == "$verification_secret" ]]; then
   failures=$((failures + 1))
 fi
 
-require_boolean PAICONGMING_WECHAT_LOGIN_ENABLED
+require_true PAICONGMING_WECHAT_LOGIN_ENABLED
+require_true PLANET_CORE_ACCEPTANCE_CONFIRMED
 require_true MYSQL_SHARED_ACCOUNT_CONFIRMED
-require_true RESUME_PHOTO_OSS_PRIVATE_BUCKET_CONFIRMED
-require_true RESUME_PHOTO_OSS_CORS_CONFIRMED
-require_true RESUME_PHOTO_OSS_STAGING_LIFECYCLE_CONFIRMED
-require_true RESUME_PHOTO_OSS_RAM_POLICY_CONFIRMED
-if [[ "${RESUME_REVIEW_ENABLED:-false}" == "true" ]]; then
-  require_true RESUME_REVIEW_OSS_ENABLED
-  require_true RESUME_REVIEW_OSS_PRIVATE_BUCKET_CONFIRMED
-  require_true RESUME_REVIEW_OSS_CORS_CONFIRMED
-  require_true RESUME_REVIEW_OSS_LIFECYCLE_CONFIRMED
-  require_true RESUME_REVIEW_OSS_RAM_POLICY_CONFIRMED
-fi
+require_true RESUME_REVIEW_PAYMENT_ACCEPTANCE_CONFIRMED
 
 mysql_username="${MYSQL_USERNAME:-}"
 flyway_username="${FLYWAY_USERNAME:-}"
@@ -299,15 +264,6 @@ validate_integer_range() {
   fi
 }
 
-if [[ ! "${RESUME_PHOTO_OSS_ENDPOINT:-}" =~ ^https://[^/[:space:]]+$ ]]; then
-  echo "RESUME_PHOTO_OSS_ENDPOINT 必须是无路径、无查询参数的 HTTPS OSS endpoint" >&2
-  failures=$((failures + 1))
-fi
-if [[ ! "${RESUME_PHOTO_OSS_BUCKET:-}" =~ ^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$ ]]; then
-  echo "RESUME_PHOTO_OSS_BUCKET 必须是 3 至 63 位的小写 OSS Bucket 名称" >&2
-  failures=$((failures + 1))
-fi
-
 photo_staging_prefix="${RESUME_PHOTO_OSS_STAGING_PREFIX:-}"
 photo_object_prefix="${RESUME_PHOTO_OSS_OBJECT_PREFIX:-}"
 for entry in "staging:${photo_staging_prefix}" "objects:${photo_object_prefix}"; do
@@ -345,56 +301,15 @@ if [[ "$photo_upload_account_attempts" =~ ^[0-9]+$ \
   failures=$((failures + 1))
 fi
 
-photo_oss_access_key_secret="${RESUME_PHOTO_OSS_ACCESS_KEY_SECRET:-}"
-if [[ -n "$photo_oss_access_key_secret" && ( "$photo_oss_access_key_secret" == "$jwt_secret" \
-  || "$photo_oss_access_key_secret" == "$verification_secret" \
-  || "$photo_oss_access_key_secret" == "${paicongming_bridge_secret:-}" ) ]]; then
-  echo "照片 OSS AccessKey Secret 必须与 JWT、验证码和派聪明桥接密钥相互独立" >&2
-  failures=$((failures + 1))
-fi
-
-if [[ "${RESUME_REVIEW_ENABLED:-false}" == "true" ]]; then
-if [[ ! "${RESUME_REVIEW_RECIPIENT_EMAIL:-}" =~ ^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$ ]]; then
-  echo "RESUME_REVIEW_RECIPIENT_EMAIL 必须是真实、固定且已验证的私密收件箱" >&2
+review_recipient_email="${RESUME_REVIEW_RECIPIENT_EMAIL:-${MAIL_FROM:-${MAIL_USERNAME:-}}}"
+if [[ ! "$review_recipient_email" =~ ^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$ ]]; then
+  echo "人工精修收件邮箱必须有效；未设置 RESUME_REVIEW_RECIPIENT_EMAIL 时复用 MAIL_FROM" >&2
   failures=$((failures + 1))
 fi
 if [[ ! "${RESUME_REVIEW_MESSAGE_ID_DOMAIN:-}" =~ ^[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
   echo "RESUME_REVIEW_MESSAGE_ID_DOMAIN 必须是可用于 Message-ID 的真实域名" >&2
   failures=$((failures + 1))
 fi
-if [[ ! "${RESUME_REVIEW_OSS_ENDPOINT:-}" =~ ^https://[^/[:space:]]+$ ]]; then
-  echo "RESUME_REVIEW_OSS_ENDPOINT 必须是无路径、无查询参数的 HTTPS OSS endpoint" >&2
-  failures=$((failures + 1))
-fi
-if [[ ! "${RESUME_REVIEW_OSS_BUCKET:-}" =~ ^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$ ]]; then
-  echo "RESUME_REVIEW_OSS_BUCKET 必须是 3 至 63 位的小写 OSS Bucket 名称" >&2
-  failures=$((failures + 1))
-fi
-
-staging_prefix="${RESUME_REVIEW_OSS_STAGING_PREFIX:-}"
-object_prefix="${RESUME_REVIEW_OSS_OBJECT_PREFIX:-}"
-for entry in "staging:${staging_prefix}" "objects:${object_prefix}"; do
-  prefix_name="${entry%%:*}"
-  prefix_value="${entry#*:}"
-  if [[ ! "$prefix_value" =~ ^[A-Za-z0-9/_-]+/$ \
-    || "$prefix_value" == /* || "$prefix_value" == *//* ]]; then
-    echo "OSS ${prefix_name} prefix 必须是仅含字母、数字、/、_、-，无双斜杠且以 / 结尾的相对对象前缀" >&2
-    failures=$((failures + 1))
-  fi
-done
-if [[ -n "$staging_prefix" && -n "$object_prefix" \
-  && ( "$staging_prefix" == "$object_prefix" \
-    || "$staging_prefix" == "$object_prefix"* \
-    || "$object_prefix" == "$staging_prefix"* ) ]]; then
-  echo "OSS staging 与冻结对象前缀必须互不相同且不能互相包含，避免生命周期误删" >&2
-  failures=$((failures + 1))
-fi
-
-validate_integer_range RESUME_REVIEW_OSS_UPLOAD_URL_TTL_MINUTES 1 30
-validate_integer_range RESUME_REVIEW_OSS_READY_TTL_MINUTES 5 120
-validate_integer_range RESUME_REVIEW_OSS_MAX_PDF_BYTES 1024 10485760
-validate_integer_range RESUME_REVIEW_OSS_MAX_CONCURRENT_FINALIZATIONS 1 16
-validate_integer_range RESUME_REVIEW_OSS_RETENTION_DAYS 1 90
 validate_integer_range RESUME_REVIEW_MAIL_OUTBOX_MAX_ATTEMPTS 1 50
 validate_integer_range RESUME_REVIEW_UPLOAD_RATE_LIMIT_WINDOW_SECONDS 60 3600
 validate_integer_range RESUME_REVIEW_UPLOAD_RATE_LIMIT_ACCOUNT_ATTEMPTS 1 100
@@ -407,32 +322,6 @@ if [[ "$upload_account_attempts" =~ ^[0-9]+$ \
   && (( 10#$upload_ip_attempts < 10#$upload_account_attempts )); then
   echo "RESUME_REVIEW_UPLOAD_RATE_LIMIT_IP_ATTEMPTS 不得小于账号预算" >&2
   failures=$((failures + 1))
-fi
-
-oss_access_key_secret="${RESUME_REVIEW_OSS_ACCESS_KEY_SECRET:-}"
-if [[ -n "$oss_access_key_secret" && ( "$oss_access_key_secret" == "$jwt_secret" \
-  || "$oss_access_key_secret" == "$verification_secret" \
-  || "$oss_access_key_secret" == "${paicongming_bridge_secret:-}" ) ]]; then
-  echo "OSS AccessKey Secret 必须与 JWT、验证码和派聪明桥接密钥相互独立" >&2
-  failures=$((failures + 1))
-fi
-
-if [[ "${RESUME_REVIEW_ENABLED:-false}" == "true" \
-  && "${RESUME_REVIEW_OSS_BUCKET:-}" == "${RESUME_PHOTO_OSS_BUCKET:-}" ]]; then
-  review_staging_prefix="${RESUME_REVIEW_OSS_STAGING_PREFIX:-}"
-  review_object_prefix="${RESUME_REVIEW_OSS_OBJECT_PREFIX:-}"
-  for review_prefix in "$review_staging_prefix" "$review_object_prefix"; do
-    for photo_prefix in "$photo_staging_prefix" "$photo_object_prefix"; do
-      if [[ -n "$review_prefix" && -n "$photo_prefix" \
-        && ( "$review_prefix" == "$photo_prefix" \
-          || "$review_prefix" == "$photo_prefix"* \
-          || "$photo_prefix" == "$review_prefix"* ) ]]; then
-        echo "同一 OSS Bucket 中，简历照片与人工精修对象前缀不得重叠" >&2
-        failures=$((failures + 1))
-      fi
-    done
-  done
-fi
 fi
 
 validate_integer_range SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE 2 20
@@ -491,25 +380,24 @@ validate_wechat_payment() {
 }
 
 deploy_stage="${DEPLOY_STAGE:-}"
+if [[ "${PAYMENT_PROVIDER:-}" != "wechat-native" ]]; then
+  echo "人工精修是常驻付费服务，PAYMENT_PROVIDER 必须为 wechat-native" >&2
+  failures=$((failures + 1))
+else
+  validate_wechat_payment
+fi
 case "$deploy_stage" in
   free)
     require_false PAYMENT_ACCEPT_NEW_ORDERS
     require_false MEMBERSHIP_PAYMENT_ACCEPT_NEW_ORDERS
     require_false MARKETPLACE_PAYMENT_ACCEPT_NEW_ORDERS
     require_false MARKETPLACE_ENABLED
-    require_false RESUME_REVIEW_PAID_ACCEPT_NEW_ORDERS
-    require_false RESUME_REVIEW_PAYMENT_ACCEPTANCE_CONFIRMED
-    if [[ "${PAYMENT_PROVIDER:-}" != "disabled" ]]; then
-      echo "免费或邀请灰度阶段要求 PAYMENT_PROVIDER=disabled" >&2
-      failures=$((failures + 1))
-    fi
     ;;
   membership-acceptance)
     require_false PAYMENT_ACCEPT_NEW_ORDERS
     require_boolean MEMBERSHIP_PAYMENT_ACCEPT_NEW_ORDERS
     require_false MARKETPLACE_PAYMENT_ACCEPT_NEW_ORDERS
     require_false MARKETPLACE_ENABLED
-    require_boolean RESUME_REVIEW_PAID_ACCEPT_NEW_ORDERS
     require_true PAYMENT_ACCEPTANCE_ENVIRONMENT_CONFIRMED
     if [[ "${PAYMENT_PROVIDER:-}" != "wechat-native" ]]; then
       echo "会员支付验收模式要求 PAYMENT_PROVIDER=wechat-native" >&2
@@ -522,11 +410,7 @@ case "$deploy_stage" in
     require_boolean MEMBERSHIP_PAYMENT_ACCEPT_NEW_ORDERS
     require_false MARKETPLACE_PAYMENT_ACCEPT_NEW_ORDERS
     require_false MARKETPLACE_ENABLED
-    require_boolean RESUME_REVIEW_PAID_ACCEPT_NEW_ORDERS
     require_true MEMBERSHIP_PAYMENT_ACCEPTANCE_CONFIRMED
-    if [[ "${RESUME_REVIEW_PAID_ACCEPT_NEW_ORDERS:-false}" == "true" ]]; then
-      require_true RESUME_REVIEW_PAYMENT_ACCEPTANCE_CONFIRMED
-    fi
     if [[ "${PAYMENT_PROVIDER:-}" != "wechat-native" ]]; then
       echo "会员支付阶段要求 PAYMENT_PROVIDER=wechat-native" >&2
       failures=$((failures + 1))
@@ -538,7 +422,6 @@ case "$deploy_stage" in
     require_boolean MEMBERSHIP_PAYMENT_ACCEPT_NEW_ORDERS
     require_boolean MARKETPLACE_PAYMENT_ACCEPT_NEW_ORDERS
     require_true MARKETPLACE_ENABLED
-    require_boolean RESUME_REVIEW_PAID_ACCEPT_NEW_ORDERS
     require_true MEMBERSHIP_PAYMENT_ACCEPTANCE_CONFIRMED
     require_true MARKETPLACE_GOVERNANCE_DUTY_CONFIRMED
     require_true PAYMENT_ACCEPTANCE_ENVIRONMENT_CONFIRMED
@@ -553,13 +436,9 @@ case "$deploy_stage" in
     require_boolean MEMBERSHIP_PAYMENT_ACCEPT_NEW_ORDERS
     require_boolean MARKETPLACE_PAYMENT_ACCEPT_NEW_ORDERS
     require_boolean MARKETPLACE_ENABLED
-    require_boolean RESUME_REVIEW_PAID_ACCEPT_NEW_ORDERS
     require_true MEMBERSHIP_PAYMENT_ACCEPTANCE_CONFIRMED
     require_true MARKETPLACE_PAYMENT_ACCEPTANCE_CONFIRMED
     require_true MARKETPLACE_GOVERNANCE_DUTY_CONFIRMED
-    if [[ "${RESUME_REVIEW_PAID_ACCEPT_NEW_ORDERS:-false}" == "true" ]]; then
-      require_true RESUME_REVIEW_PAYMENT_ACCEPTANCE_CONFIRMED
-    fi
     if [[ "${PAYMENT_PROVIDER:-}" != "wechat-native" ]]; then
       echo "用户简历市场阶段要求 PAYMENT_PROVIDER=wechat-native" >&2
       failures=$((failures + 1))

@@ -110,6 +110,12 @@ const ICON_PATHS: Record<AdminView, ReactNode> = {
       <path d="M10 3.5v3.5M14 3.5v3.5M10 17v3.5M14 17v3.5M3.5 10H7M3.5 14H7M17 10h3.5M17 14h3.5" />
     </>
   ),
+  'resume-photo-oss': (
+    <>
+      <path d="M4 7.5h16v11H4zM7 7.5l1.5-3h7l1.5 3" />
+      <circle cx="12" cy="13" r="3" />
+    </>
+  ),
   'audit-logs': (
     <>
       <path d="M5 3.5h14v17H5zM8 8h8M8 12h8M8 16h5" />

@@ -21,6 +21,7 @@ const FieldOptimizePage = lazy(() => import('./pages/FieldOptimizePage'))
 const AdminPage = lazy(() => import('./pages/AdminPage'))
 const ExcellentResumesPage = lazy(() => import('./pages/ExcellentResumesPage'))
 const MembershipPage = lazy(() => import('./pages/MembershipPage'))
+const ResumeReviewPage = lazy(() => import('./pages/ResumeReviewPage'))
 const MarketplaceResumePage = lazy(() => import('./pages/MarketplaceResumePage'))
 const CreatorMarketplacePage = lazy(() => import('./pages/CreatorMarketplacePage'))
 const PasswordResetPage = lazy(() => import('./pages/PasswordResetPage'))
@@ -152,6 +153,7 @@ function App() {
           <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/excellent-resumes" element={<ExcellentResumesPage />} />
+        <Route path="/resume-review" element={<ResumeReviewPage />} />
         <Route path="/marketplace/resumes/:slug" element={<MarketplaceResumePage />} />
         <Route path="/privacy" element={<PrivacyPolicyPage />} />
         <Route path="/terms" element={<TermsPage />} />

@@ -18,6 +18,8 @@ interface ModuleSidebarProps {
   onReorderModuleTypes?: (moduleTypes: ModuleType[]) => Promise<void>
   analysisActive?: boolean
   onSelectAnalysis?: () => void
+  resumeReviewActive?: boolean
+  onSelectResumeReview?: () => void
   templateSelectionActive?: boolean
   onSelectTemplateSelection?: () => void
 }
@@ -34,6 +36,8 @@ export function ModuleSidebar({
   onReorderModuleTypes,
   analysisActive = false,
   onSelectAnalysis,
+  resumeReviewActive = false,
+  onSelectResumeReview,
   templateSelectionActive = false,
   onSelectTemplateSelection,
 }: ModuleSidebarProps) {
@@ -46,7 +50,7 @@ export function ModuleSidebar({
   const orderedExistingTypes = getOrderedExistingModuleTypes(modules)
   const sortableTypes: ModuleType[] = orderedExistingTypes.filter((type) => type !== 'basic_info')
   const missingTypes = DEFAULT_RESUME_MODULE_TYPE_ORDER.filter((type) => !existingTypes.has(type))
-  const moduleViewActive = !analysisActive && !templateSelectionActive
+  const moduleViewActive = !analysisActive && !resumeReviewActive && !templateSelectionActive
   const basicInfoContent = findBasicInfoContent(modules)
   const asideClassName = variant === 'drawer'
     ? 'h-full w-full overflow-y-auto bg-white'
@@ -254,25 +258,7 @@ export function ModuleSidebar({
         ) : null}
 
         <div className="mt-6 border-t border-gray-100 pt-4">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-400">分析</h2>
-          <button
-            type="button"
-            onClick={onSelectAnalysis}
-            className={`w-full rounded-lg px-3 py-2 text-left text-sm transition-colors ${
-              analysisActive
-                ? 'bg-primary-50 font-medium text-primary-700'
-                : 'text-gray-600 hover:bg-gray-50'
-            }`}
-          >
-            <span className="flex items-center gap-2.5">
-              <span className="text-base">📊</span>
-              <span className="flex-1">简历分析</span>
-            </span>
-          </button>
-        </div>
-
-        <div className="mt-6 border-t border-gray-100 pt-4">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-400">导出</h2>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-400">把关</h2>
           <button
             type="button"
             onClick={onSelectTemplateSelection}
@@ -284,7 +270,35 @@ export function ModuleSidebar({
           >
             <span className="flex items-center gap-2.5">
               <span className="text-base">🖨️</span>
-              <span className="flex-1">预览与导出</span>
+              <span className="flex-1">排版导出</span>
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={onSelectResumeReview}
+            className={`w-full rounded-lg px-3 py-2 text-left text-sm transition-colors ${
+              resumeReviewActive
+                ? 'bg-primary-50 font-medium text-primary-700'
+                : 'text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            <span className="flex items-center gap-2.5">
+              <span className="text-base">✍️</span>
+              <span className="flex-1">人工精修</span>
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={onSelectAnalysis}
+            className={`w-full rounded-lg px-3 py-2 text-left text-sm transition-colors ${
+              analysisActive
+                ? 'bg-primary-50 font-medium text-primary-700'
+                : 'text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            <span className="flex items-center gap-2.5">
+              <span className="text-base">📊</span>
+              <span className="flex-1">AI 分析</span>
             </span>
           </button>
         </div>

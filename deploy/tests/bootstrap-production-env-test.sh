@@ -20,15 +20,6 @@ printf '%s\n' \
   "MYSQL_PASSWORD=${db_password}" > "$db_credentials"
 chmod 0600 "$db_credentials"
 export PAIRESUME_BOOTSTRAP_DB_CREDENTIALS_FILE="$db_credentials"
-export PAIRESUME_PHOTO_OSS_ENDPOINT='https://oss-cn-hangzhou.aliyuncs.com'
-export PAIRESUME_PHOTO_OSS_BUCKET='private-resume-test'
-export PAIRESUME_PHOTO_OSS_ACCESS_KEY_ID='oss-ak-test-only'
-export PAIRESUME_PHOTO_OSS_ACCESS_KEY_SECRET='oss-sk-test-only'
-export PAIRESUME_PHOTO_OSS_PRIVATE_BUCKET_CONFIRMED='true'
-export PAIRESUME_PHOTO_OSS_CORS_CONFIRMED='true'
-export PAIRESUME_PHOTO_OSS_STAGING_LIFECYCLE_CONFIRMED='true'
-export PAIRESUME_PHOTO_OSS_RAM_POLICY_CONFIRMED='true'
-
 printf '%s\n' \
   'PAICODING_REDIS_HOST=127.0.0.1' \
   'PAICODING_REDIS_PORT=6388' \
@@ -40,8 +31,20 @@ printf '%s\n' \
   'PAICODING_MAIL_PASSWORD=mail-password-test-only' \
   'PAICODING_MAIL_FROM=support@example.test' \
   'PAICODING_MAIL_ALERM_USER=review@example.test,alarm@example.test' \
-  'PAICODING_DEEPSEEK_API_KEY=deepseek-key-test-only' > "$source_env"
+  'PAICODING_DEEPSEEK_API_KEY=deepseek-key-test-only' \
+  'PAIRESUME_WECHAT_BRIDGE_SECRET=paicongming-bridge-secret-test-only-0123456789' \
+  'WX_APP_ID=wx1234567890abcdef' \
+  'PAIRESUME_WECHAT_SCENE_PREFIX=pr_' \
+  'PAIRESUME_WECHAT_PAY_APP_ID=wx-test-app' \
+  'PAIRESUME_WECHAT_PAY_MERCHANT_ID=1900000001' \
+  'PAIRESUME_WECHAT_PAY_PRIVATE_KEY=wechat-private-key-test-only' \
+  'PAIRESUME_WECHAT_PAY_MERCHANT_SERIAL_NUMBER=wechat-serial-test-only' \
+  'PAIRESUME_WECHAT_PAY_API_V3_KEY=0123456789abcdef0123456789abcdef' \
+  > "$source_env"
 chmod 0600 "$source_env"
+
+export PAIRESUME_REVIEW_PAYMENT_ACCEPTANCE_CONFIRMED=true
+export PAIRESUME_PLANET_CORE_ACCEPTANCE_CONFIRMED=true
 
 source_checksum_before="$(shasum -a 256 "$source_env" | awk '{print $1}')"
 first_output="$(
@@ -66,7 +69,9 @@ for secret in \
   redis-password-test-only \
   mail-password-test-only \
   deepseek-key-test-only \
-  oss-sk-test-only \
+  paicongming-bridge-secret-test-only-0123456789 \
+  wechat-private-key-test-only \
+  0123456789abcdef0123456789abcdef \
   bootstrap-override-password-secret \
   bootstrap-override-flyway-secret; do
   if [[ "$first_output" == *"$secret"* ]]; then
@@ -159,39 +164,32 @@ for expected in \
   "PAIRESUME_BACKUP_MYSQL_SOCKET='/var/lib/mysql/mysql.sock'" \
   "REDIS_DATABASE='1'" \
   "REDIS_KEY_PREFIX='pairesume:prod:'" \
-  "PAICONGMING_WECHAT_LOGIN_ENABLED='false'" \
-  "PAICONGMING_WECHAT_BRIDGE_SECRET=''" \
+  "PAICONGMING_WECHAT_LOGIN_ENABLED='true'" \
+  "PAICONGMING_WECHAT_GATEWAY_BASE_URL='https://paicoding.com'" \
+  "PAICONGMING_WECHAT_GATEWAY_QR_PATH='/api/internal/pairesume/wechat/qrcodes'" \
+  "PAICONGMING_WECHAT_BRIDGE_SECRET='paicongming-bridge-secret-test-only-0123456789'" \
+  "PAICONGMING_WECHAT_APP_ID='wx1234567890abcdef'" \
+  "PAICONGMING_WECHAT_SCENE_PREFIX='pr_'" \
+  "PLANET_CORE_ACCEPTANCE_CONFIRMED='true'" \
   "AI_MODEL='deepseek-v4-flash'" \
-  "PAYMENT_PROVIDER='disabled'" \
+  "PAYMENT_PROVIDER='wechat-native'" \
   "PAYMENT_ACCEPT_NEW_ORDERS='false'" \
   "MEMBERSHIP_PAYMENT_ACCEPT_NEW_ORDERS='false'" \
   "MARKETPLACE_PAYMENT_ACCEPT_NEW_ORDERS='false'" \
   "SHOWCASE_PAYMENT_ACCEPT_NEW_ORDERS='false'" \
   "MARKETPLACE_ENABLED='false'" \
-  "RESUME_REVIEW_ENABLED='false'" \
-  "RESUME_REVIEW_PAID_ACCEPT_NEW_ORDERS='false'" \
   "RESUME_REVIEW_MAIL_OUTBOX_MAX_ATTEMPTS='10'" \
   "RESUME_REVIEW_UPLOAD_RATE_LIMIT_WINDOW_SECONDS='900'" \
   "RESUME_REVIEW_UPLOAD_RATE_LIMIT_ACCOUNT_ATTEMPTS='20'" \
   "RESUME_REVIEW_UPLOAD_RATE_LIMIT_IP_ATTEMPTS='200'" \
-  "RESUME_REVIEW_OSS_ENABLED='false'" \
-  "RESUME_REVIEW_OSS_ENDPOINT=''" \
-  "RESUME_REVIEW_OSS_BUCKET=''" \
-  "RESUME_REVIEW_OSS_ACCESS_KEY_ID=''" \
-  "RESUME_REVIEW_OSS_ACCESS_KEY_SECRET=''" \
-  "RESUME_REVIEW_OSS_MAX_CONCURRENT_FINALIZATIONS='2'" \
-  "RESUME_REVIEW_OSS_PRIVATE_BUCKET_CONFIRMED='true'" \
-  "RESUME_REVIEW_OSS_CORS_CONFIRMED='false'" \
-  "RESUME_REVIEW_OSS_LIFECYCLE_CONFIRMED='false'" \
-  "RESUME_REVIEW_OSS_RAM_POLICY_CONFIRMED='false'" \
-  "RESUME_PHOTO_OSS_ENDPOINT='https://oss-cn-hangzhou.aliyuncs.com'" \
-  "RESUME_PHOTO_OSS_BUCKET='private-resume-test'" \
-  "RESUME_PHOTO_OSS_ACCESS_KEY_ID='oss-ak-test-only'" \
-  "RESUME_PHOTO_OSS_ACCESS_KEY_SECRET='oss-sk-test-only'" \
-  "RESUME_PHOTO_OSS_PRIVATE_BUCKET_CONFIRMED='true'" \
-  "RESUME_PHOTO_OSS_CORS_CONFIRMED='true'" \
-  "RESUME_PHOTO_OSS_STAGING_LIFECYCLE_CONFIRMED='true'" \
-  "RESUME_PHOTO_OSS_RAM_POLICY_CONFIRMED='true'"; do
+  "RESUME_REVIEW_PAYMENT_ACCEPTANCE_CONFIRMED='true'" \
+  "WECHAT_PAY_APP_ID='wx-test-app'" \
+  "WECHAT_PAY_MERCHANT_ID='1900000001'" \
+  "WECHAT_PAY_PRIVATE_KEY='wechat-private-key-test-only'" \
+  "WECHAT_PAY_MERCHANT_SERIAL_NUMBER='wechat-serial-test-only'" \
+  "WECHAT_PAY_API_V3_KEY='0123456789abcdef0123456789abcdef'" \
+  "RESUME_PHOTO_OSS_STAGING_PREFIX='pairesume/resume-photo/staging/'" \
+  "RESUME_PHOTO_OSS_OBJECT_PREFIX='pairesume/resume-photo/objects/'"; do
   grep -Fqx -- "$expected" "$target_env" \
     || {
       printf '目标环境文件缺少预期的安全配置项\n' >&2
@@ -289,7 +287,11 @@ for secret in \
   "$db_password" \
   redis-password-test-only \
   mail-password-test-only \
-  deepseek-key-test-only; do
+  deepseek-key-test-only \
+  paicongming-bridge-secret-test-only-0123456789 \
+  oss-sk-test-only \
+  wechat-private-key-test-only \
+  0123456789abcdef0123456789abcdef; do
   if [[ "$preflight_output" == *"$secret"* ]]; then
     printf '生产预检输出泄漏测试秘密\n' >&2
     exit 1
@@ -331,15 +333,14 @@ assert_preflight_rejects FLYWAY_USERNAME wrong_flyway_user \
   'MYSQL_USERNAME 与 FLYWAY_USERNAME 必须都固定为 pai_resume'
 assert_preflight_rejects FLYWAY_PASSWORD different-password-test-only-0123456789 \
   'MYSQL_PASSWORD 与 FLYWAY_PASSWORD 必须完全相同'
-assert_preflight_rejects RESUME_PHOTO_OSS_ENDPOINT http://oss-cn-hangzhou.aliyuncs.com \
-  'RESUME_PHOTO_OSS_ENDPOINT 必须是无路径、无查询参数的 HTTPS OSS endpoint'
 assert_preflight_rejects RESUME_PHOTO_OSS_MAX_BYTES 3145729 \
   'RESUME_PHOTO_OSS_MAX_BYTES 必须是 1024 到 3145728 之间的整数'
 assert_preflight_rejects RESUME_PHOTO_UPLOAD_RATE_LIMIT_IP_ATTEMPTS 10 \
   'RESUME_PHOTO_UPLOAD_RATE_LIMIT_IP_ATTEMPTS 不得小于账号预算'
-assert_preflight_rejects RESUME_PHOTO_OSS_PRIVATE_BUCKET_CONFIRMED false \
-  '当前发布阶段要求 RESUME_PHOTO_OSS_PRIVATE_BUCKET_CONFIRMED=true'
-
+assert_preflight_rejects PAICONGMING_WECHAT_LOGIN_ENABLED false \
+  '当前发布阶段要求 PAICONGMING_WECHAT_LOGIN_ENABLED=true'
+assert_preflight_rejects PLANET_CORE_ACCEPTANCE_CONFIRMED false \
+  '当前发布阶段要求 PLANET_CORE_ACCEPTANCE_CONFIRMED=true'
 for expected in \
   "MAIL_STARTTLS_ENABLE='false'" \
   "MAIL_STARTTLS_REQUIRED='false'" \
@@ -377,8 +378,6 @@ second_output="$(
   PAIRESUME_BOOTSTRAP_TEST_MODE=true \
   PAIRESUME_BOOTSTRAP_SOURCE_ENV="$source_env" \
   PAIRESUME_BOOTSTRAP_TARGET_ENV="$target_env" \
-  PAIRESUME_OSS_CORS_CONFIRMED=true \
-  PAIRESUME_OSS_LIFECYCLE_CONFIRMED=true \
     "$script" 2>&1
 )"
 jwt_after="$(grep '^JWT_SECRET=' "$target_env")"
@@ -395,33 +394,11 @@ grep -Fqx "VITE_SUPPORT_EMAIL='public-support@support.test'" "$target_env" \
   }
 [[ "$second_output" != *"password-test-only"* \
   && "$second_output" != *"deepseek-key-test-only"* \
-  && "$second_output" != *"oss-sk-test-only"* ]] \
+  && "$second_output" != *"paicongming-bridge-secret-test-only-0123456789"* ]] \
   || {
     printf '重复执行时输出泄漏测试秘密\n' >&2
     exit 1
   }
-grep -Fqx "RESUME_REVIEW_OSS_CORS_CONFIRMED='true'" "$target_env"
-grep -Fqx "RESUME_REVIEW_OSS_LIFECYCLE_CONFIRMED='true'" "$target_env"
-grep -Fqx "RESUME_REVIEW_OSS_RAM_POLICY_CONFIRMED='false'" "$target_env"
-
-if ram_override_output="$(
-  PAIRESUME_BOOTSTRAP_TEST_MODE=true \
-  PAIRESUME_BOOTSTRAP_SOURCE_ENV="$source_env" \
-  PAIRESUME_BOOTSTRAP_TARGET_ENV="${test_root}/ram-override-target.env" \
-  PAIRESUME_OSS_RAM_POLICY_CONFIRMED=true \
-    "$script" 2>&1
-)"; then
-  printf '未经核验的 RAM 权限确认未被拒绝\n' >&2
-  exit 1
-fi
-[[ "$ram_override_output" != *"password-test-only"* \
-  && "$ram_override_output" != *"deepseek-key-test-only"* \
-  && "$ram_override_output" != *"oss-sk-test-only"* ]] \
-  || {
-    printf 'RAM 权限拒绝路径泄漏测试秘密\n' >&2
-    exit 1
-  }
-
 xtrace_output="$(
   PAIRESUME_BOOTSTRAP_TEST_MODE=true \
   PAIRESUME_BOOTSTRAP_SOURCE_ENV="$source_env" \
@@ -433,7 +410,9 @@ for secret in \
   redis-password-test-only \
   mail-password-test-only \
   deepseek-key-test-only \
-  oss-sk-test-only; do
+  paicongming-bridge-secret-test-only-0123456789 \
+  wechat-private-key-test-only \
+  0123456789abcdef0123456789abcdef; do
   if [[ "$xtrace_output" == *"$secret"* ]]; then
     printf 'bash -x 输出泄漏测试秘密\n' >&2
     exit 1

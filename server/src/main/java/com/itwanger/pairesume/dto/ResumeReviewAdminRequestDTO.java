@@ -14,6 +14,8 @@ public class ResumeReviewAdminRequestDTO {
     private String entitlementType;
     private String requestStatus;
     private Integer priceCents;
+    private Integer basePriceCents;
+    private Integer priorityFeeCents;
     private String orderNo;
     private String provider;
     private String payChannel;
@@ -21,6 +23,7 @@ public class ResumeReviewAdminRequestDTO {
     private String providerTransactionId;
     private String paymentExpiresAt;
     private String paidAt;
+    private String queuedAt;
     private String refundReason;
     private String refundReference;
     private Long handledBy;

@@ -192,30 +192,6 @@ lookup_env_value() {
 }
 
 # Mandatory photo OSS values must come from an explicit PaiResume override or
-# an already provisioned target file. Never copy paicoding's broad, long-lived
-# image credentials into this application implicitly.
-select_required_photo_oss_value() {
-  local description="$1"
-  local override_value="$2"
-  local target_key="$3"
-
-  SELECTED_VALUE=""
-  if [[ -n "$override_value" ]]; then
-    SELECTED_VALUE="$override_value"
-    validate_value "$description" "$SELECTED_VALUE"
-    return 0
-  fi
-  if [[ -f "$target_env" ]]; then
-    lookup_env_value "$target_env" "$target_key"
-    if [[ "$LOOKUP_FOUND" == "true" && -n "$LOOKUP_VALUE" ]]; then
-      SELECTED_VALUE="$LOOKUP_VALUE"
-      validate_value "$description" "$SELECTED_VALUE"
-      return 0
-    fi
-  fi
-  die "缺少 ${description}；简历照片 OSS 是必备基础设施"
-}
-
 # Sets SELECTED_VALUE to the first non-empty candidate.
 select_required_source_value() {
   local description="$1"
@@ -336,47 +312,62 @@ select_required_source_value "DeepSeek API Key" \
   PAICODING_DEEPSEEK_API_KEY DEEPSEEK_API_KEY AI_API_KEY
 deepseek_api_key="$SELECTED_VALUE"
 
-# 人工精修首发总开关关闭，不把 paicoding 的长期 OSS 凭据复制给
-# PaiResume。简历照片 OSS 是必备基础设施，必须显式提供最小权限 RAM
-# 凭据；重复执行时可以从既有目标文件安全保留这些值。
-review_oss_endpoint=""
-review_oss_bucket=""
-review_oss_access_key_id=""
-review_oss_access_key_secret=""
+# 知识星球灰度的首要入口是派聪明扫码注册/登录。生产环境生成脚本不得
+# 再把已经验收可用的扫码能力静默写回关闭状态。
+select_optional_source_value "https://paicoding.com" \
+  PAIRESUME_WECHAT_GATEWAY_BASE_URL PAICONGMING_WECHAT_GATEWAY_BASE_URL
+paicongming_gateway_base_url="$SELECTED_VALUE"
+select_optional_source_value "/api/internal/pairesume/wechat/qrcodes" \
+  PAIRESUME_WECHAT_GATEWAY_QR_PATH PAICONGMING_WECHAT_GATEWAY_QR_PATH
+paicongming_gateway_qr_path="$SELECTED_VALUE"
+select_required_source_value "派聪明扫码桥独立密钥" \
+  PAIRESUME_WECHAT_BRIDGE_SECRET PAICONGMING_WECHAT_BRIDGE_SECRET
+paicongming_bridge_secret="$SELECTED_VALUE"
+select_required_source_value "派聪明服务号 AppID" \
+  WX_APP_ID PAICONGMING_WECHAT_APP_ID
+paicongming_app_id="$SELECTED_VALUE"
+select_optional_source_value "pr_" \
+  PAIRESUME_WECHAT_SCENE_PREFIX PAICONGMING_WECHAT_SCENE_PREFIX
+paicongming_scene_prefix="$SELECTED_VALUE"
 
-select_required_photo_oss_value "简历照片 OSS endpoint" \
-  "${PAIRESUME_PHOTO_OSS_ENDPOINT:-}" RESUME_PHOTO_OSS_ENDPOINT
-photo_oss_endpoint="$SELECTED_VALUE"
-select_required_photo_oss_value "简历照片 OSS Bucket" \
-  "${PAIRESUME_PHOTO_OSS_BUCKET:-}" RESUME_PHOTO_OSS_BUCKET
-photo_oss_bucket="$SELECTED_VALUE"
-select_required_photo_oss_value "简历照片 OSS AccessKey ID" \
-  "${PAIRESUME_PHOTO_OSS_ACCESS_KEY_ID:-}" RESUME_PHOTO_OSS_ACCESS_KEY_ID
-photo_oss_access_key_id="$SELECTED_VALUE"
-select_required_photo_oss_value "简历照片 OSS AccessKey Secret" \
-  "${PAIRESUME_PHOTO_OSS_ACCESS_KEY_SECRET:-}" RESUME_PHOTO_OSS_ACCESS_KEY_SECRET
-photo_oss_access_key_secret="$SELECTED_VALUE"
+[[ "$paicongming_gateway_base_url" =~ ^https://[^/]+/?$ ]] \
+  || die "派聪明扫码网关必须是明确的公网 HTTPS 根地址"
+[[ "$paicongming_gateway_qr_path" =~ ^/[A-Za-z0-9_./-]+$ \
+  && "$paicongming_gateway_qr_path" != //* ]] \
+  || die "派聪明扫码网关路径必须是站内绝对路径"
+[[ ${#paicongming_bridge_secret} -ge 32 ]] \
+  || die "派聪明扫码桥独立密钥不得少于 32 个字符"
+[[ "$paicongming_app_id" =~ ^wx[A-Za-z0-9]{16}$ ]] \
+  || die "派聪明服务号 AppID 格式不正确"
+[[ "$paicongming_scene_prefix" =~ ^[A-Za-z0-9_-]{2,16}$ ]] \
+  || die "派聪明二维码场景前缀格式不正确"
 
-oss_private_confirmed="${PAIRESUME_OSS_PRIVATE_BUCKET_CONFIRMED:-true}"
-oss_cors_confirmed="${PAIRESUME_OSS_CORS_CONFIRMED:-false}"
-oss_lifecycle_confirmed="${PAIRESUME_OSS_LIFECYCLE_CONFIRMED:-false}"
-oss_ram_confirmed=false
-validate_boolean_override "PAIRESUME_OSS_PRIVATE_BUCKET_CONFIRMED" "$oss_private_confirmed"
-validate_boolean_override "PAIRESUME_OSS_CORS_CONFIRMED" "$oss_cors_confirmed"
-validate_boolean_override "PAIRESUME_OSS_LIFECYCLE_CONFIRMED" "$oss_lifecycle_confirmed"
-if [[ -n "${PAIRESUME_OSS_RAM_POLICY_CONFIRMED:-}" \
-  && "${PAIRESUME_OSS_RAM_POLICY_CONFIRMED}" != "false" ]]; then
-  die "现有 OSS AccessKey 的最小 RAM 权限尚未证实，拒绝写入 RAM_POLICY_CONFIRMED=true"
-fi
+planet_core_acceptance_confirmed="${PAIRESUME_PLANET_CORE_ACCEPTANCE_CONFIRMED:-false}"
+validate_boolean_override \
+  "PAIRESUME_PLANET_CORE_ACCEPTANCE_CONFIRMED" "$planet_core_acceptance_confirmed"
 
-photo_oss_private_confirmed="${PAIRESUME_PHOTO_OSS_PRIVATE_BUCKET_CONFIRMED:-false}"
-photo_oss_cors_confirmed="${PAIRESUME_PHOTO_OSS_CORS_CONFIRMED:-false}"
-photo_oss_lifecycle_confirmed="${PAIRESUME_PHOTO_OSS_STAGING_LIFECYCLE_CONFIRMED:-false}"
-photo_oss_ram_confirmed="${PAIRESUME_PHOTO_OSS_RAM_POLICY_CONFIRMED:-false}"
-validate_boolean_override "PAIRESUME_PHOTO_OSS_PRIVATE_BUCKET_CONFIRMED" "$photo_oss_private_confirmed"
-validate_boolean_override "PAIRESUME_PHOTO_OSS_CORS_CONFIRMED" "$photo_oss_cors_confirmed"
-validate_boolean_override "PAIRESUME_PHOTO_OSS_STAGING_LIFECYCLE_CONFIRMED" "$photo_oss_lifecycle_confirmed"
-validate_boolean_override "PAIRESUME_PHOTO_OSS_RAM_POLICY_CONFIRMED" "$photo_oss_ram_confirmed"
+select_required_source_value "微信支付 App ID" \
+  PAIRESUME_WECHAT_PAY_APP_ID WECHAT_PAY_APP_ID
+wechat_pay_app_id="$SELECTED_VALUE"
+select_required_source_value "微信支付商户号" \
+  PAIRESUME_WECHAT_PAY_MERCHANT_ID WECHAT_PAY_MERCHANT_ID
+wechat_pay_merchant_id="$SELECTED_VALUE"
+select_required_source_value "微信支付商户私钥" \
+  PAIRESUME_WECHAT_PAY_PRIVATE_KEY WECHAT_PAY_PRIVATE_KEY
+wechat_pay_private_key="$SELECTED_VALUE"
+select_required_source_value "微信支付商户证书序列号" \
+  PAIRESUME_WECHAT_PAY_MERCHANT_SERIAL_NUMBER WECHAT_PAY_MERCHANT_SERIAL_NUMBER
+wechat_pay_merchant_serial="$SELECTED_VALUE"
+select_required_source_value "微信支付 API v3 Key" \
+  PAIRESUME_WECHAT_PAY_API_V3_KEY WECHAT_PAY_API_V3_KEY
+wechat_pay_api_v3_key="$SELECTED_VALUE"
+[[ ${#wechat_pay_api_v3_key} -eq 32 ]] \
+  || die "微信支付 API v3 Key 必须恰好为 32 个字符"
+
+review_payment_confirmed="${PAIRESUME_REVIEW_PAYMENT_ACCEPTANCE_CONFIRMED:-false}"
+validate_boolean_override "PAIRESUME_REVIEW_PAYMENT_ACCEPTANCE_CONFIRMED" "$review_payment_confirmed"
+[[ "$review_payment_confirmed" == "true" ]] \
+  || die "人工精修常驻服务要求先完成真实支付、邮件和退款验收"
 
 operator_name="${PAIRESUME_OPERATOR_NAME:-沉默王二（个人开发者）}"
 validate_value "PAIRESUME_OPERATOR_NAME" "$operator_name"
@@ -462,12 +453,13 @@ write_env FORWARD_HEADERS_STRATEGY native
 write_env REFRESH_COOKIE_SECURE true
 write_env SPRINGDOC_ENABLED false
 
-write_env PAICONGMING_WECHAT_LOGIN_ENABLED false
-write_env PAICONGMING_WECHAT_GATEWAY_BASE_URL "" true
-write_env PAICONGMING_WECHAT_GATEWAY_QR_PATH "" true
-write_env PAICONGMING_WECHAT_BRIDGE_SECRET "" true
-write_env PAICONGMING_WECHAT_APP_ID "" true
-write_env PAICONGMING_WECHAT_SCENE_PREFIX "" true
+write_env PAICONGMING_WECHAT_LOGIN_ENABLED true
+write_env PAICONGMING_WECHAT_GATEWAY_BASE_URL "$paicongming_gateway_base_url"
+write_env PAICONGMING_WECHAT_GATEWAY_QR_PATH "$paicongming_gateway_qr_path"
+write_env PAICONGMING_WECHAT_BRIDGE_SECRET "$paicongming_bridge_secret"
+write_env PAICONGMING_WECHAT_APP_ID "$paicongming_app_id"
+write_env PAICONGMING_WECHAT_SCENE_PREFIX "$paicongming_scene_prefix"
+write_env PLANET_CORE_ACCEPTANCE_CONFIRMED "$planet_core_acceptance_confirmed"
 write_env VIP_INVITE_CLAIM_TTL_SECONDS 600
 write_env VIP_INVITE_CLAIM_RETENTION_DAYS 30
 
@@ -517,33 +509,12 @@ write_env MAIL_CONNECTION_TIMEOUT_MS 10000
 write_env MAIL_READ_TIMEOUT_MS 10000
 write_env MAIL_WRITE_TIMEOUT_MS 10000
 
-write_env RESUME_REVIEW_ENABLED false
 write_env RESUME_REVIEW_RECIPIENT_EMAIL "$review_recipient"
 write_env RESUME_REVIEW_MESSAGE_ID_DOMAIN resume.paicoding.com
 write_env RESUME_REVIEW_MAIL_OUTBOX_MAX_ATTEMPTS 10
 write_env RESUME_REVIEW_UPLOAD_RATE_LIMIT_WINDOW_SECONDS 900
 write_env RESUME_REVIEW_UPLOAD_RATE_LIMIT_ACCOUNT_ATTEMPTS 20
 write_env RESUME_REVIEW_UPLOAD_RATE_LIMIT_IP_ATTEMPTS 200
-write_env RESUME_REVIEW_OSS_ENABLED false
-write_env RESUME_REVIEW_OSS_ENDPOINT "$review_oss_endpoint" true
-write_env RESUME_REVIEW_OSS_BUCKET "$review_oss_bucket" true
-write_env RESUME_REVIEW_OSS_ACCESS_KEY_ID "$review_oss_access_key_id" true
-write_env RESUME_REVIEW_OSS_ACCESS_KEY_SECRET "$review_oss_access_key_secret" true
-write_env RESUME_REVIEW_OSS_STAGING_PREFIX pairesume/resume-review/staging/
-write_env RESUME_REVIEW_OSS_OBJECT_PREFIX pairesume/resume-review/objects/
-write_env RESUME_REVIEW_OSS_UPLOAD_URL_TTL_MINUTES 10
-write_env RESUME_REVIEW_OSS_READY_TTL_MINUTES 30
-write_env RESUME_REVIEW_OSS_MAX_PDF_BYTES 10485760
-write_env RESUME_REVIEW_OSS_MAX_CONCURRENT_FINALIZATIONS 2
-write_env RESUME_REVIEW_OSS_RETENTION_DAYS 30
-write_env RESUME_REVIEW_OSS_PRIVATE_BUCKET_CONFIRMED "$oss_private_confirmed"
-write_env RESUME_REVIEW_OSS_CORS_CONFIRMED "$oss_cors_confirmed"
-write_env RESUME_REVIEW_OSS_LIFECYCLE_CONFIRMED "$oss_lifecycle_confirmed"
-write_env RESUME_REVIEW_OSS_RAM_POLICY_CONFIRMED "$oss_ram_confirmed"
-write_env RESUME_PHOTO_OSS_ENDPOINT "$photo_oss_endpoint" true
-write_env RESUME_PHOTO_OSS_BUCKET "$photo_oss_bucket" true
-write_env RESUME_PHOTO_OSS_ACCESS_KEY_ID "$photo_oss_access_key_id" true
-write_env RESUME_PHOTO_OSS_ACCESS_KEY_SECRET "$photo_oss_access_key_secret" true
 write_env RESUME_PHOTO_OSS_STAGING_PREFIX pairesume/resume-photo/staging/
 write_env RESUME_PHOTO_OSS_OBJECT_PREFIX pairesume/resume-photo/objects/
 write_env RESUME_PHOTO_OSS_UPLOAD_URL_TTL_MINUTES 10
@@ -554,20 +525,15 @@ write_env RESUME_PHOTO_OSS_MAX_PIXELS 16000000
 write_env RESUME_PHOTO_UPLOAD_RATE_LIMIT_WINDOW_SECONDS 900
 write_env RESUME_PHOTO_UPLOAD_RATE_LIMIT_ACCOUNT_ATTEMPTS 20
 write_env RESUME_PHOTO_UPLOAD_RATE_LIMIT_IP_ATTEMPTS 200
-write_env RESUME_PHOTO_OSS_PRIVATE_BUCKET_CONFIRMED "$photo_oss_private_confirmed"
-write_env RESUME_PHOTO_OSS_CORS_CONFIRMED "$photo_oss_cors_confirmed"
-write_env RESUME_PHOTO_OSS_STAGING_LIFECYCLE_CONFIRMED "$photo_oss_lifecycle_confirmed"
-write_env RESUME_PHOTO_OSS_RAM_POLICY_CONFIRMED "$photo_oss_ram_confirmed"
-write_env RESUME_REVIEW_PAID_ACCEPT_NEW_ORDERS false
 write_env RESUME_REVIEW_PAYMENT_ORDER_EXPIRE_MINUTES 30
-write_env RESUME_REVIEW_PAYMENT_ACCEPTANCE_CONFIRMED false
+write_env RESUME_REVIEW_PAYMENT_ACCEPTANCE_CONFIRMED "$review_payment_confirmed"
 
 write_env AI_API_KEY "$deepseek_api_key"
 write_env AI_BASE_URL https://api.deepseek.com
 write_env AI_MODEL deepseek-v4-flash
 write_env AI_ANALYSIS_MODEL deepseek-v4-flash
 
-write_env PAYMENT_PROVIDER disabled
+write_env PAYMENT_PROVIDER wechat-native
 write_env PAYMENT_ACCEPT_NEW_ORDERS false
 write_env MEMBERSHIP_PAYMENT_ACCEPT_NEW_ORDERS false
 write_env MARKETPLACE_PAYMENT_ACCEPT_NEW_ORDERS false
@@ -584,11 +550,11 @@ write_env MEMBERSHIP_PAYMENT_ACCEPTANCE_CONFIRMED false
 write_env MARKETPLACE_PAYMENT_ACCEPTANCE_CONFIRMED false
 write_env MARKETPLACE_GOVERNANCE_DUTY_CONFIRMED false
 write_env PAYMENT_ACCEPTANCE_ENVIRONMENT_CONFIRMED false
-write_env WECHAT_PAY_APP_ID "" true
-write_env WECHAT_PAY_MERCHANT_ID "" true
-write_env WECHAT_PAY_PRIVATE_KEY "" true
-write_env WECHAT_PAY_MERCHANT_SERIAL_NUMBER "" true
-write_env WECHAT_PAY_API_V3_KEY "" true
+write_env WECHAT_PAY_APP_ID "$wechat_pay_app_id"
+write_env WECHAT_PAY_MERCHANT_ID "$wechat_pay_merchant_id"
+write_env WECHAT_PAY_PRIVATE_KEY "$wechat_pay_private_key"
+write_env WECHAT_PAY_MERCHANT_SERIAL_NUMBER "$wechat_pay_merchant_serial"
+write_env WECHAT_PAY_API_V3_KEY "$wechat_pay_api_v3_key"
 write_env WECHAT_PAY_NOTIFY_URL \
   https://resume.paicoding.com/api/public/payments/wechat/notify
 

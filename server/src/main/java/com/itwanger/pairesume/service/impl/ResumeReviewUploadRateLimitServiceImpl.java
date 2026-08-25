@@ -67,7 +67,8 @@ public class ResumeReviewUploadRateLimitServiceImpl
 
     private String normalizeAction(String action) {
         String normalized = action == null ? "" : action.trim().toLowerCase(Locale.ROOT);
-        if (!"authorize".equals(normalized) && !"complete".equals(normalized)) {
+        if (!"authorize".equals(normalized) && !"complete".equals(normalized)
+                && !"dispatch".equals(normalized)) {
             throw new IllegalArgumentException("Unsupported resume review upload action");
         }
         return normalized;

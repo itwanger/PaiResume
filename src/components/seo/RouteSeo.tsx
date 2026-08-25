@@ -22,6 +22,11 @@ const EXACT_ROUTES: Record<string, RouteSeoConfig> = {
     description: '查看派简历精选的优秀中文简历案例，参考真实的内容组织、项目表达与排版方式。',
     indexable: true,
   },
+  '/resume-review': {
+    title: '人工精修排队进度 - 派简历',
+    description: '查看派简历人工精修的脱敏实时队列、处理状态与加急排序情况。',
+    indexable: true,
+  },
   '/privacy': {
     title: '隐私政策 - 派简历',
     description: '了解派简历如何收集、使用、保存和保护账号、简历、AI 辅助与支付相关信息。',

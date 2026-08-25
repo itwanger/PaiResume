@@ -113,9 +113,6 @@ public class AuthServiceImpl implements AuthService {
     @Value("${app.marketplace.enabled:false}")
     private boolean marketplaceEnabled;
 
-    @Value("${app.resume-review.enabled:false}")
-    private boolean resumeReviewEnabled;
-
     @Autowired
     public AuthServiceImpl(UserMapper userMapper, UserAuthIdentityMapper userAuthIdentityMapper,
                            PasswordEncoder passwordEncoder, JwtTokenProvider jwtTokenProvider,
@@ -525,7 +522,7 @@ public class AuthServiceImpl implements AuthService {
                 WHERE user_id = ?
                 """, userId);
         // 终态请求只保留计费/审计必需元数据。若邮件已投递，SMTP 接受的
-        // 附件副本不可召回，用户在提交时已单独确认该处理。
+        // 附件副本不可召回，用户提交人工精修申请即触发该处理。
         jdbcTemplate.update("""
                 UPDATE resume_review_request
                 SET contact_email = CONCAT('deleted-review-', id, '@invalid.local'),
@@ -906,7 +903,6 @@ public class AuthServiceImpl implements AuthService {
                 wechatIdentity != null,
                 wechatIdentity != null && Boolean.TRUE.equals(wechatIdentity.getSubscribed())
         );
-        userInfo.setResumeReviewEnabled(resumeReviewEnabled);
         return userInfo;
     }
 

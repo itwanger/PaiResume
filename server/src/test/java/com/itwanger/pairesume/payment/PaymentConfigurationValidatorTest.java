@@ -2,7 +2,6 @@ package com.itwanger.pairesume.payment;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
-import com.itwanger.pairesume.config.ResumeReviewProperties;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -35,17 +34,6 @@ class PaymentConfigurationValidatorTest {
         properties.setMembershipAcceptNewOrders(true);
 
         assertThrows(IllegalStateException.class, () -> validator(properties).validate());
-    }
-
-    @Test
-    void paidResumeReviewHasAnIndependentFailClosedSwitchAndRequiresWechatNative() {
-        MarketplacePaymentProperties properties = new MarketplacePaymentProperties();
-        ResumeReviewProperties review = new ResumeReviewProperties();
-        review.setPaidAcceptNewOrders(true);
-        PaymentConfigurationValidator validator = new PaymentConfigurationValidator(properties, review);
-        ReflectionTestUtils.setField(validator, "environment", "development");
-
-        assertThrows(IllegalStateException.class, validator::validate);
     }
 
     @Test

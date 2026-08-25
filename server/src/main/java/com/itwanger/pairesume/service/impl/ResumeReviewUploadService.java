@@ -3,7 +3,6 @@ package com.itwanger.pairesume.service.impl;
 import com.itwanger.pairesume.common.BusinessException;
 import com.itwanger.pairesume.common.ResultCode;
 import com.itwanger.pairesume.config.ResumeReviewOssProperties;
-import com.itwanger.pairesume.config.ResumeReviewProperties;
 import com.itwanger.pairesume.dto.CreateResumeReviewUploadDTO;
 import com.itwanger.pairesume.dto.ResumeReviewUploadAuthorizationDTO;
 import com.itwanger.pairesume.dto.ResumeReviewUploadDTO;
@@ -43,7 +42,6 @@ public class ResumeReviewUploadService {
     private final ResumeService resumeService;
     private final ResumeReviewObjectStorage objectStorage;
     private final ResumeReviewOssProperties properties;
-    private final ResumeReviewProperties reviewProperties;
 
     @Transactional
     public ResumeReviewUploadAuthorizationDTO authorize(Long userId, CreateResumeReviewUploadDTO dto) {
@@ -53,7 +51,14 @@ public class ResumeReviewUploadService {
                 || user.getAccountDeletedAt() != null) {
             throw new BusinessException(ResultCode.USER_NOT_FOUND);
         }
-        resumeService.getByIdAndUserId(dto.getResumeId(), userId);
+        if (!"ACTIVE".equals(user.getMembershipStatus())
+                || (user.getMembershipExpiresAt() != null
+                && !user.getMembershipExpiresAt().isAfter(LocalDateTime.now()))) {
+            throw new BusinessException(ResultCode.RESUME_REVIEW_MEMBERSHIP_REQUIRED);
+        }
+        if (dto.getResumeId() != null) {
+            resumeService.getByIdAndUserId(dto.getResumeId(), userId);
+        }
         if (requestMapper.selectActive(reviewActiveUserKey(userId)) != null) {
             throw new BusinessException(ResultCode.RESUME_REVIEW_ACTIVE_EXISTS);
         }
@@ -211,9 +216,6 @@ public class ResumeReviewUploadService {
     }
 
     private void ensureEnabled() {
-        if (!reviewProperties.isEnabled()) {
-            throw new BusinessException(ResultCode.RESUME_REVIEW_DISABLED);
-        }
         if (!properties.isEnabled()) {
             throw new BusinessException(ResultCode.RESUME_REVIEW_STORAGE_NOT_CONFIGURED);
         }

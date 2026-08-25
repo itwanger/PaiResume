@@ -1,48 +1,30 @@
 package com.itwanger.pairesume.config;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.test.util.ReflectionTestUtils;
-
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class ResumePhotoProductionConfigValidatorTest {
     @Test
-    void developmentStartupRejectsMissingMandatoryOssConfiguration() {
-        ResumePhotoProductionConfigValidator validator = validator(new ResumePhotoOssProperties(), "development");
-        assertThrows(IllegalStateException.class, validator::validate);
+    void startupAllowsAdminManagedOssToBeUnconfigured() {
+        assertDoesNotThrow(() -> validator(new ResumePhotoOssProperties()).validate());
     }
 
     @Test
-    void developmentStartupAcceptsValidOssWithoutProductionConfirmationFlags() {
-        assertDoesNotThrow(() -> validator(validProperties(), "development").validate());
-    }
-
-    @Test
-    void productionStartupRequiresAllOperationalConfirmationFlags() {
-        ResumePhotoOssProperties properties = validProperties();
-        assertThrows(IllegalStateException.class, () -> validator(properties, "production").validate());
-
-        properties.setPrivateBucketConfirmed(true);
-        properties.setCorsConfirmed(true);
-        properties.setStagingLifecycleConfirmed(true);
-        properties.setRamPolicyConfirmed(true);
-        assertDoesNotThrow(() -> validator(properties, "production").validate());
-    }
-
-    private ResumePhotoProductionConfigValidator validator(ResumePhotoOssProperties properties,
-                                                            String environment) {
-        ResumePhotoProductionConfigValidator validator = new ResumePhotoProductionConfigValidator(properties);
-        ReflectionTestUtils.setField(validator, "environment", environment);
-        return validator;
-    }
-
-    private ResumePhotoOssProperties validProperties() {
+    void startupStillRejectsInvalidStaticPrefixes() {
         ResumePhotoOssProperties properties = new ResumePhotoOssProperties();
-        properties.setEndpoint("https://oss-cn-hangzhou.aliyuncs.com");
-        properties.setBucket("private-resume-bucket");
-        properties.setAccessKeyId("test-access-key-id");
-        properties.setAccessKeySecret("test-access-key-secret");
-        return properties;
+        properties.setStagingPrefix("../unsafe");
+        assertThrows(IllegalStateException.class, () -> validator(properties).validate());
+    }
+
+    @Test
+    void startupStillRejectsInvalidStaticLimits() {
+        ResumePhotoOssProperties properties = new ResumePhotoOssProperties();
+        properties.setMaxPhotoBytes(4L * 1024L * 1024L);
+        assertThrows(IllegalStateException.class, () -> validator(properties).validate());
+    }
+
+    private ResumePhotoProductionConfigValidator validator(ResumePhotoOssProperties properties) {
+        return new ResumePhotoProductionConfigValidator(properties);
     }
 }

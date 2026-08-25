@@ -12,6 +12,7 @@ import com.itwanger.pairesume.mapper.ResumeReviewRequestMapper;
 import com.itwanger.pairesume.mapper.ResumeReviewAuditLogMapper;
 import com.itwanger.pairesume.entity.ResumeReviewAuditLog;
 import com.itwanger.pairesume.service.MailService;
+import com.itwanger.pairesume.service.PlatformConfigService;
 import com.itwanger.pairesume.service.ResumeReviewObjectStorage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,13 +33,11 @@ public class ResumeReviewMailDeliveryService {
     private final ResumeReviewAuditLogMapper auditMapper;
     private final ResumeReviewObjectStorage objectStorage;
     private final MailService mailService;
+    private final PlatformConfigService platformConfigService;
     private final ResumeReviewProperties properties;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void deliverOne(Long outboxId) {
-        if (!properties.isEnabled()) {
-            throw new BusinessException(ResultCode.RESUME_REVIEW_DISABLED);
-        }
         if (outboxMapper.claim(outboxId) != 1) return;
         ResumeReviewMailOutbox outbox = outboxMapper.selectByIdForUpdate(outboxId);
         ResumeReviewRequest request = requestMapper.selectByIdForUpdate(outbox.getRequestId());
@@ -50,21 +49,23 @@ public class ResumeReviewMailDeliveryService {
             return;
         }
         try {
-            if (!StringUtils.hasText(properties.getRecipientEmail())) {
-                throw new IllegalStateException("RESUME_REVIEW_RECIPIENT_EMAIL is not configured");
+            String recipientEmail = platformConfigService.getResumeReviewRecipientEmail();
+            if (!StringUtils.hasText(recipientEmail)) {
+                throw new IllegalStateException("Resume review recipient email is not configured");
             }
             byte[] pdf = objectStorage.readVerifiedPdf(
                     request.getPdfObjectKey(),
                     request.getPdfSizeBytes() == null ? 0L : request.getPdfSizeBytes(),
                     request.getPdfSha256()
             );
-            mailService.sendResumeReview(properties.getRecipientEmail(), outbox.getMessageId(),
+            mailService.sendResumeReview(recipientEmail, outbox.getMessageId(),
                     request.getRequestNo(), request.getContactEmail(), pdf,
                     "resume-review-" + request.getRequestNo() + ".pdf");
             outbox.setOutboxStatus("SENT");
             outbox.setSentAt(LocalDateTime.now());
             outbox.setLastErrorType(null);
             request.setRequestStatus("EMAILED");
+            request.setQueuedAt(LocalDateTime.now());
             ResumeReviewCreditLedger ledger = ledgerMapper.selectByRequestForUpdate(request.getId());
             if (ledger != null && "RESERVED".equals(ledger.getLedgerStatus())) {
                 ledger.setLedgerStatus("CONSUMED");

@@ -39,6 +39,8 @@ public class ResumeReviewRequest {
     private String entitlementType;
     private String requestStatus;
     private Integer priceCents;
+    private Integer basePriceCents;
+    private Integer priorityFeeCents;
     private String orderNo;
     private String provider;
     private String payChannel;
@@ -49,6 +51,8 @@ public class ResumeReviewRequest {
     private String providerTransactionId;
     private LocalDateTime paymentExpiresAt;
     private LocalDateTime paidAt;
+    private LocalDateTime dispatchedAt;
+    private LocalDateTime queuedAt;
     private String refundReason;
     private String refundReference;
     private Long handledBy;
