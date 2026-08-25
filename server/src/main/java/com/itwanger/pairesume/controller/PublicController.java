@@ -49,8 +49,11 @@ public class PublicController {
 
     @Operation(summary = "查看公开优质简历详情")
     @GetMapping("/showcases/{slug}")
-    public Result<ShowcaseDetailDTO> showcaseDetail(@PathVariable String slug) {
-        return Result.success(resumeShowcaseService.getPublicPublishedDetail(slug));
+    public Result<ShowcaseDetailDTO> showcaseDetail(
+            @PathVariable String slug,
+            @RequestHeader(value = "X-Showcase-Purchase-Token", required = false) String purchaseToken
+    ) {
+        return Result.success(resumeShowcaseService.getPublishedDetail(slug, null, purchaseToken));
     }
 
     @Operation(summary = "提交公开问卷")

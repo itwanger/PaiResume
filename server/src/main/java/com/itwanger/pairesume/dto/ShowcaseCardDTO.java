@@ -3,8 +3,6 @@ package com.itwanger.pairesume.dto;
 import com.itwanger.pairesume.vo.ResumeCardPreviewVO;
 import lombok.Data;
 
-import java.util.List;
-
 @Data
 public class ShowcaseCardDTO {
     private Long id;
@@ -12,7 +10,8 @@ public class ShowcaseCardDTO {
     private String title;
     private String scoreLabel;
     private String summary;
-    private List<String> tags;
+    private String accessType;
+    private Integer priceCents;
     private String pageMode;
     private String templateId;
     private String density;

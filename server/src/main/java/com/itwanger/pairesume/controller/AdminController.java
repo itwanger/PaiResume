@@ -230,7 +230,8 @@ public class AdminController {
         return Result.success(resumeShowcaseService.featureResume(
                 resumeId,
                 SecurityUtils.getCurrentUserId(),
-                dto.getAccessType()
+                dto.getAccessType(),
+                dto.getPriceCents()
         ));
     }
 

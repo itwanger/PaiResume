@@ -13,6 +13,7 @@ import type {
   MarketplaceReviewStatus,
 } from './marketplace'
 import type { ResumeReviewRequest } from './resumeReview'
+import type { ShowcaseAccessType } from './showcase'
 
 export interface PlatformConfig {
   membershipPriceCents: number
@@ -184,7 +185,7 @@ export interface ListUsersAdminQuery {
   size?: number
 }
 
-export type ResumeShowcaseAccessType = 'FREE' | 'VIP'
+export type ResumeShowcaseAccessType = ShowcaseAccessType
 
 export interface ResumeShowcaseAdmin {
   id: number
@@ -192,8 +193,8 @@ export interface ResumeShowcaseAdmin {
   slug: string
   scoreLabel: string
   summary: string
-  tags: string[] | null
   accessType: ResumeShowcaseAccessType
+  priceCents: number
   displayOrder: number
   publishStatus: string
   createdAt: string
@@ -202,6 +203,7 @@ export interface ResumeShowcaseAdmin {
 
 export interface FeatureShowcasePayload {
   accessType: ResumeShowcaseAccessType
+  priceCents: number
 }
 
 export interface AdminMarketListing {
@@ -211,7 +213,6 @@ export interface AdminMarketListing {
   slug: string
   title: string
   summary: string
-  tags: string[]
   accessType: MarketplaceAccessType
   priceCents: number
   publicationStatus: MarketplacePublicationStatus

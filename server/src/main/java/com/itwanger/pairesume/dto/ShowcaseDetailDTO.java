@@ -1,6 +1,7 @@
 package com.itwanger.pairesume.dto;
 
 import com.itwanger.pairesume.entity.ResumeModule;
+import com.itwanger.pairesume.vo.ResumeCardPreviewVO;
 import lombok.Data;
 
 import java.util.List;
@@ -17,7 +18,11 @@ public class ShowcaseDetailDTO {
     private String headingStyle;
     private String scoreLabel;
     private String summary;
-    private List<String> tags;
+    private String accessType;
+    private Integer priceCents;
+    private boolean paymentEnabled;
+    private boolean locked;
+    private ResumeCardPreviewVO preview;
     private List<ResumeModule> modules;
     private String updatedAt;
 }

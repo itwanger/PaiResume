@@ -23,10 +23,13 @@ import {
   IS_LOCAL_DEVELOPMENT,
 } from '../utils/navigation'
 import type { ResumeStyleSource } from '../utils/resumeStyle'
+import { getResumeStyleFeatureLabels } from '../utils/resumeStyleLabels'
+import { getShowcaseAccessLabel } from '../utils/showcaseAccess'
 
 interface HomepageShowcaseCard extends ResumeStyleSource {
   id: number
   source: 'MARKETPLACE_FREE' | 'MARKETPLACE_PAID' | 'OFFICIAL'
+  accessType: 'FREE' | 'PAID' | 'PUBLIC' | 'LOGIN'
   href: string
   title: string
   summary: string
@@ -36,7 +39,7 @@ interface HomepageShowcaseCard extends ResumeStyleSource {
   preview?: ResumeCardPreview
 }
 
-type HeroFeatureIcon = 'one-page' | 'score' | 'optimize' | 'library'
+type HeroFeatureIcon = 'one-page' | 'score' | 'optimize'
 
 const HERO_FEATURES: Array<{
   title: string
@@ -61,12 +64,6 @@ const HERO_FEATURES: Array<{
     description: '逐段打磨内容，让职责、行动与成果表达得更具体',
     icon: 'optimize',
     iconClassName: 'bg-violet-100 text-violet-700',
-  },
-  {
-    title: '岗位简历参考',
-    description: '按岗位查找高质量范例，快速获得结构与表达灵感',
-    icon: 'library',
-    iconClassName: 'bg-emerald-100 text-emerald-700',
   },
 ]
 
@@ -95,15 +92,6 @@ function FeatureIcon({ icon }: { icon: HeroFeatureIcon }) {
     return (
       <svg className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" aria-hidden="true">
         <path strokeLinecap="round" strokeLinejoin="round" d="m15 4 .7 2.1L18 7l-2.3.9L15 10l-.7-2.1L12 7l2.3-.9L15 4ZM7.5 10l1.2 3.3L12 14.5l-3.3 1.2L7.5 19l-1.2-3.3L3 14.5l3.3-1.2L7.5 10ZM18.5 13l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2Z" />
-      </svg>
-    )
-  }
-
-  if (icon === 'library') {
-    return (
-      <svg className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" aria-hidden="true">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M6 4.5h11A1.5 1.5 0 0 1 18.5 6v13H7.25A2.25 2.25 0 0 1 5 16.75V5.5A1 1 0 0 1 6 4.5Z" />
-        <path strokeLinecap="round" strokeLinejoin="round" d="M5 16.75A2.25 2.25 0 0 1 7.25 14.5h11.25M9 8h5" />
       </svg>
     )
   }
@@ -256,6 +244,7 @@ export default function HomePage() {
   const marketplaceShowcases: HomepageShowcaseCard[] = (marketplaceEnabled ? marketplaceListings : []).map((listing) => ({
     id: listing.listingId,
     source: listing.accessType === 'PAID' ? 'MARKETPLACE_PAID' : 'MARKETPLACE_FREE',
+    accessType: listing.accessType,
     href: buildMarketplaceListingPath(listing.slug),
     title: listing.title,
     summary: listing.summary,
@@ -266,11 +255,12 @@ export default function HomePage() {
   const officialShowcases: HomepageShowcaseCard[] = (homeData?.showcases ?? []).map((showcase) => ({
     id: showcase.id,
     source: 'OFFICIAL',
+    accessType: showcase.accessType,
     href: `/showcases/${encodeURIComponent(showcase.slug)}`,
     title: showcase.title,
     summary: showcase.summary,
-    tags: showcase.tags ?? [],
-    priceCents: 0,
+    tags: [],
+    priceCents: showcase.priceCents,
     pageMode: showcase.pageMode,
     templateId: showcase.templateId,
     density: showcase.density,
@@ -429,8 +419,7 @@ export default function HomePage() {
           <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
-                <div className="text-sm font-medium text-primary-700">岗位简历参考</div>
-                <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">优质简历库</h2>
+                <h2 className="text-3xl font-semibold tracking-tight text-slate-950">优质简历库</h2>
               </div>
               <Link to={EXCELLENT_RESUMES_PATH} className="hidden text-sm font-medium text-primary-700 transition hover:text-primary-800 sm:inline-flex">
                 查看全部简历&nbsp;→
@@ -443,17 +432,35 @@ export default function HomePage() {
             ) : showcases.length ? (
               <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {showcases.map((showcase, index) => {
-                  const paid = showcase.source === 'MARKETPLACE_PAID'
+                  const paid = showcase.accessType === 'PAID'
                   const official = showcase.source === 'OFFICIAL'
-                  const priceLabel = paid ? formatCurrency(showcase.priceCents) : '免费公开'
-                  const actionLabel = official
-                    ? '查看简历'
+                  const officialAccessType = official
+                    ? showcase.accessType as 'PUBLIC' | 'LOGIN' | 'PAID'
+                    : null
+                  const priceLabel = officialAccessType === 'PAID'
+                    ? formatCurrency(showcase.priceCents)
+                    : officialAccessType
+                      ? getShowcaseAccessLabel(officialAccessType)
+                    : paid
+                      ? formatCurrency(showcase.priceCents)
+                      : '免费公开'
+                  const actionLabel = officialAccessType === 'PAID'
+                    ? `${priceLabel} 解锁完整简历`
+                    : officialAccessType === 'LOGIN'
+                      ? '登录后查看'
+                      : officialAccessType === 'PUBLIC'
+                        ? '查看简历'
                     : paid
                       ? `${priceLabel} 解锁完整简历`
                       : '免费查看完整简历'
                   const badgeClassName = paid
                     ? 'bg-amber-50 text-amber-700 ring-amber-200'
+                    : officialAccessType === 'LOGIN'
+                      ? 'bg-sky-50 text-sky-700 ring-sky-200'
                     : 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+                  const featureLabels = official
+                    ? getResumeStyleFeatureLabels(showcase)
+                    : showcase.tags?.slice(0, 3) ?? []
 
                   return (
                     <motion.div
@@ -473,11 +480,14 @@ export default function HomePage() {
                       className="group flex h-full flex-col overflow-hidden border border-slate-200 bg-white shadow-[0_18px_45px_-34px_rgba(15,23,42,0.5)] transition duration-300 ease-out hover:-translate-y-1.5 hover:border-primary-200 hover:shadow-[0_28px_60px_-32px_rgba(29,78,216,0.45)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 motion-reduce:transform-none motion-reduce:transition-none"
                     >
                       {official ? (
-                        <div className="border-b border-slate-100 px-5 pt-5">
+                        <div className="relative border-b border-slate-100 px-5 pt-5">
                           <ResumeContentThumbnail
                             preview={showcase.preview ?? EMPTY_RESUME_CARD_PREVIEW}
                             resume={showcase}
                           />
+                          <span className={`absolute right-7 top-7 px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${badgeClassName}`}>
+                            {priceLabel}
+                          </span>
                         </div>
                       ) : (
                         <div className="relative h-72 overflow-hidden bg-gradient-to-br from-slate-100 via-white to-primary-50">
@@ -515,9 +525,9 @@ export default function HomePage() {
                         </p>
                         <span className="sr-only">{showcase.summary}</span>
                         <div className="mt-4 flex flex-wrap gap-2">
-                          {showcase.tags?.slice(0, 3).map((tag) => (
-                            <span key={tag} className="bg-slate-100 px-3 py-1 text-xs text-slate-600 ring-1 ring-inset ring-slate-200/70">
-                              {tag}
+                          {featureLabels.map((label) => (
+                            <span key={label} className="bg-slate-100 px-3 py-1 text-xs text-slate-600 ring-1 ring-inset ring-slate-200/70">
+                              {label}
                             </span>
                           ))}
                         </div>
@@ -532,7 +542,7 @@ export default function HomePage() {
                             </span>
                           ) : null}
                           <span className="text-primary-700 transition-transform duration-200 group-hover:translate-x-1 group-focus-visible:translate-x-1 motion-reduce:transform-none" aria-hidden="true">
-                            {official ? '查看简历' : paid ? '查看详情' : '免费查看'} →
+                            {actionLabel} →
                           </span>
                         </div>
                       </div>
@@ -551,10 +561,7 @@ export default function HomePage() {
 
         <section className="border-y border-gray-200 bg-white">
           <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
-            <div>
-              <h2 className="text-2xl font-semibold text-gray-900">用户评价</h2>
-              <p className="mt-2 text-sm text-gray-500">从内容梳理到版式呈现，看看大家的使用感受。</p>
-            </div>
+            <h2 className="text-2xl font-semibold text-gray-900">用户评价</h2>
 
             {loading ? (
               <div className="mt-6 text-sm text-gray-500">内容加载中…</div>

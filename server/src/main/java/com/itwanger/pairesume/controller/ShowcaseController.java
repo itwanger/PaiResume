@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "优质简历接口")
@@ -21,10 +22,14 @@ public class ShowcaseController {
 
     @Operation(summary = "查看优质简历详情")
     @GetMapping("/{slug}")
-    public Result<ShowcaseDetailDTO> detail(@PathVariable String slug) {
+    public Result<ShowcaseDetailDTO> detail(
+            @PathVariable String slug,
+            @RequestHeader(value = "X-Showcase-Purchase-Token", required = false) String purchaseToken
+    ) {
         return Result.success(resumeShowcaseService.getPublishedDetail(
                 slug,
-                SecurityUtils.getCurrentUserId()
+                SecurityUtils.getCurrentUserId(),
+                purchaseToken
         ));
     }
 }

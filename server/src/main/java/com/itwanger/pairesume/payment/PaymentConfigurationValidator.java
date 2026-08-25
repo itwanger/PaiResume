@@ -41,13 +41,15 @@ public class PaymentConfigurationValidator {
             throw new IllegalStateException(
                     "PAYMENT_ACCEPT_NEW_ORDERS is deprecated and must remain false; use "
                             + "MEMBERSHIP_PAYMENT_ACCEPT_NEW_ORDERS or "
-                            + "MARKETPLACE_PAYMENT_ACCEPT_NEW_ORDERS"
+                            + "MARKETPLACE_PAYMENT_ACCEPT_NEW_ORDERS or "
+                            + "SHOWCASE_PAYMENT_ACCEPT_NEW_ORDERS"
             );
         }
         if ((properties.isMembershipAcceptNewOrders()
-                || properties.isMarketplaceAcceptNewOrders()) && "disabled".equals(provider)) {
+                || properties.isMarketplaceAcceptNewOrders()
+                || properties.isShowcaseAcceptNewOrders()) && "disabled".equals(provider)) {
             throw new IllegalStateException(
-                    "Enabling new membership or marketplace orders requires "
+                    "Enabling new membership, marketplace, or showcase orders requires "
                             + "PAYMENT_PROVIDER=mock or wechat-native"
             );
         }

@@ -19,6 +19,8 @@ import {
   buildMarketplaceListingPath,
   buildShowcasePath,
 } from '../utils/navigation'
+import { getResumeStyleFeatureLabels } from '../utils/resumeStyleLabels'
+import { getShowcaseAccessLabel } from '../utils/showcaseAccess'
 
 function formatCurrency(cents: number): string {
   return `¥${(cents / 100).toFixed(2)}`
@@ -153,35 +155,51 @@ export default function ExcellentResumesPage() {
             </div>
           ) : showcases.length ? (
             <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-              {showcases.map((showcase) => (
-                <article key={showcase.id} className="group flex flex-col overflow-hidden border border-slate-200 bg-white transition hover:border-primary-200 hover:shadow-lg hover:shadow-slate-200/60">
-                  <div className="relative border-b border-slate-100 px-5 pt-5">
-                    <ResumeContentThumbnail
-                      preview={showcase.preview ?? EMPTY_RESUME_CARD_PREVIEW}
-                      resume={showcase}
-                    />
-                  </div>
-                  <div className="flex flex-1 flex-col p-5">
-                    <div>
-                      <h3 className="text-lg font-semibold text-slate-950">{showcase.title}</h3>
-                      <p className="mt-1 text-sm font-medium text-primary-700">{showcase.scoreLabel}</p>
+              {showcases.map((showcase) => {
+                const featureLabels = getResumeStyleFeatureLabels(showcase)
+                return (
+                  <article key={showcase.id} className="group flex flex-col overflow-hidden border border-slate-200 bg-white transition hover:border-primary-200 hover:shadow-lg hover:shadow-slate-200/60">
+                    <div className="relative border-b border-slate-100 px-5 pt-5">
+                      <ResumeContentThumbnail
+                        preview={showcase.preview ?? EMPTY_RESUME_CARD_PREVIEW}
+                        resume={showcase}
+                      />
+                      <span className={showcase.accessType === 'PAID'
+                        ? 'absolute right-7 top-7 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-200'
+                        : showcase.accessType === 'LOGIN'
+                          ? 'absolute right-7 top-7 bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700 ring-1 ring-inset ring-sky-200'
+                          : 'absolute right-7 top-7 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200'}>
+                        {showcase.accessType === 'PAID'
+                          ? `${formatCurrency(showcase.priceCents)} 付费查看`
+                          : getShowcaseAccessLabel(showcase.accessType)}
+                      </span>
                     </div>
-                    <p className="mt-4 line-clamp-2 text-sm leading-6 text-slate-600">{showcase.summary}</p>
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {(showcase.tags ?? []).map((tag) => (
-                        <span key={tag} className="bg-slate-100 px-2.5 py-1 text-xs text-slate-600">{tag}</span>
-                      ))}
+                    <div className="flex flex-1 flex-col p-5">
+                      <div>
+                        <h3 className="text-lg font-semibold text-slate-950">{showcase.title}</h3>
+                        <p className="mt-1 text-sm font-medium text-primary-700">{showcase.scoreLabel}</p>
+                      </div>
+                      <p className="mt-4 line-clamp-2 text-sm leading-6 text-slate-600">{showcase.summary}</p>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {featureLabels.map((label) => (
+                          <span key={label} className="bg-slate-100 px-2.5 py-1 text-xs text-slate-600">{label}</span>
+                        ))}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openShowcase(showcase)}
+                        className="mt-6 inline-flex w-full items-center justify-center gap-2 bg-primary-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-700"
+                      >
+                        {showcase.accessType === 'PAID'
+                          ? `${formatCurrency(showcase.priceCents)} 解锁完整简历`
+                          : showcase.accessType === 'LOGIN'
+                            ? '登录后查看'
+                            : '查看简历'}
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => openShowcase(showcase)}
-                      className="mt-6 inline-flex w-full items-center justify-center gap-2 bg-primary-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-700"
-                    >
-                      查看简历
-                    </button>
-                  </div>
-                </article>
-              ))}
+                  </article>
+                )
+              })}
             </div>
           ) : (
             <div className="border border-dashed border-slate-300 bg-white px-6 py-12 text-center text-sm text-slate-500">暂无简历</div>

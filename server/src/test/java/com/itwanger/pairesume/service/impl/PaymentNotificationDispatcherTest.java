@@ -8,6 +8,7 @@ import com.itwanger.pairesume.payment.ProviderPaymentResult;
 import com.itwanger.pairesume.service.MarketplaceOrderService;
 import com.itwanger.pairesume.service.MembershipOrderService;
 import com.itwanger.pairesume.service.ResumeReviewService;
+import com.itwanger.pairesume.service.ShowcasePurchaseService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,6 +27,7 @@ class PaymentNotificationDispatcherTest {
     @Mock private MarketplacePaymentGateway gateway;
     @Mock private MarketplaceOrderService marketplaceOrderService;
     @Mock private MembershipOrderService membershipOrderService;
+    @Mock private ShowcasePurchaseService showcasePurchaseService;
     @Mock private ResumeReviewService resumeReviewService;
     private PaymentNotificationDispatcher dispatcher;
     private PaymentNotificationRequest request;
@@ -33,7 +35,8 @@ class PaymentNotificationDispatcherTest {
     @BeforeEach
     void setUp() {
         dispatcher = new PaymentNotificationDispatcher(
-                gateway, marketplaceOrderService, membershipOrderService, resumeReviewService);
+                gateway, marketplaceOrderService, membershipOrderService,
+                showcasePurchaseService, resumeReviewService);
         request = new PaymentNotificationRequest("serial", "nonce", "timestamp", "signature", "body");
         when(gateway.provider()).thenReturn("wechat");
     }
@@ -46,7 +49,7 @@ class PaymentNotificationDispatcherTest {
         dispatcher.dispatch(request);
 
         verify(membershipOrderService).handleVerifiedProviderNotification(result);
-        verifyNoInteractions(marketplaceOrderService, resumeReviewService);
+        verifyNoInteractions(marketplaceOrderService, showcasePurchaseService, resumeReviewService);
     }
 
     @Test
@@ -57,7 +60,7 @@ class PaymentNotificationDispatcherTest {
         dispatcher.dispatch(request);
 
         verify(marketplaceOrderService).handleVerifiedProviderNotification(result);
-        verifyNoInteractions(membershipOrderService, resumeReviewService);
+        verifyNoInteractions(membershipOrderService, showcasePurchaseService, resumeReviewService);
     }
 
     @Test
@@ -68,7 +71,18 @@ class PaymentNotificationDispatcherTest {
         dispatcher.dispatch(request);
 
         verify(resumeReviewService).handleVerifiedProviderNotification(result);
-        verifyNoInteractions(marketplaceOrderService, membershipOrderService);
+        verifyNoInteractions(marketplaceOrderService, membershipOrderService, showcasePurchaseService);
+    }
+
+    @Test
+    void verifiedShowcaseOrderIsRoutedByPoPrefix() {
+        ProviderPaymentResult result = paid("PO123");
+        when(gateway.verifyNotification(request)).thenReturn(result);
+
+        dispatcher.dispatch(request);
+
+        verify(showcasePurchaseService).handleVerifiedProviderNotification(result);
+        verifyNoInteractions(marketplaceOrderService, membershipOrderService, resumeReviewService);
     }
 
     @Test
@@ -77,7 +91,8 @@ class PaymentNotificationDispatcherTest {
 
         assertThrows(BusinessException.class, () -> dispatcher.dispatch(request));
 
-        verifyNoInteractions(marketplaceOrderService, membershipOrderService, resumeReviewService);
+        verifyNoInteractions(marketplaceOrderService, membershipOrderService,
+                showcasePurchaseService, resumeReviewService);
     }
 
     private ProviderPaymentResult paid(String orderNo) {

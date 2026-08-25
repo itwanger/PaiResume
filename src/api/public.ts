@@ -1,6 +1,6 @@
 import client, { type ApiEnvelope } from './client'
 import type { ResumeCardPreview } from './resume'
-import type { ShowcaseDetail } from './showcase'
+import type { ShowcaseAccessType, ShowcaseDetail } from './showcase'
 
 export interface ShowcaseCard {
   id: number
@@ -8,7 +8,8 @@ export interface ShowcaseCard {
   title: string
   scoreLabel: string
   summary: string
-  tags: string[]
+  accessType: ShowcaseAccessType
+  priceCents: number
   pageMode?: string
   templateId?: string
   density?: string
@@ -55,8 +56,11 @@ export const publicApi = {
   showcases: () =>
     client.get<ApiEnvelope<ShowcaseCard[]>>('/public/showcases'),
 
-  showcaseDetail: (slug: string) =>
-    client.get<ApiEnvelope<ShowcaseDetail>>(`/public/showcases/${encodeURIComponent(slug)}`),
+  showcaseDetail: (slug: string, purchaseToken?: string) =>
+    client.get<ApiEnvelope<ShowcaseDetail>>(
+      `/public/showcases/${encodeURIComponent(slug)}`,
+      purchaseToken ? { headers: { 'X-Showcase-Purchase-Token': purchaseToken } } : undefined,
+    ),
 
   aiDisclosure: () =>
     client.get<ApiEnvelope<{ aiProviderName: string; aiProviderPrivacyUrl: string }>>('/public/ai-disclosure'),

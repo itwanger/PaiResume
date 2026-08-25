@@ -7,6 +7,7 @@ import com.itwanger.pairesume.payment.PaymentNotificationRequest;
 import com.itwanger.pairesume.payment.ProviderPaymentResult;
 import com.itwanger.pairesume.service.MarketplaceOrderService;
 import com.itwanger.pairesume.service.MembershipOrderService;
+import com.itwanger.pairesume.service.ShowcasePurchaseService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -17,6 +18,7 @@ public class PaymentNotificationDispatcher {
     private final MarketplacePaymentGateway paymentGateway;
     private final MarketplaceOrderService marketplaceOrderService;
     private final MembershipOrderService membershipOrderService;
+    private final ShowcasePurchaseService showcasePurchaseService;
     private final com.itwanger.pairesume.service.ResumeReviewService resumeReviewService;
 
     public void dispatch(PaymentNotificationRequest request) {
@@ -39,6 +41,10 @@ public class PaymentNotificationDispatcher {
         }
         if (result.orderNo().startsWith("PS")) {
             resumeReviewService.handleVerifiedProviderNotification(result);
+            return;
+        }
+        if (result.orderNo().startsWith("PO")) {
+            showcasePurchaseService.handleVerifiedProviderNotification(result);
             return;
         }
         throw new BusinessException(ResultCode.PAYMENT_NOTIFICATION_INVALID);

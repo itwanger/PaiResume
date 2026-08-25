@@ -11,7 +11,7 @@ import com.itwanger.pairesume.mapper.ResumeMapper;
 import com.itwanger.pairesume.mapper.ResumeModuleMapper;
 import com.itwanger.pairesume.mapper.ResumeShowcaseMapper;
 import com.itwanger.pairesume.service.AiService;
-import com.itwanger.pairesume.service.MembershipService;
+import com.itwanger.pairesume.service.ShowcasePurchaseService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -43,7 +43,7 @@ class ResumeShowcaseServiceImplTest {
     @Mock
     private ResumeModuleMapper resumeModuleMapper;
     @Mock
-    private MembershipService membershipService;
+    private ShowcasePurchaseService showcasePurchaseService;
     @Mock
     private AiService aiService;
 
@@ -55,28 +55,28 @@ class ResumeShowcaseServiceImplTest {
                 resumeShowcaseMapper,
                 resumeMapper,
                 resumeModuleMapper,
-                membershipService,
+                showcasePurchaseService,
                 aiService
         );
     }
 
     @Test
-    void publicListIncludesFreeAndVipShowcaseCards() {
-        ResumeShowcase freeShowcase = showcase("FREE");
-        ResumeShowcase vipShowcase = showcase("VIP");
-        vipShowcase.setId(12L);
-        vipShowcase.setResumeId(22L);
-        vipShowcase.setSlug("excellent-product");
+    void publicListIncludesAllShowcaseAccessTypes() {
+        ResumeShowcase publicShowcase = showcase("PUBLIC");
+        ResumeShowcase paidShowcase = showcase("PAID");
+        paidShowcase.setId(12L);
+        paidShowcase.setResumeId(22L);
+        paidShowcase.setSlug("excellent-product");
 
-        Resume freeResume = resume();
-        freeResume.setTemplateId("warm");
-        freeResume.setPageMode("continuous");
-        freeResume.setPdfDensity("compact");
-        freeResume.setAccentPreset("warm");
-        freeResume.setHeadingStyle("filled");
-        Resume vipResume = resume();
-        vipResume.setId(22L);
-        vipResume.setTitle("产品经理");
+        Resume publicResume = resume();
+        publicResume.setTemplateId("warm");
+        publicResume.setPageMode("continuous");
+        publicResume.setPdfDensity("compact");
+        publicResume.setAccentPreset("warm");
+        publicResume.setHeadingStyle("filled");
+        Resume paidResume = resume();
+        paidResume.setId(22L);
+        paidResume.setTitle("产品经理");
 
         ResumeModule basicInfo = module(31L, 21L, "basic_info", Map.of(
                 "name", "不应公开的姓名",
@@ -105,8 +105,8 @@ class ResumeShowcaseServiceImplTest {
                 ))
         ));
 
-        when(resumeShowcaseMapper.selectList(any())).thenReturn(List.of(freeShowcase, vipShowcase));
-        when(resumeMapper.selectBatchIds(any())).thenReturn(List.of(freeResume, vipResume));
+        when(resumeShowcaseMapper.selectList(any())).thenReturn(List.of(publicShowcase, paidShowcase));
+        when(resumeMapper.selectBatchIds(any())).thenReturn(List.of(publicResume, paidResume));
         when(resumeModuleMapper.selectList(any())).thenReturn(List.of(basicInfo, education, skill, work));
 
         var cards = resumeShowcaseService.listPublishedShowcases();
@@ -114,6 +114,8 @@ class ResumeShowcaseServiceImplTest {
         assertEquals(2, cards.size());
         assertEquals("excellent-java", cards.get(0).getSlug());
         assertEquals("excellent-product", cards.get(1).getSlug());
+        assertEquals("PUBLIC", cards.get(0).getAccessType());
+        assertEquals("PAID", cards.get(1).getAccessType());
         assertEquals("warm", cards.get(0).getTemplateId());
         assertEquals("continuous", cards.get(0).getPageMode());
         assertEquals("compact", cards.get(0).getDensity());
@@ -127,12 +129,12 @@ class ResumeShowcaseServiceImplTest {
         assertEquals("AI Agent 信用评分系统", cards.get(0).getPreview().getProjects().get(0).getTitle());
         assertTrue(cards.get(0).getPreview().getProjects().get(0).getDescription().endsWith("…"));
         assertEquals(49, cards.get(0).getPreview().getProjects().get(0).getDescription().length());
-        verifyNoInteractions(membershipService);
+        verifyNoInteractions(showcasePurchaseService);
     }
 
     @Test
-    void publicUserCanViewFreeShowcaseDetail() {
-        ResumeShowcase showcase = showcase("FREE");
+    void publicUserCanViewPublicShowcaseDetail() {
+        ResumeShowcase showcase = showcase("PUBLIC");
         Resume resume = resume();
         resume.setPageMode("continuous");
         resume.setPdfDensity("compact");
@@ -143,7 +145,7 @@ class ResumeShowcaseServiceImplTest {
         when(resumeMapper.selectById(21L)).thenReturn(resume);
         when(resumeModuleMapper.selectList(any())).thenReturn(List.of(module));
 
-        var detail = resumeShowcaseService.getPublicPublishedDetail("excellent-java");
+        var detail = resumeShowcaseService.getPublishedDetail("excellent-java", null, null);
 
         assertEquals(11L, detail.getId());
         assertEquals("Java 后端开发", detail.getTitle());
@@ -152,81 +154,112 @@ class ResumeShowcaseServiceImplTest {
         assertEquals("compact", detail.getDensity());
         assertEquals("warm", detail.getAccentPreset());
         assertEquals("filled", detail.getHeadingStyle());
+        assertEquals("PUBLIC", detail.getAccessType());
+        assertTrue(!detail.isLocked());
         assertSame(module, detail.getModules().get(0));
-        verifyNoInteractions(membershipService);
+        verifyNoInteractions(showcasePurchaseService);
     }
 
     @Test
-    void publicUserCannotViewVipShowcaseDetail() {
-        when(resumeShowcaseMapper.selectOne(any())).thenReturn(showcase("VIP"));
+    void publicUserCanViewLockedPaidShowcasePreviewWithoutFullModules() {
+        when(resumeShowcaseMapper.selectOne(any())).thenReturn(showcase("PAID"));
+        when(resumeMapper.selectById(21L)).thenReturn(resume());
+        when(resumeModuleMapper.selectList(any())).thenReturn(List.of(module()));
 
-        BusinessException exception = assertThrows(
-                BusinessException.class,
-                () -> resumeShowcaseService.getPublicPublishedDetail("excellent-java")
-        );
+        var detail = resumeShowcaseService.getPublishedDetail("excellent-java", null, null);
 
-        assertEquals(ResultCode.SHOWCASE_MEMBERSHIP_REQUIRED.getCode(), exception.getCode());
-        verifyNoInteractions(resumeMapper, resumeModuleMapper, membershipService);
+        assertEquals("PAID", detail.getAccessType());
+        assertTrue(detail.isLocked());
+        assertTrue(detail.getModules().isEmpty());
+        assertEquals(1, detail.getPreview().getFilledModuleCount());
+        verify(showcasePurchaseService).isUnlocked(11L, null);
     }
 
     @Test
-    void legacyShowcaseWithoutAccessTypeDefaultsToVip() {
+    void legacyShowcaseWithoutAccessTypeDefaultsToPaid() {
         when(resumeShowcaseMapper.selectOne(any())).thenReturn(showcase(null));
+        when(resumeMapper.selectById(21L)).thenReturn(resume());
+        when(resumeModuleMapper.selectList(any())).thenReturn(List.of(module()));
 
-        BusinessException exception = assertThrows(
-                BusinessException.class,
-                () -> resumeShowcaseService.getPublicPublishedDetail("excellent-java")
-        );
+        var detail = resumeShowcaseService.getPublishedDetail("excellent-java", null, null);
 
-        assertEquals(ResultCode.SHOWCASE_MEMBERSHIP_REQUIRED.getCode(), exception.getCode());
-        verifyNoInteractions(resumeMapper, resumeModuleMapper, membershipService);
+        assertEquals("PAID", detail.getAccessType());
+        assertTrue(detail.isLocked());
+        assertTrue(detail.getModules().isEmpty());
+        verify(showcasePurchaseService).isUnlocked(11L, null);
     }
 
     @Test
-    void authenticatedFreeUserCanViewFreeShowcaseWithoutMembershipCheck() {
-        ResumeShowcase showcase = showcase("FREE");
+    void authenticatedUserCanViewPublicShowcaseWithoutMembershipCheck() {
+        ResumeShowcase showcase = showcase("PUBLIC");
         when(resumeShowcaseMapper.selectOne(any())).thenReturn(showcase);
         when(resumeMapper.selectById(21L)).thenReturn(resume());
         when(resumeModuleMapper.selectList(any())).thenReturn(List.of(module()));
 
-        var detail = resumeShowcaseService.getPublishedDetail("excellent-java", 7L);
+        var detail = resumeShowcaseService.getPublishedDetail("excellent-java", 7L, null);
 
         assertEquals(11L, detail.getId());
-        verifyNoInteractions(membershipService);
+        verifyNoInteractions(showcasePurchaseService);
     }
 
     @Test
-    void authenticatedFreeUserCannotViewVipShowcaseDetail() {
-        when(resumeShowcaseMapper.selectOne(any())).thenReturn(showcase("VIP"));
-        when(membershipService.isActiveMember(7L)).thenReturn(false);
+    void authenticatedUserCanViewLockedPaidShowcasePreview() {
+        when(resumeShowcaseMapper.selectOne(any())).thenReturn(showcase("PAID"));
+        when(resumeMapper.selectById(21L)).thenReturn(resume());
+        when(resumeModuleMapper.selectList(any())).thenReturn(List.of(module()));
 
-        BusinessException exception = assertThrows(
-                BusinessException.class,
-                () -> resumeShowcaseService.getPublishedDetail("excellent-java", 7L)
-        );
+        var detail = resumeShowcaseService.getPublishedDetail("excellent-java", 7L, null);
 
-        assertEquals(ResultCode.SHOWCASE_MEMBERSHIP_REQUIRED.getCode(), exception.getCode());
-        verifyNoInteractions(resumeMapper, resumeModuleMapper);
+        assertTrue(detail.isLocked());
+        assertTrue(detail.getModules().isEmpty());
+        assertEquals(1, detail.getPreview().getFilledModuleCount());
     }
 
     @Test
-    void activeUserCanViewVipShowcaseDetail() {
-        ResumeShowcase showcase = showcase("VIP");
+    void authenticatedUserCanViewLoginShowcaseWithoutMembershipCheck() {
+        when(resumeShowcaseMapper.selectOne(any())).thenReturn(showcase("LOGIN"));
+        when(resumeMapper.selectById(21L)).thenReturn(resume());
+        when(resumeModuleMapper.selectList(any())).thenReturn(List.of(module()));
+
+        var detail = resumeShowcaseService.getPublishedDetail("excellent-java", 7L, null);
+
+        assertTrue(!detail.isLocked());
+        assertEquals(1, detail.getModules().size());
+        verifyNoInteractions(showcasePurchaseService);
+    }
+
+    @Test
+    void publicUserCanOnlyPreviewLoginShowcase() {
+        when(resumeShowcaseMapper.selectOne(any())).thenReturn(showcase("LOGIN"));
+        when(resumeMapper.selectById(21L)).thenReturn(resume());
+        when(resumeModuleMapper.selectList(any())).thenReturn(List.of(module()));
+
+        var detail = resumeShowcaseService.getPublishedDetail("excellent-java", null, null);
+
+        assertTrue(detail.isLocked());
+        assertTrue(detail.getModules().isEmpty());
+        verifyNoInteractions(showcasePurchaseService);
+    }
+
+    @Test
+    void paidPurchaseTokenCanViewPaidShowcaseDetail() {
+        ResumeShowcase showcase = showcase("PAID");
         Resume resume = resume();
         ResumeModule module = module();
 
-        when(membershipService.isActiveMember(7L)).thenReturn(true);
+        when(showcasePurchaseService.isUnlocked(11L, "purchase-token")).thenReturn(true);
         when(resumeShowcaseMapper.selectOne(any())).thenReturn(showcase);
         when(resumeMapper.selectById(21L)).thenReturn(resume);
         when(resumeModuleMapper.selectList(any())).thenReturn(List.of(module));
 
-        var detail = resumeShowcaseService.getPublishedDetail("excellent-java", 7L);
+        var detail = resumeShowcaseService.getPublishedDetail("excellent-java", null, "purchase-token");
 
         assertEquals(11L, detail.getId());
         assertEquals("Java 后端开发", detail.getTitle());
         assertEquals("classic-blue", detail.getTemplateId());
+        assertTrue(!detail.isLocked());
         assertSame(module, detail.getModules().get(0));
-        verify(membershipService).isActiveMember(7L);
+        verify(showcasePurchaseService).isUnlocked(11L, "purchase-token");
     }
 
     @Test
@@ -242,30 +275,30 @@ class ResumeShowcaseServiceImplTest {
                 "photo", "data:image/png;base64,AAAA",
                 "jobIntention", "Java 后端"
         ));
-        when(resumeShowcaseMapper.selectOne(any())).thenReturn(showcase("FREE"));
+        when(resumeShowcaseMapper.selectOne(any())).thenReturn(showcase("PUBLIC"));
         when(resumeMapper.selectById(21L)).thenReturn(resume());
         when(resumeModuleMapper.selectList(any())).thenReturn(List.of(basicInfo));
 
-        var detail = resumeShowcaseService.getPublicPublishedDetail("excellent-java");
+        var detail = resumeShowcaseService.getPublishedDetail("excellent-java", null, null);
 
         assertEquals(Map.of("jobIntention", "Java 后端"), detail.getModules().get(0).getContent());
     }
 
     @Test
     void creatingShowcaseNormalizesAccessType() {
-        ResumeShowcaseUpsertDTO dto = showcaseUpsert(" free ");
+        ResumeShowcaseUpsertDTO dto = showcaseUpsert(" public ");
         when(resumeMapper.selectById(21L)).thenReturn(resume());
         when(resumeShowcaseMapper.selectOne(any())).thenReturn(null);
 
         ResumeShowcase created = resumeShowcaseService.create(7L, dto);
 
-        assertEquals("FREE", created.getAccessType());
+        assertEquals("PUBLIC", created.getAccessType());
         verify(resumeShowcaseMapper).insert(created);
     }
 
     @Test
     void creatingShowcaseRejectsUnsupportedAccessType() {
-        ResumeShowcaseUpsertDTO dto = showcaseUpsert("PAID");
+        ResumeShowcaseUpsertDTO dto = showcaseUpsert("VIP");
         when(resumeMapper.selectById(21L)).thenReturn(resume());
         when(resumeShowcaseMapper.selectOne(any())).thenReturn(null);
 
@@ -275,7 +308,7 @@ class ResumeShowcaseServiceImplTest {
         );
 
         assertEquals(ResultCode.BAD_REQUEST.getCode(), exception.getCode());
-        assertEquals("访问类型只能是 FREE 或 VIP", exception.getMessage());
+        assertEquals("访问类型只能是 PUBLIC、LOGIN 或 PAID", exception.getMessage());
         verify(resumeShowcaseMapper, never()).insert(any(ResumeShowcase.class));
     }
 
@@ -290,13 +323,12 @@ class ResumeShowcaseServiceImplTest {
         when(aiService.generateShowcaseMetadata(resume.getTitle(), List.of(module))).thenReturn(metadata);
         when(resumeShowcaseMapper.selectCount(null)).thenReturn(2L);
 
-        ResumeShowcase featured = resumeShowcaseService.featureResume(21L, 7L, "VIP");
+        ResumeShowcase featured = resumeShowcaseService.featureResume(21L, 7L, "PUBLIC", 0);
 
         assertEquals("featured-21", featured.getSlug());
         assertEquals("Java 后端", featured.getScoreLabel());
         assertEquals("包含 Java 项目与后端工程实践", featured.getSummary());
-        assertEquals(List.of("Java", "Spring Boot"), featured.getTags());
-        assertEquals("VIP", featured.getAccessType());
+        assertEquals("PUBLIC", featured.getAccessType());
         assertEquals("PUBLISHED", featured.getPublishStatus());
         assertEquals(2, featured.getDisplayOrder());
         verify(resumeShowcaseMapper).insert(featured);
@@ -304,12 +336,12 @@ class ResumeShowcaseServiceImplTest {
 
     @Test
     void featuringPublishedResumeIsIdempotent() {
-        ResumeShowcase published = showcase("VIP");
+        ResumeShowcase published = showcase("PAID");
         published.setPublishStatus("PUBLISHED");
         when(resumeMapper.selectById(21L)).thenReturn(resume());
         when(resumeShowcaseMapper.selectOne(any())).thenReturn(published);
 
-        ResumeShowcase result = resumeShowcaseService.featureResume(21L, 7L, "VIP");
+        ResumeShowcase result = resumeShowcaseService.featureResume(21L, 7L, "PAID", 6600);
 
         assertSame(published, result);
         verifyNoInteractions(aiService, resumeModuleMapper);
@@ -319,15 +351,15 @@ class ResumeShowcaseServiceImplTest {
 
     @Test
     void featuringPublishedResumeCanChangeAccessTypeWithoutRegeneratingMetadata() {
-        ResumeShowcase published = showcase("VIP");
+        ResumeShowcase published = showcase("PAID");
         published.setPublishStatus("PUBLISHED");
         when(resumeMapper.selectById(21L)).thenReturn(resume());
         when(resumeShowcaseMapper.selectOne(any())).thenReturn(published);
 
-        ResumeShowcase result = resumeShowcaseService.featureResume(21L, 7L, " free ");
+        ResumeShowcase result = resumeShowcaseService.featureResume(21L, 7L, " login ", 0);
 
         assertSame(published, result);
-        assertEquals("FREE", result.getAccessType());
+        assertEquals("LOGIN", result.getAccessType());
         verify(resumeShowcaseMapper).updateById(published);
         verifyNoInteractions(aiService, resumeModuleMapper);
     }
@@ -340,7 +372,7 @@ class ResumeShowcaseServiceImplTest {
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> resumeShowcaseService.featureResume(21L, 7L, "VIP")
+                () -> resumeShowcaseService.featureResume(21L, 7L, "PAID", 6600)
         );
 
         assertEquals("简历内容为空，无法精选", exception.getMessage());
@@ -359,7 +391,7 @@ class ResumeShowcaseServiceImplTest {
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> resumeShowcaseService.featureResume(21L, 7L, "VIP")
+                () -> resumeShowcaseService.featureResume(21L, 7L, "PAID", 6600)
         );
 
         assertEquals("简历内容为空，无法精选", exception.getMessage());
@@ -381,7 +413,7 @@ class ResumeShowcaseServiceImplTest {
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> resumeShowcaseService.featureResume(21L, 7L, "VIP")
+                () -> resumeShowcaseService.featureResume(21L, 7L, "PAID", 6600)
         );
 
         assertEquals("简历内容已更新，请重新精选", exception.getMessage());
@@ -393,7 +425,7 @@ class ResumeShowcaseServiceImplTest {
     void concurrentFeatureReturnsExistingShowcaseInsteadOfDatabaseError() {
         Resume resume = resume();
         ResumeModule module = module();
-        ResumeShowcase concurrent = showcase("VIP");
+        ResumeShowcase concurrent = showcase("PAID");
         concurrent.setPublishStatus("PUBLISHED");
         when(resumeMapper.selectById(21L)).thenReturn(resume);
         when(resumeShowcaseMapper.selectOne(any())).thenReturn(null, null, concurrent);
@@ -404,7 +436,7 @@ class ResumeShowcaseServiceImplTest {
         when(resumeShowcaseMapper.insert(any(ResumeShowcase.class)))
                 .thenThrow(new DuplicateKeyException("duplicate"));
 
-        ResumeShowcase result = resumeShowcaseService.featureResume(21L, 7L, "VIP");
+        ResumeShowcase result = resumeShowcaseService.featureResume(21L, 7L, "PAID", 6600);
 
         assertSame(concurrent, result);
     }
@@ -421,7 +453,7 @@ class ResumeShowcaseServiceImplTest {
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> resumeShowcaseService.featureResume(21L, 7L, "VIP")
+                () -> resumeShowcaseService.featureResume(21L, 7L, "PAID", 6600)
         );
 
         assertEquals(ResultCode.AI_SERVICE_BUSY.getCode(), exception.getCode());
@@ -431,7 +463,7 @@ class ResumeShowcaseServiceImplTest {
 
     @Test
     void unfeaturingResumeKeepsMetadataAndMovesRecordToDraft() {
-        ResumeShowcase published = showcase("VIP");
+        ResumeShowcase published = showcase("PAID");
         published.setPublishStatus("PUBLISHED");
         when(resumeMapper.selectById(21L)).thenReturn(resume());
         when(resumeShowcaseMapper.selectOne(any())).thenReturn(published);
@@ -479,8 +511,8 @@ class ResumeShowcaseServiceImplTest {
         showcase.setSlug("excellent-java");
         showcase.setScoreLabel("优质");
         showcase.setSummary("后端开发优质简历");
-        showcase.setTags(List.of("Java", "AI"));
         showcase.setAccessType(accessType);
+        showcase.setPriceCents("PAID".equals(accessType) ? 6600 : 0);
         return showcase;
     }
 
@@ -518,10 +550,10 @@ class ResumeShowcaseServiceImplTest {
         dto.setSlug("excellent-java");
         dto.setScoreLabel("优质");
         dto.setSummary("后端开发优质简历");
-        dto.setTags(List.of("Java", "AI"));
         dto.setDisplayOrder(1);
         dto.setPublishStatus("PUBLISHED");
         dto.setAccessType(accessType);
+        dto.setPriceCents("PAID".equalsIgnoreCase(accessType.trim()) ? 6600 : 0);
         return dto;
     }
 
@@ -529,7 +561,6 @@ class ResumeShowcaseServiceImplTest {
         ShowcaseMetadataDTO metadata = new ShowcaseMetadataDTO();
         metadata.setDisplayLabel("Java 后端");
         metadata.setSummary("包含 Java 项目与后端工程实践");
-        metadata.setTags(List.of("Java", "Spring Boot"));
         return metadata;
     }
 }

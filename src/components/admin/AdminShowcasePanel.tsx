@@ -6,6 +6,8 @@ import {
   ResumeCardStyleSummary,
   ResumeContentThumbnail,
 } from '../dashboard/ResumeCard'
+import { getResumeStyleFeatureLabels } from '../../utils/resumeStyleLabels'
+import { getShowcaseAccessLabel } from '../../utils/showcaseAccess'
 
 interface AdminShowcasePanelProps {
   resumes: ResumeListItem[]
@@ -13,7 +15,7 @@ interface AdminShowcasePanelProps {
   actionResumeId: number | null
   actionError: { resumeId: number; message: string } | null
   loading: boolean
-  onFeature: (resume: ResumeListItem, accessType: ResumeShowcaseAccessType) => void
+  onFeature: (resume: ResumeListItem, accessType: ResumeShowcaseAccessType, priceCents: number) => void
   onUnfeature: (resume: ResumeListItem) => void
 }
 
@@ -24,16 +26,22 @@ const accessOptions: Array<{
   description: string
 }> = [
   {
-    value: 'FREE',
-    label: '完全公开',
-    badge: '免费查看',
+    value: 'PUBLIC',
+    label: '公开免费',
+    badge: '无需登录',
     description: '所有人都能直接查看脱敏后的完整简历内容。',
   },
   {
-    value: 'VIP',
-    label: '付费会员查看',
-    badge: '全文受限',
-    description: '列表和基本介绍公开，脱敏后的完整内容仅付费会员可查看。',
+    value: 'LOGIN',
+    label: '登录查看',
+    badge: '免费登录',
+    description: '所有人都能查看介绍，登录后可查看脱敏后的完整简历。',
+  },
+  {
+    value: 'PAID',
+    label: '付费查看',
+    badge: '付费解锁',
+    description: '所有人都能查看介绍，单独购买这份简历后可查看脱敏后的完整内容。',
   },
 ]
 
@@ -47,10 +55,6 @@ function formatResumeDate(value: string) {
   })
 }
 
-function accessLabel(accessType: ResumeShowcaseAccessType) {
-  return accessType === 'FREE' ? '完全公开' : '付费会员查看'
-}
-
 export function AdminShowcasePanel({
   resumes,
   showcases,
@@ -61,7 +65,9 @@ export function AdminShowcasePanel({
   onUnfeature,
 }: AdminShowcasePanelProps) {
   const [settingsResume, setSettingsResume] = useState<ResumeListItem | null>(null)
-  const [accessType, setAccessType] = useState<ResumeShowcaseAccessType>('VIP')
+  const [accessType, setAccessType] = useState<ResumeShowcaseAccessType>('PUBLIC')
+  const [priceYuan, setPriceYuan] = useState('')
+  const [settingsError, setSettingsError] = useState('')
   const showcaseByResumeId = useMemo(
     () => new Map(showcases.map((showcase) => [showcase.resumeId, showcase])),
     [showcases],
@@ -82,12 +88,19 @@ export function AdminShowcasePanel({
 
   const openSettings = (resume: ResumeListItem, showcase?: ResumeShowcaseAdmin) => {
     setSettingsResume(resume)
-    setAccessType(showcase?.accessType ?? 'VIP')
+    setAccessType(showcase?.accessType ?? 'PUBLIC')
+    setPriceYuan(showcase?.priceCents ? (showcase.priceCents / 100).toFixed(2) : '')
+    setSettingsError('')
   }
 
   const submitSettings = () => {
     if (!settingsResume) return
-    onFeature(settingsResume, accessType)
+    const priceCents = accessType === 'PAID' ? Math.round(Number(priceYuan) * 100) : 0
+    if (accessType === 'PAID' && (!Number.isFinite(priceCents) || priceCents <= 0)) {
+      setSettingsError('请设置这份简历的付费价格')
+      return
+    }
+    onFeature(settingsResume, accessType, priceCents)
     setSettingsResume(null)
   }
 
@@ -107,6 +120,7 @@ export function AdminShowcasePanel({
             const actionErrorMessage = actionError?.resumeId === resume.id
               ? actionError.message
               : null
+            const styleLabels = getResumeStyleFeatureLabels(resume)
 
             return (
               <article
@@ -118,23 +132,14 @@ export function AdminShowcasePanel({
                     : 'border-slate-200'
                 }`}
               >
-                <div className="mb-4 flex items-start justify-between gap-3">
-                  <h2 className="min-w-0 break-words font-semibold leading-6 text-slate-950">
-                    {resume.title}
-                  </h2>
-                  <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${
-                    featured
-                      ? 'bg-emerald-50 text-emerald-700'
-                      : 'bg-slate-100 text-slate-500'
-                  }`}>
-                    {featured ? '已精选' : '未精选'}
-                  </span>
-                </div>
+                <h2 className="mb-4 break-words font-semibold leading-6 text-slate-950">
+                  {resume.title}
+                </h2>
 
                 <ResumeContentThumbnail preview={resume.preview ?? EMPTY_RESUME_CARD_PREVIEW} resume={resume} />
 
                 <div className="mb-4 text-xs leading-5 text-slate-500">
-                  <ResumeCardStyleSummary resume={resume} className="block break-words" />
+                  {!featured ? <ResumeCardStyleSummary resume={resume} className="block break-words" /> : null}
                   <p>更新于 {formatResumeDate(resume.updatedAt)}</p>
                 </div>
 
@@ -142,15 +147,22 @@ export function AdminShowcasePanel({
                   <div className="mb-4 border-t border-slate-100 pt-4">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                        showcase.accessType === 'FREE'
-                          ? 'bg-sky-50 text-sky-700'
-                          : 'bg-amber-50 text-amber-700'
+                        showcase.accessType === 'PUBLIC'
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : showcase.accessType === 'LOGIN'
+                            ? 'bg-sky-50 text-sky-700'
+                            : 'bg-amber-50 text-amber-700'
                       }`}>
-                        {accessLabel(showcase.accessType)}
+                        {showcase.accessType === 'PAID'
+                          ? `付费查看 ¥${(showcase.priceCents / 100).toFixed(2)}`
+                          : getShowcaseAccessLabel(showcase.accessType)}
                       </span>
-                      {(showcase.tags ?? []).slice(0, 3).map((tag) => (
-                        <span key={tag} className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600">
-                          {tag}
+                      <span className="rounded-full bg-primary-50 px-2.5 py-1 text-xs font-medium text-primary-700">
+                        已精选
+                      </span>
+                      {styleLabels.map((label) => (
+                        <span key={label} className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600">
+                          {label}
                         </span>
                       ))}
                     </div>
@@ -272,6 +284,27 @@ export function AdminShowcasePanel({
                 ))}
               </div>
             </fieldset>
+
+            {accessType === 'PAID' ? (
+              <label className="mt-5 block">
+                <span className="text-sm font-semibold text-slate-800">单份解锁价格（元）</span>
+                <input
+                  type="number"
+                  min="0.01"
+                  max="10000"
+                  step="0.01"
+                  inputMode="decimal"
+                  value={priceYuan}
+                  onChange={(event) => {
+                    setPriceYuan(event.target.value)
+                    setSettingsError('')
+                  }}
+                  className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+                />
+              </label>
+            ) : null}
+
+            {settingsError ? <p className="mt-3 text-sm text-red-600" role="alert">{settingsError}</p> : null}
 
             <div className="mt-6 flex justify-end gap-3">
               <button

@@ -11,6 +11,7 @@ interface PaymentQrModalProps {
   order: MarketplaceOrder | null
   refreshing: boolean
   error?: string
+  showMarketplaceSettlementNotice?: boolean
   onClose: () => void
   onRefresh: () => void
 }
@@ -44,6 +45,7 @@ export function PaymentQrModal({
   order,
   refreshing,
   error,
+  showMarketplaceSettlementNotice = true,
   onClose,
   onRefresh,
 }: PaymentQrModalProps) {
@@ -292,15 +294,17 @@ export function PaymentQrModal({
             </button>
           </div>
 
-          <p className="mt-5 text-xs leading-5 text-slate-500">
-            {duplicatePaid || refundRequired
-              ? unlocked && refundRequired
-                ? '退款状态核验期间不会继续结算作者收益；全额退款确认后，查看权与对应收益会一起撤销。最终进度以支付平台的实际原路退回结果为准。'
-                : '异常支付不会重复计入作者收益。退款需要人工复核与处理，最终进度以支付平台的实际原路退回结果为准。'
-              : refunded
-                ? '本页面只展示后端已登记的退款状态，具体到账时间与结果以原支付渠道为准。'
-              : '支付款项进入平台商户账户；页面展示的作者收益由平台记录，作者可逐笔申请线下结算。'}
-          </p>
+          {showMarketplaceSettlementNotice ? (
+            <p className="mt-5 text-xs leading-5 text-slate-500">
+              {duplicatePaid || refundRequired
+                ? unlocked && refundRequired
+                  ? '退款状态核验期间不会继续结算作者收益；全额退款确认后，查看权与对应收益会一起撤销。最终进度以支付平台的实际原路退回结果为准。'
+                  : '异常支付不会重复计入作者收益。退款需要人工复核与处理，最终进度以支付平台的实际原路退回结果为准。'
+                : refunded
+                  ? '本页面只展示后端已登记的退款状态，具体到账时间与结果以原支付渠道为准。'
+                  : '支付款项进入平台商户账户；页面展示的作者收益由平台记录，作者可逐笔申请线下结算。'}
+            </p>
+          ) : null}
         </div>
       </section>
     </div>

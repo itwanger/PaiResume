@@ -10,9 +10,7 @@ import java.util.List;
 public interface ResumeShowcaseService {
     List<ShowcaseCardDTO> listPublishedShowcases();
 
-    ShowcaseDetailDTO getPublicPublishedDetail(String slug);
-
-    ShowcaseDetailDTO getPublishedDetail(String slug, Long userId);
+    ShowcaseDetailDTO getPublishedDetail(String slug, Long userId, String purchaseToken);
 
     List<ResumeShowcase> listAdminShowcases();
 
@@ -20,7 +18,7 @@ public interface ResumeShowcaseService {
 
     ResumeShowcase update(Long showcaseId, Long adminUserId, ResumeShowcaseUpsertDTO dto);
 
-    ResumeShowcase featureResume(Long resumeId, Long adminUserId, String accessType);
+    ResumeShowcase featureResume(Long resumeId, Long adminUserId, String accessType, Integer priceCents);
 
     ResumeShowcase unfeatureResume(Long resumeId, Long adminUserId);
 

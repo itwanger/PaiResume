@@ -5,11 +5,9 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 import lombok.Data;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 @Data
 @TableName(value = "resume_showcase", autoResultMap = true)
@@ -25,14 +23,13 @@ public class ResumeShowcase {
 
     private String summary;
 
-    @TableField(typeHandler = JacksonTypeHandler.class)
-    private List<String> tags;
-
     private Integer displayOrder;
 
     private String publishStatus;
 
     private String accessType;
+
+    private Integer priceCents;
 
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;

@@ -61,9 +61,6 @@ public class AiServiceImpl implements AiService {
     private static final Pattern SHOWCASE_CONTACT_PATTERN = Pattern.compile(
             "(?i)(?:[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}|(?<!\\d)1[3-9]\\d{9}(?!\\d))"
     );
-    private static final Pattern SHOWCASE_ORGANIZATION_TAG_PATTERN = Pattern.compile(
-            ".*(?:大学|学院|中学|有限公司|公司)$"
-    );
     private static final Set<String> ALLOWED_ISSUE_TYPES = Set.of("missing", "weak", "format", "content");
     private static final Set<String> IGNORED_ANALYSIS_FIELDS = Set.of("basic_info.summary", "professional_summary", "skill", "专业技能");
     private static final Set<String> OPTIMIZABLE_MODULE_TYPES = Set.of("internship", "work_experience", "project", "research", "skill");
@@ -1715,28 +1712,15 @@ public class AiServiceImpl implements AiService {
 
             var displayLabel = truncateText(result.getDisplayLabel(), 128);
             var summary = truncateText(result.getSummary(), 512);
-            var tags = new LinkedHashSet<String>();
-            if (result.getTags() != null) {
-                result.getTags().stream()
-                        .map(tag -> truncateText(tag, 128))
-                        .filter(tag -> !tag.isBlank())
-                        .forEach(tags::add);
-            }
-
             if (displayLabel.length() < 2 || displayLabel.length() > 12
                     || SHOWCASE_SCORE_LABEL_PATTERN.matcher(displayLabel).find()
                     || summary.length() < 40 || summary.length() > 100
-                    || tags.size() < 2 || tags.size() > 4
-                    || SHOWCASE_CONTACT_PATTERN.matcher(displayLabel + " " + summary).find()
-                    || tags.stream().anyMatch(tag -> tag.length() > 12
-                            || SHOWCASE_CONTACT_PATTERN.matcher(tag).find()
-                            || SHOWCASE_ORGANIZATION_TAG_PATTERN.matcher(tag).matches())) {
+                    || SHOWCASE_CONTACT_PATTERN.matcher(displayLabel + " " + summary).find()) {
                 throw new BusinessException(ResultCode.AI_RESPONSE_INVALID);
             }
 
             result.setDisplayLabel(displayLabel);
             result.setSummary(summary);
-            result.setTags(List.copyOf(tags));
             return result;
         } catch (BusinessException e) {
             throw e;
@@ -1787,8 +1771,7 @@ public class AiServiceImpl implements AiService {
 
         var publicText = String.join(" ",
                 metadata.getDisplayLabel(),
-                metadata.getSummary(),
-                String.join(" ", metadata.getTags())
+                metadata.getSummary()
         ).toLowerCase(Locale.ROOT);
 
         for (var module : modules) {
@@ -2471,14 +2454,12 @@ public class AiServiceImpl implements AiService {
                 1. 只能使用简历中真实存在的信息，不得虚构技术栈、公司、学校、经历或结果。
                 2. displayLabel 是 2-12 个字的岗位或技术方向，例如“Java 后端”“AI 应用”，禁止输出分数、“高分”“优质”等自夸词。
                 3. summary 用 40-100 个字概括这份简历的岗位方向、核心经历与技术特点，不出现姓名、邮箱、电话、微信、照片等个人信息。
-                4. tags 输出 2-4 个真实的岗位或技术标签，每个标签不超过 12 个字；不要输出姓名、公司名或学校名。
-                5. 严格只返回 JSON，不要输出解释、标题或 Markdown 代码块。
+                4. 严格只返回 JSON，不要输出解释、标题或 Markdown 代码块。
 
                 JSON 结构：
                 {
                   "displayLabel": "Java 后端",
-                  "summary": "摘要",
-                  "tags": ["Java", "Spring Boot", "微服务"]
+                  "summary": "摘要"
                 }
                 """.formatted(
                 resumeTitle == null || resumeTitle.isBlank() ? "未命名简历" : resumeTitle,

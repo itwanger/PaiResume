@@ -4,8 +4,6 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
-import java.util.List;
-
 @Data
 public class ResumeShowcaseUpsertDTO {
     @NotNull(message = "请选择简历")
@@ -20,8 +18,6 @@ public class ResumeShowcaseUpsertDTO {
     @NotBlank(message = "摘要不能为空")
     private String summary;
 
-    private List<String> tags;
-
     @NotNull(message = "排序不能为空")
     private Integer displayOrder;
 
@@ -30,4 +26,7 @@ public class ResumeShowcaseUpsertDTO {
 
     @NotBlank(message = "访问类型不能为空")
     private String accessType;
+
+    @NotNull(message = "请设置价格")
+    private Integer priceCents;
 }

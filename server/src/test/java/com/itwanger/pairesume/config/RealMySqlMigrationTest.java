@@ -47,6 +47,22 @@ class RealMySqlMigrationTest {
             insertLegacyMembershipOrders(connection);
         }
 
+        Flyway throughV31 = Flyway.configure()
+                .dataSource(url, username, password)
+                .locations("classpath:db/migration")
+                .baselineVersion("5")
+                .baselineOnMigrate(true)
+                .target("31")
+                .load();
+        throughV31.migrate();
+
+        assertEquals("31",
+                throughV31.info().current().getVersion().getVersion());
+        try (var connection = DriverManager.getConnection(url, username, password)) {
+            assertTrue(columnExists(connection, "resume_showcase", "tags"));
+            insertLegacyShowcaseAccessTypes(connection);
+        }
+
         Flyway throughCurrent = Flyway.configure()
                 .dataSource(url, username, password)
                 .locations("classpath:db/migration")
@@ -55,7 +71,7 @@ class RealMySqlMigrationTest {
                 .load();
         throughCurrent.migrate();
 
-        assertEquals("31",
+        assertEquals("34",
                 throughCurrent.info().current().getVersion().getVersion());
 
         Flyway restart = Flyway.configure()
@@ -65,13 +81,22 @@ class RealMySqlMigrationTest {
                 .baselineOnMigrate(true)
                 .load();
         assertEquals(0, restart.migrate().migrationsExecuted,
-                "已迁移到 V30 后再次执行迁移不应应用任何脚本");
-        assertEquals("31",
+                "已迁移到当前版本后再次执行迁移不应应用任何脚本");
+        assertEquals("34",
                 restart.info().current().getVersion().getVersion());
 
         try (var connection = DriverManager.getConnection(url, username, password)) {
             assertTrue(columnExists(connection, "resume_showcase",
                     "access_type"));
+            assertFalse(columnExists(connection, "resume_showcase",
+                    "tags"));
+            assertShowcaseAccessType(connection, "legacy-free", "PUBLIC");
+            assertShowcaseAccessType(connection, "legacy-vip", "PAID");
+            assertShowcaseAccessType(connection, "featured-65", "PAID");
+            assertTrue(columnExists(connection, "resume_showcase", "price_cents"));
+            assertTrue(tableExists(connection, "showcase_purchase_order"));
+            assertEquals("PUBLIC", columnDefault(
+                    connection, "resume_showcase", "access_type"));
             assertTrue(tableExists(connection, "membership_plan"));
             assertTrue(columnExists(connection, "membership_payment_order",
                     "plan_code"));
@@ -106,6 +131,39 @@ class RealMySqlMigrationTest {
             assertAiProviderSeedRow(connection);
             assertPromptSeedConfigs(connection);
             assertLegacyOrdersPreserved(connection);
+        }
+    }
+
+    private void insertLegacyShowcaseAccessTypes(java.sql.Connection connection)
+            throws Exception {
+        try (var statement = connection.createStatement()) {
+            statement.executeUpdate("""
+                    INSERT INTO `resume_showcase` (
+                        `resume_id`, `slug`, `score_label`, `summary`, `tags`,
+                        `display_order`, `publish_status`, `access_type`
+                    ) VALUES
+                        (9101, 'legacy-free', 'Java 后端', '公开样例', JSON_ARRAY(), 0, 'PUBLISHED', 'FREE'),
+                        (9102, 'legacy-vip', '产品经理', '历史付费样例', JSON_ARRAY(), 1, 'PUBLISHED', 'VIP'),
+                        (65, 'featured-65', 'Agent 工程师', '指定公开样例', JSON_ARRAY(), 2, 'PUBLISHED', 'VIP')
+                    """);
+        }
+    }
+
+    private void assertShowcaseAccessType(
+            java.sql.Connection connection,
+            String slug,
+            String expectedAccessType
+    ) throws Exception {
+        try (var statement = connection.prepareStatement("""
+                SELECT `access_type`
+                FROM `resume_showcase`
+                WHERE `slug` = ?
+                """)) {
+            statement.setString(1, slug);
+            try (var result = statement.executeQuery()) {
+                assertTrue(result.next());
+                assertEquals(expectedAccessType, result.getString("access_type"));
+            }
         }
     }
 

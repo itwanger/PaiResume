@@ -124,6 +124,8 @@ public enum ResultCode {
     PAYMENT_NOTIFICATION_INVALID(7206, "支付通知校验失败"),
     PAYMENT_AMOUNT_MISMATCH(7207, "支付金额校验失败"),
     PAYMENT_REFUND_REFERENCE_CONFLICT(7208, "退款流水已用于其他订单"),
+    SHOWCASE_ORDER_NOT_FOUND(7209, "精选简历支付订单不存在"),
+    SHOWCASE_PURCHASE_TOKEN_INVALID(7210, "购买凭证无效，请在原浏览器中重试"),
 
     // Membership payment: 74xx
     MEMBERSHIP_ORDER_NOT_FOUND(7401, "会员支付订单不存在"),

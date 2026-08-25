@@ -28,37 +28,34 @@ class AiServiceImplShowcaseMetadataTest {
 
     @Test
     void acceptsMetadataWithinPublicCardContract() {
-        ShowcaseMetadataDTO result = parse(json("Java 后端", VALID_SUMMARY, "Java", "Spring Boot"));
+        ShowcaseMetadataDTO result = parse(json("Java 后端", VALID_SUMMARY));
 
         assertEquals("Java 后端", result.getDisplayLabel());
         assertEquals(VALID_SUMMARY, result.getSummary());
-        assertEquals(List.of("Java", "Spring Boot"), result.getTags());
     }
 
     @Test
     void rejectsScoreLikeDisplayLabel() {
-        assertInvalid(json("92 分", VALID_SUMMARY, "Java", "Spring Boot"));
+        assertInvalid(json("92 分", VALID_SUMMARY));
     }
 
     @Test
-    void rejectsShortSummaryAndTooFewTags() {
-        assertInvalid(json("Java 后端", "内容太短", "Java"));
+    void rejectsShortSummary() {
+        assertInvalid(json("Java 后端", "内容太短"));
     }
 
     @Test
     void rejectsContactInformation() {
         String summary = VALID_SUMMARY + " 联系电话 13800138000。";
 
-        assertInvalid(json("Java 后端", summary, "Java", "Spring Boot"));
+        assertInvalid(json("Java 后端", summary));
     }
 
     @Test
     void rejectsPrivateBasicInfoRepeatedByAi() {
         ShowcaseMetadataDTO metadata = parse(json(
                 "Java 后端",
-                "张三的简历聚焦 Java 后端开发，包含 Spring Boot 服务、数据库设计与稳定性优化等真实工程实践。",
-                "Java",
-                "Spring Boot"
+                "张三的简历聚焦 Java 后端开发，包含 Spring Boot 服务、数据库设计与稳定性优化等真实工程实践。"
         ));
         ResumeModule basicInfo = new ResumeModule();
         basicInfo.setModuleType("basic_info");
@@ -86,12 +83,11 @@ class AiServiceImplShowcaseMetadataTest {
         assertEquals(ResultCode.AI_RESPONSE_INVALID.getCode(), exception.getCode());
     }
 
-    private String json(String displayLabel, String summary, String... tags) {
+    private String json(String displayLabel, String summary) {
         try {
             return new ObjectMapper().writeValueAsString(Map.of(
                     "displayLabel", displayLabel,
-                    "summary", summary,
-                    "tags", List.of(tags)
+                    "summary", summary
             ));
         } catch (Exception e) {
             throw new IllegalStateException(e);

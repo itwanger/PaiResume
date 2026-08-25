@@ -1490,6 +1490,7 @@ function AdminPageContent() {
   const handleFeatureShowcase = async (
     resume: ResumeListItem,
     accessType: ResumeShowcaseAccessType,
+    priceCents: number,
   ) => {
     setShowcaseActionResumeId(resume.id)
     setShowcaseActionError(null)
@@ -1499,7 +1500,7 @@ function AdminPageContent() {
       const wasFeatured = showcases.some(
         (showcase) => showcase.resumeId === resume.id && showcase.publishStatus === 'PUBLISHED',
       )
-      const response = await adminApi.featureShowcaseResume(resume.id, { accessType })
+      const response = await adminApi.featureShowcaseResume(resume.id, { accessType, priceCents })
       setShowcases((current) => upsertShowcase(current, response.data.data))
       setSuccess(wasFeatured
         ? `已更新「${resume.title}」的展示设置`
@@ -1826,7 +1827,7 @@ function AdminPageContent() {
                     actionResumeId={showcaseActionResumeId}
                     actionError={showcaseActionError}
                     loading={loadingSections.has('showcases') || loadingSections.has('resumes')}
-                    onFeature={(resume, accessType) => void handleFeatureShowcase(resume, accessType)}
+                    onFeature={(resume, accessType, priceCents) => void handleFeatureShowcase(resume, accessType, priceCents)}
                     onUnfeature={(resume) => void handleUnfeatureShowcase(resume)}
                   />
                 ) : null}

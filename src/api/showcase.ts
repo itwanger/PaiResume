@@ -1,5 +1,8 @@
 import client, { type ApiEnvelope } from './client'
-import type { ResumeModule } from './resume'
+import type { ResumeCardPreview, ResumeModule } from './resume'
+import type { MarketplaceOrder } from './marketplace'
+
+export type ShowcaseAccessType = 'PUBLIC' | 'LOGIN' | 'PAID'
 
 export interface ShowcaseDetail {
   id: number
@@ -7,7 +10,11 @@ export interface ShowcaseDetail {
   title: string
   scoreLabel: string
   summary: string
-  tags: string[]
+  accessType: ShowcaseAccessType
+  priceCents: number
+  paymentEnabled: boolean
+  locked: boolean
+  preview: ResumeCardPreview
   pageMode?: string
   templateId: string
   density?: string
@@ -18,6 +25,29 @@ export interface ShowcaseDetail {
 }
 
 export const showcaseApi = {
-  detail: (slug: string) =>
-    client.get<ApiEnvelope<ShowcaseDetail>>(`/showcases/${encodeURIComponent(slug)}`),
+  detail: (slug: string, purchaseToken?: string) =>
+    client.get<ApiEnvelope<ShowcaseDetail>>(
+      `/showcases/${encodeURIComponent(slug)}`,
+      purchaseToken ? { headers: { 'X-Showcase-Purchase-Token': purchaseToken } } : undefined,
+    ),
+
+  createOrder: (slug: string, purchaseToken: string, idempotencyKey: string) =>
+    client.post<ApiEnvelope<MarketplaceOrder>>(
+      `/public/showcases/${encodeURIComponent(slug)}/orders`,
+      { idempotencyKey },
+      { headers: { 'X-Showcase-Purchase-Token': purchaseToken } },
+    ),
+
+  order: (orderNo: string, purchaseToken: string) =>
+    client.get<ApiEnvelope<MarketplaceOrder>>(
+      `/public/showcases/orders/${encodeURIComponent(orderNo)}`,
+      { headers: { 'X-Showcase-Purchase-Token': purchaseToken } },
+    ),
+
+  refreshOrder: (orderNo: string, purchaseToken: string) =>
+    client.post<ApiEnvelope<MarketplaceOrder>>(
+      `/public/showcases/orders/${encodeURIComponent(orderNo)}/refresh`,
+      undefined,
+      { headers: { 'X-Showcase-Purchase-Token': purchaseToken } },
+    ),
 }

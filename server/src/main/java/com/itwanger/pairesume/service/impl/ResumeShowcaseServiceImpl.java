@@ -13,8 +13,8 @@ import com.itwanger.pairesume.mapper.ResumeMapper;
 import com.itwanger.pairesume.mapper.ResumeModuleMapper;
 import com.itwanger.pairesume.mapper.ResumeShowcaseMapper;
 import com.itwanger.pairesume.service.AiService;
-import com.itwanger.pairesume.service.MembershipService;
 import com.itwanger.pairesume.service.ResumeShowcaseService;
+import com.itwanger.pairesume.service.ShowcasePurchaseService;
 import com.itwanger.pairesume.util.DateTimeUtils;
 import com.itwanger.pairesume.vo.ResumeCardPreviewVO;
 import com.itwanger.pairesume.vo.ResumeCardProjectPreviewVO;
@@ -35,9 +35,14 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
-    private static final String ACCESS_TYPE_FREE = "FREE";
-    private static final String ACCESS_TYPE_VIP = "VIP";
-    private static final Set<String> ALLOWED_ACCESS_TYPES = Set.of(ACCESS_TYPE_FREE, ACCESS_TYPE_VIP);
+    private static final String ACCESS_TYPE_PUBLIC = "PUBLIC";
+    private static final String ACCESS_TYPE_LOGIN = "LOGIN";
+    private static final String ACCESS_TYPE_PAID = "PAID";
+    private static final Set<String> ALLOWED_ACCESS_TYPES = Set.of(
+            ACCESS_TYPE_PUBLIC,
+            ACCESS_TYPE_LOGIN,
+            ACCESS_TYPE_PAID
+    );
     private static final Set<String> PUBLIC_BASIC_INFO_FIELDS = Set.of(
             "jobIntention", "targetCity", "salaryRange", "expectedEntryDate", "workYears"
     );
@@ -45,7 +50,7 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
     private final ResumeShowcaseMapper resumeShowcaseMapper;
     private final ResumeMapper resumeMapper;
     private final ResumeModuleMapper resumeModuleMapper;
-    private final MembershipService membershipService;
+    private final ShowcasePurchaseService showcasePurchaseService;
     private final AiService aiService;
 
     @Override
@@ -92,21 +97,14 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
     }
 
     @Override
-    public ShowcaseDetailDTO getPublicPublishedDetail(String slug) {
+    public ShowcaseDetailDTO getPublishedDetail(String slug, Long userId, String purchaseToken) {
         ResumeShowcase showcase = findPublishedShowcase(slug);
-        if (!isFreeAccess(showcase)) {
-            throw new BusinessException(ResultCode.SHOWCASE_MEMBERSHIP_REQUIRED);
+        String accessType = normalizedAccessType(showcase);
+        boolean locked = ACCESS_TYPE_LOGIN.equals(accessType) && userId == null;
+        if (ACCESS_TYPE_PAID.equals(accessType)) {
+            locked = !showcasePurchaseService.isUnlocked(showcase.getId(), purchaseToken);
         }
-        return toDetailDto(showcase);
-    }
-
-    @Override
-    public ShowcaseDetailDTO getPublishedDetail(String slug, Long userId) {
-        ResumeShowcase showcase = findPublishedShowcase(slug);
-        if (!isFreeAccess(showcase) && !membershipService.isActiveMember(userId)) {
-            throw new BusinessException(ResultCode.SHOWCASE_MEMBERSHIP_REQUIRED);
-        }
-        return toDetailDto(showcase);
+        return toDetailDto(showcase, locked);
     }
 
     @Override
@@ -138,14 +136,20 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
     }
 
     @Override
-    public ResumeShowcase featureResume(Long resumeId, Long adminUserId, String accessType) {
+    public ResumeShowcase featureResume(Long resumeId, Long adminUserId, String accessType,
+                                        Integer priceCents) {
         String normalizedAccessType = normalizeAccessTypeForWrite(accessType);
+        int normalizedPriceCents = normalizePrice(normalizedAccessType, priceCents);
         Resume resume = requireOwnedResume(resumeId, adminUserId);
         var sourceUpdatedAt = resume.getUpdatedAt();
         ResumeShowcase showcase = findByResumeId(resumeId);
         if (showcase != null && "PUBLISHED".equals(showcase.getPublishStatus())) {
             if (!normalizedAccessType.equals(showcase.getAccessType())) {
                 showcase.setAccessType(normalizedAccessType);
+                showcase.setPriceCents(normalizedPriceCents);
+                resumeShowcaseMapper.updateById(showcase);
+            } else if (!Objects.equals(showcase.getPriceCents(), normalizedPriceCents)) {
+                showcase.setPriceCents(normalizedPriceCents);
                 resumeShowcaseMapper.updateById(showcase);
             }
             return showcase;
@@ -167,6 +171,10 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
             if ("PUBLISHED".equals(latestShowcase.getPublishStatus())) {
                 if (!normalizedAccessType.equals(latestShowcase.getAccessType())) {
                     latestShowcase.setAccessType(normalizedAccessType);
+                    latestShowcase.setPriceCents(normalizedPriceCents);
+                    resumeShowcaseMapper.updateById(latestShowcase);
+                } else if (!Objects.equals(latestShowcase.getPriceCents(), normalizedPriceCents)) {
+                    latestShowcase.setPriceCents(normalizedPriceCents);
                     resumeShowcaseMapper.updateById(latestShowcase);
                 }
                 return latestShowcase;
@@ -181,13 +189,14 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
             long showcaseCount = resumeShowcaseMapper.selectCount(null);
             showcase.setDisplayOrder((int) Math.min(showcaseCount, Integer.MAX_VALUE));
             showcase.setAccessType(normalizedAccessType);
+            showcase.setPriceCents(normalizedPriceCents);
         }
 
         showcase.setScoreLabel(metadata.getDisplayLabel());
         showcase.setSummary(metadata.getSummary());
-        showcase.setTags(metadata.getTags());
         showcase.setPublishStatus("PUBLISHED");
         showcase.setAccessType(normalizedAccessType);
+        showcase.setPriceCents(normalizedPriceCents);
 
         if (creating) {
             try {
@@ -202,6 +211,10 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
                 );
                 if (!normalizedAccessType.equals(concurrentShowcase.getAccessType())) {
                     concurrentShowcase.setAccessType(normalizedAccessType);
+                    concurrentShowcase.setPriceCents(normalizedPriceCents);
+                    resumeShowcaseMapper.updateById(concurrentShowcase);
+                } else if (!Objects.equals(concurrentShowcase.getPriceCents(), normalizedPriceCents)) {
+                    concurrentShowcase.setPriceCents(normalizedPriceCents);
                     resumeShowcaseMapper.updateById(concurrentShowcase);
                 }
                 return concurrentShowcase;
@@ -309,10 +322,10 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
         showcase.setSlug(dto.getSlug().trim());
         showcase.setScoreLabel(dto.getScoreLabel().trim());
         showcase.setSummary(dto.getSummary().trim());
-        showcase.setTags(dto.getTags());
         showcase.setDisplayOrder(dto.getDisplayOrder());
         showcase.setPublishStatus(dto.getPublishStatus().trim().toUpperCase());
         showcase.setAccessType(normalizeAccessTypeForWrite(dto.getAccessType()));
+        showcase.setPriceCents(normalizePrice(showcase.getAccessType(), dto.getPriceCents()));
     }
 
     private Resume requireOwnedResume(Long resumeId, Long adminUserId) {
@@ -375,10 +388,12 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
         return showcase;
     }
 
-    private boolean isFreeAccess(ResumeShowcase showcase) {
-        String accessType = showcase.getAccessType();
-        return accessType != null
-                && ACCESS_TYPE_FREE.equals(accessType.trim().toUpperCase(Locale.ROOT));
+    private boolean isPublicAccess(ResumeShowcase showcase) {
+        return ACCESS_TYPE_PUBLIC.equals(normalizedAccessType(showcase));
+    }
+
+    private boolean isPaidAccess(ResumeShowcase showcase) {
+        return ACCESS_TYPE_PAID.equals(normalizedAccessType(showcase));
     }
 
     private String normalizeAccessTypeForWrite(String accessType) {
@@ -386,9 +401,22 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
                 ? ""
                 : accessType.trim().toUpperCase(Locale.ROOT);
         if (!ALLOWED_ACCESS_TYPES.contains(normalized)) {
-            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "访问类型只能是 FREE 或 VIP");
+            throw new BusinessException(
+                    ResultCode.BAD_REQUEST.getCode(),
+                    "访问类型只能是 PUBLIC、LOGIN 或 PAID"
+            );
         }
         return normalized;
+    }
+
+    private int normalizePrice(String accessType, Integer priceCents) {
+        if (!ACCESS_TYPE_PAID.equals(accessType)) {
+            return 0;
+        }
+        if (priceCents == null || priceCents <= 0 || priceCents > 1_000_000) {
+            throw new BusinessException(ResultCode.MARKET_PRICE_INVALID);
+        }
+        return priceCents;
     }
 
     private ShowcaseCardDTO toCardDto(ResumeShowcase showcase, Resume resume, List<ResumeModule> modules) {
@@ -398,7 +426,8 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
         dto.setTitle(resume != null ? resume.getTitle() : "官方样例");
         dto.setScoreLabel(showcase.getScoreLabel());
         dto.setSummary(showcase.getSummary());
-        dto.setTags(showcase.getTags());
+        dto.setAccessType(normalizedAccessType(showcase));
+        dto.setPriceCents(showcase.getPriceCents() == null ? 0 : showcase.getPriceCents());
         if (resume != null) {
             dto.setPageMode(resume.getPageMode());
             dto.setTemplateId(resume.getTemplateId());
@@ -444,7 +473,17 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
                 : normalized.substring(0, maxLength) + "…";
     }
 
-    private ShowcaseDetailDTO toDetailDto(ResumeShowcase showcase) {
+    private String normalizedAccessType(ResumeShowcase showcase) {
+        String accessType = showcase.getAccessType();
+        String normalized = accessType == null
+                ? ""
+                : accessType.trim().toUpperCase(Locale.ROOT);
+        return ALLOWED_ACCESS_TYPES.contains(normalized)
+                ? normalized
+                : ACCESS_TYPE_PAID;
+    }
+
+    private ShowcaseDetailDTO toDetailDto(ResumeShowcase showcase, boolean locked) {
         Resume resume = resumeMapper.selectById(showcase.getResumeId());
         if (resume == null || resume.getStatus() == 0) {
             throw new BusinessException(ResultCode.SHOWCASE_NOT_FOUND);
@@ -468,8 +507,17 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
         dto.setHeadingStyle(resume.getHeadingStyle());
         dto.setScoreLabel(showcase.getScoreLabel());
         dto.setSummary(showcase.getSummary());
-        dto.setTags(showcase.getTags());
-        dto.setModules(modules.stream().map(this::sanitizePublicModule).toList());
+        dto.setAccessType(normalizedAccessType(showcase));
+        dto.setPriceCents(showcase.getPriceCents() == null ? 0 : showcase.getPriceCents());
+        dto.setPaymentEnabled(isPaidAccess(showcase)
+                && showcase.getPriceCents() != null
+                && showcase.getPriceCents() > 0
+                && showcasePurchaseService.isPaymentEnabled());
+        dto.setLocked(locked);
+        dto.setPreview(toPublicCardPreview(modules));
+        dto.setModules(locked
+                ? List.of()
+                : modules.stream().map(this::sanitizePublicModule).toList());
         dto.setUpdatedAt(DateTimeUtils.format(showcase.getUpdatedAt()));
         return dto;
     }
