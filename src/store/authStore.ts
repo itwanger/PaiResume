@@ -26,6 +26,7 @@ interface AuthState {
   sendCode: (email: string) => Promise<void>
   restoreSession: () => Promise<void>
   refreshUser: () => Promise<void>
+  setCurrentUser: (user: TokenData['userInfo']) => void
 }
 
 function clearLegacyTokenStorage() {
@@ -120,6 +121,10 @@ export const useAuthStore = create<AuthState>((set) => ({
   refreshUser: async () => {
     const { data: res } = await authApi.me()
     set({ user: res.data, isAuthenticated: true, initialized: true })
+  },
+
+  setCurrentUser: (user) => {
+    set({ user, isAuthenticated: true, initialized: true })
   },
 
   restoreSession: () => {

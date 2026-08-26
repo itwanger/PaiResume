@@ -170,7 +170,11 @@ export interface UserAdmin {
   id: number
   email: string | null
   nickname: string | null
-  role: string
+  avatar: string | null
+  accountType: 'EMAIL' | 'WECHAT' | 'WECHAT_EMAIL'
+  wechatIdentifier: string | null
+  wechatSubscribed: boolean | null
+  lastLoginAt: string | null
   membershipStatus: string
   membershipGrantedAt: string | null
   membershipExpiresAt: string | null
@@ -593,9 +597,6 @@ export const adminApi = {
 
   listUsers: (params: ListUsersAdminQuery = {}) =>
     client.get<ApiEnvelope<MarketplacePage<UserAdmin>>>('/admin/users', { params }),
-
-  grantMembership: (id: number, reason: string) =>
-    client.post<ApiEnvelope<UserAdmin>>(`/admin/users/${id}/membership/grant`, { reason }),
 
   extendMembership: (id: number, days: number, reason: string) =>
     client.post<ApiEnvelope<UserAdmin>>(`/admin/users/${id}/membership/extend`, { days, reason }),

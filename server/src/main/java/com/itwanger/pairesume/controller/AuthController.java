@@ -61,6 +61,12 @@ public class AuthController {
         return Result.success(authService.getCurrentUserInfo(SecurityUtils.getCurrentUserId()));
     }
 
+    @Operation(summary = "更新当前用户资料")
+    @PutMapping("/profile")
+    public Result<UserInfoDTO> updateProfile(@Valid @RequestBody AccountProfileUpdateDTO dto) {
+        return Result.success(authService.updateProfile(SecurityUtils.getCurrentUserId(), dto));
+    }
+
     @Operation(summary = "刷新 Token")
     @PostMapping("/refresh")
     public Result<TokenDTO> refresh(HttpServletRequest request, HttpServletResponse response) {
@@ -105,6 +111,20 @@ public class AuthController {
     public Result<Void> resetPassword(@Valid @RequestBody PasswordResetConfirmDTO dto) {
         authService.resetPassword(dto);
         return Result.success();
+    }
+
+    @Operation(summary = "发送绑定邮箱验证码")
+    @PostMapping("/email-binding/code")
+    public Result<Void> requestEmailBinding(@Valid @RequestBody EmailBindingCodeDTO dto,
+                                            HttpServletRequest request) {
+        authService.requestEmailBinding(SecurityUtils.getCurrentUserId(), dto, request.getRemoteAddr());
+        return Result.success();
+    }
+
+    @Operation(summary = "绑定邮箱并启用邮箱密码登录")
+    @PostMapping("/email-binding/confirm")
+    public Result<UserInfoDTO> bindEmail(@Valid @RequestBody EmailBindingConfirmDTO dto) {
+        return Result.success(authService.bindEmail(SecurityUtils.getCurrentUserId(), dto));
     }
 
     @Operation(summary = "同意当前版本服务条款与隐私政策")

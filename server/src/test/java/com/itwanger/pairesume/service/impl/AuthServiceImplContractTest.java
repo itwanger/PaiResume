@@ -5,7 +5,9 @@ import com.itwanger.pairesume.common.ResultCode;
 import com.itwanger.pairesume.dto.RegisterDTO;
 import com.itwanger.pairesume.dto.PasswordResetConfirmDTO;
 import com.itwanger.pairesume.dto.AccountDeletionDTO;
+import com.itwanger.pairesume.dto.AccountProfileUpdateDTO;
 import com.itwanger.pairesume.dto.LegalConsentDTO;
+import com.itwanger.pairesume.dto.ResumePhotoDTO;
 import com.itwanger.pairesume.dto.VipInviteRedemptionDTO;
 import com.itwanger.pairesume.entity.User;
 import com.itwanger.pairesume.entity.UserAuthIdentity;
@@ -55,6 +57,51 @@ class AuthServiceImplContractTest {
     @Mock private JdbcTemplate jdbcTemplate;
     @Mock private SetOperations<String, String> setOperations;
     @Mock private ValueOperations<String, String> valueOperations;
+    @Mock private ResumePhotoService resumePhotoService;
+
+    @Test
+    void userCanUpdateNicknameAndOwnedAvatar() {
+        var service = new AuthServiceImpl(
+                userMapper,
+                identityMapper,
+                passwordEncoder,
+                jwtTokenProvider,
+                redisTemplate,
+                mailService,
+                verificationCodeService,
+                loginRateLimitService,
+                vipInviteService
+        );
+        ReflectionTestUtils.setField(service, "resumePhotoService", resumePhotoService);
+        User user = new User();
+        user.setId(7L);
+        user.setEmail("user@example.com");
+        user.setNickname("微信用户");
+        user.setAvatar("");
+        user.setRole(0);
+        user.setStatus(1);
+        user.setMembershipStatus("FREE");
+        when(userMapper.selectByIdForUpdate(7L)).thenReturn(user);
+        when(resumePhotoService.storedReference(42L)).thenReturn("resume-photo:42");
+        when(resumePhotoService.storedPhotoId("resume-photo:42")).thenReturn(42L);
+        when(resumePhotoService.access(7L, 42L)).thenReturn(new ResumePhotoDTO(
+                42L, "RP42", "image/jpeg", 1024, 256, 256,
+                "https://example.com/avatar.jpg", "2026-08-26 12:00:00"
+        ));
+        AccountProfileUpdateDTO dto = new AccountProfileUpdateDTO();
+        dto.setNickname("  二哥星球成员  ");
+        dto.setAvatarPhotoId(42L);
+
+        var result = service.updateProfile(7L, dto);
+
+        assertEquals("二哥星球成员", user.getNickname());
+        assertEquals("resume-photo:42", user.getAvatar());
+        assertEquals("二哥星球成员", result.getNickname());
+        assertEquals(42L, result.getAvatarPhotoId());
+        assertEquals("https://example.com/avatar.jpg", result.getAvatar());
+        verify(userMapper).updateById(user);
+        verify(resumePhotoService, times(2)).access(7L, 42L);
+    }
 
     @Test
     void registrationIsATransactionBoundary() throws Exception {

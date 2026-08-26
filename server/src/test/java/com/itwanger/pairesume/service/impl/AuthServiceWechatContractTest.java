@@ -3,6 +3,8 @@ package com.itwanger.pairesume.service.impl;
 import com.itwanger.pairesume.common.BusinessException;
 import com.itwanger.pairesume.common.ResultCode;
 import com.itwanger.pairesume.dto.AccountDeletionDTO;
+import com.itwanger.pairesume.dto.EmailBindingCodeDTO;
+import com.itwanger.pairesume.dto.EmailBindingConfirmDTO;
 import com.itwanger.pairesume.entity.User;
 import com.itwanger.pairesume.entity.UserAuthIdentity;
 import com.itwanger.pairesume.mapper.UserAuthIdentityMapper;
@@ -250,6 +252,72 @@ class AuthServiceWechatContractTest {
         );
         assertEquals(subscribedAt, insertedIdentity.get().getSubscribedAt());
         verify(userMapper, never()).insert(any(User.class));
+    }
+
+    @Test
+    void qrOnlyAccountCanRequestEmailBindingCode() {
+        AuthServiceImpl service = service();
+        when(userMapper.selectById(7L)).thenReturn(qrOnlyUser());
+        when(verificationCodeService.issueEmailBindingCode("reader@example.com", "203.0.113.8"))
+                .thenReturn("123456");
+        EmailBindingCodeDTO dto = new EmailBindingCodeDTO();
+        dto.setEmail(" Reader@Example.com ");
+
+        service.requestEmailBinding(7L, dto, "203.0.113.8");
+
+        verify(mailService).sendEmailBindingCode("reader@example.com", "123456");
+    }
+
+    @Test
+    void qrOnlyAccountCanBindVerifiedEmailAndEnablePasswordLogin() {
+        AuthServiceImpl service = service();
+        User user = qrOnlyUser();
+        user.setNickname("");
+        user.setAvatar("");
+        user.setRole(0);
+        user.setMembershipStatus("FREE");
+        when(userMapper.selectByIdForUpdate(7L)).thenReturn(user);
+        when(verificationCodeService.consumeEmailBindingCode("reader@example.com", "123456"))
+                .thenReturn(VerificationCodeService.ConsumeResult.VERIFIED);
+        when(passwordEncoder.encode("reader123")).thenReturn("encoded-password");
+        ArgumentCaptor<UserAuthIdentity> identityCaptor = ArgumentCaptor.forClass(UserAuthIdentity.class);
+        EmailBindingConfirmDTO dto = new EmailBindingConfirmDTO();
+        dto.setEmail("Reader@Example.com");
+        dto.setVerificationCode("123456");
+        dto.setPassword("reader123");
+
+        var info = service.bindEmail(7L, dto);
+
+        verify(userMapper).updateById(user);
+        verify(identityMapper).insert(identityCaptor.capture());
+        UserAuthIdentity identity = identityCaptor.getValue();
+        assertEquals(7L, identity.getUserId());
+        assertEquals("EMAIL_PASSWORD", identity.getProvider());
+        assertEquals("reader@example.com", identity.getPrincipal());
+        assertEquals("encoded-password", identity.getCredentialHash());
+        assertEquals("reader@example.com", info.getEmail());
+        assertTrue(info.isEmailLoginEnabled());
+        assertFalse(info.isPaicongmingLinked());
+    }
+
+    @Test
+    void emailAlreadyUsedByAnotherAccountCannotBeBound() {
+        AuthServiceImpl service = service();
+        when(userMapper.selectByIdForUpdate(7L)).thenReturn(qrOnlyUser());
+        when(userMapper.selectCount(any())).thenReturn(1L);
+        EmailBindingConfirmDTO dto = new EmailBindingConfirmDTO();
+        dto.setEmail("used@example.com");
+        dto.setVerificationCode("123456");
+        dto.setPassword("reader123");
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> service.bindEmail(7L, dto)
+        );
+
+        assertEquals(ResultCode.EMAIL_IDENTITY_CONFLICT.getCode(), exception.getCode());
+        verify(verificationCodeService, never()).consumeEmailBindingCode(anyString(), anyString());
+        verify(identityMapper, never()).insert(any(UserAuthIdentity.class));
     }
 
     @Test

@@ -15,7 +15,7 @@ public interface UserMapper extends BaseMapper<User> {
     /**
      * Persist the complete membership state, including fields intentionally cleared to NULL.
      * BaseMapper#updateById skips null-valued fields by default, which would otherwise leave
-     * stale expiration and origin data after revocation or a permanent admin grant.
+     * stale expiration and origin data after revocation or an expiry correction.
      */
     @Update("""
             UPDATE `user`
@@ -29,4 +29,5 @@ public interface UserMapper extends BaseMapper<User> {
             WHERE `id` = #{id}
             """)
     int updateMembership(User user);
+
 }

@@ -14,6 +14,12 @@ public interface VerificationCodeService {
 
     ConsumeResult consumePasswordResetCode(String email, String code);
 
+    String issueEmailBindingCode(String email, String clientIp);
+
+    void rollbackEmailBindingCode(String email);
+
+    ConsumeResult consumeEmailBindingCode(String email, String code);
+
     String issueResumeReviewContactCode(String email, String clientIp);
 
     void rollbackResumeReviewContactCode(String email);

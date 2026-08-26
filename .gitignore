@@ -49,3 +49,4 @@ lerna-debug.log*
 # Playwright E2E
 /test-results/
 /playwright-report/
+/.playwright-cli

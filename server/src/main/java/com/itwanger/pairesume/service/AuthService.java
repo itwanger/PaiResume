@@ -17,6 +17,9 @@ public interface AuthService {
     /** 获取当前用户信息 */
     UserInfoDTO getCurrentUserInfo(Long userId);
 
+    /** 更新当前用户自行维护的昵称和头像。 */
+    UserInfoDTO updateProfile(Long userId, AccountProfileUpdateDTO dto);
+
     /** 登出 */
     void logout(Long userId, String accessToken);
 
@@ -28,6 +31,12 @@ public interface AuthService {
 
     /** 使用一次性验证码重置密码并撤销全部旧会话 */
     void resetPassword(PasswordResetConfirmDTO dto);
+
+    /** 向尚未绑定邮箱的当前账号发送绑定验证码。 */
+    void requestEmailBinding(Long userId, EmailBindingCodeDTO dto, String clientIp);
+
+    /** 验证邮箱并为当前账号启用邮箱密码登录。 */
+    UserInfoDTO bindEmail(Long userId, EmailBindingConfirmDTO dto);
 
     /** 记录当前版本服务条款、隐私政策及 AI 处理说明的明确同意 */
     UserInfoDTO acceptLegalConsent(Long userId, LegalConsentDTO dto);

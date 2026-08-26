@@ -8,8 +8,10 @@ import com.itwanger.pairesume.dto.CouponQuoteDTO;
 import com.itwanger.pairesume.dto.MarketplacePageDTO;
 import com.itwanger.pairesume.dto.UserAdminDTO;
 import com.itwanger.pairesume.entity.User;
+import com.itwanger.pairesume.entity.UserAuthIdentity;
 import com.itwanger.pairesume.entity.MembershipPlan;
 import com.itwanger.pairesume.mapper.UserMapper;
+import com.itwanger.pairesume.mapper.UserAuthIdentityMapper;
 import com.itwanger.pairesume.service.CouponService;
 import com.itwanger.pairesume.service.MembershipService;
 import com.itwanger.pairesume.service.MembershipAuditService;
@@ -19,12 +21,21 @@ import com.itwanger.pairesume.payment.MarketplacePaymentGateway;
 import com.itwanger.pairesume.payment.MarketplacePaymentProperties;
 import com.itwanger.pairesume.util.DateTimeUtils;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 @Service
@@ -34,10 +45,13 @@ public class MembershipServiceImpl implements MembershipService {
     private static final Set<String> MEMBERSHIP_STATUS_FILTERS = Set.of("ACTIVE", "FREE");
     private final CouponService couponService;
     private final UserMapper userMapper;
+    private final UserAuthIdentityMapper userAuthIdentityMapper;
     private final MembershipAuditService membershipAuditService;
     private final MembershipPlanService membershipPlanService;
     private final MarketplacePaymentProperties paymentProperties;
     private final MarketplacePaymentGateway paymentGateway;
+    @Autowired(required = false)
+    private ResumePhotoService resumePhotoService;
 
     @Override
     public CouponQuoteDTO quote(Long userId, String planCode, String couponCode) {
@@ -87,10 +101,14 @@ public class MembershipServiceImpl implements MembershipService {
         // membership_status 可能为 NULL（老数据），FREE 条件显式展开而不是裸 NOT，避免三值逻辑漏行。
         LocalDateTime now = LocalDateTime.now();
         LambdaQueryWrapper<User> query = new LambdaQueryWrapper<User>()
-                .and(StringUtils.hasText(normalizedKeyword), wrapper -> wrapper
-                        .like(User::getEmail, normalizedKeyword)
-                        .or()
-                        .like(User::getNickname, normalizedKeyword))
+                .and(StringUtils.hasText(normalizedKeyword), wrapper -> {
+                    wrapper.like(User::getEmail, normalizedKeyword)
+                            .or()
+                            .like(User::getNickname, normalizedKeyword);
+                    if (isNumericId(normalizedKeyword)) {
+                        wrapper.or().eq(User::getId, parseNumericId(normalizedKeyword));
+                    }
+                })
                 .and("ACTIVE".equals(normalizedStatus), wrapper -> wrapper
                         .eq(User::getMembershipStatus, "ACTIVE")
                         .and(active -> active
@@ -109,28 +127,12 @@ public class MembershipServiceImpl implements MembershipService {
         Page<User> result = userMapper.selectPage(new Page<>(safePage, safeSize, true), query);
         int totalPages = result.getTotal() == 0
                 ? 0 : (int) Math.ceil((double) result.getTotal() / safeSize);
+        Map<Long, List<UserAuthIdentity>> identitiesByUserId = loadAuthIdentities(result.getRecords());
         return new MarketplacePageDTO<>(
-                result.getRecords().stream().map(this::toAdminDto).toList(),
+                result.getRecords().stream()
+                        .map(user -> toAdminDto(user, identitiesByUserId.getOrDefault(user.getId(), List.of())))
+                        .toList(),
                 result.getTotal(), safePage, safeSize, totalPages);
-    }
-
-    @Override
-    @Transactional
-    public UserAdminDTO grantMembership(Long userId, Long adminUserId, String reason) {
-        User user = getUserForUpdate(userId);
-        User before = membershipSnapshot(user);
-        user.setMembershipStatus("ACTIVE");
-        user.setMembershipGrantedAt(LocalDateTime.now());
-        user.setMembershipSource("ADMIN_GRANTED");
-        user.setMembershipOriginType("ADMIN_GRANTED");
-        user.setMembershipOriginId(null);
-        user.setMembershipExpiresAt(null);
-        userMapper.updateMembership(user);
-        membershipAuditService.record(
-                adminUserId, "GRANT_MEMBERSHIP", before, user,
-                null, null, reason, "手工开通永久 VIP"
-        );
-        return toAdminDto(user);
     }
 
     @Override
@@ -211,17 +213,97 @@ public class MembershipServiceImpl implements MembershipService {
     }
 
     private UserAdminDTO toAdminDto(User user) {
+        List<UserAuthIdentity> identities = loadAuthIdentities(List.of(user))
+                .getOrDefault(user.getId(), List.of());
+        return toAdminDto(user, identities);
+    }
+
+    private UserAdminDTO toAdminDto(User user, List<UserAuthIdentity> identities) {
         UserAdminDTO dto = new UserAdminDTO();
         dto.setId(user.getId());
         dto.setEmail(user.getEmail());
         dto.setNickname(user.getNickname());
-        dto.setRole(user.getRole() != null && user.getRole() == 1 ? "ADMIN" : "USER");
+        dto.setAvatar(resolveAvatar(user));
+        boolean hasWechat = identities.stream()
+                .anyMatch(identity -> "WECHAT_SERVICE".equals(identity.getProvider()));
+        boolean hasEmail = StringUtils.hasText(user.getEmail()) || identities.stream()
+                .anyMatch(identity -> "EMAIL_PASSWORD".equals(identity.getProvider()));
+        dto.setAccountType(hasWechat && hasEmail ? "WECHAT_EMAIL" : hasWechat ? "WECHAT" : "EMAIL");
+        identities.stream()
+                .filter(identity -> "WECHAT_SERVICE".equals(identity.getProvider()))
+                .findFirst()
+                .ifPresent(identity -> {
+                    dto.setWechatIdentifier(wechatIdentifier(identity.getPrincipal()));
+                    dto.setWechatSubscribed(Boolean.TRUE.equals(identity.getSubscribed()));
+                });
+        identities.stream()
+                .map(UserAuthIdentity::getLastLoginAt)
+                .filter(java.util.Objects::nonNull)
+                .max(Comparator.naturalOrder())
+                .ifPresent(lastLoginAt -> dto.setLastLoginAt(DateTimeUtils.format(lastLoginAt)));
         dto.setMembershipStatus(hasActiveMembership(user) ? "ACTIVE" : "FREE");
         dto.setMembershipGrantedAt(DateTimeUtils.format(user.getMembershipGrantedAt()));
         dto.setMembershipExpiresAt(DateTimeUtils.format(user.getMembershipExpiresAt()));
         dto.setMembershipSource(user.getMembershipSource());
         dto.setCreatedAt(DateTimeUtils.format(user.getCreatedAt()));
         return dto;
+    }
+
+    private String resolveAvatar(User user) {
+        if (resumePhotoService == null) return user.getAvatar();
+        Long photoId = resumePhotoService.storedPhotoId(user.getAvatar());
+        if (photoId == null) return user.getAvatar();
+        try {
+            return resumePhotoService.access(user.getId(), photoId).accessUrl();
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+    }
+
+    private Map<Long, List<UserAuthIdentity>> loadAuthIdentities(List<User> users) {
+        if (userAuthIdentityMapper == null || users == null || users.isEmpty()) {
+            return Map.of();
+        }
+        List<Long> userIds = users.stream().map(User::getId).toList();
+        List<UserAuthIdentity> identities = userAuthIdentityMapper.selectList(
+                new LambdaQueryWrapper<UserAuthIdentity>()
+                        .in(UserAuthIdentity::getUserId, userIds)
+                        .eq(UserAuthIdentity::getStatus, 1)
+                        .orderByDesc(UserAuthIdentity::getUpdatedAt)
+        );
+        Map<Long, List<UserAuthIdentity>> result = new HashMap<>();
+        for (UserAuthIdentity identity : identities) {
+            result.computeIfAbsent(identity.getUserId(), ignored -> new ArrayList<>()).add(identity);
+        }
+        return result;
+    }
+
+    private boolean isNumericId(String value) {
+        return value != null && value.matches("\\d{1,18}");
+    }
+
+    private Long parseNumericId(String value) {
+        if (!isNumericId(value)) {
+            return -1L;
+        }
+        try {
+            return Long.parseLong(value);
+        } catch (NumberFormatException ignored) {
+            return -1L;
+        }
+    }
+
+    private String wechatIdentifier(String principal) {
+        if (!StringUtils.hasText(principal)) {
+            return null;
+        }
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(principal.getBytes(StandardCharsets.UTF_8));
+            return "WX-" + java.util.HexFormat.of().formatHex(digest, 0, 4).toUpperCase(Locale.ROOT);
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 unavailable", exception);
+        }
     }
 
     private boolean hasActiveMembership(User user) {

@@ -54,7 +54,7 @@ class MembershipServiceQuoteTest {
         when(paymentProperties.isMembershipAcceptNewOrders()).thenReturn(true);
         when(paymentGateway.provider()).thenReturn("wechat");
         MembershipServiceImpl service = new MembershipServiceImpl(
-                couponService, userMapper, auditService, membershipPlanService,
+                couponService, userMapper, null, auditService, membershipPlanService,
                 paymentProperties, paymentGateway);
 
         CouponQuoteDTO result = service.quote(7L, "ANNUAL", "PAIMINE123");
@@ -84,7 +84,7 @@ class MembershipServiceQuoteTest {
         when(userMapper.selectById(7L)).thenReturn(user);
         when(membershipPlanService.requirePurchasable("MONTHLY")).thenReturn(plan);
         MembershipServiceImpl service = new MembershipServiceImpl(
-                couponService, userMapper, auditService, membershipPlanService,
+                couponService, userMapper, null, auditService, membershipPlanService,
                 paymentProperties, paymentGateway);
 
         var exception = assertThrows(

@@ -59,6 +59,7 @@ import {
   AdminShell,
 } from '../components/admin/AdminShell'
 import { AdminTableScroller } from '../components/admin/AdminUi'
+import { Select } from '../components/ui/Select'
 import {
   type AdminView,
   isAdminView,
@@ -88,6 +89,20 @@ function parseYuanToCents(value: string): number | null {
   const [yuan, fraction = ''] = normalized.split('.')
   const cents = Number(yuan) * 100 + Number(fraction.padEnd(2, '0'))
   return Number.isSafeInteger(cents) && cents <= MAX_PRICE_CENTS ? cents : null
+}
+
+function getPaginationItems(currentPage: number, totalPages: number): Array<number | string> {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1)
+  }
+
+  if (currentPage <= 4) {
+    return [1, 2, 3, 4, 5, 'ellipsis-right', totalPages]
+  }
+  if (currentPage >= totalPages - 3) {
+    return [1, 'ellipsis-left', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages]
+  }
+  return [1, 'ellipsis-left', currentPage - 1, currentPage, currentPage + 1, 'ellipsis-right', totalPages]
 }
 
 function isCouponExpired(coupon: CouponAdmin): boolean {
@@ -243,6 +258,8 @@ function AdminPageContent() {
   const [userSearch, setUserSearch] = useState('')
   const [userMembershipFilter, setUserMembershipFilter] = useState<'' | 'ACTIVE' | 'FREE'>('')
   const [userPage, setUserPage] = useState(1)
+  const [userPageSize, setUserPageSize] = useState(20)
+  const [userJumpPage, setUserJumpPage] = useState('1')
   const [userTotal, setUserTotal] = useState(0)
   const [userTotalPages, setUserTotalPages] = useState(1)
   const [allUserTotal, setAllUserTotal] = useState<number | null>(null)
@@ -312,8 +329,8 @@ function AdminPageContent() {
     keyword: string
     membershipStatus: '' | 'ACTIVE' | 'FREE'
     page: number
-  }>({ keyword: '', membershipStatus: '', page: 1 })
-  const userSearchDebounceRef = useRef<number | null>(null)
+    size: number
+  }>({ keyword: '', membershipStatus: '', page: 1, size: 20 })
   const redemptionsPanelRef = useRef<HTMLDivElement | null>(null)
 
   const handleAdminNavigate = (view: AdminView) => {
@@ -395,6 +412,7 @@ function AdminPageContent() {
     keyword: string
     membershipStatus: '' | 'ACTIVE' | 'FREE'
     page: number
+    size: number
   }) => {
     usersQueryRef.current = query
     await runSectionLoad('users', async () => {
@@ -403,13 +421,15 @@ function AdminPageContent() {
           keyword: query.keyword || undefined,
           membershipStatus: query.membershipStatus,
           page: query.page,
-          size: 20,
+          size: query.size,
         }),
         adminApi.listUsers({ membershipStatus: 'ACTIVE', page: 1, size: 1 }),
       ])
       const payload = pageResponse.data.data
       setUsers(payload.records)
       setUserPage(payload.page)
+      setUserPageSize(payload.size)
+      setUserJumpPage(String(payload.page))
       setUserTotal(payload.total)
       setUserTotalPages(Math.max(1, payload.totalPages))
       if (!query.keyword && !query.membershipStatus) {
@@ -454,7 +474,9 @@ function AdminPageContent() {
           // 进视图统一回到未筛选的第 1 页；之后筛选/翻页由视图内状态驱动重载。
           setUserSearch('')
           setUserMembershipFilter('')
-          await loadUsersSection({ keyword: '', membershipStatus: '', page: 1 })
+          setUserPageSize(20)
+          setUserJumpPage('1')
+          await loadUsersSection({ keyword: '', membershipStatus: '', page: 1, size: 20 })
           return
         }
         case 'membershipAuditLogs': {
@@ -585,13 +607,6 @@ function AdminPageContent() {
     return () => window.clearTimeout(timer)
   }, [success])
 
-  // 组件卸载时清理未触发的用户搜索防抖。
-  useEffect(() => () => {
-    if (userSearchDebounceRef.current !== null) {
-      window.clearTimeout(userSearchDebounceRef.current)
-    }
-  }, [])
-
   // 展开兑换记录面板时滚动进可视区域（仅在 selectedInviteId 变化展开时触发）。
   useEffect(() => {
     if (selectedInviteId === null) return
@@ -612,35 +627,48 @@ function AdminPageContent() {
   // 视图内的搜索/筛选/翻页重载：分块状态由 runSectionLoad 维护，错误落到页面级错误条。
   async function reloadUsersPage(
     page: number,
-    keyword = userSearch,
-    membershipStatus = userMembershipFilter,
+    size = usersQueryRef.current.size,
   ) {
     try {
-      await loadUsersSection({ keyword: keyword.trim(), membershipStatus, page })
+      await loadUsersSection({
+        keyword: usersQueryRef.current.keyword,
+        membershipStatus: usersQueryRef.current.membershipStatus,
+        page,
+        size,
+      })
     } catch (err: unknown) {
       setError(getAdminErrorMessage(err, '用户列表加载失败'))
     }
   }
 
-  // 搜索框 300ms 防抖后走服务端查询；切换会员状态筛选立即查询，并取消未触发的防抖。
-  const handleUserSearchChange = (value: string) => {
-    setUserSearch(value)
-    if (userSearchDebounceRef.current !== null) {
-      window.clearTimeout(userSearchDebounceRef.current)
+  const handleUserQuery = async () => {
+    try {
+      await loadUsersSection({
+        keyword: userSearch.trim(),
+        membershipStatus: userMembershipFilter,
+        page: 1,
+        size: userPageSize,
+      })
+    } catch (err: unknown) {
+      setError(getAdminErrorMessage(err, '用户列表加载失败'))
     }
-    userSearchDebounceRef.current = window.setTimeout(() => {
-      userSearchDebounceRef.current = null
-      void reloadUsersPage(1, value)
-    }, 300)
   }
 
-  const handleUserMembershipFilterChange = (value: '' | 'ACTIVE' | 'FREE') => {
-    setUserMembershipFilter(value)
-    if (userSearchDebounceRef.current !== null) {
-      window.clearTimeout(userSearchDebounceRef.current)
-      userSearchDebounceRef.current = null
+  const handleUserPageSizeChange = (value: string) => {
+    const nextSize = Number(value)
+    setUserPageSize(nextSize)
+    void reloadUsersPage(1, nextSize)
+  }
+
+  const handleUserPageJump = () => {
+    const parsedPage = Number.parseInt(userJumpPage, 10)
+    if (!Number.isFinite(parsedPage)) {
+      setUserJumpPage(String(userPage))
+      return
     }
-    void reloadUsersPage(1, userSearch, value)
+    const nextPage = Math.min(userTotalPages, Math.max(1, parsedPage))
+    setUserJumpPage(String(nextPage))
+    void reloadUsersPage(nextPage)
   }
 
   async function refreshMembershipAuditLogs() {
@@ -1035,35 +1063,27 @@ function AdminPageContent() {
     }
   }
 
-  const handleMembership = async (user: UserAdmin, action: 'grant' | 'revoke') => {
+  const handleRevokeMembership = async (user: UserAdmin) => {
     const userLabel = getUserAdminLabel(user)
     const reason = await requestRequiredReason(
-      action === 'grant'
-        ? `请输入为 ${userLabel} 手工开通永久 VIP 的原因（必填）`
-        : `请输入撤销 ${userLabel} VIP 权益的原因（必填）`,
+      `请输入撤销 ${userLabel} VIP 权益的原因（必填）`,
     )
     if (!reason) {
       return
     }
     if (!await confirmAdminAction({
-      title: action === 'grant' ? '开通永久 VIP' : '撤销 VIP 权益',
-      description: action === 'grant'
-        ? `确认为 ${userLabel} 手工开通永久 VIP？\n\n操作原因会写入审计日志。`
-        : `确认撤销 ${userLabel} 当前的 VIP 权益？\n\n用户会立即失去对应会员能力，操作原因会写入审计日志。`,
-      confirmText: action === 'grant' ? '确认开通' : '确认撤销',
-      tone: action === 'revoke' ? 'danger' : 'default',
+      title: '撤销 VIP 权益',
+      description: `确认撤销 ${userLabel} 当前的 VIP 权益？\n\n用户会立即失去对应会员能力，操作原因会写入审计日志。`,
+      confirmText: '确认撤销',
+      tone: 'danger',
     })) return
     setMembershipActionUserId(user.id)
     setError('')
     setSuccess('')
     try {
-      if (action === 'grant') {
-        await adminApi.grantMembership(user.id, reason)
-      } else {
-        await adminApi.revokeMembership(user.id, reason)
-      }
+      await adminApi.revokeMembership(user.id, reason)
       await Promise.all([refreshUsers(), refreshMembershipAuditLogs()])
-      setSuccess(action === 'grant' ? '会员已开通' : '会员已撤销')
+      setSuccess('会员已撤销')
     } catch (err: unknown) {
       setError(getAdminErrorMessage(err, '会员操作失败'))
     } finally {
@@ -2813,12 +2833,7 @@ function AdminPageContent() {
 
             {activeView === 'vip-invites' ? (
               <section className="rounded-lg border border-emerald-200 bg-white px-6 py-6">
-              <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-start">
-                <h2 className="text-lg font-semibold text-gray-900">知识星球 VIP 邀请码</h2>
-                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
-                  作废批次码只阻止新兑换，不影响已领取用户；泄露后请在兑换记录中逐条撤销异常权益。
-                </div>
-              </div>
+              <h2 className="text-lg font-semibold text-gray-900">知识星球 VIP 邀请码</h2>
 
               <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <label className="block">
@@ -3159,26 +3174,42 @@ function AdminPageContent() {
                   <div className="rounded-lg border border-gray-200 bg-white px-6 py-6">
                 <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
                   <p className="text-sm text-gray-500">共 {userTotal} 个账号</p>
-                  <div className="flex flex-col gap-2 sm:flex-row">
+                  <form
+                    className="flex flex-col gap-2 sm:flex-row"
+                    onSubmit={(event) => {
+                      event.preventDefault()
+                      void handleUserQuery()
+                    }}
+                  >
                     <input
                       type="search"
                       value={userSearch}
-                      onChange={(event) => handleUserSearchChange(event.target.value)}
-                      placeholder="搜索邮箱或昵称"
+                      onChange={(event) => setUserSearch(event.target.value)}
+                      placeholder="搜索邮箱、名称或用户 ID"
                       aria-label="搜索用户"
-                      className="w-full min-w-0 rounded-lg border border-gray-300 px-3 py-2 text-sm sm:w-56"
+                      className="h-10 w-full min-w-0 rounded-lg border border-gray-300 px-3 text-sm outline-none transition focus:border-primary-400 focus:ring-2 focus:ring-primary-100 sm:w-64"
                     />
-                    <select
-                      value={userMembershipFilter}
-                      onChange={(event) => handleUserMembershipFilterChange(event.target.value as '' | 'ACTIVE' | 'FREE')}
-                      aria-label="筛选会员状态"
-                      className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                    <Select
+                      value={userMembershipFilter || 'ALL'}
+                      onValueChange={(value) => setUserMembershipFilter(
+                        value === 'ALL' ? '' : value as 'ACTIVE' | 'FREE',
+                      )}
+                      placeholder="筛选会员状态"
+                      options={[
+                        { value: 'ALL', label: '全部会员状态' },
+                        { value: 'ACTIVE', label: '有效 VIP' },
+                        { value: 'FREE', label: '普通用户' },
+                      ]}
+                      triggerClassName="h-10 min-w-[152px] rounded-lg border-gray-300 px-3 text-sm shadow-none"
+                    />
+                    <button
+                      type="submit"
+                      disabled={usersLoading}
+                      className="h-10 rounded-lg bg-primary-600 px-5 text-sm font-medium text-white transition hover:bg-primary-700 disabled:cursor-wait disabled:opacity-60"
                     >
-                      <option value="">全部会员状态</option>
-                      <option value="ACTIVE">有效 VIP</option>
-                      <option value="FREE">普通用户</option>
-                    </select>
-                  </div>
+                      {usersLoading ? '查询中…' : '查询'}
+                    </button>
+                  </form>
                 </div>
                 {usersLoading && !users.length ? (
                   <p className="mt-5 text-sm text-gray-500">正在加载用户...</p>
@@ -3187,8 +3218,7 @@ function AdminPageContent() {
                   <table className="min-w-full divide-y divide-gray-200 text-sm">
                     <thead>
                       <tr className="text-left text-gray-500">
-                        <th className="py-3 pr-4 font-medium">邮箱</th>
-                        <th className="py-3 pr-4 font-medium">角色</th>
+                        <th className="py-3 pr-4 font-medium">账号信息</th>
                         <th className="py-3 pr-4 font-medium">会员状态 / 到期</th>
                         <th className="py-3 font-medium">操作</th>
                       </tr>
@@ -3200,20 +3230,36 @@ function AdminPageContent() {
                         return (
                         <tr key={user.id}>
                           <td className="py-3 pr-4">
-                            <div className="font-medium text-gray-900">{getUserAdminLabel(user)}</div>
-                            <div className="mt-1 text-xs text-gray-400">
-                              {user.email ? `用户 #${user.id}` : `微信扫码账号 · 用户 #${user.id}`}
+                            <div className="flex items-start gap-3">
+                              <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary-50 text-sm font-semibold text-primary-700">
+                                {user.avatar ? (
+                                  <img src={user.avatar} alt="" className="h-full w-full object-cover" />
+                                ) : (
+                                  <span>{getUserAdminLabel(user).slice(0, 1)}</span>
+                                )}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="font-medium text-gray-900">{getUserAdminLabel(user)}</div>
+                                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
+                                  <span>用户 #{user.id}</span>
+                                  {user.wechatIdentifier ? <span>{user.wechatIdentifier}</span> : null}
+                                  <span>{user.accountType === 'WECHAT_EMAIL' ? '微信 + 邮箱' : user.accountType === 'WECHAT' ? '微信扫码' : '邮箱登录'}</span>
+                                  {user.accountType !== 'EMAIL' ? (
+                                    <span className={user.wechatSubscribed ? 'text-emerald-700' : 'text-gray-400'}>
+                                      {user.wechatSubscribed ? '已关注' : '未关注'}
+                                    </span>
+                                  ) : null}
+                                </div>
+                                {user.accountType !== 'EMAIL' ? (
+                                  <div className="mt-1 text-xs text-gray-500">
+                                    {user.email ? `绑定邮箱：${user.email}` : '邮箱未绑定'}
+                                  </div>
+                                ) : null}
+                                <div className="mt-1 text-xs text-gray-400">
+                                  最近登录：{user.lastLoginAt ?? '暂无记录'} · 注册：{user.createdAt}
+                                </div>
+                              </div>
                             </div>
-                            <div className="mt-1 text-xs text-gray-500">{user.createdAt}</div>
-                          </td>
-                          <td className="py-3 pr-4">
-                            <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
-                              user.role === 'ADMIN'
-                                ? 'bg-violet-50 text-violet-700'
-                                : 'bg-slate-100 text-slate-600'
-                            }`}>
-                              {user.role === 'ADMIN' ? '管理员' : '用户'}
-                            </span>
                           </td>
                           <td className="py-3 pr-4">
                             <div className={`font-medium ${
@@ -3242,22 +3288,13 @@ function AdminPageContent() {
                               {user.membershipStatus === 'ACTIVE' ? (
                                 <button
                                   type="button"
-                                  onClick={() => void handleMembership(user, 'revoke')}
+                                  onClick={() => void handleRevokeMembership(user)}
                                   disabled={membershipActionPending}
                                   className="text-red-700 transition-colors hover:text-red-800 disabled:cursor-wait disabled:opacity-50"
                                 >
                                   {currentUserActionPending ? '处理中…' : '撤销会员'}
                                 </button>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => void handleMembership(user, 'grant')}
-                                  disabled={membershipActionPending}
-                                  className="text-primary-700 transition-colors hover:text-primary-800 disabled:cursor-wait disabled:opacity-50"
-                                >
-                                  {currentUserActionPending ? '处理中…' : '开通永久 VIP'}
-                                </button>
-                              )}
+                              ) : null}
                             </div>
                           </td>
                         </tr>
@@ -3273,25 +3310,86 @@ function AdminPageContent() {
                 </AdminTableScroller>
                 )}
 
-                <div className="mt-5 flex flex-wrap items-center justify-between gap-3 text-sm text-gray-500">
-                  <span>共 {userTotal} 条 · 第 {userPage} / {userTotalPages} 页</span>
-                  <div className="flex gap-2">
+                <div className="mt-5 flex flex-col gap-4 text-sm text-gray-500 xl:flex-row xl:items-center xl:justify-between">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span>共 {userTotal} 条 · 第 {userPage} / {userTotalPages} 页</span>
+                    <Select
+                      value={String(userPageSize)}
+                      onValueChange={handleUserPageSizeChange}
+                      placeholder="每页条数"
+                      options={[
+                        { value: '10', label: '每页 10 条' },
+                        { value: '20', label: '每页 20 条' },
+                        { value: '50', label: '每页 50 条' },
+                        { value: '100', label: '每页 100 条' },
+                      ]}
+                      triggerClassName="h-9 min-w-[120px] rounded-lg border-gray-200 px-3 text-sm shadow-none"
+                    />
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
                     <button
                       type="button"
                       disabled={userPage <= 1 || usersLoading}
                       onClick={() => void reloadUsersPage(userPage - 1)}
-                      className="rounded-lg border border-gray-200 px-3 py-2 disabled:cursor-not-allowed disabled:opacity-40"
+                      className="h-9 rounded-lg border border-gray-200 px-3 transition hover:border-gray-300 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       上一页
                     </button>
+                    {getPaginationItems(userPage, userTotalPages).map((item) => (
+                      typeof item === 'number' ? (
+                        <button
+                          key={item}
+                          type="button"
+                          aria-label={`第 ${item} 页`}
+                          aria-current={item === userPage ? 'page' : undefined}
+                          disabled={usersLoading}
+                          onClick={() => void reloadUsersPage(item)}
+                          className={`h-9 min-w-9 rounded-lg border px-2 transition disabled:cursor-wait disabled:opacity-50 ${
+                            item === userPage
+                              ? 'border-primary-600 bg-primary-600 text-white'
+                              : 'border-gray-200 bg-white hover:border-gray-300 hover:text-gray-900'
+                          }`}
+                        >
+                          {item}
+                        </button>
+                      ) : (
+                        <span key={item} className="px-1 text-gray-400" aria-hidden="true">…</span>
+                      )
+                    ))}
                     <button
                       type="button"
                       disabled={userPage >= userTotalPages || usersLoading}
                       onClick={() => void reloadUsersPage(userPage + 1)}
-                      className="rounded-lg border border-gray-200 px-3 py-2 disabled:cursor-not-allowed disabled:opacity-40"
+                      className="h-9 rounded-lg border border-gray-200 px-3 transition hover:border-gray-300 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       下一页
                     </button>
+                    <form
+                      className="ml-1 flex items-center gap-2"
+                      onSubmit={(event) => {
+                        event.preventDefault()
+                        handleUserPageJump()
+                      }}
+                    >
+                      <span>前往</span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        value={userJumpPage}
+                        onChange={(event) => setUserJumpPage(event.target.value.replace(/\D/g, ''))}
+                        aria-label="跳转页码"
+                        className="h-9 w-14 rounded-lg border border-gray-200 px-2 text-center text-gray-700 outline-none transition focus:border-primary-400 focus:ring-2 focus:ring-primary-100"
+                      />
+                      <span>页</span>
+                      <button
+                        type="submit"
+                        disabled={usersLoading || !userJumpPage}
+                        className="h-9 rounded-lg border border-gray-200 px-3 text-gray-700 transition hover:border-primary-300 hover:text-primary-700 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        跳转
+                      </button>
+                    </form>
                   </div>
                 </div>
                   </div>

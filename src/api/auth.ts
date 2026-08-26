@@ -20,10 +20,22 @@ export interface PasswordResetConfirmParams {
   newPassword: string
 }
 
+export interface EmailBindingConfirmParams {
+  email: string
+  verificationCode: string
+  password: string
+}
+
 export interface AccountDeletionParams {
   password?: string
   wechatReauthProof?: string
   confirmation: '注销账号'
+}
+
+export interface AccountProfileUpdateParams {
+  nickname: string
+  avatarPhotoId?: number | null
+  removeAvatar?: boolean
 }
 
 export type WechatChallengeStatus = 'PENDING' | 'CONFIRMED' | 'CONSUMED' | 'EXPIRED'
@@ -63,6 +75,7 @@ export interface TokenData {
     email: string | null
     nickname: string
     avatar: string
+    avatarPhotoId: number | null
     role: string
     membershipStatus: 'FREE' | 'ACTIVE'
     membershipGrantedAt: string | null
@@ -99,6 +112,22 @@ export const authApi = {
       { headers: { 'X-Wechat-Poll-Token': pollToken } },
     ),
 
+  createWechatBindChallenge: () =>
+    client.post<ApiEnvelope<WechatChallengeCreateData>>('/auth/wechat/bind-challenges'),
+
+  getWechatBindChallenge: (challengeId: string, pollToken: string) =>
+    client.get<ApiEnvelope<WechatChallengeStatusData>>(
+      `/auth/wechat/bind-challenges/${encodeURIComponent(challengeId)}`,
+      { headers: { 'X-Wechat-Poll-Token': pollToken } },
+    ),
+
+  exchangeWechatBindChallenge: (challengeId: string, pollToken: string) =>
+    client.post<ApiEnvelope<TokenData['userInfo']>>(
+      `/auth/wechat/bind-challenges/${encodeURIComponent(challengeId)}/exchange`,
+      undefined,
+      { headers: { 'X-Wechat-Poll-Token': pollToken } },
+    ),
+
   createWechatReauthChallenge: () =>
     client.post<ApiEnvelope<WechatChallengeCreateData>>('/auth/wechat/reauth-challenges'),
 
@@ -132,6 +161,12 @@ export const authApi = {
   resetPassword: (params: PasswordResetConfirmParams) =>
     client.post('/auth/password-reset/confirm', params),
 
+  requestEmailBindingCode: (email: string) =>
+    client.post('/auth/email-binding/code', { email }),
+
+  bindEmail: (params: EmailBindingConfirmParams) =>
+    client.post<ApiEnvelope<TokenData['userInfo']>>('/auth/email-binding/confirm', params),
+
   deleteAccount: (params: AccountDeletionParams) =>
     client.delete('/auth/account', { data: params }),
 
@@ -143,4 +178,7 @@ export const authApi = {
 
   me: () =>
     client.get<ApiEnvelope<TokenData['userInfo']>>('/auth/me'),
+
+  updateProfile: (params: AccountProfileUpdateParams) =>
+    client.put<ApiEnvelope<TokenData['userInfo']>>('/auth/profile', params),
 }

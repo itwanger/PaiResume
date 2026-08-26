@@ -7,7 +7,11 @@ public class UserAdminDTO {
     private Long id;
     private String email;
     private String nickname;
-    private String role;
+    private String avatar;
+    private String accountType;
+    private String wechatIdentifier;
+    private Boolean wechatSubscribed;
+    private String lastLoginAt;
     private String membershipStatus;
     private String membershipGrantedAt;
     private String membershipExpiresAt;

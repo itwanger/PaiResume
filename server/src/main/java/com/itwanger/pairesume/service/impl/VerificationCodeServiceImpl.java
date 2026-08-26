@@ -93,6 +93,11 @@ public class VerificationCodeServiceImpl implements VerificationCodeService {
     }
 
     @Override
+    public String issueEmailBindingCode(String email, String clientIp) {
+        return issueCode("email-binding", email, clientIp);
+    }
+
+    @Override
     public String issueResumeReviewContactCode(String email, String clientIp) {
         return issueCode("resume-review-contact", email, clientIp);
     }
@@ -138,6 +143,11 @@ public class VerificationCodeServiceImpl implements VerificationCodeService {
     }
 
     @Override
+    public void rollbackEmailBindingCode(String email) {
+        rollbackCode("email-binding", email);
+    }
+
+    @Override
     public void rollbackResumeReviewContactCode(String email) {
         rollbackCode("resume-review-contact", email);
     }
@@ -159,6 +169,11 @@ public class VerificationCodeServiceImpl implements VerificationCodeService {
     @Override
     public ConsumeResult consumePasswordResetCode(String email, String code) {
         return consumeCode("password-reset", email, code);
+    }
+
+    @Override
+    public ConsumeResult consumeEmailBindingCode(String email, String code) {
+        return consumeCode("email-binding", email, code);
     }
 
     @Override

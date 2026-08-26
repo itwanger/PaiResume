@@ -4,7 +4,11 @@ import type {
 } from '../../api/admin'
 
 export function getUserAdminLabel(user: UserAdmin): string {
-  return user.email || user.nickname || `用户 #${user.id}`
+  const nickname = user.nickname?.trim()
+  if (nickname && nickname !== '微信用户') return nickname
+  if (user.email) return user.email
+  if (user.wechatIdentifier) return `微信账号 ${user.wechatIdentifier}`
+  return `用户 #${user.id}`
 }
 
 export function resumeReviewNeedsAdminAction(

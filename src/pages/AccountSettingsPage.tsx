@@ -1,13 +1,18 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { authApi, type WechatChallengeCreateData } from '../api/auth'
+import { resumePhotoApi } from '../api/resumePhoto'
 import { Header } from '../components/layout/Header'
-import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { useAuthStore } from '../store/authStore'
+import {
+  BASIC_INFO_PHOTO_MAX_SIZE_MB,
+  inspectResumePhotoFile,
+} from '../utils/resumePhoto'
 
-type ReauthPhase = 'idle' | 'loading' | 'pending' | 'confirmed' | 'expired' | 'error'
+type BindPhase = 'idle' | 'loading' | 'pending' | 'confirmed' | 'expired' | 'error'
 
-const REAUTH_POLL_INTERVAL_MS = 1500
+const BIND_POLL_INTERVAL_MS = 1500
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const PASSWORD_PATTERN = /^(?=.*[a-zA-Z])(?=.*\d).{8,20}$/
 
 function formatExpiry(seconds: number) {
   const safeSeconds = Math.max(0, Math.ceil(seconds))
@@ -16,29 +21,117 @@ function formatExpiry(seconds: number) {
 }
 
 export default function AccountSettingsPage() {
-  const navigate = useNavigate()
-  const { user, clearSession } = useAuthStore()
-  const [password, setPassword] = useState('')
-  const [confirmation, setConfirmation] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [reauthRun, setReauthRun] = useState(0)
-  const [reauthPhase, setReauthPhase] = useState<ReauthPhase>('idle')
-  const [reauthChallenge, setReauthChallenge] = useState<WechatChallengeCreateData | null>(null)
-  const [reauthProof, setReauthProof] = useState('')
-  const [reauthProofExpiresAt, setReauthProofExpiresAt] = useState(0)
-  const [reauthError, setReauthError] = useState('')
-  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
-  const challengeRequestRef = useRef<{
+  const { user, setCurrentUser } = useAuthStore()
+  const [bindRun, setBindRun] = useState(0)
+  const [bindPhase, setBindPhase] = useState<BindPhase>('idle')
+  const [bindChallenge, setBindChallenge] = useState<WechatChallengeCreateData | null>(null)
+  const [bindError, setBindError] = useState('')
+  const [email, setEmail] = useState('')
+  const [verificationCode, setVerificationCode] = useState('')
+  const [emailPassword, setEmailPassword] = useState('')
+  const [emailError, setEmailError] = useState('')
+  const [sendingCode, setSendingCode] = useState(false)
+  const [bindingEmail, setBindingEmail] = useState(false)
+  const [resendSeconds, setResendSeconds] = useState(0)
+  const [nickname, setNickname] = useState(user?.nickname ?? '')
+  const [avatarPreview, setAvatarPreview] = useState(user?.avatar ?? '')
+  const [avatarPhotoId, setAvatarPhotoId] = useState<number | null>(user?.avatarPhotoId ?? null)
+  const [removeAvatar, setRemoveAvatar] = useState(false)
+  const [profileError, setProfileError] = useState('')
+  const [profileSuccess, setProfileSuccess] = useState('')
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [savingProfile, setSavingProfile] = useState(false)
+  const avatarInputRef = useRef<HTMLInputElement | null>(null)
+  const bindChallengeRequestRef = useRef<{
     key: number
     request: Promise<WechatChallengeCreateData>
   } | null>(null)
-  const requiresPassword = Boolean(user?.emailLoginEnabled)
 
   useEffect(() => {
-    if (reauthRun === 0 || requiresPassword) {
+    setNickname(user?.nickname ?? '')
+    setAvatarPreview(user?.avatar ?? '')
+    setAvatarPhotoId(user?.avatarPhotoId ?? null)
+    setRemoveAvatar(false)
+  }, [user?.avatar, user?.avatarPhotoId, user?.id, user?.nickname])
+
+  const handleAvatarChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    setUploadingAvatar(true)
+    setProfileError('')
+    setProfileSuccess('')
+    let localPreview = ''
+    try {
+      const inspected = await inspectResumePhotoFile(file)
+      localPreview = URL.createObjectURL(file)
+      setAvatarPreview(localPreview)
+      const { data: authorizeResponse } = await resumePhotoApi.requestUpload({
+        fileName: file.name,
+        ...inspected,
+      })
+      await resumePhotoApi.upload(authorizeResponse.data, file)
+      const { data: completeResponse } = await resumePhotoApi.completeUpload(
+        authorizeResponse.data.photoNo,
+      )
+      const asset = completeResponse.data
+      setAvatarPreview(asset.accessUrl)
+      setAvatarPhotoId(asset.id)
+      setRemoveAvatar(false)
+    } catch (avatarError: unknown) {
+      setAvatarPreview(user?.avatar ?? '')
+      setAvatarPhotoId(user?.avatarPhotoId ?? null)
+      setProfileError(avatarError instanceof Error ? avatarError.message : '头像上传失败，请稍后重试')
+    } finally {
+      if (localPreview) URL.revokeObjectURL(localPreview)
+      setUploadingAvatar(false)
+      if (avatarInputRef.current) avatarInputRef.current.value = ''
+    }
+  }
+
+  const handleRemoveAvatar = () => {
+    setAvatarPreview('')
+    setAvatarPhotoId(null)
+    setRemoveAvatar(true)
+    setProfileError('')
+    setProfileSuccess('')
+  }
+
+  const handleSaveProfile = async (event: FormEvent) => {
+    event.preventDefault()
+    const normalizedNickname = nickname.trim()
+    if (!normalizedNickname || normalizedNickname.length > 64) {
+      setProfileError('昵称请控制在1-64个字符')
       return
     }
+    setSavingProfile(true)
+    setProfileError('')
+    setProfileSuccess('')
+    try {
+      const { data: response } = await authApi.updateProfile({
+        nickname: normalizedNickname,
+        avatarPhotoId,
+        removeAvatar,
+      })
+      setCurrentUser(response.data)
+      setProfileSuccess('已保存')
+      setRemoveAvatar(false)
+    } catch (saveError: unknown) {
+      setProfileError(saveError instanceof Error ? saveError.message : '保存失败，请稍后重试')
+    } finally {
+      setSavingProfile(false)
+    }
+  }
+
+  useEffect(() => {
+    if (resendSeconds <= 0) return
+    const timer = window.setInterval(() => {
+      setResendSeconds((seconds) => Math.max(0, seconds - 1))
+    }, 1000)
+    return () => window.clearInterval(timer)
+  }, [resendSeconds])
+
+  useEffect(() => {
+    if (bindRun === 0 || user?.paicongmingLinked) return
 
     let cancelled = false
     let pollTimer: number | null = null
@@ -50,41 +143,41 @@ export default function AccountSettingsPage() {
       }
     }
 
-    const fail = (message: string, phase: ReauthPhase = 'error') => {
+    const fail = (message: string, phase: BindPhase = 'error') => {
       if (cancelled) return
       stopPolling()
-      setReauthPhase(phase)
-      setReauthError(message)
+      setBindPhase(phase)
+      setBindError(message)
     }
 
     const poll = async (challenge: WechatChallengeCreateData): Promise<void> => {
       if (cancelled) return
       try {
-        const { data: response } = await authApi.getWechatReauthChallenge(
+        const { data: response } = await authApi.getWechatBindChallenge(
           challenge.challengeId,
           challenge.pollToken,
         )
         if (cancelled) return
         const status = response.data
         if (status.challengeId !== challenge.challengeId) {
-          fail('扫码确认状态校验失败，请重新生成二维码')
+          fail('绑定状态校验失败，请重新生成二维码')
           return
         }
-        setReauthChallenge((current) => current ? { ...current, expiresIn: status.expiresIn } : current)
+        setBindChallenge((current) => current ? { ...current, expiresIn: status.expiresIn } : current)
         if (status.status === 'PENDING' && status.expiresIn > 0) {
-          pollTimer = window.setTimeout(() => void poll(challenge), REAUTH_POLL_INTERVAL_MS)
+          pollTimer = window.setTimeout(() => void poll(challenge), BIND_POLL_INTERVAL_MS)
           return
         }
         if (status.status === 'CONFIRMED') {
-          const { data: exchangeResponse } = await authApi.exchangeWechatReauthChallenge(
+          const { data: exchangeResponse } = await authApi.exchangeWechatBindChallenge(
             challenge.challengeId,
             challenge.pollToken,
           )
           if (cancelled) return
-          setReauthProof(exchangeResponse.data.reauthProof)
-          setReauthProofExpiresAt(Date.now() + exchangeResponse.data.expiresIn * 1000)
-          setReauthPhase('confirmed')
-          setReauthError('')
+          setCurrentUser(exchangeResponse.data)
+          setBindPhase('confirmed')
+          setBindError('')
+          stopPolling()
           return
         }
         if (status.status === 'EXPIRED') {
@@ -92,34 +185,30 @@ export default function AccountSettingsPage() {
           return
         }
         fail('该二维码已经使用，请重新生成')
-      } catch {
-        fail('无法完成派聪明扫码确认，请稍后重试')
+      } catch (bindFailure: unknown) {
+        fail(bindFailure instanceof Error ? bindFailure.message : '绑定失败，请稍后重试')
       }
     }
 
     const start = async () => {
-      setReauthPhase('loading')
-      setReauthChallenge(null)
-      setReauthProof('')
-      setReauthProofExpiresAt(0)
-      setReauthError('')
-
-      if (challengeRequestRef.current?.key !== reauthRun) {
-        challengeRequestRef.current = {
-          key: reauthRun,
-          request: authApi.createWechatReauthChallenge()
+      setBindPhase('loading')
+      setBindChallenge(null)
+      setBindError('')
+      if (bindChallengeRequestRef.current?.key !== bindRun) {
+        bindChallengeRequestRef.current = {
+          key: bindRun,
+          request: authApi.createWechatBindChallenge()
             .then(({ data: response }) => response.data),
         }
       }
-
       try {
-        const challenge = await challengeRequestRef.current.request
+        const challenge = await bindChallengeRequestRef.current.request
         if (cancelled) return
-        setReauthChallenge(challenge)
-        setReauthPhase('pending')
-        pollTimer = window.setTimeout(() => void poll(challenge), REAUTH_POLL_INTERVAL_MS)
-      } catch {
-        fail('暂时无法生成身份确认二维码，请稍后重试')
+        setBindChallenge(challenge)
+        setBindPhase('pending')
+        pollTimer = window.setTimeout(() => void poll(challenge), BIND_POLL_INTERVAL_MS)
+      } catch (bindFailure: unknown) {
+        fail(bindFailure instanceof Error ? bindFailure.message : '暂时无法生成绑定二维码，请稍后重试')
       }
     }
 
@@ -128,47 +217,60 @@ export default function AccountSettingsPage() {
       cancelled = true
       stopPolling()
     }
-  }, [reauthRun, requiresPassword])
+  }, [bindRun, setCurrentUser, user?.paicongmingLinked])
 
-  const handleDeleteAccount = async (event: FormEvent) => {
-    event.preventDefault()
-    setError('')
-    if (confirmation !== '注销账号') {
-      setError('请输入“注销账号”确认操作')
-      return
+  const validateEmail = () => {
+    const normalizedEmail = email.trim().toLowerCase()
+    if (!EMAIL_PATTERN.test(normalizedEmail)) {
+      setEmailError('请输入正确的邮箱地址')
+      return null
     }
-    if (requiresPassword && !password) {
-      setError('请输入当前密码')
-      return
-    }
-    if (!requiresPassword && (!reauthProof || Date.now() >= reauthProofExpiresAt)) {
-      setReauthProof('')
-      setReauthProofExpiresAt(0)
-      setReauthPhase('expired')
-      setReauthError('本次身份确认已过期，请重新生成二维码')
-      setError('请先使用派聪明服务号扫码确认本次注销操作')
-      return
-    }
-    setConfirmDeleteOpen(true)
+    return normalizedEmail
   }
 
-  const confirmDeleteAccount = async () => {
-    setLoading(true)
+  const handleSendEmailCode = async () => {
+    const normalizedEmail = validateEmail()
+    if (!normalizedEmail) return
+    setSendingCode(true)
+    setEmailError('')
     try {
-      await authApi.deleteAccount({
-        password: requiresPassword ? password : undefined,
-        wechatReauthProof: requiresPassword ? undefined : reauthProof,
-        confirmation: '注销账号',
-      })
-      clearSession()
-      window.localStorage.removeItem('rememberedEmail')
-      window.localStorage.removeItem('rememberedPassword')
-      navigate('/', { replace: true })
-    } catch (deleteError: unknown) {
-      setConfirmDeleteOpen(false)
-      setError(deleteError instanceof Error ? deleteError.message : '账号注销失败，请稍后再试')
+      await authApi.requestEmailBindingCode(normalizedEmail)
+      setEmail(normalizedEmail)
+      setResendSeconds(60)
+    } catch (sendError: unknown) {
+      setEmailError(sendError instanceof Error ? sendError.message : '验证码发送失败，请稍后重试')
     } finally {
-      setLoading(false)
+      setSendingCode(false)
+    }
+  }
+
+  const handleBindEmail = async (event: FormEvent) => {
+    event.preventDefault()
+    const normalizedEmail = validateEmail()
+    if (!normalizedEmail) return
+    if (!/^\d{6}$/.test(verificationCode)) {
+      setEmailError('请输入6位验证码')
+      return
+    }
+    if (!PASSWORD_PATTERN.test(emailPassword)) {
+      setEmailError('密码需8-20位，包含字母和数字')
+      return
+    }
+    setBindingEmail(true)
+    setEmailError('')
+    try {
+      const { data: response } = await authApi.bindEmail({
+        email: normalizedEmail,
+        verificationCode,
+        password: emailPassword,
+      })
+      setCurrentUser(response.data)
+      setVerificationCode('')
+      setEmailPassword('')
+    } catch (bindEmailError: unknown) {
+      setEmailError(bindEmailError instanceof Error ? bindEmailError.message : '邮箱绑定失败，请稍后重试')
+    } finally {
+      setBindingEmail(false)
     }
   }
 
@@ -176,125 +278,206 @@ export default function AccountSettingsPage() {
     <div className="min-h-screen bg-slate-50">
       <Header />
       <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-        <h1 className="text-2xl font-bold text-slate-950">账号与数据</h1>
+        <h1 className="text-2xl font-bold text-slate-950">账号设置</h1>
 
-        <section className="mt-8 rounded-xl border border-slate-200 bg-white p-6" aria-labelledby="account-documents-title">
-          <h2 id="account-documents-title" className="text-lg font-semibold text-slate-950">隐私与服务资料</h2>
-          <div className="mt-4 flex flex-wrap gap-4 text-sm">
-            <Link to="/privacy" className="text-primary-600 hover:text-primary-700">隐私政策</Link>
-            <Link to="/terms" className="text-primary-600 hover:text-primary-700">服务条款</Link>
-            <Link to="/refund-policy" className="text-primary-600 hover:text-primary-700">退款规则</Link>
-            <Link to="/customer-service" className="text-primary-600 hover:text-primary-700">客服说明</Link>
-          </div>
-        </section>
-
-        <section className="mt-6 rounded-xl border border-red-200 bg-white p-6" aria-labelledby="delete-account-title">
-          <h2 id="delete-account-title" className="text-lg font-semibold text-red-700">注销账号</h2>
-          <div className="mt-3 space-y-2 text-sm leading-6 text-slate-600">
-            <p>注销后将立即停用登录、撤销旧会话、下架公开内容，并删除账号下的简历正文与 AI 明文记录。</p>
-            <p>存在未完成订单、人工精修申请、待退款记录或尚未结清的作者收益时，需先处理完毕才能注销。</p>
-            <p>为保障买家已购权益、处理退款争议和财务审计，已售简历版本以及必要的订单号、金额、状态和匿名用户编号会按规则继续保存；未售版本与问卷联系信息会删除或匿名化。</p>
-          </div>
-
-          <form onSubmit={handleDeleteAccount} aria-busy={loading} className="mt-6 space-y-4">
-            {error ? <div id="delete-account-error" role="alert" className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
-            {requiresPassword ? (
-              <div>
-                <label htmlFor="delete-account-password" className="block text-sm font-medium text-slate-700">当前密码</label>
-                <input
-                  id="delete-account-password"
-                  type="password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  autoComplete="current-password"
-                  maxLength={128}
-                  required
-                  aria-describedby={error ? 'delete-account-error' : undefined}
-                  className="mt-2 w-full rounded-lg border border-slate-300 px-4 py-2.5 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
-                />
-              </div>
-            ) : (
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                <p className="text-sm font-medium text-slate-800">使用派聪明服务号再次确认身份</p>
-                <p className="mt-1 text-xs leading-5 text-slate-500">身份确认凭证只在当前页面内存中保存，5 分钟后失效，并且只能用于一次注销请求。</p>
-
-                {reauthChallenge ? (
-                  <div className="mt-4 flex flex-col items-center gap-3 sm:flex-row sm:items-start">
-                    <div className="relative h-40 w-40 shrink-0 border border-slate-200 bg-white p-2">
-                      <img
-                        src={reauthChallenge.qrImageDataUrl}
-                        alt="派聪明服务号注销身份确认二维码"
-                        className={`h-full w-full object-contain ${reauthPhase === 'expired' || reauthPhase === 'error' ? 'opacity-25' : ''}`}
-                      />
-                    </div>
-                    <div className="text-sm leading-6 text-slate-600" aria-live="polite">
-                      {reauthPhase === 'pending' ? (
-                        <p>请使用微信扫描二维码，剩余 {formatExpiry(reauthChallenge.expiresIn)}。</p>
-                      ) : null}
-                      {reauthPhase === 'confirmed' ? (
-                        <p className="font-medium text-emerald-700">身份已确认，可以继续提交注销。</p>
-                      ) : null}
-                      {reauthError ? <p className="text-red-600">{reauthError}</p> : null}
-                      {(reauthPhase === 'expired' || reauthPhase === 'error') ? (
-                        <button
-                          type="button"
-                          onClick={() => setReauthRun((value) => value + 1)}
-                          className="mt-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:border-primary-300 hover:text-primary-700"
-                        >
-                          重新生成二维码
-                        </button>
-                      ) : null}
-                    </div>
-                  </div>
-                ) : (
+        <section className="mt-8 rounded-xl border border-slate-200 bg-white p-6" aria-labelledby="profile-title">
+          <h2 id="profile-title" className="text-lg font-semibold text-slate-950">个人资料</h2>
+          <form onSubmit={handleSaveProfile} className="mt-5">
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+              <div className="flex shrink-0 items-center gap-3">
+                <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-primary-50 text-2xl font-semibold text-primary-700">
+                  {avatarPreview ? (
+                    <img src={avatarPreview} alt="当前头像" className="h-full w-full object-cover" />
+                  ) : (
+                    <span aria-hidden="true">{(nickname.trim() || '用').slice(0, 1)}</span>
+                  )}
+                </div>
+                <div className="flex flex-col items-start gap-2">
+                  <input
+                    ref={avatarInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg"
+                    onChange={(event) => void handleAvatarChange(event)}
+                    className="hidden"
+                  />
                   <button
                     type="button"
-                    onClick={() => setReauthRun((value) => value + 1)}
-                    disabled={reauthPhase === 'loading'}
-                    className="mt-4 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:border-primary-300 hover:text-primary-700 disabled:cursor-wait disabled:opacity-60"
+                    disabled={uploadingAvatar}
+                    onClick={() => avatarInputRef.current?.click()}
+                    className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:border-primary-300 hover:text-primary-700 disabled:cursor-wait disabled:opacity-60"
                   >
-                    {reauthPhase === 'loading' ? '正在生成二维码...' : '扫码确认身份'}
+                    {uploadingAvatar ? '上传中...' : '更换头像'}
                   </button>
-                )}
+                  {avatarPreview ? (
+                    <button
+                      type="button"
+                      onClick={handleRemoveAvatar}
+                      className="text-sm text-slate-500 hover:text-red-600"
+                    >
+                      移除头像
+                    </button>
+                  ) : null}
+                </div>
               </div>
-            )}
-            <div>
-              <label htmlFor="delete-account-confirmation" className="block text-sm font-medium text-slate-700">输入“注销账号”确认</label>
-              <input
-                id="delete-account-confirmation"
-                value={confirmation}
-                onChange={(event) => setConfirmation(event.target.value)}
-                autoComplete="off"
-                maxLength={4}
-                pattern="注销账号"
-                required
-                aria-describedby={error ? 'delete-account-error' : undefined}
-                className="mt-2 w-full rounded-lg border border-slate-300 px-4 py-2.5 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
-              />
+
+              <div className="min-w-0 flex-1">
+                <label htmlFor="account-nickname" className="block text-sm font-medium text-slate-700">昵称</label>
+                <input
+                  id="account-nickname"
+                  value={nickname}
+                  onChange={(event) => {
+                    setNickname(event.target.value)
+                    setProfileError('')
+                    setProfileSuccess('')
+                  }}
+                  maxLength={64}
+                  required
+                  className="mt-2 w-full rounded-lg border border-slate-300 px-4 py-2.5 outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100"
+                />
+                <p className="mt-2 text-xs text-slate-500">PNG/JPG，不超过 {BASIC_INFO_PHOTO_MAX_SIZE_MB}MB</p>
+              </div>
             </div>
-            <button
-              type="submit"
-              disabled={loading
-                || confirmation !== '注销账号'
-                || (requiresPassword ? !password : reauthPhase !== 'confirmed')}
-              aria-busy={loading}
-              className="rounded-lg bg-red-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {loading ? '正在注销...' : '永久注销账号'}
-            </button>
+
+            <div className="mt-5 flex items-center gap-4">
+              <button
+                type="submit"
+                disabled={savingProfile || uploadingAvatar}
+                className="rounded-lg bg-primary-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-primary-700 disabled:cursor-wait disabled:opacity-60"
+              >
+                {savingProfile ? '保存中...' : '保存资料'}
+              </button>
+              <span aria-live="polite" className={`text-sm ${profileError ? 'text-red-600' : 'text-emerald-700'}`}>
+                {profileError || profileSuccess}
+              </span>
+            </div>
           </form>
         </section>
+
+        <section className="mt-6 rounded-xl border border-slate-200 bg-white p-6" aria-labelledby="wechat-binding-title">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 id="wechat-binding-title" className="text-lg font-semibold text-slate-950">绑定微信</h2>
+            {user?.paicongmingLinked ? (
+              <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700">已绑定</span>
+            ) : null}
+          </div>
+
+          {!user?.paicongmingLinked ? (
+            <div className="mt-5">
+              {bindChallenge ? (
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+                  <div className="h-44 w-44 shrink-0 border border-slate-200 bg-white p-2">
+                    <img
+                      src={bindChallenge.qrImageDataUrl}
+                      alt="派聪明服务号账号绑定二维码"
+                      className={`h-full w-full object-contain ${bindPhase === 'expired' || bindPhase === 'error' ? 'opacity-25' : ''}`}
+                    />
+                  </div>
+                  <div className="text-sm leading-6 text-slate-600" aria-live="polite">
+                    {bindPhase === 'pending' ? <p>等待扫码 · 剩余 {formatExpiry(bindChallenge.expiresIn)}</p> : null}
+                    {bindError ? <p role="alert" className="text-red-600">{bindError}</p> : null}
+                    {(bindPhase === 'expired' || bindPhase === 'error') ? (
+                      <button
+                        type="button"
+                        onClick={() => setBindRun((value) => value + 1)}
+                        className="mt-3 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:border-primary-300 hover:text-primary-700"
+                      >
+                        重新生成二维码
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {bindError ? <p role="alert" className="mb-3 text-sm text-red-600">{bindError}</p> : null}
+                  <button
+                    type="button"
+                    onClick={() => setBindRun((value) => value + 1)}
+                    disabled={bindPhase === 'loading'}
+                    className="rounded-lg bg-primary-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-primary-700 disabled:cursor-wait disabled:opacity-60"
+                  >
+                    {bindPhase === 'loading' ? '正在生成二维码...' : '绑定微信'}
+                  </button>
+                </>
+              )}
+            </div>
+          ) : null}
+        </section>
+
+        <section className="mt-6 rounded-xl border border-slate-200 bg-white p-6" aria-labelledby="email-binding-title">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 id="email-binding-title" className="text-lg font-semibold text-slate-950">绑定邮箱</h2>
+            {user?.emailLoginEnabled ? (
+              <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700">已绑定</span>
+            ) : null}
+          </div>
+
+          {user?.emailLoginEnabled ? (
+            <p className="mt-4 text-slate-700">{user.email}</p>
+          ) : (
+            <form onSubmit={handleBindEmail} className="mt-5 space-y-4">
+              {emailError ? <p role="alert" className="text-sm text-red-600">{emailError}</p> : null}
+              <div>
+                <label htmlFor="binding-email" className="block text-sm font-medium text-slate-700">邮箱</label>
+                <div className="mt-2 flex gap-3">
+                  <input
+                    id="binding-email"
+                    type="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    autoComplete="email"
+                    maxLength={128}
+                    required
+                    className="min-w-0 flex-1 rounded-lg border border-slate-300 px-4 py-2.5 outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void handleSendEmailCode()}
+                    disabled={sendingCode || resendSeconds > 0}
+                    className="shrink-0 rounded-lg border border-primary-200 px-4 py-2.5 text-sm font-medium text-primary-700 hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {sendingCode ? '发送中...' : resendSeconds > 0 ? `${resendSeconds}s` : '发送验证码'}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label htmlFor="binding-code" className="block text-sm font-medium text-slate-700">验证码</label>
+                <input
+                  id="binding-code"
+                  inputMode="numeric"
+                  value={verificationCode}
+                  onChange={(event) => setVerificationCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  required
+                  className="mt-2 w-full rounded-lg border border-slate-300 px-4 py-2.5 outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100"
+                />
+              </div>
+              <div>
+                <label htmlFor="binding-password" className="block text-sm font-medium text-slate-700">登录密码</label>
+                <input
+                  id="binding-password"
+                  type="password"
+                  value={emailPassword}
+                  onChange={(event) => setEmailPassword(event.target.value)}
+                  autoComplete="new-password"
+                  minLength={8}
+                  maxLength={20}
+                  required
+                  className="mt-2 w-full rounded-lg border border-slate-300 px-4 py-2.5 outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100"
+                />
+                <p className="mt-2 text-xs text-slate-500">8-20位，包含字母和数字</p>
+              </div>
+              <button
+                type="submit"
+                disabled={bindingEmail}
+                className="rounded-lg bg-primary-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-primary-700 disabled:cursor-wait disabled:opacity-60"
+              >
+                {bindingEmail ? '正在绑定...' : '绑定邮箱'}
+              </button>
+            </form>
+          )}
+        </section>
       </main>
-      <ConfirmDialog
-        open={confirmDeleteOpen}
-        title="永久注销账号？"
-        description="注销后账号和未依法保留的数据将无法恢复，请确认你确实要继续。"
-        confirmText="确认永久注销"
-        tone="danger"
-        loading={loading}
-        onConfirm={confirmDeleteAccount}
-        onCancel={() => setConfirmDeleteOpen(false)}
-      />
     </div>
   )
 }

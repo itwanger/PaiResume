@@ -303,6 +303,35 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
+    @Transactional
+    public UserInfoDTO updateProfile(Long userId, AccountProfileUpdateDTO dto) {
+        User user = userMapper.selectByIdForUpdate(userId);
+        if (user == null || user.getStatus() == null || user.getStatus() == 0
+                || user.getAccountDeletedAt() != null) {
+            throw new BusinessException(ResultCode.USER_NOT_FOUND);
+        }
+
+        String nickname = dto.getNickname() == null ? "" : dto.getNickname().strip();
+        if (nickname.isBlank() || nickname.length() > 64
+                || nickname.codePoints().anyMatch(Character::isISOControl)) {
+            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "请输入正确的昵称");
+        }
+
+        user.setNickname(nickname);
+        if (dto.getAvatarPhotoId() != null) {
+            if (resumePhotoService == null) {
+                throw new BusinessException(ResultCode.RESUME_PHOTO_UPLOAD_INVALID);
+            }
+            resumePhotoService.access(userId, dto.getAvatarPhotoId());
+            user.setAvatar(resumePhotoService.storedReference(dto.getAvatarPhotoId()));
+        } else if (dto.isRemoveAvatar()) {
+            user.setAvatar("");
+        }
+        userMapper.updateById(user);
+        return buildUserInfo(user);
+    }
+
+    @Override
     public void logout(Long userId, String accessToken) {
         var jti = jwtTokenProvider.getJtiFromToken(accessToken);
         var expiration = jwtTokenProvider.getExpirationFromToken(accessToken);
@@ -378,6 +407,79 @@ public class AuthServiceImpl implements AuthService {
         invalidateAllSessions(user.getId());
         markCredentialsChanged(user.getId());
         log.info("Password reset completed for userId={}", user.getId());
+    }
+
+    @Override
+    public void requestEmailBinding(Long userId, EmailBindingCodeDTO dto, String clientIp) {
+        User user = requireActiveUser(userId);
+        if (StringUtils.hasText(user.getEmail()) || findActiveEmailIdentityByUserId(userId) != null) {
+            throw new BusinessException(ResultCode.EMAIL_ALREADY_BOUND);
+        }
+
+        String normalizedEmail = normalizeEmail(dto.getEmail());
+        if (findActiveEmailIdentity(normalizedEmail) != null
+                || userMapper.selectCount(new LambdaQueryWrapper<User>().eq(User::getEmail, normalizedEmail)) > 0) {
+            throw new BusinessException(ResultCode.EMAIL_IDENTITY_CONFLICT);
+        }
+
+        String code = verificationCodeService.issueEmailBindingCode(normalizedEmail, clientIp);
+        try {
+            mailService.sendEmailBindingCode(normalizedEmail, code);
+        } catch (RuntimeException exception) {
+            verificationCodeService.rollbackEmailBindingCode(normalizedEmail);
+            throw exception;
+        }
+        log.info("Email binding verification accepted for delivery to userId={}, email={}",
+                userId, maskEmail(normalizedEmail));
+    }
+
+    @Override
+    @Transactional
+    public UserInfoDTO bindEmail(Long userId, EmailBindingConfirmDTO dto) {
+        User user = userMapper.selectByIdForUpdate(userId);
+        if (user == null || user.getStatus() == null || user.getStatus() == 0
+                || user.getAccountDeletedAt() != null) {
+            throw new BusinessException(ResultCode.USER_NOT_FOUND);
+        }
+        if (StringUtils.hasText(user.getEmail()) || findActiveEmailIdentityByUserId(userId) != null) {
+            throw new BusinessException(ResultCode.EMAIL_ALREADY_BOUND);
+        }
+
+        String normalizedEmail = normalizeEmail(dto.getEmail());
+        if (findActiveEmailIdentity(normalizedEmail) != null
+                || userMapper.selectCount(new LambdaQueryWrapper<User>().eq(User::getEmail, normalizedEmail)) > 0) {
+            throw new BusinessException(ResultCode.EMAIL_IDENTITY_CONFLICT);
+        }
+
+        VerificationCodeService.ConsumeResult verificationResult =
+                verificationCodeService.consumeEmailBindingCode(normalizedEmail, dto.getVerificationCode());
+        if (verificationResult == VerificationCodeService.ConsumeResult.ATTEMPTS_EXCEEDED) {
+            throw new BusinessException(ResultCode.VERIFY_CODE_ATTEMPTS_EXCEEDED);
+        }
+        if (verificationResult != VerificationCodeService.ConsumeResult.VERIFIED) {
+            throw new BusinessException(ResultCode.VERIFY_CODE_ERROR);
+        }
+
+        String encodedPassword = passwordEncoder.encode(dto.getPassword());
+        try {
+            user.setEmail(normalizedEmail);
+            user.setPassword(encodedPassword);
+            userMapper.updateById(user);
+
+            UserAuthIdentity identity = new UserAuthIdentity();
+            identity.setUserId(userId);
+            identity.setProvider(EMAIL_PASSWORD_PROVIDER);
+            identity.setPrincipal(normalizedEmail);
+            identity.setCredentialHash(encodedPassword);
+            identity.setVerifiedAt(LocalDateTime.now());
+            identity.setStatus(1);
+            userAuthIdentityMapper.insert(identity);
+        } catch (DuplicateKeyException exception) {
+            throw new BusinessException(ResultCode.EMAIL_IDENTITY_CONFLICT);
+        }
+
+        log.info("Email login enabled for userId={}, email={}", userId, maskEmail(normalizedEmail));
+        return buildUserInfo(user);
     }
 
     @Override
@@ -887,11 +989,24 @@ public class AuthServiceImpl implements AuthService {
         var role = user.getRole() != null && user.getRole() == 1 ? "ADMIN" : "USER";
         boolean emailLoginEnabled = StringUtils.hasText(user.getEmail());
         var wechatIdentity = findWechatIdentityByUserId(user.getId());
+        String avatarUrl = user.getAvatar();
+        Long avatarPhotoId = null;
+        if (resumePhotoService != null) {
+            avatarPhotoId = resumePhotoService.storedPhotoId(user.getAvatar());
+            if (avatarPhotoId != null) {
+                try {
+                    avatarUrl = resumePhotoService.access(user.getId(), avatarPhotoId).accessUrl();
+                } catch (RuntimeException exception) {
+                    log.warn("Unable to resolve account avatar for userId={}", user.getId());
+                    avatarUrl = "";
+                }
+            }
+        }
         UserInfoDTO userInfo = new UserInfoDTO(
                 user.getId(),
                 emailLoginEnabled ? user.getEmail() : null,
                 user.getNickname(),
-                user.getAvatar(),
+                avatarUrl,
                 role,
                 resolveMembershipStatus(user),
                 DateTimeUtils.format(user.getMembershipGrantedAt()),
@@ -903,6 +1018,7 @@ public class AuthServiceImpl implements AuthService {
                 wechatIdentity != null,
                 wechatIdentity != null && Boolean.TRUE.equals(wechatIdentity.getSubscribed())
         );
+        userInfo.setAvatarPhotoId(avatarPhotoId);
         return userInfo;
     }
 

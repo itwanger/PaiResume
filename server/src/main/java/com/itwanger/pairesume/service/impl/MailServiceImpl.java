@@ -90,6 +90,14 @@ public class MailServiceImpl implements MailService {
     }
 
     @Override
+    public void sendEmailBindingCode(String email, String code) {
+        sendTextMail(email, "派简历绑定邮箱验证码",
+                "你正在绑定派简历登录邮箱，验证码为 " + code
+                        + "，" + Math.max(1, verificationCodeTtlSeconds / 60)
+                        + " 分钟内有效。如非本人操作请忽略。");
+    }
+
+    @Override
     public void sendCouponCode(String email, String couponCode, int amountCents) {
         String amountText = formatCents(amountCents);
         sendTextMail(

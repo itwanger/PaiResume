@@ -529,12 +529,7 @@ export function MarketplaceGovernancePanel({
   return (
     <section className="rounded-lg border border-violet-200 bg-white px-6 py-6">
       <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900">市场治理工作台</h2>
-          <p className="mt-1 max-w-3xl text-sm leading-6 text-gray-500">
-            处理原因会永久写入治理审计记录。
-          </p>
-        </div>
+        <h2 className="text-lg font-semibold text-gray-900">市场治理工作台</h2>
         <button
           type="button"
           onClick={() => {

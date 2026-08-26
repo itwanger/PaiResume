@@ -235,12 +235,16 @@ export function AdminShell({
         <div className="border-t border-slate-100 p-3">
           <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3">
             <div className="flex items-center gap-2.5">
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-100 text-primary-700" aria-hidden="true">
-                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="8" r="3.5" />
-                  <path d="M5.5 20a6.5 6.5 0 0 1 13 0" />
-                </svg>
-              </span>
+              {user?.avatar ? (
+                <img src={user.avatar} alt="" className="h-8 w-8 shrink-0 rounded-full object-cover" />
+              ) : (
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-100 text-primary-700" aria-hidden="true">
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="8" r="3.5" />
+                    <path d="M5.5 20a6.5 6.5 0 0 1 13 0" />
+                  </svg>
+                </span>
+              )}
               <div className="min-w-0">
                 <div className="truncate text-xs font-semibold text-slate-700">
                   {user?.nickname || user?.email || '管理员账号'}

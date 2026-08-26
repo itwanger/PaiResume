@@ -68,8 +68,8 @@ const EXACT_ROUTES: Record<string, RouteSeoConfig> = {
     indexable: false,
   },
   '/settings/account': {
-    title: '账号与数据 - 派简历',
-    description: '管理派简历账号、隐私资料与账号注销。',
+    title: '账号设置 - 派简历',
+    description: '绑定派简历微信与邮箱登录方式。',
     indexable: false,
   },
   '/vip/claim': {

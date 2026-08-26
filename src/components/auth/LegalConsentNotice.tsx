@@ -21,7 +21,6 @@ export function LegalConsentNotice({ className = '' }: { className?: string }) {
       >
         《隐私政策》
       </Link>
-      <span className="block">仅在使用 AI 时，由第三方模型处理简历内容</span>
     </p>
   )
 }

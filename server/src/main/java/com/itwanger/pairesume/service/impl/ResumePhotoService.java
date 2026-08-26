@@ -23,6 +23,7 @@ import java.util.regex.Pattern;
 @Service
 @RequiredArgsConstructor
 public class ResumePhotoService {
+    private static final String STORED_PHOTO_PREFIX = "resume-photo:";
     private static final DateTimeFormatter OBJECT_DATE = DateTimeFormatter.ofPattern("yyyy/MM/dd");
     private static final Pattern OBJECT_PREFIX = Pattern.compile("^[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*/$");
 
@@ -109,6 +110,22 @@ public class ResumePhotoService {
     public ResumePhotoDTO access(Long userId, Long photoId) {
         ResumePhoto photo = requireReadyOwned(userId, photoId);
         return toDto(photo);
+    }
+
+    public String storedReference(Long photoId) {
+        if (photoId == null || photoId <= 0) throw invalidPhoto();
+        return STORED_PHOTO_PREFIX + photoId;
+    }
+
+    public Long storedPhotoId(String reference) {
+        if (!StringUtils.hasText(reference) || !reference.startsWith(STORED_PHOTO_PREFIX)) return null;
+        String value = reference.substring(STORED_PHOTO_PREFIX.length());
+        if (!value.matches("^[1-9][0-9]{0,18}$")) return null;
+        try {
+            return Long.parseLong(value);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 
     public Map<String, Object> prepareBasicInfoForPersistence(Long userId, String moduleType,

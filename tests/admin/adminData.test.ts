@@ -14,7 +14,11 @@ function buildUser(overrides: Partial<UserAdmin> = {}): UserAdmin {
     id: 42,
     email: 'admin@example.com',
     nickname: '管理员',
-    role: 'USER',
+    avatar: null,
+    accountType: 'EMAIL',
+    wechatIdentifier: null,
+    wechatSubscribed: null,
+    lastLoginAt: '2026-08-01T00:00:00Z',
     membershipStatus: 'FREE',
     membershipGrantedAt: null,
     membershipExpiresAt: null,
@@ -57,20 +61,27 @@ function buildResumeReview(
   }
 }
 
-test('纯扫码账号没有邮箱时回退到昵称作为展示名', () => {
+test('后台优先显示有效名称，通用微信昵称回退到稳定微信标识', () => {
   const wechatUser = buildUser({
     id: 88,
     email: null,
     nickname: '微信用户',
+    accountType: 'WECHAT',
+    wechatIdentifier: 'WX-A1B2C3D4',
+    wechatSubscribed: true,
     membershipStatus: 'ACTIVE',
   })
 
-  assert.equal(getUserAdminLabel(wechatUser), '微信用户')
-  assert.equal(getUserAdminLabel(buildUser()), 'admin@example.com')
+  assert.equal(getUserAdminLabel(wechatUser), '微信账号 WX-A1B2C3D4')
+  assert.equal(getUserAdminLabel(buildUser()), '管理员')
 })
 
 test('没有邮箱和昵称的账号回退到稳定用户编号', () => {
-  assert.equal(getUserAdminLabel(buildUser({ email: null, nickname: null })), '用户 #42')
+  assert.equal(getUserAdminLabel(buildUser({
+    email: null,
+    nickname: null,
+    wechatIdentifier: null,
+  })), '用户 #42')
 })
 
 test('人工精修待办只统计真正需要管理员介入的状态', () => {

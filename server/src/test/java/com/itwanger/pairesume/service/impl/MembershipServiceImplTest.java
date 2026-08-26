@@ -43,7 +43,7 @@ class MembershipServiceImplTest {
     @BeforeEach
     void setUp() {
         membershipService = new MembershipServiceImpl(
-                couponService, userMapper, membershipAuditService, null, null, null);
+                couponService, userMapper, null, membershipAuditService, null, null, null);
     }
 
     @Test
@@ -156,28 +156,6 @@ class MembershipServiceImplTest {
 
         assertEquals(ResultCode.MEMBERSHIP_PERMANENT.getCode(), exception.getCode());
         verify(userMapper, never()).updateMembership(any(User.class));
-    }
-
-    @Test
-    void grantMembershipUsesRowLockAndRecordsReasonedAudit() {
-        User user = user("FREE", LocalDateTime.now().minusDays(1));
-        user.setMembershipOriginType("VIP_INVITE");
-        user.setMembershipOriginId(88L);
-        when(userMapper.selectByIdForUpdate(1L)).thenReturn(user);
-
-        var result = membershipService.grantMembership(1L, 99L, "合作伙伴永久权益");
-
-        assertEquals("ACTIVE", user.getMembershipStatus());
-        assertEquals("ADMIN_GRANTED", user.getMembershipSource());
-        assertEquals("ADMIN_GRANTED", user.getMembershipOriginType());
-        assertNull(user.getMembershipOriginId());
-        assertNull(user.getMembershipExpiresAt());
-        assertEquals("ACTIVE", result.getMembershipStatus());
-        verify(userMapper).updateMembership(user);
-        verify(membershipAuditService).record(
-                eq(99L), eq("GRANT_MEMBERSHIP"), any(User.class), same(user),
-                isNull(), isNull(), eq("合作伙伴永久权益"), eq("手工开通永久 VIP")
-        );
     }
 
     @Test

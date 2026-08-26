@@ -43,6 +43,8 @@ public enum ResultCode {
     WECHAT_CHALLENGE_RATE_LIMITED(1138, "二维码创建过于频繁，请稍后再试"),
     WECHAT_REAUTH_REQUIRED(1139, "请重新扫描派聪明二维码确认注销"),
     WECHAT_GATEWAY_UNAVAILABLE(1140, "派聪明二维码服务暂不可用，请稍后再试"),
+    EMAIL_ALREADY_BOUND(1141, "当前账号已绑定邮箱"),
+    EMAIL_IDENTITY_CONFLICT(1142, "该邮箱已绑定其他账号"),
     REFRESH_TOKEN_INVALID(6001, "Refresh Token 无效"),
     REFRESH_TOKEN_EXPIRED(6002, "Refresh Token 过期"),
     USER_NOT_FOUND(6003, "用户不存在"),

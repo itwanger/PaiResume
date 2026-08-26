@@ -102,6 +102,26 @@ class VerificationCodeServiceImplTest {
     }
 
     @Test
+    void emailBindingCodeUsesAnIndependentNamespace() {
+        when(valueOperations.setIfAbsent(anyString(), eq("1"), any(Duration.class))).thenReturn(true);
+        doReturn(1L).when(redisTemplate)
+                .execute(any(RedisScript.class), anyList(), any(Object[].class));
+
+        String code = service.issueEmailBindingCode("user@example.com", "127.0.0.1");
+
+        assertTrue(code.matches("\\d{6}"));
+        verify(valueOperations).set(
+                startsWith("verify:email-binding:code:"),
+                argThat(stored -> stored.matches("[0-9a-f]{64}")),
+                eq(Duration.ofSeconds(300))
+        );
+        assertEquals(
+                VerificationCodeService.ConsumeResult.VERIFIED,
+                service.consumeEmailBindingCode("user@example.com", code)
+        );
+    }
+
+    @Test
     void resumeReviewContactCodeUsesIndependentOneTimeNamespace() {
         when(valueOperations.setIfAbsent(anyString(), eq("1"), any(Duration.class))).thenReturn(true);
         doReturn(1L).when(redisTemplate)

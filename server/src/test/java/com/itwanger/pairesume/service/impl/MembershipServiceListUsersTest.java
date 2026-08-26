@@ -9,6 +9,7 @@ import com.itwanger.pairesume.common.ResultCode;
 import com.itwanger.pairesume.dto.MarketplacePageDTO;
 import com.itwanger.pairesume.dto.UserAdminDTO;
 import com.itwanger.pairesume.mapper.UserMapper;
+import com.itwanger.pairesume.mapper.UserAuthIdentityMapper;
 import org.apache.ibatis.mapping.Environment;
 import org.apache.ibatis.session.SqlSession;
 import org.apache.ibatis.session.SqlSessionFactory;
@@ -47,6 +48,7 @@ class MembershipServiceListUsersTest {
         configuration.setEnvironment(
                 new Environment("test", new JdbcTransactionFactory(), dataSource));
         configuration.addMapper(UserMapper.class);
+        configuration.addMapper(UserAuthIdentityMapper.class);
         SqlSessionFactory sqlSessionFactory = new SqlSessionFactoryBuilder().build(configuration);
         sqlSession = sqlSessionFactory.openSession(true);
         connection = sqlSession.getConnection();
@@ -76,9 +78,28 @@ class MembershipServiceListUsersTest {
                         updated_at DATETIME
                     )
                     """);
+            statement.execute("""
+                    CREATE TABLE user_auth_identity (
+                        id BIGINT PRIMARY KEY,
+                        user_id BIGINT NOT NULL,
+                        provider VARCHAR(32) NOT NULL,
+                        principal VARCHAR(191) NOT NULL,
+                        credential_hash VARCHAR(255),
+                        verified_at DATETIME,
+                        status INT,
+                        last_login_at DATETIME,
+                        subscribed BOOLEAN,
+                        subscribed_at DATETIME,
+                        unsubscribed_at DATETIME,
+                        subscription_updated_at DATETIME,
+                        created_at DATETIME,
+                        updated_at DATETIME
+                    )
+                    """);
         }
         membershipService = new MembershipServiceImpl(
-                null, sqlSession.getMapper(UserMapper.class), null, null, null, null);
+                null, sqlSession.getMapper(UserMapper.class),
+                sqlSession.getMapper(UserAuthIdentityMapper.class), null, null, null, null);
     }
 
     @AfterEach
@@ -125,6 +146,33 @@ class MembershipServiceListUsersTest {
         assertEquals(1L, result.getRecords().get(0).getId());
         assertNull(result.getRecords().get(0).getEmail());
         assertEquals("扫码用户七号", result.getRecords().get(0).getNickname());
+    }
+
+    @Test
+    void wechatAccountIncludesStableIdentifierAndLoginState() throws SQLException {
+        insertUser(7L, null, "微信用户", "FREE", "2026-08-01 10:00:00");
+        insertIdentity(71L, 7L, "WECHAT_SERVICE", "wx-app:openid-7",
+                "2026-08-08 18:30:00", true);
+
+        UserAdminDTO user = membershipService.listUsers(1, 20, null, null)
+                .getRecords().get(0);
+
+        assertEquals("WECHAT", user.getAccountType());
+        assertTrue(user.getWechatIdentifier().matches("WX-[0-9A-F]{8}"));
+        assertEquals(true, user.getWechatSubscribed());
+        assertEquals("2026-08-08 18:30:00", user.getLastLoginAt());
+    }
+
+    @Test
+    void keywordMatchesExactUserId() throws SQLException {
+        insertUser(7L, null, "微信用户", "FREE", "2026-08-01 10:00:00");
+        insertUser(17L, null, "微信用户", "FREE", "2026-08-02 10:00:00");
+
+        MarketplacePageDTO<UserAdminDTO> result =
+                membershipService.listUsers(1, 20, "7", null);
+
+        assertEquals(1, result.getTotal());
+        assertEquals(7L, result.getRecords().get(0).getId());
     }
 
     @Test
@@ -247,6 +295,24 @@ class MembershipServiceListUsersTest {
             statement.setString(5, membershipExpiresAt);
             statement.setString(6, createdAt);
             statement.setString(7, createdAt);
+            statement.executeUpdate();
+        }
+    }
+
+    private void insertIdentity(long id, long userId, String provider, String principal,
+                                String lastLoginAt, boolean subscribed) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement("""
+                INSERT INTO user_auth_identity
+                    (id, user_id, provider, principal, status, last_login_at, subscribed,
+                     created_at, updated_at)
+                VALUES (?, ?, ?, ?, 1, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """)) {
+            statement.setLong(1, id);
+            statement.setLong(2, userId);
+            statement.setString(3, provider);
+            statement.setString(4, principal);
+            statement.setString(5, lastLoginAt);
+            statement.setBoolean(6, subscribed);
             statement.executeUpdate();
         }
     }

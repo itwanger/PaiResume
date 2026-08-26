@@ -158,19 +158,6 @@ public class AdminController {
         return Result.success(membershipService.listUsers(page, size, keyword, membershipStatus));
     }
 
-    @Operation(summary = "手工开通会员")
-    @PostMapping("/users/{id}/membership/grant")
-    public Result<UserAdminDTO> grantMembership(
-            @PathVariable Long id,
-            @Valid @RequestBody AdminActionReasonDTO dto
-    ) {
-        return Result.success(membershipService.grantMembership(
-                id,
-                SecurityUtils.getCurrentUserId(),
-                dto.getReason()
-        ));
-    }
-
     @Operation(summary = "延长会员有效期")
     @PostMapping("/users/{id}/membership/extend")
     public Result<UserAdminDTO> extendMembership(

@@ -17,8 +17,6 @@ public interface MembershipService {
 
     MarketplacePageDTO<UserAdminDTO> listUsers(int page, int size, String keyword, String membershipStatus);
 
-    UserAdminDTO grantMembership(Long userId, Long adminUserId, String reason);
-
     UserAdminDTO extendMembership(Long userId, int days, Long adminUserId, String reason);
 
     UserAdminDTO revokeMembership(Long userId, Long adminUserId, String reason);
