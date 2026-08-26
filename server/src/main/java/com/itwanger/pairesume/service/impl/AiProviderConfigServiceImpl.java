@@ -78,35 +78,34 @@ public class AiProviderConfigServiceImpl implements AiProviderConfigService {
     @Transactional
     public AiProviderConfigViewDTO update(Long adminUserId, AiProviderConfigUpdateDTO dto) {
         var config = requireRow();
+        var preset = AiProviderPreset.require(dto.getProviderCode());
         var changedFields = new ArrayList<String>();
         boolean keyRotated = false;
         boolean disclosureChanged = false;
 
-        if (!equalsNullable(config.getDisplayName(), dto.getDisplayName())) {
-            config.setDisplayName(dto.getDisplayName());
+        if (!equalsNullable(config.getProviderCode(), preset.code())) {
+            config.setProviderCode(preset.code());
+            changedFields.add("providerCode");
+        }
+        if (!equalsNullable(config.getDisplayName(), preset.displayName())) {
+            config.setDisplayName(preset.displayName());
             changedFields.add("displayName");
             disclosureChanged = true;
         }
-        if (!equalsNullable(config.getBaseUrl(), dto.getBaseUrl())) {
-            config.setBaseUrl(dto.getBaseUrl());
+        if (!equalsNullable(config.getBaseUrl(), preset.baseUrl())) {
+            config.setBaseUrl(preset.baseUrl());
             changedFields.add("baseUrl");
         }
-        if (!equalsNullable(config.getGeneralModel(), dto.getGeneralModel())) {
-            config.setGeneralModel(dto.getGeneralModel());
+        if (!equalsNullable(config.getGeneralModel(), preset.generalModel())) {
+            config.setGeneralModel(preset.generalModel());
             changedFields.add("generalModel");
         }
-        if (!equalsNullable(config.getAnalysisModel(), dto.getAnalysisModel())) {
-            config.setAnalysisModel(dto.getAnalysisModel());
+        if (!equalsNullable(config.getAnalysisModel(), preset.analysisModel())) {
+            config.setAnalysisModel(preset.analysisModel());
             changedFields.add("analysisModel");
         }
-        String normalizedPrivacyUrl = dto.getPrivacyPolicyUrl() == null
-                ? "" : dto.getPrivacyPolicyUrl().strip();
-        if (!normalizedPrivacyUrl.isEmpty() && !isHttpsUrl(normalizedPrivacyUrl)) {
-            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(),
-                    "隐私政策链接必须是合法的 HTTPS 地址");
-        }
-        if (!equalsNullable(config.getPrivacyPolicyUrl(), normalizedPrivacyUrl)) {
-            config.setPrivacyPolicyUrl(normalizedPrivacyUrl);
+        if (!equalsNullable(config.getPrivacyPolicyUrl(), preset.privacyPolicyUrl())) {
+            config.setPrivacyPolicyUrl(preset.privacyPolicyUrl());
             changedFields.add("privacyPolicyUrl");
             disclosureChanged = true;
         }
@@ -117,7 +116,7 @@ public class AiProviderConfigServiceImpl implements AiProviderConfigService {
         }
 
         if (dto.getApiKey() != null && !dto.getApiKey().isBlank()) {
-            if (Boolean.TRUE.equals(dto.isEnabled()) && !cryptoService.isAvailable()) {
+            if (!cryptoService.isAvailable()) {
                 throw new BusinessException(ResultCode.INTERNAL_ERROR.getCode(),
                         "未配置 AI_PROVIDER_MASTER_KEY，无法保存加密 API Key");
             }
@@ -150,7 +149,7 @@ public class AiProviderConfigServiceImpl implements AiProviderConfigService {
 
     @Override
     public AiProviderTestResultDTO testConnection(Long adminUserId) {
-        var active = resolveActive();
+        var active = resolveSavedConfigForTest();
         var result = new AiProviderTestResultDTO();
         long start = System.currentTimeMillis();
         try {
@@ -177,6 +176,24 @@ public class AiProviderConfigServiceImpl implements AiProviderConfigService {
         auditMapper.insert(audit(adminUserId, "TEST", null, false,
                 (result.isSuccess() ? "成功" : "失败") + "，耗时 " + result.getLatencyMillis() + "ms"));
         return result;
+    }
+
+    private ActiveAiConfig resolveSavedConfigForTest() {
+        var config = requireRow();
+        String apiKey = config.getApiKeyCipher() == null
+                ? envApiKey : cryptoService.decrypt(config.getApiKeyCipher());
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(),
+                    "测试前必须配置 API Key");
+        }
+        return new ActiveAiConfig(
+                config.getDisplayName(),
+                config.getBaseUrl(),
+                apiKey,
+                config.getGeneralModel(),
+                config.getAnalysisModel(),
+                true
+        );
     }
 
     @Override
@@ -258,6 +275,7 @@ public class AiProviderConfigServiceImpl implements AiProviderConfigService {
 
     private AiProviderConfigViewDTO toView(AiProviderConfig config) {
         var view = new AiProviderConfigViewDTO();
+        view.setProviderCode(config.getProviderCode());
         view.setDisplayName(config.getDisplayName());
         view.setBaseUrl(config.getBaseUrl());
         view.setGeneralModel(config.getGeneralModel());
@@ -293,17 +311,6 @@ public class AiProviderConfigServiceImpl implements AiProviderConfigService {
             return normalized;
         }
         return normalized.replaceAll("/+$", "") + path;
-    }
-
-    private boolean isHttpsUrl(String value) {
-        try {
-            var uri = java.net.URI.create(value);
-            return "https".equalsIgnoreCase(uri.getScheme())
-                    && uri.getHost() != null
-                    && uri.getUserInfo() == null;
-        } catch (RuntimeException e) {
-            return false;
-        }
     }
 
     private boolean equalsNullable(String a, String b) {

@@ -16,6 +16,7 @@ public class AiProviderConfig {
 
     @TableId(type = IdType.INPUT)
     private Long id;
+    private String providerCode;
     private String displayName;
     private String baseUrl;
     private String generalModel;

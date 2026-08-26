@@ -71,7 +71,7 @@ class RealMySqlMigrationTest {
                 .load();
         throughCurrent.migrate();
 
-        assertEquals("40",
+        assertEquals("41",
                 throughCurrent.info().current().getVersion().getVersion());
 
         Flyway restart = Flyway.configure()
@@ -82,7 +82,7 @@ class RealMySqlMigrationTest {
                 .load();
         assertEquals(0, restart.migrate().migrationsExecuted,
                 "已迁移到当前版本后再次执行迁移不应应用任何脚本");
-        assertEquals("40",
+        assertEquals("41",
                 restart.info().current().getVersion().getVersion());
 
         try (var connection = DriverManager.getConnection(url, username, password)) {
@@ -135,6 +135,9 @@ class RealMySqlMigrationTest {
                     "idx_resume_analysis_scenario"));
             assertTrue(tableExists(connection, "ai_provider_config"));
             assertTrue(tableExists(connection, "ai_provider_config_audit"));
+            assertTrue(columnExists(connection, "ai_provider_config", "provider_code"));
+            assertEquals("DEEPSEEK", columnDefault(
+                    connection, "ai_provider_config", "provider_code"));
             assertAiProviderSeedRow(connection);
             assertPromptSeedConfigs(connection);
             assertLegacyOrdersPreserved(connection);
@@ -274,8 +277,13 @@ class RealMySqlMigrationTest {
                      SELECT COUNT(*) AS total,
                             SUM(CASE WHEN `id` = 1 AND `enabled` = 0
                                  AND `api_key_cipher` IS NULL
-                                 AND `display_name` IS NOT NULL
-                                 AND `base_url` IS NOT NULL THEN 1 ELSE 0 END) AS seed_ok
+                                 AND `provider_code` = 'DEEPSEEK'
+                                 AND `display_name` = 'DeepSeek'
+                                 AND `base_url` = 'https://api.deepseek.com'
+                                 AND `general_model` = 'deepseek-v4-flash'
+                                 AND `analysis_model` = 'deepseek-v4-flash'
+                                 AND `privacy_policy_url` = 'https://cdn.deepseek.com/policies/zh-CN/deepseek-privacy-policy.html'
+                                 THEN 1 ELSE 0 END) AS seed_ok
                      FROM `ai_provider_config`
                      """)) {
             assertTrue(result.next());

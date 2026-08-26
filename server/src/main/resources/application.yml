@@ -198,9 +198,9 @@ jwt:
 
 ai:
   api-key: ${AI_API_KEY:${DEEPSEEK_API_KEY:}}
-  base-url: ${AI_BASE_URL:${DEEPSEEK_BASE_URL:https://api.deepseek.com/v1}}
-  model: ${AI_MODEL:${DEEPSEEK_MODEL:deepseek-chat}}
-  analysis-model: ${AI_ANALYSIS_MODEL:${DEEPSEEK_ANALYSIS_MODEL:${AI_MODEL:${DEEPSEEK_MODEL:deepseek-chat}}}}
+  base-url: ${AI_BASE_URL:${DEEPSEEK_BASE_URL:https://api.deepseek.com}}
+  model: ${AI_MODEL:${DEEPSEEK_MODEL:deepseek-v4-flash}}
+  analysis-model: ${AI_ANALYSIS_MODEL:${DEEPSEEK_ANALYSIS_MODEL:${AI_MODEL:${DEEPSEEK_MODEL:deepseek-v4-flash}}}}
   timeout: 60
   provider:
     # 管理后台加密 API Key 的主密钥（Base64 的 32 字节），只允许放在权限 0600 的环境文件中。

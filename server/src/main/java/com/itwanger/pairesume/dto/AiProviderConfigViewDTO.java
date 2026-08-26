@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 
 @Data
 public class AiProviderConfigViewDTO {
+    private String providerCode;
     private String displayName;
     private String baseUrl;
     private String generalModel;

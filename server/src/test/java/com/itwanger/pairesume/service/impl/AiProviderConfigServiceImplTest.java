@@ -96,8 +96,7 @@ class AiProviderConfigServiceImplTest {
         config.setApiKeyMask("sk-l••••-key");
         when(configMapper.selectById(AiProviderConfig.SINGLE_ROW_ID)).thenReturn(config);
 
-        var result = service.update(ADMIN_ID, update("DeepSeek", "https://api.deepseek.com/v1",
-                "deepseek-chat", "deepseek-chat", "", "", false));
+        var result = service.update(ADMIN_ID, update("DEEPSEEK", "", false));
 
         assertArrayEquals(originalCipher, config.getApiKeyCipher());
         assertEquals("sk-l••••-key", config.getApiKeyMask());
@@ -116,8 +115,7 @@ class AiProviderConfigServiceImplTest {
         config.setApiKeyMask("sk-l••••alue");
         when(configMapper.selectById(AiProviderConfig.SINGLE_ROW_ID)).thenReturn(config);
 
-        service.update(ADMIN_ID, update("DeepSeek", "https://api.deepseek.com/v1",
-                "deepseek-chat", "deepseek-chat", "sk-live-new-value", "", false));
+        service.update(ADMIN_ID, update("DEEPSEEK", "sk-live-new-value", false));
 
         assertEquals(AiProviderCryptoService.mask("sk-live-new-value"), config.getApiKeyMask());
         assertEquals("sk-live-new-value", cryptoService.decrypt(config.getApiKeyCipher()));
@@ -135,15 +133,14 @@ class AiProviderConfigServiceImplTest {
         when(configMapper.selectById(AiProviderConfig.SINGLE_ROW_ID)).thenReturn(config);
 
         var error = assertThrows(BusinessException.class, () -> service.update(ADMIN_ID,
-                update("DeepSeek", "https://api.deepseek.com/v1",
-                        "deepseek-chat", "deepseek-chat", "", "", true)));
+                update("DEEPSEEK", "", true)));
 
         assertEquals("启用前必须配置 API Key", error.getMessage());
         verify(configMapper, never()).updateById(any(AiProviderConfig.class));
     }
 
     @Test
-    void savingEncryptedKeyWithoutMasterKeyFailsClosed() {
+    void savingEncryptedKeyWithoutMasterKeyFailsClosedEvenWhenDisabled() {
         var noKeyCrypto = new AiProviderCryptoService("");
         var closed = new AiProviderConfigServiceImpl(
                 configMapper, auditMapper, noKeyCrypto, userMapper);
@@ -151,8 +148,7 @@ class AiProviderConfigServiceImplTest {
         when(configMapper.selectById(AiProviderConfig.SINGLE_ROW_ID)).thenReturn(storedConfig());
 
         var error = assertThrows(BusinessException.class, () -> closed.update(ADMIN_ID,
-                update("DeepSeek", "https://api.deepseek.com/v1",
-                        "deepseek-chat", "deepseek-chat", "sk-live-value", "", true)));
+                update("DEEPSEEK", "sk-live-value", false)));
 
         assertEquals(500, error.getCode());
         assertTrue(error.getMessage().contains("AI_PROVIDER_MASTER_KEY"));
@@ -162,20 +158,23 @@ class AiProviderConfigServiceImplTest {
     void providerDisclosureChangeWhileEnabledResetsUserConsent() {
         var config = storedConfig();
         config.setEnabled(true);
+        config.setDisplayName("历史服务商名称");
+        config.setPrivacyPolicyUrl("https://example.com/legacy-privacy");
         when(configMapper.selectById(AiProviderConfig.SINGLE_ROW_ID)).thenReturn(config);
 
-        service.update(ADMIN_ID, update("智谱 AI", "https://api.deepseek.com/v1",
-                "deepseek-chat", "deepseek-chat", "", "", true));
+        service.update(ADMIN_ID, update("DEEPSEEK", "", true));
 
         verify(userMapper).update(isNull(), any());
     }
 
     @Test
     void providerChangeWhileDisabledDoesNotResetConsent() {
-        when(configMapper.selectById(AiProviderConfig.SINGLE_ROW_ID)).thenReturn(storedConfig());
+        var config = storedConfig();
+        config.setDisplayName("历史服务商名称");
+        config.setPrivacyPolicyUrl("https://example.com/legacy-privacy");
+        when(configMapper.selectById(AiProviderConfig.SINGLE_ROW_ID)).thenReturn(config);
 
-        service.update(ADMIN_ID, update("智谱 AI", "https://api.deepseek.com/v1",
-                "deepseek-chat", "deepseek-chat", "", "", false));
+        service.update(ADMIN_ID, update("DEEPSEEK", "", false));
 
         verify(userMapper, never()).update(any(), any());
     }
@@ -219,8 +218,7 @@ class AiProviderConfigServiceImplTest {
         var before = service.resolveActive();
         assertEquals("sk-live-db-key", before.apiKey());
 
-        service.update(ADMIN_ID, update("DeepSeek", "https://api.deepseek.com/v1",
-                "deepseek-chat", "deepseek-chat", "sk-live-rotated-key", "", true));
+        service.update(ADMIN_ID, update("DEEPSEEK", "sk-live-rotated-key", true));
         var after = service.resolveActive();
 
         assertEquals("sk-live-rotated-key", after.apiKey());
@@ -228,7 +226,7 @@ class AiProviderConfigServiceImplTest {
     }
 
     @Test
-    void testConnectionRecordsAuditWithoutSecrets() throws IOException {
+    void testConnectionUsesSavedDisabledConfigAndRecordsAuditWithoutSecrets() throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         ExecutorService executor = Executors.newSingleThreadExecutor();
         server.setExecutor(executor);
@@ -242,7 +240,6 @@ class AiProviderConfigServiceImplTest {
         server.start();
         try {
             var config = storedConfig();
-            config.setEnabled(true);
             config.setBaseUrl("http://127.0.0.1:" + server.getAddress().getPort() + "/v1");
             config.setApiKeyCipher(cryptoService.encrypt("sk-live-db-key"));
             when(configMapper.selectById(AiProviderConfig.SINGLE_ROW_ID)).thenReturn(config);
@@ -289,40 +286,54 @@ class AiProviderConfigServiceImplTest {
     }
 
     @Test
-    void nonHttpsPrivacyUrlIsRejected() {
+    void unsupportedProviderIsRejected() {
         when(configMapper.selectById(AiProviderConfig.SINGLE_ROW_ID)).thenReturn(storedConfig());
 
         var error = assertThrows(BusinessException.class, () -> service.update(ADMIN_ID,
-                update("DeepSeek", "https://api.deepseek.com/v1",
-                        "deepseek-chat", "deepseek-chat", "", "http://insecure.example.com", false)));
+                update("UNKNOWN", "", false)));
 
-        assertEquals("隐私政策链接必须是合法的 HTTPS 地址", error.getMessage());
+        assertEquals("不支持的 AI 服务商", error.getMessage());
         verify(configMapper, never()).updateById(any(AiProviderConfig.class));
+    }
+
+    @Test
+    void providerPresetOverridesStoredConnectionParameters() {
+        var config = storedConfig();
+        config.setBaseUrl("https://example.com/custom");
+        config.setGeneralModel("custom-general");
+        config.setAnalysisModel("custom-analysis");
+        config.setPrivacyPolicyUrl("https://example.com/privacy");
+        when(configMapper.selectById(AiProviderConfig.SINGLE_ROW_ID)).thenReturn(config);
+
+        var result = service.update(ADMIN_ID, update("deepseek", "", false));
+
+        assertEquals("DEEPSEEK", result.getProviderCode());
+        assertEquals("DeepSeek", result.getDisplayName());
+        assertEquals("https://api.deepseek.com", result.getBaseUrl());
+        assertEquals("deepseek-v4-flash", result.getGeneralModel());
+        assertEquals("deepseek-v4-flash", result.getAnalysisModel());
+        assertEquals("https://cdn.deepseek.com/policies/zh-CN/deepseek-privacy-policy.html",
+                result.getPrivacyPolicyUrl());
     }
 
     private AiProviderConfig storedConfig() {
         var config = new AiProviderConfig();
         config.setId(AiProviderConfig.SINGLE_ROW_ID);
+        config.setProviderCode("DEEPSEEK");
         config.setDisplayName("DeepSeek");
-        config.setBaseUrl("https://api.deepseek.com/v1");
-        config.setGeneralModel("deepseek-chat");
-        config.setAnalysisModel("deepseek-chat");
-        config.setPrivacyPolicyUrl("");
+        config.setBaseUrl("https://api.deepseek.com");
+        config.setGeneralModel("deepseek-v4-flash");
+        config.setAnalysisModel("deepseek-v4-flash");
+        config.setPrivacyPolicyUrl(
+                "https://cdn.deepseek.com/policies/zh-CN/deepseek-privacy-policy.html");
         config.setEnabled(false);
         return config;
     }
 
-    private AiProviderConfigUpdateDTO update(
-            String displayName, String baseUrl, String generalModel,
-            String analysisModel, String apiKey, String privacyUrl, boolean enabled
-    ) {
+    private AiProviderConfigUpdateDTO update(String providerCode, String apiKey, boolean enabled) {
         var dto = new AiProviderConfigUpdateDTO();
-        dto.setDisplayName(displayName);
-        dto.setBaseUrl(baseUrl);
-        dto.setGeneralModel(generalModel);
-        dto.setAnalysisModel(analysisModel);
+        dto.setProviderCode(providerCode);
         dto.setApiKey(apiKey);
-        dto.setPrivacyPolicyUrl(privacyUrl);
         dto.setEnabled(enabled);
         return dto;
     }

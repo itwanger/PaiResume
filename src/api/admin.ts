@@ -395,6 +395,7 @@ export interface MembershipPaymentAdminQuery {
 }
 
 export interface AiProviderConfigView {
+  providerCode: string
   displayName: string
   baseUrl: string
   generalModel: string
@@ -408,13 +409,9 @@ export interface AiProviderConfigView {
 }
 
 export interface AiProviderConfigUpdatePayload {
-  displayName: string
-  baseUrl: string
-  generalModel: string
-  analysisModel: string
+  providerCode: string
   /** 留空表示保留已配置的 API Key。 */
   apiKey: string
-  privacyPolicyUrl: string
   enabled: boolean
 }
 

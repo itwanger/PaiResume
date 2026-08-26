@@ -103,10 +103,11 @@ class AdminAiProviderControllerSecurityTest {
     @Test
     void adminViewReturnsMaskButNeverPlaintextOrCipher() throws Exception {
         var view = new AiProviderConfigViewDTO();
+        view.setProviderCode("DEEPSEEK");
         view.setDisplayName("DeepSeek");
-        view.setBaseUrl("https://api.deepseek.com/v1");
-        view.setGeneralModel("deepseek-chat");
-        view.setAnalysisModel("deepseek-chat");
+        view.setBaseUrl("https://api.deepseek.com");
+        view.setGeneralModel("deepseek-v4-flash");
+        view.setAnalysisModel("deepseek-v4-flash");
         view.setApiKeyMask("sk-l••••1234");
         view.setApiKeyConfigured(true);
         view.setMasterKeyConfigured(true);
@@ -132,12 +133,8 @@ class AdminAiProviderControllerSecurityTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "displayName": "智谱 AI",
-                                  "baseUrl": "https://open.bigmodel.cn/api/paas/v4",
-                                  "generalModel": "glm-4.6",
-                                  "analysisModel": "glm-4.6",
+                                  "providerCode": "DEEPSEEK",
                                   "apiKey": "",
-                                  "privacyPolicyUrl": "https://example.com/privacy",
                                   "enabled": true
                                 }
                                 """))
@@ -145,22 +142,19 @@ class AdminAiProviderControllerSecurityTest {
 
         var captor = org.mockito.ArgumentCaptor.forClass(AiProviderConfigUpdateDTO.class);
         verify(aiProviderConfigService).update(eq(ADMIN_USER_ID), captor.capture());
-        org.junit.jupiter.api.Assertions.assertEquals("智谱 AI", captor.getValue().getDisplayName());
+        org.junit.jupiter.api.Assertions.assertEquals("DEEPSEEK", captor.getValue().getProviderCode());
         org.junit.jupiter.api.Assertions.assertTrue(captor.getValue().isEnabled());
         org.junit.jupiter.api.Assertions.assertEquals("", captor.getValue().getApiKey());
     }
 
     @Test
-    void blankDisplayNameIsRejectedBeforeService() throws Exception {
+    void blankProviderCodeIsRejectedBeforeService() throws Exception {
         mockMvc.perform(put("/admin/ai-provider")
                         .header("Authorization", "Bearer " + adminAccessToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "displayName": "  ",
-                                  "baseUrl": "https://open.bigmodel.cn/api/paas/v4",
-                                  "generalModel": "glm-4.6",
-                                  "analysisModel": "glm-4.6"
+                                  "providerCode": "  "
                                 }
                                 """))
                 .andExpect(status().isBadRequest());

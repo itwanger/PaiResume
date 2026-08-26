@@ -2,14 +2,14 @@ import { useEffect, useState } from 'react'
 import { adminApi, type AiProviderConfigView } from '../../api/admin'
 
 const EMPTY_FORM = {
-  displayName: '',
-  baseUrl: '',
-  generalModel: '',
-  analysisModel: '',
+  providerCode: 'DEEPSEEK',
   apiKey: '',
-  privacyPolicyUrl: '',
   enabled: false,
 }
+
+const AI_PROVIDER_OPTIONS = [
+  { code: 'DEEPSEEK', name: 'DeepSeek' },
+] as const
 
 export function AiProviderAdminPanel() {
   const [view, setView] = useState<AiProviderConfigView | null>(null)
@@ -30,12 +30,8 @@ export function AiProviderAdminPanel() {
         const data = response.data.data
         setView(data)
         setForm({
-          displayName: data.displayName,
-          baseUrl: data.baseUrl,
-          generalModel: data.generalModel,
-          analysisModel: data.analysisModel,
+          providerCode: data.providerCode,
           apiKey: '',
-          privacyPolicyUrl: data.privacyPolicyUrl,
           enabled: data.enabled,
         })
       })
@@ -62,7 +58,12 @@ export function AiProviderAdminPanel() {
       const response = await adminApi.updateAiProviderConfig(form)
       const data = response.data.data
       setView(data)
-      setForm((current) => ({ ...current, apiKey: '', enabled: data.enabled }))
+      setForm((current) => ({
+        ...current,
+        providerCode: data.providerCode,
+        apiKey: '',
+        enabled: data.enabled,
+      }))
       setSuccess('AI 服务商配置已保存')
     } catch {
       setError('AI 服务商配置保存失败')
@@ -125,40 +126,16 @@ export function AiProviderAdminPanel() {
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
         <label className="block text-sm">
-          <span className="font-medium text-slate-700">服务商名称</span>
-          <input
-            value={form.displayName}
-            onChange={(event) => update({ displayName: event.target.value })}
-            maxLength={64}
+          <span className="font-medium text-slate-700">服务商</span>
+          <select
+            value={form.providerCode}
+            onChange={(event) => update({ providerCode: event.target.value })}
             className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-primary-300 focus:ring-2 focus:ring-primary-100"
-          />
-        </label>
-        <label className="block text-sm">
-          <span className="font-medium text-slate-700">Base URL</span>
-          <input
-            value={form.baseUrl}
-            onChange={(event) => update({ baseUrl: event.target.value })}
-            maxLength={255}
-            className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-primary-300 focus:ring-2 focus:ring-primary-100"
-          />
-        </label>
-        <label className="block text-sm">
-          <span className="font-medium text-slate-700">通用模型</span>
-          <input
-            value={form.generalModel}
-            onChange={(event) => update({ generalModel: event.target.value })}
-            maxLength={64}
-            className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-primary-300 focus:ring-2 focus:ring-primary-100"
-          />
-        </label>
-        <label className="block text-sm">
-          <span className="font-medium text-slate-700">分析模型</span>
-          <input
-            value={form.analysisModel}
-            onChange={(event) => update({ analysisModel: event.target.value })}
-            maxLength={64}
-            className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-primary-300 focus:ring-2 focus:ring-primary-100"
-          />
+          >
+            {AI_PROVIDER_OPTIONS.map((provider) => (
+              <option key={provider.code} value={provider.code}>{provider.name}</option>
+            ))}
+          </select>
         </label>
         <label className="block text-sm">
           <span className="font-medium text-slate-700">API Key</span>
@@ -169,15 +146,6 @@ export function AiProviderAdminPanel() {
             placeholder={view?.apiKeyConfigured ? view.apiKeyMask : '未配置'}
             maxLength={512}
             autoComplete="new-password"
-            className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-primary-300 focus:ring-2 focus:ring-primary-100"
-          />
-        </label>
-        <label className="block text-sm">
-          <span className="font-medium text-slate-700">隐私政策链接</span>
-          <input
-            value={form.privacyPolicyUrl}
-            onChange={(event) => update({ privacyPolicyUrl: event.target.value })}
-            maxLength={255}
             className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-primary-300 focus:ring-2 focus:ring-primary-100"
           />
         </label>
