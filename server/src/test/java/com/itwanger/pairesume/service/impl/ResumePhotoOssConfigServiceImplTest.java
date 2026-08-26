@@ -21,7 +21,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -69,17 +68,18 @@ class ResumePhotoOssConfigServiceImplTest {
     }
 
     @Test
-    void enablingRequiresAllOperationalConfirmations() {
+    void endpointHostIsNormalizedAndSavingMakesConfigurationActive() {
         ResumePhotoOssConfig config = disabledConfig();
         when(configMapper.selectById(ResumePhotoOssConfig.SINGLE_ROW_ID)).thenReturn(config);
         ResumePhotoOssConfigUpdateDTO dto = completeUpdate();
-        dto.setCorsConfirmed(false);
+        dto.setEndpoint("oss-cn-beijing.aliyuncs.com");
 
-        BusinessException error = assertThrows(BusinessException.class,
-                () -> service.update(7L, dto));
+        var view = service.update(7L, dto);
+        var active = service.resolveActive();
 
-        assertEquals(400, error.getCode());
-        verify(configMapper, never()).updateById(any(ResumePhotoOssConfig.class));
+        assertEquals("oss-cn-beijing.aliyuncs.com", view.getEndpoint());
+        assertEquals("https://oss-cn-beijing.aliyuncs.com", active.endpoint());
+        verify(configMapper).updateById(config);
     }
 
     @Test
@@ -90,7 +90,6 @@ class ResumePhotoOssConfigServiceImplTest {
         var view = service.update(7L, completeUpdate());
         var active = service.resolveActive();
 
-        assertTrue(view.isEnabled());
         assertTrue(view.isCredentialsConfigured());
         assertEquals("https://oss-cn-hangzhou.aliyuncs.com", active.endpoint());
         assertEquals("private-resume-bucket", active.bucket());
@@ -119,11 +118,6 @@ class ResumePhotoOssConfigServiceImplTest {
         dto.setBucket("private-resume-bucket");
         dto.setAccessKeyId("LTAI-test-access-id");
         dto.setAccessKeySecret("test-access-secret-value");
-        dto.setPrivateBucketConfirmed(true);
-        dto.setCorsConfirmed(true);
-        dto.setStagingLifecycleConfirmed(true);
-        dto.setRamPolicyConfirmed(true);
-        dto.setEnabled(true);
         return dto;
     }
 }

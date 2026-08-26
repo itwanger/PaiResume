@@ -11,11 +11,6 @@ const EMPTY_FORM: ResumePhotoOssConfigUpdatePayload = {
   bucket: '',
   accessKeyId: '',
   accessKeySecret: '',
-  privateBucketConfirmed: false,
-  corsConfirmed: false,
-  stagingLifecycleConfirmed: false,
-  ramPolicyConfirmed: false,
-  enabled: false,
 }
 
 export function ResumePhotoOssAdminPanel() {
@@ -40,11 +35,6 @@ export function ResumePhotoOssAdminPanel() {
           bucket: data.bucket,
           accessKeyId: '',
           accessKeySecret: '',
-          privateBucketConfirmed: data.privateBucketConfirmed,
-          corsConfirmed: data.corsConfirmed,
-          stagingLifecycleConfirmed: data.stagingLifecycleConfirmed,
-          ramPolicyConfirmed: data.ramPolicyConfirmed,
-          enabled: data.enabled,
         })
       })
       .catch((reason) => {
@@ -73,9 +63,10 @@ export function ResumePhotoOssAdminPanel() {
       setView(data)
       setForm((current) => ({
         ...current,
+        endpoint: data.endpoint,
+        bucket: data.bucket,
         accessKeyId: '',
         accessKeySecret: '',
-        enabled: data.enabled,
       }))
       setSuccess('照片 OSS 配置已保存')
     } catch (reason) {
@@ -89,7 +80,7 @@ export function ResumePhotoOssAdminPanel() {
     setTesting(true)
     setTestResult('')
     try {
-      const response = await adminApi.testResumePhotoOssConnection()
+      const response = await adminApi.testResumePhotoOssConnection(form)
       const data = response.data.data
       setTestResult(data.success
         ? `连接成功（${data.latencyMillis}ms）`
@@ -105,6 +96,12 @@ export function ResumePhotoOssAdminPanel() {
     return <div className="h-72 animate-pulse bg-white" aria-label="正在加载照片 OSS 配置" />
   }
 
+  const hasStoredCredentials = Boolean(view?.credentialsConfigured)
+  const hasAccessKeyId = Boolean(form.accessKeyId.trim()) || hasStoredCredentials
+  const hasAccessKeySecret = Boolean(form.accessKeySecret.trim()) || hasStoredCredentials
+  const formComplete = Boolean(form.endpoint.trim() && form.bucket.trim()
+    && hasAccessKeyId && hasAccessKeySecret)
+
   return (
     <section className="max-w-4xl bg-white px-6 py-6 sm:px-8 sm:py-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -113,7 +110,7 @@ export function ResumePhotoOssAdminPanel() {
           <button
             type="button"
             onClick={() => void test()}
-            disabled={testing || !view?.credentialsConfigured}
+            disabled={testing || !formComplete}
             className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 disabled:opacity-50"
           >
             {testing ? '测试中…' : '测试连接'}
@@ -121,7 +118,7 @@ export function ResumePhotoOssAdminPanel() {
           <button
             type="button"
             onClick={() => void save()}
-            disabled={saving}
+            disabled={saving || !formComplete || !view?.masterKeyConfigured}
             className="rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-semibold text-white disabled:bg-slate-200 disabled:text-slate-500"
           >
             {saving ? '保存中…' : '保存配置'}
@@ -131,7 +128,7 @@ export function ResumePhotoOssAdminPanel() {
 
       {view && !view.masterKeyConfigured ? (
         <p className="mt-4 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800" role="alert">
-          服务器未配置加密主密钥，暂时不能保存 AccessKey。
+          服务器未配置加密主密钥，暂时不能保存 AK 和 SK。
         </p>
       ) : null}
 
@@ -141,7 +138,7 @@ export function ResumePhotoOssAdminPanel() {
           <input
             value={form.endpoint}
             onChange={(event) => update({ endpoint: event.target.value })}
-            placeholder="https://oss-cn-hangzhou.aliyuncs.com"
+            placeholder="oss-cn-beijing.aliyuncs.com"
             maxLength={255}
             className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-primary-300"
           />
@@ -156,7 +153,7 @@ export function ResumePhotoOssAdminPanel() {
           />
         </label>
         <label className="block text-sm">
-          <span className="font-medium text-slate-700">AccessKey ID</span>
+          <span className="font-medium text-slate-700">AK</span>
           <input
             type="password"
             value={form.accessKeyId}
@@ -168,7 +165,7 @@ export function ResumePhotoOssAdminPanel() {
           />
         </label>
         <label className="block text-sm">
-          <span className="font-medium text-slate-700">AccessKey Secret</span>
+          <span className="font-medium text-slate-700">SK</span>
           <input
             type="password"
             value={form.accessKeySecret}
@@ -180,35 +177,6 @@ export function ResumePhotoOssAdminPanel() {
           />
         </label>
       </div>
-
-      <div className="mt-6 grid gap-3 sm:grid-cols-2">
-        {([
-          ['privateBucketConfirmed', '私有 Bucket 已确认'],
-          ['corsConfirmed', '生产域名 CORS 已确认'],
-          ['stagingLifecycleConfirmed', '暂存对象生命周期已确认'],
-          ['ramPolicyConfirmed', 'RAM 最小权限已确认'],
-        ] as const).map(([field, label]) => (
-          <label key={field} className="flex items-center gap-2 text-sm text-slate-700">
-            <input
-              type="checkbox"
-              checked={form[field]}
-              onChange={(event) => update({ [field]: event.target.checked })}
-              className="h-4 w-4 rounded border-slate-300 text-primary-600"
-            />
-            {label}
-          </label>
-        ))}
-      </div>
-
-      <label className="mt-5 flex items-center gap-2 text-sm font-medium text-slate-800">
-        <input
-          type="checkbox"
-          checked={form.enabled}
-          onChange={(event) => update({ enabled: event.target.checked })}
-          className="h-4 w-4 rounded border-slate-300 text-primary-600"
-        />
-        启用照片 OSS
-      </label>
 
       {error ? <p className="mt-4 text-sm text-red-600" role="alert">{error}</p> : null}
       {success ? <p className="mt-4 text-sm text-emerald-700" role="status">{success}</p> : null}

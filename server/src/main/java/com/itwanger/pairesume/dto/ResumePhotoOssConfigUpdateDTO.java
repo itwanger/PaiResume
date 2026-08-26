@@ -19,9 +19,4 @@ public class ResumePhotoOssConfigUpdateDTO {
     @Size(max = 512, message = "AccessKey secret cannot exceed 512 characters")
     private String accessKeySecret;
 
-    private boolean privateBucketConfirmed;
-    private boolean corsConfirmed;
-    private boolean stagingLifecycleConfirmed;
-    private boolean ramPolicyConfirmed;
-    private boolean enabled;
 }

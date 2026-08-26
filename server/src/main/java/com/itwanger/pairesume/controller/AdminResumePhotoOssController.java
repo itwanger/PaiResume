@@ -33,7 +33,8 @@ public class AdminResumePhotoOssController {
     }
 
     @PostMapping("/test")
-    public Result<ResumePhotoOssTestResultDTO> testConnection() {
-        return Result.success(service.testConnection(SecurityUtils.getCurrentUserId()));
+    public Result<ResumePhotoOssTestResultDTO> testConnection(
+            @Valid @RequestBody ResumePhotoOssConfigUpdateDTO request) {
+        return Result.success(service.testConnection(SecurityUtils.getCurrentUserId(), request));
     }
 }

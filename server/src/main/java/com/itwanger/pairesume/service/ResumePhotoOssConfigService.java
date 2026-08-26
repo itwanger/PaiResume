@@ -9,7 +9,7 @@ public interface ResumePhotoOssConfigService {
 
     ResumePhotoOssConfigViewDTO update(Long adminUserId, ResumePhotoOssConfigUpdateDTO dto);
 
-    ResumePhotoOssTestResultDTO testConnection(Long adminUserId);
+    ResumePhotoOssTestResultDTO testConnection(Long adminUserId, ResumePhotoOssConfigUpdateDTO dto);
 
     ActiveResumePhotoOssConfig resolveActive();
 

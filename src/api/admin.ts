@@ -430,11 +430,6 @@ export interface ResumePhotoOssConfigView {
   accessKeyIdMask: string | null
   accessKeySecretMask: string | null
   credentialsConfigured: boolean
-  privateBucketConfirmed: boolean
-  corsConfirmed: boolean
-  stagingLifecycleConfirmed: boolean
-  ramPolicyConfirmed: boolean
-  enabled: boolean
   masterKeyConfigured: boolean
   updatedAt: string | null
 }
@@ -446,11 +441,6 @@ export interface ResumePhotoOssConfigUpdatePayload {
   accessKeyId: string
   /** 留空表示保留已加密的现有值。 */
   accessKeySecret: string
-  privateBucketConfirmed: boolean
-  corsConfirmed: boolean
-  stagingLifecycleConfirmed: boolean
-  ramPolicyConfirmed: boolean
-  enabled: boolean
 }
 
 export interface ResumePhotoOssTestResult {
@@ -475,8 +465,8 @@ export const adminApi = {
   updateResumePhotoOssConfig: (payload: ResumePhotoOssConfigUpdatePayload) =>
     client.put<ApiEnvelope<ResumePhotoOssConfigView>>('/admin/resume-photo-oss', payload),
 
-  testResumePhotoOssConnection: () =>
-    client.post<ApiEnvelope<ResumePhotoOssTestResult>>('/admin/resume-photo-oss/test'),
+  testResumePhotoOssConnection: (payload: ResumePhotoOssConfigUpdatePayload) =>
+    client.post<ApiEnvelope<ResumePhotoOssTestResult>>('/admin/resume-photo-oss/test', payload),
 
   listResumeAnalysisPrompts: () =>
     client.get<ApiEnvelope<ResumeAnalysisPromptAdmin[]>>('/admin/resume-analysis-prompts'),

@@ -50,10 +50,10 @@ public class ResumePhotoOssConfigServiceImpl implements ResumePhotoOssConfigServ
         var changedFields = new ArrayList<String>();
         boolean credentialsRotated = false;
 
-        String endpoint = normalize(dto.getEndpoint());
+        String endpoint = normalizeEndpoint(dto.getEndpoint());
         String bucket = normalize(dto.getBucket());
-        if (StringUtils.hasText(endpoint)) validateEndpoint(endpoint);
-        if (StringUtils.hasText(bucket)) validateBucket(bucket);
+        validateEndpoint(endpoint);
+        validateBucket(bucket);
         if (!Objects.equals(config.getEndpoint(), endpoint)) {
             config.setEndpoint(endpoint);
             changedFields.add("endpoint");
@@ -80,17 +80,7 @@ public class ResumePhotoOssConfigServiceImpl implements ResumePhotoOssConfigServ
             credentialsRotated = true;
         }
 
-        changed(config.getPrivateBucketConfirmed(), dto.isPrivateBucketConfirmed(),
-                config::setPrivateBucketConfirmed, "privateBucketConfirmed", changedFields);
-        changed(config.getCorsConfirmed(), dto.isCorsConfirmed(),
-                config::setCorsConfirmed, "corsConfirmed", changedFields);
-        changed(config.getStagingLifecycleConfirmed(), dto.isStagingLifecycleConfirmed(),
-                config::setStagingLifecycleConfirmed, "stagingLifecycleConfirmed", changedFields);
-        changed(config.getRamPolicyConfirmed(), dto.isRamPolicyConfirmed(),
-                config::setRamPolicyConfirmed, "ramPolicyConfirmed", changedFields);
-        changed(config.getEnabled(), dto.isEnabled(), config::setEnabled, "enabled", changedFields);
-
-        if (dto.isEnabled()) validateReady(config);
+        validateReady(config);
         config.setUpdatedBy(adminUserId);
         configMapper.updateById(config);
         auditMapper.insert(audit(adminUserId, "UPDATE", String.join(",", changedFields),
@@ -99,8 +89,8 @@ public class ResumePhotoOssConfigServiceImpl implements ResumePhotoOssConfigServ
     }
 
     @Override
-    public ResumePhotoOssTestResultDTO testConnection(Long adminUserId) {
-        ActiveResumePhotoOssConfig active = resolveConfigured();
+    public ResumePhotoOssTestResultDTO testConnection(Long adminUserId, ResumePhotoOssConfigUpdateDTO dto) {
+        ActiveResumePhotoOssConfig active = resolveCandidate(dto);
         long start = System.currentTimeMillis();
         boolean success = false;
         String message;
@@ -116,10 +106,10 @@ public class ResumePhotoOssConfigServiceImpl implements ResumePhotoOssConfigServ
                 success = true;
                 message = "连接成功";
             } else {
-                message = "连接失败：" + safeErrorCode(exception.getErrorCode());
+                message = safeErrorCode(exception.getErrorCode());
             }
         } catch (ClientException exception) {
-            message = "连接失败：ClientException";
+            message = "网络连接失败";
         } finally {
             oss.shutdown();
         }
@@ -133,15 +123,30 @@ public class ResumePhotoOssConfigServiceImpl implements ResumePhotoOssConfigServ
     @Transactional(readOnly = true)
     public ActiveResumePhotoOssConfig resolveActive() {
         ResumePhotoOssConfig config = configMapper.selectById(ResumePhotoOssConfig.SINGLE_ROW_ID);
-        if (config == null || !Boolean.TRUE.equals(config.getEnabled())) throw unavailable();
-        validateReady(config);
-        return decrypt(config);
+        if (config == null) throw unavailable();
+        try {
+            validateReady(config);
+            return decrypt(config);
+        } catch (BusinessException exception) {
+            throw unavailable();
+        }
     }
 
-    private ActiveResumePhotoOssConfig resolveConfigured() {
-        ResumePhotoOssConfig config = requireRow();
-        validateCore(config);
-        return decrypt(config);
+    private ActiveResumePhotoOssConfig resolveCandidate(ResumePhotoOssConfigUpdateDTO dto) {
+        ResumePhotoOssConfig stored = requireRow();
+        String endpoint = normalizeEndpoint(StringUtils.hasText(dto.getEndpoint())
+                ? dto.getEndpoint() : stored.getEndpoint());
+        String bucket = normalize(StringUtils.hasText(dto.getBucket())
+                ? dto.getBucket() : stored.getBucket());
+        validateEndpoint(endpoint);
+        validateBucket(bucket);
+        String accessKeyId = StringUtils.hasText(dto.getAccessKeyId())
+                ? validateSecret(dto.getAccessKeyId(), "AccessKey ID")
+                : decryptCredential(stored.getAccessKeyIdCipher());
+        String accessKeySecret = StringUtils.hasText(dto.getAccessKeySecret())
+                ? validateSecret(dto.getAccessKeySecret(), "AccessKey Secret")
+                : decryptCredential(stored.getAccessKeySecretCipher());
+        return new ActiveResumePhotoOssConfig(endpoint, bucket, accessKeyId, accessKeySecret);
     }
 
     private ActiveResumePhotoOssConfig decrypt(ResumePhotoOssConfig config) {
@@ -157,13 +162,6 @@ public class ResumePhotoOssConfigServiceImpl implements ResumePhotoOssConfigServ
 
     private void validateReady(ResumePhotoOssConfig config) {
         validateCore(config);
-        if (!Boolean.TRUE.equals(config.getPrivateBucketConfirmed())
-                || !Boolean.TRUE.equals(config.getCorsConfirmed())
-                || !Boolean.TRUE.equals(config.getStagingLifecycleConfirmed())
-                || !Boolean.TRUE.equals(config.getRamPolicyConfirmed())) {
-            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(),
-                    "启用前必须确认私有 Bucket、CORS、生命周期和 RAM 最小权限");
-        }
     }
 
     private void validateCore(ResumePhotoOssConfig config) {
@@ -188,8 +186,7 @@ public class ResumePhotoOssConfigServiceImpl implements ResumePhotoOssConfigServ
                 throw new IllegalArgumentException();
             }
         } catch (RuntimeException exception) {
-            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(),
-                    "OSS Endpoint 必须是无路径的 HTTPS 地址");
+            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "OSS Endpoint 格式不正确");
         }
     }
 
@@ -225,17 +222,12 @@ public class ResumePhotoOssConfigServiceImpl implements ResumePhotoOssConfigServ
 
     private ResumePhotoOssConfigViewDTO toView(ResumePhotoOssConfig config) {
         var view = new ResumePhotoOssConfigViewDTO();
-        view.setEndpoint(config.getEndpoint());
+        view.setEndpoint(endpointForView(config.getEndpoint()));
         view.setBucket(config.getBucket());
         view.setAccessKeyIdMask(config.getAccessKeyIdMask());
         view.setAccessKeySecretMask(config.getAccessKeySecretMask());
         view.setCredentialsConfigured(config.getAccessKeyIdCipher() != null
                 && config.getAccessKeySecretCipher() != null);
-        view.setPrivateBucketConfirmed(Boolean.TRUE.equals(config.getPrivateBucketConfirmed()));
-        view.setCorsConfirmed(Boolean.TRUE.equals(config.getCorsConfirmed()));
-        view.setStagingLifecycleConfirmed(Boolean.TRUE.equals(config.getStagingLifecycleConfirmed()));
-        view.setRamPolicyConfirmed(Boolean.TRUE.equals(config.getRamPolicyConfirmed()));
-        view.setEnabled(Boolean.TRUE.equals(config.getEnabled()));
         view.setMasterKeyConfigured(cryptoService.isAvailable());
         view.setUpdatedAt(config.getUpdatedAt());
         return view;
@@ -252,16 +244,39 @@ public class ResumePhotoOssConfigServiceImpl implements ResumePhotoOssConfigServ
         return audit;
     }
 
-    private void changed(Boolean before, boolean after, java.util.function.Consumer<Boolean> setter,
-                         String field, ArrayList<String> changedFields) {
-        if (Boolean.TRUE.equals(before) != after) {
-            setter.accept(after);
-            changedFields.add(field);
-        }
-    }
-
     private String normalize(String value) {
         return value == null ? "" : value.strip();
+    }
+
+    private String normalizeEndpoint(String value) {
+        String endpoint = normalize(value);
+        if (endpoint.regionMatches(true, 0, "http://", 0, 7)) {
+            endpoint = endpoint.substring(7);
+        } else if (endpoint.regionMatches(true, 0, "https://", 0, 8)) {
+            endpoint = endpoint.substring(8);
+        } else if (endpoint.contains("://")) {
+            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "OSS Endpoint 格式不正确");
+        }
+        endpoint = endpoint.endsWith("/") ? endpoint.substring(0, endpoint.length() - 1) : endpoint;
+        return "https://" + endpoint;
+    }
+
+    private String endpointForView(String value) {
+        String endpoint = normalize(value);
+        return endpoint.regionMatches(true, 0, "https://", 0, 8)
+                ? endpoint.substring(8) : endpoint;
+    }
+
+    private String decryptCredential(byte[] cipher) {
+        if (cipher == null) {
+            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "请填写 AK 和 SK");
+        }
+        requireMasterKey();
+        try {
+            return cryptoService.decrypt(cipher);
+        } catch (BusinessException exception) {
+            throw unavailable();
+        }
     }
 
     private String safeErrorCode(String value) {
