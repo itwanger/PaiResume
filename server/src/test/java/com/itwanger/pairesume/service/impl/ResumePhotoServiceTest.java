@@ -8,10 +8,12 @@ import com.itwanger.pairesume.entity.User;
 import com.itwanger.pairesume.mapper.ResumePhotoMapper;
 import com.itwanger.pairesume.mapper.UserMapper;
 import com.itwanger.pairesume.service.ResumePhotoObjectStorage;
+import com.itwanger.pairesume.service.ResumePhotoOssConfigService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Map;
@@ -24,13 +26,15 @@ class ResumePhotoServiceTest {
     @Mock private ResumePhotoMapper photoMapper;
     @Mock private UserMapper userMapper;
     @Mock private ResumePhotoObjectStorage objectStorage;
+    @Mock private ResumePhotoOssConfigService ossConfigService;
     private ResumePhotoOssProperties properties;
     private ResumePhotoService service;
 
     @BeforeEach
     void setUp() {
         properties = new ResumePhotoOssProperties();
-        service = new ResumePhotoService(photoMapper, userMapper, objectStorage, properties);
+        service = new ResumePhotoService(
+                photoMapper, userMapper, objectStorage, ossConfigService, properties);
     }
 
     @Test
@@ -79,6 +83,38 @@ class ResumePhotoServiceTest {
         assertEquals("https://images.example.com/photo.jpg?size=large", result.get("photo"));
         assertFalse(result.containsKey("photoId"));
         verifyNoInteractions(photoMapper);
+    }
+
+    @Test
+    void uploadKeysUseAdminConfiguredObjectPrefix() {
+        User user = new User();
+        user.setId(7L);
+        user.setStatus(1);
+        when(userMapper.selectById(7L)).thenReturn(user);
+        when(ossConfigService.resolveActive()).thenReturn(
+                new ResumePhotoOssConfigService.ActiveResumePhotoOssConfig(
+                        "https://oss-cn-beijing.aliyuncs.com", "itwanger-oss", "pairesume",
+                        "access-key-id", "access-key-secret"));
+        when(objectStorage.createUploadTarget(anyString(), anyLong(), anyString(), anyString(), any()))
+                .thenReturn(new ResumePhotoObjectStorage.UploadTarget(
+                        "https://itwanger-oss.oss-cn-beijing.aliyuncs.com/", "POST",
+                        Map.of(), Map.of()));
+        CreateResumePhotoUploadDTO dto = new CreateResumePhotoUploadDTO();
+        dto.setFileName("photo.png");
+        dto.setContentType("image/png");
+        dto.setSizeBytes(1024);
+        dto.setSha256("a".repeat(64));
+        dto.setWidth(600);
+        dto.setHeight(800);
+
+        service.authorize(7L, dto);
+
+        var photo = ArgumentCaptor.forClass(ResumePhoto.class);
+        verify(photoMapper).insert(photo.capture());
+        assertTrue(photo.getValue().getStagingObjectKey()
+                .startsWith("pairesume/resume-photo/staging/"));
+        assertTrue(photo.getValue().getObjectKey()
+                .startsWith("pairesume/resume-photo/objects/"));
     }
 
     private ResumePhoto readyPhoto(Long id, Long userId) {

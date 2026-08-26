@@ -16,6 +16,7 @@ public interface ResumePhotoOssConfigService {
     record ActiveResumePhotoOssConfig(
             String endpoint,
             String bucket,
+            String objectPrefix,
             String accessKeyId,
             String accessKeySecret
     ) {

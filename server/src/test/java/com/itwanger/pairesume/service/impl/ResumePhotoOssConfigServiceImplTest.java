@@ -93,6 +93,7 @@ class ResumePhotoOssConfigServiceImplTest {
         assertTrue(view.isCredentialsConfigured());
         assertEquals("https://oss-cn-hangzhou.aliyuncs.com", active.endpoint());
         assertEquals("private-resume-bucket", active.bucket());
+        assertEquals("pairesume", active.objectPrefix());
         assertEquals("LTAI-test-access-id", active.accessKeyId());
         assertEquals("test-access-secret-value", active.accessKeySecret());
         verify(configMapper).updateById(config);
@@ -104,6 +105,7 @@ class ResumePhotoOssConfigServiceImplTest {
         config.setId(ResumePhotoOssConfig.SINGLE_ROW_ID);
         config.setEndpoint("");
         config.setBucket("");
+        config.setObjectPrefix("pairesume");
         config.setPrivateBucketConfirmed(false);
         config.setCorsConfirmed(false);
         config.setStagingLifecycleConfirmed(false);
@@ -116,6 +118,7 @@ class ResumePhotoOssConfigServiceImplTest {
         ResumePhotoOssConfigUpdateDTO dto = new ResumePhotoOssConfigUpdateDTO();
         dto.setEndpoint("https://oss-cn-hangzhou.aliyuncs.com");
         dto.setBucket("private-resume-bucket");
+        dto.setObjectPrefix("/pairesume/");
         dto.setAccessKeyId("LTAI-test-access-id");
         dto.setAccessKeySecret("test-access-secret-value");
         return dto;

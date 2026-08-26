@@ -71,7 +71,7 @@ class RealMySqlMigrationTest {
                 .load();
         throughCurrent.migrate();
 
-        assertEquals("37",
+        assertEquals("40",
                 throughCurrent.info().current().getVersion().getVersion());
 
         Flyway restart = Flyway.configure()
@@ -82,7 +82,7 @@ class RealMySqlMigrationTest {
                 .load();
         assertEquals(0, restart.migrate().migrationsExecuted,
                 "已迁移到当前版本后再次执行迁移不应应用任何脚本");
-        assertEquals("37",
+        assertEquals("40",
                 restart.info().current().getVersion().getVersion());
 
         try (var connection = DriverManager.getConnection(url, username, password)) {
@@ -125,6 +125,10 @@ class RealMySqlMigrationTest {
             assertTrue(tableExists(connection, "resume_photo"));
             assertTrue(columnExists(connection, "resume_photo", "object_key"));
             assertTrue(columnExists(connection, "resume_photo", "sha256"));
+            assertTrue(columnExists(connection, "resume_photo_oss_config",
+                    "object_prefix"));
+            assertEquals("pairesume", columnDefault(
+                    connection, "resume_photo_oss_config", "object_prefix"));
             assertTrue(tableExists(connection, "resume_analysis_prompt_config"));
             assertTrue(columnExists(connection, "resume_analysis_record", "scenario_code"));
             assertTrue(indexExists(connection, "resume_analysis_record",

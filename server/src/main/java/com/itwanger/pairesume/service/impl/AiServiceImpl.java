@@ -1711,16 +1711,16 @@ public class AiServiceImpl implements AiService {
             var result = objectMapper.readValue(content, ShowcaseMetadataDTO.class);
 
             var displayLabel = truncateText(result.getDisplayLabel(), 128);
-            var summary = truncateText(result.getSummary(), 512);
+            var rawSummary = truncateText(result.getSummary(), 512);
             if (displayLabel.length() < 2 || displayLabel.length() > 12
                     || SHOWCASE_SCORE_LABEL_PATTERN.matcher(displayLabel).find()
-                    || summary.length() < 40 || summary.length() > 100
-                    || SHOWCASE_CONTACT_PATTERN.matcher(displayLabel + " " + summary).find()) {
+                    || rawSummary.length() < 40
+                    || SHOWCASE_CONTACT_PATTERN.matcher(displayLabel + " " + rawSummary).find()) {
                 throw new BusinessException(ResultCode.AI_RESPONSE_INVALID);
             }
 
             result.setDisplayLabel(displayLabel);
-            result.setSummary(summary);
+            result.setSummary(truncateText(rawSummary, 100));
             return result;
         } catch (BusinessException e) {
             throw e;

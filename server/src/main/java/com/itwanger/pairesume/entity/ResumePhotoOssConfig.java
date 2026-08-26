@@ -18,6 +18,7 @@ public class ResumePhotoOssConfig {
     private Long id;
     private String endpoint;
     private String bucket;
+    private String objectPrefix;
     private byte[] accessKeyIdCipher;
     private String accessKeyIdMask;
     private byte[] accessKeySecretCipher;

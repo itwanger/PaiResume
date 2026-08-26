@@ -431,6 +431,35 @@ body {
   color: #1e40af;
 }
 
+.admin-button--disabled,
+.admin-button--disabled:disabled {
+  border-color: #e2e8f0;
+  background: #f1f5f9;
+  color: #94a3b8;
+  opacity: 1;
+}
+
+@keyframes app-toast-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(16px, -4px, 0) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+.app-toast {
+  animation: app-toast-enter 180ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-toast {
+    animation: none;
+  }
+}
+
 .admin-button--danger {
   background: #dc2626;
   color: #fff;

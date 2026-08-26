@@ -554,14 +554,11 @@ export default function HomePage() {
                       className="group flex h-full flex-col overflow-hidden border border-slate-200 bg-white shadow-[0_18px_45px_-34px_rgba(15,23,42,0.5)] transition duration-300 ease-out hover:-translate-y-1.5 hover:border-primary-200 hover:shadow-[0_28px_60px_-32px_rgba(29,78,216,0.45)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 motion-reduce:transform-none motion-reduce:transition-none"
                     >
                       {official ? (
-                        <div className="relative border-b border-slate-100 px-5 pt-5">
+                        <div className="border-b border-slate-100 px-5 pt-5">
                           <ResumeContentThumbnail
                             preview={showcase.preview ?? EMPTY_RESUME_CARD_PREVIEW}
                             resume={showcase}
                           />
-                          <span className={`absolute right-7 top-7 px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${badgeClassName}`}>
-                            {priceLabel}
-                          </span>
                         </div>
                       ) : (
                         <div className="relative h-72 overflow-hidden bg-gradient-to-br from-slate-100 via-white to-primary-50">

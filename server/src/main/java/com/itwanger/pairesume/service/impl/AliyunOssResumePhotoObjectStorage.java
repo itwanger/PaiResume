@@ -216,6 +216,7 @@ public class AliyunOssResumePhotoObjectStorage implements ResumePhotoObjectStora
         if (configService != null) return configService.resolveActive();
         return new ResumePhotoOssConfigService.ActiveResumePhotoOssConfig(
                 properties.getEndpoint(), properties.getBucket(),
+                "pairesume",
                 properties.getAccessKeyId(), properties.getAccessKeySecret());
     }
 

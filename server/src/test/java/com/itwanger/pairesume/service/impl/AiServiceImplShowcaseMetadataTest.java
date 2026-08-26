@@ -45,8 +45,28 @@ class AiServiceImplShowcaseMetadataTest {
     }
 
     @Test
+    void truncatesLongSummaryInsteadOfRejectingUsableMetadata() {
+        String longSummary = "郑州大学计算机硕士，主攻AI应用开发。有淘宝闪购AI应用实习经历，参与RAG知识库和终端Coding Agent项目，"
+                + "熟悉Spring AI、LangChain4j、RAG及Agent架构，获国家励志奖学金。";
+
+        ShowcaseMetadataDTO result = parse(json("AI应用开发", longSummary));
+
+        assertEquals(100, result.getSummary().length());
+        assertEquals("…", result.getSummary().substring(99));
+    }
+
+    @Test
     void rejectsContactInformation() {
         String summary = VALID_SUMMARY + " 联系电话 13800138000。";
+
+        assertInvalid(json("Java 后端", summary));
+    }
+
+    @Test
+    void rejectsContactInformationEvenWhenItAppearsAfterSummaryLimit() {
+        String summary = "这份简历聚焦 Java 后端开发，包含 Spring Boot 服务、数据库设计、接口治理与稳定性优化等真实工程实践。"
+                + "同时具备需求分析、系统设计、性能优化和线上问题排查经验，并能推动跨团队协作交付。"
+                + " 联系电话 13800138000。";
 
         assertInvalid(json("Java 后端", summary));
     }

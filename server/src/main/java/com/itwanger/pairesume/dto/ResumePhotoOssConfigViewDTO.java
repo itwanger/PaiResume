@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 public class ResumePhotoOssConfigViewDTO {
     private String endpoint;
     private String bucket;
+    private String objectPrefix;
     private String accessKeyIdMask;
     private String accessKeySecretMask;
     private boolean credentialsConfigured;

@@ -8,6 +8,7 @@ import com.itwanger.pairesume.entity.*;
 import com.itwanger.pairesume.mapper.*;
 import com.itwanger.pairesume.security.ResumePhotoSecurityPolicy;
 import com.itwanger.pairesume.service.ResumePhotoObjectStorage;
+import com.itwanger.pairesume.service.ResumePhotoOssConfigService;
 import com.itwanger.pairesume.util.DateTimeUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
@@ -30,6 +31,7 @@ public class ResumePhotoService {
     private final ResumePhotoMapper photoMapper;
     private final UserMapper userMapper;
     private final ResumePhotoObjectStorage objectStorage;
+    private final ResumePhotoOssConfigService ossConfigService;
     private final ResumePhotoOssProperties properties;
 
     @Transactional
@@ -40,6 +42,7 @@ public class ResumePhotoService {
             throw new BusinessException(ResultCode.USER_NOT_FOUND);
         }
         validateDeclaredPhoto(dto);
+        String configuredPrefix = ossConfigService.resolveActive().objectPrefix();
         ResumePhoto previous = photoMapper.selectActiveForUpdate(activeUserKey(userId));
         if (previous != null) {
             previous.setPhotoStatus("EXPIRED");
@@ -54,8 +57,9 @@ public class ResumePhotoService {
         photo.setPhotoNo("RP" + token);
         photo.setUserId(userId);
         photo.setActiveUserKey(activeUserKey(userId));
-        photo.setStagingObjectKey(prefix(properties.getStagingPrefix()) + token + extension);
-        photo.setObjectKey(prefix(properties.getObjectPrefix())
+        photo.setStagingObjectKey(prefix(configuredPrefix + "/resume-photo/staging/")
+                + token + extension);
+        photo.setObjectKey(prefix(configuredPrefix + "/resume-photo/objects/")
                 + OBJECT_DATE.format(LocalDate.now()) + "/" + token + extension);
         photo.setOriginalFileName(normalizeFileName(dto.getFileName(), extension));
         photo.setContentType(dto.getContentType());

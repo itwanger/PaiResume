@@ -31,6 +31,8 @@ import java.util.regex.Pattern;
 @RequiredArgsConstructor
 public class ResumePhotoOssConfigServiceImpl implements ResumePhotoOssConfigService {
     private static final Pattern BUCKET = Pattern.compile("^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$");
+    private static final Pattern OBJECT_PREFIX = Pattern.compile(
+            "^[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*$");
 
     private final ResumePhotoOssConfigMapper configMapper;
     private final ResumePhotoOssConfigAuditMapper auditMapper;
@@ -52,8 +54,12 @@ public class ResumePhotoOssConfigServiceImpl implements ResumePhotoOssConfigServ
 
         String endpoint = normalizeEndpoint(dto.getEndpoint());
         String bucket = normalize(dto.getBucket());
+        String objectPrefix = StringUtils.hasText(dto.getObjectPrefix())
+                ? normalizeObjectPrefix(dto.getObjectPrefix())
+                : normalizeObjectPrefix(config.getObjectPrefix());
         validateEndpoint(endpoint);
         validateBucket(bucket);
+        validateObjectPrefix(objectPrefix);
         if (!Objects.equals(config.getEndpoint(), endpoint)) {
             config.setEndpoint(endpoint);
             changedFields.add("endpoint");
@@ -61,6 +67,10 @@ public class ResumePhotoOssConfigServiceImpl implements ResumePhotoOssConfigServ
         if (!Objects.equals(config.getBucket(), bucket)) {
             config.setBucket(bucket);
             changedFields.add("bucket");
+        }
+        if (!Objects.equals(config.getObjectPrefix(), objectPrefix)) {
+            config.setObjectPrefix(objectPrefix);
+            changedFields.add("objectPrefix");
         }
 
         if (StringUtils.hasText(dto.getAccessKeyId())) {
@@ -96,7 +106,7 @@ public class ResumePhotoOssConfigServiceImpl implements ResumePhotoOssConfigServ
         String message;
         var oss = new OSSClientBuilder().build(active.endpoint(), active.accessKeyId(), active.accessKeySecret());
         try {
-            String probeKey = properties.getStagingPrefix() + ".admin-connection-test";
+            String probeKey = active.objectPrefix() + "/resume-photo/staging/.admin-connection-test";
             oss.getObjectMetadata(active.bucket(), probeKey);
             success = true;
             message = "连接成功";
@@ -138,21 +148,26 @@ public class ResumePhotoOssConfigServiceImpl implements ResumePhotoOssConfigServ
                 ? dto.getEndpoint() : stored.getEndpoint());
         String bucket = normalize(StringUtils.hasText(dto.getBucket())
                 ? dto.getBucket() : stored.getBucket());
+        String objectPrefix = normalizeObjectPrefix(StringUtils.hasText(dto.getObjectPrefix())
+                ? dto.getObjectPrefix() : stored.getObjectPrefix());
         validateEndpoint(endpoint);
         validateBucket(bucket);
+        validateObjectPrefix(objectPrefix);
         String accessKeyId = StringUtils.hasText(dto.getAccessKeyId())
                 ? validateSecret(dto.getAccessKeyId(), "AccessKey ID")
                 : decryptCredential(stored.getAccessKeyIdCipher());
         String accessKeySecret = StringUtils.hasText(dto.getAccessKeySecret())
                 ? validateSecret(dto.getAccessKeySecret(), "AccessKey Secret")
                 : decryptCredential(stored.getAccessKeySecretCipher());
-        return new ActiveResumePhotoOssConfig(endpoint, bucket, accessKeyId, accessKeySecret);
+        return new ActiveResumePhotoOssConfig(
+                endpoint, bucket, objectPrefix, accessKeyId, accessKeySecret);
     }
 
     private ActiveResumePhotoOssConfig decrypt(ResumePhotoOssConfig config) {
         try {
             return new ActiveResumePhotoOssConfig(
                     config.getEndpoint(), config.getBucket(),
+                    normalizeObjectPrefix(config.getObjectPrefix()),
                     cryptoService.decrypt(config.getAccessKeyIdCipher()),
                     cryptoService.decrypt(config.getAccessKeySecretCipher()));
         } catch (BusinessException exception) {
@@ -168,6 +183,7 @@ public class ResumePhotoOssConfigServiceImpl implements ResumePhotoOssConfigServ
         try {
             validateEndpoint(config.getEndpoint());
             validateBucket(config.getBucket());
+            validateObjectPrefix(normalizeObjectPrefix(config.getObjectPrefix()));
         } catch (BusinessException exception) {
             throw exception;
         }
@@ -193,6 +209,13 @@ public class ResumePhotoOssConfigServiceImpl implements ResumePhotoOssConfigServ
     private void validateBucket(String value) {
         if (!StringUtils.hasText(value) || !BUCKET.matcher(value).matches()) {
             throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "OSS Bucket 名称不合法");
+        }
+    }
+
+    private void validateObjectPrefix(String value) {
+        if (!StringUtils.hasText(value) || value.length() > 128
+                || !OBJECT_PREFIX.matcher(value).matches()) {
+            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "OSS 目录前缀不合法");
         }
     }
 
@@ -224,6 +247,7 @@ public class ResumePhotoOssConfigServiceImpl implements ResumePhotoOssConfigServ
         var view = new ResumePhotoOssConfigViewDTO();
         view.setEndpoint(endpointForView(config.getEndpoint()));
         view.setBucket(config.getBucket());
+        view.setObjectPrefix(normalizeObjectPrefix(config.getObjectPrefix()));
         view.setAccessKeyIdMask(config.getAccessKeyIdMask());
         view.setAccessKeySecretMask(config.getAccessKeySecretMask());
         view.setCredentialsConfigured(config.getAccessKeyIdCipher() != null
@@ -246,6 +270,12 @@ public class ResumePhotoOssConfigServiceImpl implements ResumePhotoOssConfigServ
 
     private String normalize(String value) {
         return value == null ? "" : value.strip();
+    }
+
+    private String normalizeObjectPrefix(String value) {
+        String normalized = normalize(value).replace('\\', '/');
+        normalized = normalized.replaceAll("^/+|/+$", "");
+        return normalized.replaceAll("/{2,}", "/");
     }
 
     private String normalizeEndpoint(String value) {

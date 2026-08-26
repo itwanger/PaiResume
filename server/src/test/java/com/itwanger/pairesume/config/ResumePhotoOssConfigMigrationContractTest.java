@@ -23,4 +23,15 @@ class ResumePhotoOssConfigMigrationContractTest {
         assertTrue(sql.contains("resume_photo_oss_config_audit"));
         assertFalse(sql.contains("`access_key_secret` VARCHAR"));
     }
+
+    @Test
+    void v40AddsIsolatedPhotoObjectPrefixWithPaiResumeDefault() throws Exception {
+        var resource = new ClassPathResource(
+                "db/migration/V40__add_resume_photo_oss_object_prefix.sql");
+        String sql;
+        try (var input = resource.getInputStream()) {
+            sql = new String(input.readAllBytes(), StandardCharsets.UTF_8);
+        }
+        assertTrue(sql.contains("`object_prefix` VARCHAR(128) NOT NULL DEFAULT 'pairesume'"));
+    }
 }

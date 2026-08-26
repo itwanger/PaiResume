@@ -427,6 +427,7 @@ export interface AiProviderTestResult {
 export interface ResumePhotoOssConfigView {
   endpoint: string
   bucket: string
+  objectPrefix: string
   accessKeyIdMask: string | null
   accessKeySecretMask: string | null
   credentialsConfigured: boolean
@@ -437,6 +438,7 @@ export interface ResumePhotoOssConfigView {
 export interface ResumePhotoOssConfigUpdatePayload {
   endpoint: string
   bucket: string
+  objectPrefix: string
   /** 留空表示保留已加密的现有值。 */
   accessKeyId: string
   /** 留空表示保留已加密的现有值。 */

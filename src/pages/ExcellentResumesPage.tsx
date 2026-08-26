@@ -20,7 +20,6 @@ import {
   buildShowcasePath,
 } from '../utils/navigation'
 import { getResumeStyleFeatureLabels } from '../utils/resumeStyleLabels'
-import { getShowcaseAccessLabel } from '../utils/showcaseAccess'
 
 function formatCurrency(cents: number): string {
   return `¥${(cents / 100).toFixed(2)}`
@@ -159,20 +158,11 @@ export default function ExcellentResumesPage() {
                 const featureLabels = getResumeStyleFeatureLabels(showcase)
                 return (
                   <article key={showcase.id} className="group flex flex-col overflow-hidden border border-slate-200 bg-white transition hover:border-primary-200 hover:shadow-lg hover:shadow-slate-200/60">
-                    <div className="relative border-b border-slate-100 px-5 pt-5">
+                    <div className="border-b border-slate-100 px-5 pt-5">
                       <ResumeContentThumbnail
                         preview={showcase.preview ?? EMPTY_RESUME_CARD_PREVIEW}
                         resume={showcase}
                       />
-                      <span className={showcase.accessType === 'PAID'
-                        ? 'absolute right-7 top-7 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-200'
-                        : showcase.accessType === 'LOGIN'
-                          ? 'absolute right-7 top-7 bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700 ring-1 ring-inset ring-sky-200'
-                          : 'absolute right-7 top-7 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200'}>
-                        {showcase.accessType === 'PAID'
-                          ? `${formatCurrency(showcase.priceCents)} 付费查看`
-                          : getShowcaseAccessLabel(showcase.accessType)}
-                      </span>
                     </div>
                     <div className="flex flex-1 flex-col p-5">
                       <div>

@@ -4,24 +4,24 @@ import {
   type ResumePhotoOssConfigUpdatePayload,
   type ResumePhotoOssConfigView,
 } from '../../api/admin'
+import { useToast } from '../ui/ToastProvider'
 import { getAdminErrorMessage } from './adminFormat'
 
 const EMPTY_FORM: ResumePhotoOssConfigUpdatePayload = {
   endpoint: '',
   bucket: '',
+  objectPrefix: 'pairesume',
   accessKeyId: '',
   accessKeySecret: '',
 }
 
 export function ResumePhotoOssAdminPanel() {
+  const { showToast } = useToast()
   const [view, setView] = useState<ResumePhotoOssConfigView | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
-  const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
-  const [testResult, setTestResult] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -33,30 +33,31 @@ export function ResumePhotoOssAdminPanel() {
         setForm({
           endpoint: data.endpoint,
           bucket: data.bucket,
+          objectPrefix: data.objectPrefix,
           accessKeyId: '',
           accessKeySecret: '',
         })
       })
       .catch((reason) => {
-        if (!cancelled) setError(getAdminErrorMessage(reason, '照片 OSS 配置加载失败'))
+        if (!cancelled) {
+          showToast({
+            tone: 'error',
+            message: getAdminErrorMessage(reason, '照片 OSS 配置加载失败'),
+          })
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
       })
     return () => { cancelled = true }
-  }, [])
+  }, [showToast])
 
   const update = (patch: Partial<ResumePhotoOssConfigUpdatePayload>) => {
     setForm((current) => ({ ...current, ...patch }))
-    setError('')
-    setSuccess('')
-    setTestResult('')
   }
 
   const save = async () => {
     setSaving(true)
-    setError('')
-    setSuccess('')
     try {
       const response = await adminApi.updateResumePhotoOssConfig(form)
       const data = response.data.data
@@ -65,12 +66,16 @@ export function ResumePhotoOssAdminPanel() {
         ...current,
         endpoint: data.endpoint,
         bucket: data.bucket,
+        objectPrefix: data.objectPrefix,
         accessKeyId: '',
         accessKeySecret: '',
       }))
-      setSuccess('照片 OSS 配置已保存')
+      showToast({ tone: 'success', message: '照片 OSS 配置已保存' })
     } catch (reason) {
-      setError(getAdminErrorMessage(reason, '照片 OSS 配置保存失败'))
+      showToast({
+        tone: 'error',
+        message: getAdminErrorMessage(reason, '照片 OSS 配置保存失败'),
+      })
     } finally {
       setSaving(false)
     }
@@ -78,15 +83,20 @@ export function ResumePhotoOssAdminPanel() {
 
   const test = async () => {
     setTesting(true)
-    setTestResult('')
     try {
       const response = await adminApi.testResumePhotoOssConnection(form)
       const data = response.data.data
-      setTestResult(data.success
-        ? `连接成功（${data.latencyMillis}ms）`
-        : `连接失败：${data.message}`)
+      showToast({
+        tone: data.success ? 'success' : 'error',
+        message: data.success
+          ? `连接成功（${data.latencyMillis}ms）`
+          : `连接失败：${data.message}`,
+      })
     } catch (reason) {
-      setTestResult(getAdminErrorMessage(reason, '连接测试失败'))
+      showToast({
+        tone: 'error',
+        message: getAdminErrorMessage(reason, '连接测试失败'),
+      })
     } finally {
       setTesting(false)
     }
@@ -99,8 +109,10 @@ export function ResumePhotoOssAdminPanel() {
   const hasStoredCredentials = Boolean(view?.credentialsConfigured)
   const hasAccessKeyId = Boolean(form.accessKeyId.trim()) || hasStoredCredentials
   const hasAccessKeySecret = Boolean(form.accessKeySecret.trim()) || hasStoredCredentials
-  const formComplete = Boolean(form.endpoint.trim() && form.bucket.trim()
+  const formComplete = Boolean(form.endpoint.trim() && form.bucket.trim() && form.objectPrefix.trim()
     && hasAccessKeyId && hasAccessKeySecret)
+  const testUnavailable = !formComplete
+  const saveUnavailable = !formComplete || !view?.masterKeyConfigured
 
   return (
     <section className="max-w-4xl bg-white px-6 py-6 sm:px-8 sm:py-8">
@@ -110,16 +122,24 @@ export function ResumePhotoOssAdminPanel() {
           <button
             type="button"
             onClick={() => void test()}
-            disabled={testing || !formComplete}
-            className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 disabled:opacity-50"
+            disabled={testing || testUnavailable}
+            className={`admin-button admin-button--md ${
+              testUnavailable
+                ? 'admin-button--disabled'
+                : 'admin-button--quiet'
+            }`}
           >
             {testing ? '测试中…' : '测试连接'}
           </button>
           <button
             type="button"
             onClick={() => void save()}
-            disabled={saving || !formComplete || !view?.masterKeyConfigured}
-            className="rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-semibold text-white disabled:bg-slate-200 disabled:text-slate-500"
+            disabled={saving || saveUnavailable}
+            className={`admin-button admin-button--md ${
+              saveUnavailable
+                ? 'admin-button--disabled'
+                : 'admin-button--primary'
+            }`}
           >
             {saving ? '保存中…' : '保存配置'}
           </button>
@@ -152,6 +172,16 @@ export function ResumePhotoOssAdminPanel() {
             className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-primary-300"
           />
         </label>
+        <label className="block text-sm sm:col-span-2">
+          <span className="font-medium text-slate-700">目录前缀</span>
+          <input
+            value={form.objectPrefix}
+            onChange={(event) => update({ objectPrefix: event.target.value })}
+            placeholder="pairesume"
+            maxLength={128}
+            className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-primary-300"
+          />
+        </label>
         <label className="block text-sm">
           <span className="font-medium text-slate-700">AK</span>
           <input
@@ -177,10 +207,6 @@ export function ResumePhotoOssAdminPanel() {
           />
         </label>
       </div>
-
-      {error ? <p className="mt-4 text-sm text-red-600" role="alert">{error}</p> : null}
-      {success ? <p className="mt-4 text-sm text-emerald-700" role="status">{success}</p> : null}
-      {testResult ? <p className="mt-4 text-sm text-slate-700" role="status">{testResult}</p> : null}
     </section>
   )
 }
