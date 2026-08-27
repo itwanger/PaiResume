@@ -134,7 +134,9 @@ class AdminAiProviderControllerSecurityTest {
                         .content("""
                                 {
                                   "providerCode": "DEEPSEEK",
+                                  "modelId": "deepseek-v4-pro",
                                   "apiKey": "",
+                                  "autoUpgrade": true,
                                   "enabled": true
                                 }
                                 """))
@@ -143,6 +145,8 @@ class AdminAiProviderControllerSecurityTest {
         var captor = org.mockito.ArgumentCaptor.forClass(AiProviderConfigUpdateDTO.class);
         verify(aiProviderConfigService).update(eq(ADMIN_USER_ID), captor.capture());
         org.junit.jupiter.api.Assertions.assertEquals("DEEPSEEK", captor.getValue().getProviderCode());
+        org.junit.jupiter.api.Assertions.assertEquals("deepseek-v4-pro", captor.getValue().getModelId());
+        org.junit.jupiter.api.Assertions.assertTrue(captor.getValue().isAutoUpgrade());
         org.junit.jupiter.api.Assertions.assertTrue(captor.getValue().isEnabled());
         org.junit.jupiter.api.Assertions.assertEquals("", captor.getValue().getApiKey());
     }

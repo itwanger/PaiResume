@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { resumeApi, type AiFieldOptimizeRequest, type FieldOptimizePromptConfig, type ResumeModule } from '../api/resume'
 import { MarkdownPreview } from '../components/ui/MarkdownPreview'
+import { buildFieldOptimizePreset, type FieldOptimizePresetId } from '../data/fieldOptimizePresets'
 import { useResumeStore } from '../store/resumeStore'
 import { normalizeInternshipContent, normalizeProjectContent, normalizeSkillContent } from '../utils/moduleContent'
 
@@ -401,6 +402,7 @@ export default function FieldOptimizePage() {
   const [promptDraft, setPromptDraft] = useState('')
   const [savedPrompt, setSavedPrompt] = useState('')
   const [promptNotice, setPromptNotice] = useState('')
+  const [selectedPreset, setSelectedPreset] = useState<FieldOptimizePresetId | 'custom'>('standard')
   const [candidateDrafts, setCandidateDrafts] = useState<string[]>([])
   const [optimizedDraft, setOptimizedDraft] = useState('')
   const [state, setState] = useState<OptimizePageState>({
@@ -474,6 +476,9 @@ export default function FieldOptimizePage() {
     setPromptDraft(initialPrompt)
     setSavedPrompt(initialPrompt)
     setPromptNotice(storedPrompt ? '已加载你上次保存的提示词。' : '')
+    if (storedPrompt) {
+      setSelectedPreset('custom')
+    }
   }, [fieldContext, defaultPrompt, defaultPromptTemplate, promptVariables])
 
   useEffect(() => {
@@ -482,6 +487,9 @@ export default function FieldOptimizePage() {
     setSystemPromptDraft(initialSystemPrompt)
     setSavedSystemPrompt(initialSystemPrompt)
     setSystemPromptNotice(storedSystemPrompt ? '已加载你上次保存的系统提示词。' : '')
+    if (storedSystemPrompt) {
+      setSelectedPreset('custom')
+    }
   }, [promptConfig.systemPrompt])
 
   useEffect(() => {
@@ -583,6 +591,7 @@ export default function FieldOptimizePage() {
 
   const handleResetSystemPrompt = () => {
     setSystemPromptDraft(promptConfig.systemPrompt)
+    setSelectedPreset('custom')
     setSystemPromptNotice('已恢复为默认系统提示词，点击保存后可覆盖本地配置。')
   }
 
@@ -591,7 +600,20 @@ export default function FieldOptimizePage() {
       return
     }
     setPromptDraft(defaultPrompt)
+    setSelectedPreset('custom')
     setPromptNotice('已恢复为默认提示词，点击保存后可覆盖本地配置。')
+  }
+
+  const handleSelectPreset = (presetId: FieldOptimizePresetId) => {
+    const preset = buildFieldOptimizePreset(presetId, {
+      systemPrompt: promptConfig.systemPrompt,
+      userPrompt: defaultPrompt,
+    })
+    setSelectedPreset(presetId)
+    setSystemPromptDraft(preset.systemPrompt)
+    setPromptDraft(preset.userPrompt)
+    setSystemPromptNotice('')
+    setPromptNotice('')
   }
 
   const handleStartOptimize = async () => {
@@ -787,6 +809,32 @@ export default function FieldOptimizePage() {
           </div>
         ) : (
           <div className="space-y-6">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="mr-1 text-sm font-medium text-slate-700">优化方式</span>
+              {([
+                { id: 'standard', label: '标准优化' },
+                { id: 'asu', label: '阿酥式表达' },
+              ] as const).map((preset) => {
+                const isActive = selectedPreset === preset.id
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    aria-pressed={isActive}
+                    disabled={isStreaming}
+                    onClick={() => handleSelectPreset(preset.id)}
+                    className={`rounded-full border px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                      isActive
+                        ? 'border-primary-500 bg-primary-50 text-primary-700'
+                        : 'border-slate-200 bg-white text-slate-600 hover:border-primary-200 hover:text-primary-700'
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                )
+              })}
+            </div>
+
             <div className="grid gap-6 xl:grid-cols-[0.95fr_1.25fr]">
               <section className="min-w-0 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
                 <div className="mb-3 flex items-center justify-between gap-3">
@@ -814,6 +862,7 @@ export default function FieldOptimizePage() {
                   value={systemPromptDraft || promptConfig.systemPrompt}
                   onChange={(event) => {
                     setSystemPromptDraft(event.target.value)
+                    setSelectedPreset('custom')
                     setSystemPromptNotice('')
                   }}
                   rows={7}
@@ -852,6 +901,7 @@ export default function FieldOptimizePage() {
                   value={promptDraft}
                   onChange={(event) => {
                     setPromptDraft(event.target.value)
+                    setSelectedPreset('custom')
                     setPromptNotice('')
                   }}
                   rows={7}

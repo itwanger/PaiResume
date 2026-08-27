@@ -2,6 +2,7 @@ package com.itwanger.pairesume.payment;
 
 import jakarta.annotation.PostConstruct;
 import com.itwanger.pairesume.config.ResumeReviewProperties;
+import com.itwanger.pairesume.service.WechatPayConfigService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -16,16 +17,19 @@ public class PaymentConfigurationValidator {
 
     private final MarketplacePaymentProperties properties;
     private final ResumeReviewProperties resumeReviewProperties;
+    private final WechatPayConfigService wechatPayConfigService;
 
     @Autowired
     public PaymentConfigurationValidator(MarketplacePaymentProperties properties,
-                                         ResumeReviewProperties resumeReviewProperties) {
+                                         ResumeReviewProperties resumeReviewProperties,
+                                         WechatPayConfigService wechatPayConfigService) {
         this.properties = properties;
         this.resumeReviewProperties = resumeReviewProperties;
+        this.wechatPayConfigService = wechatPayConfigService;
     }
 
     PaymentConfigurationValidator(MarketplacePaymentProperties properties) {
-        this(properties, new ResumeReviewProperties());
+        this(properties, new ResumeReviewProperties(), null);
     }
 
     @Value("${app.environment:unset}")
@@ -97,27 +101,51 @@ public class PaymentConfigurationValidator {
     }
 
     private void validateWechat() {
-        MarketplacePaymentProperties.Wechat wechat = properties.getWechat();
-        require("WECHAT_PAY_APP_ID", wechat.getAppId());
-        require("WECHAT_PAY_MERCHANT_ID", wechat.getMerchantId());
-        require("WECHAT_PAY_PRIVATE_KEY", wechat.getPrivateKey());
-        require("WECHAT_PAY_MERCHANT_SERIAL_NUMBER", wechat.getMerchantSerialNumber());
-        require("WECHAT_PAY_API_V3_KEY", wechat.getApiV3Key());
-        require("WECHAT_PAY_NOTIFY_URL", wechat.getNotifyUrl());
-        if (wechat.getApiV3Key().length() != 32) {
+        WechatPayConfigService.ActiveWechatPayConfig wechat = activeWechat();
+        require("WECHAT_PAY_APP_ID", wechat.appId());
+        require("WECHAT_PAY_MERCHANT_ID", wechat.merchantId());
+        require("WECHAT_PAY_PRIVATE_KEY", wechat.privateKey());
+        require("WECHAT_PAY_MERCHANT_SERIAL_NUMBER", wechat.merchantSerialNumber());
+        require("WECHAT_PAY_API_V3_KEY", wechat.apiV3Key());
+        require("WECHAT_PAY_NOTIFY_URL", wechat.paymentNotifyUrl());
+        require("WECHAT_PAY_REFUND_NOTIFY_URL", wechat.refundNotifyUrl());
+        if (wechat.apiV3Key().length() != 32) {
             throw new IllegalStateException("WECHAT_PAY_API_V3_KEY must contain exactly 32 characters");
         }
+        validateNotifyUrl("WECHAT_PAY_NOTIFY_URL", wechat.paymentNotifyUrl(),
+                "/api/public/payments/wechat/notify");
+        validateNotifyUrl("WECHAT_PAY_REFUND_NOTIFY_URL", wechat.refundNotifyUrl(),
+                "/api/public/payments/wechat/refund-notify");
+        if (wechat.paymentNotifyUrl().trim().equals(wechat.refundNotifyUrl().trim())) {
+            throw new IllegalStateException(
+                    "WECHAT_PAY_NOTIFY_URL and WECHAT_PAY_REFUND_NOTIFY_URL must be different");
+        }
+    }
+
+    private WechatPayConfigService.ActiveWechatPayConfig activeWechat() {
+        if (wechatPayConfigService != null) {
+            return wechatPayConfigService.resolveActive();
+        }
+        MarketplacePaymentProperties.Wechat wechat = properties.getWechat();
+        return new WechatPayConfigService.ActiveWechatPayConfig(
+                wechat.getAppId(), wechat.getMerchantId(), wechat.getPrivateKey(),
+                wechat.getMerchantSerialNumber(), wechat.getApiV3Key(),
+                wechat.getNotifyUrl(), wechat.getRefundNotifyUrl(), false);
+    }
+
+    private void validateNotifyUrl(String name, String value, String expectedPath) {
         try {
-            URI notifyUri = URI.create(wechat.getNotifyUrl().trim());
-            if (!StringUtils.hasText(notifyUri.getHost()) || !notifyUri.getPath().endsWith("/api/public/payments/wechat/notify")) {
-                throw new IllegalStateException("WECHAT_PAY_NOTIFY_URL must point to the exact PaiResume callback path");
+            URI notifyUri = URI.create(value.trim());
+            if (!StringUtils.hasText(notifyUri.getHost())
+                    || !expectedPath.equals(notifyUri.getPath())) {
+                throw new IllegalStateException(name + " must point to the exact PaiResume callback path");
             }
             if ("production".equalsIgnoreCase(normalizedEnvironment())
                     && !"https".equalsIgnoreCase(notifyUri.getScheme())) {
-                throw new IllegalStateException("WECHAT_PAY_NOTIFY_URL must use HTTPS in production");
+                throw new IllegalStateException(name + " must use HTTPS in production");
             }
         } catch (IllegalArgumentException exception) {
-            throw new IllegalStateException("WECHAT_PAY_NOTIFY_URL must be a valid URL", exception);
+            throw new IllegalStateException(name + " must be a valid URL", exception);
         }
     }
 

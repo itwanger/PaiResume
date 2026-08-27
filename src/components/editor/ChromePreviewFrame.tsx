@@ -91,6 +91,36 @@ function TemplateTonePreview({
   const previewTextClassName = 'break-all leading-4'
 
   switch (templateId) {
+    case 'vibe-resume':
+      return (
+        <div className={`${frameClassName} shadow-[inset_0_0_0_1px_rgba(191,219,254,0.95)]`}>
+          <div className="space-y-1.5 px-3 py-3 text-[10px] text-slate-600">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <div className="text-[13px] font-bold text-slate-900">{name}</div>
+                <MiniLine className="mt-1.5 w-4/5 bg-slate-200" />
+              </div>
+              <PreviewStatusBadge isActive={isActive} />
+            </div>
+            <div className="border-b-2 border-blue-500 pb-0.5 font-bold text-blue-600">实习经历</div>
+            <div className="border-l-[3px] border-blue-500 bg-blue-50 px-1.5 py-1 font-semibold text-blue-900">
+              公司 · 技术平台
+            </div>
+            <div className="space-y-1">
+              {previewLines[0] ? <div className={previewTextClassName}>{previewLines[0]}</div> : null}
+              {previewLines[1] ? <div className={previewTextClassName}>{previewLines[1]}</div> : <MiniLine className="w-full bg-slate-200" />}
+              {previewLines[2] ? <div className={previewTextClassName}>{previewLines[2]}</div> : <MiniLine className="w-4/5 bg-slate-200" />}
+            </div>
+            <div className="grid grid-cols-3 gap-1">
+              {previewHighlights.map((highlight, index) => (
+                <div key={`${templateId}-highlight-${index}`} className="truncate bg-blue-50 px-1.5 py-1 text-center font-medium text-blue-700">
+                  {highlight || ' '}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )
     case 'technical-black':
       return (
         <div className={`${frameClassName} shadow-[inset_0_0_0_1px_rgba(203,213,225,0.95)]`}>

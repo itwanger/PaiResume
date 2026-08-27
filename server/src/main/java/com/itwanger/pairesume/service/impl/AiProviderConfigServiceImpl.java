@@ -14,6 +14,7 @@ import com.itwanger.pairesume.mapper.AiProviderConfigAuditMapper;
 import com.itwanger.pairesume.mapper.AiProviderConfigMapper;
 import com.itwanger.pairesume.mapper.UserMapper;
 import com.itwanger.pairesume.service.AiProviderConfigService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
@@ -24,6 +25,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import java.net.URI;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 
 @Slf4j
@@ -33,6 +35,7 @@ public class AiProviderConfigServiceImpl implements AiProviderConfigService {
     private final AiProviderConfigAuditMapper auditMapper;
     private final AiProviderCryptoService cryptoService;
     private final UserMapper userMapper;
+    private final ObjectMapper objectMapper;
     private final WebClient webClient;
 
     @Value("${ai.api-key:}")
@@ -59,12 +62,14 @@ public class AiProviderConfigServiceImpl implements AiProviderConfigService {
             AiProviderConfigMapper configMapper,
             AiProviderConfigAuditMapper auditMapper,
             AiProviderCryptoService cryptoService,
-            UserMapper userMapper
+            UserMapper userMapper,
+            ObjectMapper objectMapper
     ) {
         this.configMapper = configMapper;
         this.auditMapper = auditMapper;
         this.cryptoService = cryptoService;
         this.userMapper = userMapper;
+        this.objectMapper = objectMapper;
         this.webClient = WebClient.builder().build();
     }
 
@@ -79,11 +84,18 @@ public class AiProviderConfigServiceImpl implements AiProviderConfigService {
     public AiProviderConfigViewDTO update(Long adminUserId, AiProviderConfigUpdateDTO dto) {
         var config = requireRow();
         var preset = AiProviderPreset.require(dto.getProviderCode());
+        String modelId = preset.requireModel(dto.getModelId());
         var changedFields = new ArrayList<String>();
         boolean keyRotated = false;
         boolean disclosureChanged = false;
+        boolean providerChanged = !equalsNullable(config.getProviderCode(), preset.code());
 
-        if (!equalsNullable(config.getProviderCode(), preset.code())) {
+        if (providerChanged && (dto.getApiKey() == null || dto.getApiKey().isBlank())) {
+            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(),
+                    "切换 AI 服务商时必须填写新的 API Key");
+        }
+
+        if (providerChanged) {
             config.setProviderCode(preset.code());
             changedFields.add("providerCode");
         }
@@ -96,18 +108,23 @@ public class AiProviderConfigServiceImpl implements AiProviderConfigService {
             config.setBaseUrl(preset.baseUrl());
             changedFields.add("baseUrl");
         }
-        if (!equalsNullable(config.getGeneralModel(), preset.generalModel())) {
-            config.setGeneralModel(preset.generalModel());
+        if (!equalsNullable(config.getGeneralModel(), modelId)) {
+            config.setGeneralModel(modelId);
             changedFields.add("generalModel");
         }
-        if (!equalsNullable(config.getAnalysisModel(), preset.analysisModel())) {
-            config.setAnalysisModel(preset.analysisModel());
+        if (!equalsNullable(config.getAnalysisModel(), modelId)) {
+            config.setAnalysisModel(modelId);
             changedFields.add("analysisModel");
         }
         if (!equalsNullable(config.getPrivacyPolicyUrl(), preset.privacyPolicyUrl())) {
             config.setPrivacyPolicyUrl(preset.privacyPolicyUrl());
             changedFields.add("privacyPolicyUrl");
             disclosureChanged = true;
+        }
+        boolean wasAutoUpgrade = Boolean.TRUE.equals(config.getAutoUpgrade());
+        if (wasAutoUpgrade != dto.isAutoUpgrade()) {
+            config.setAutoUpgrade(dto.isAutoUpgrade());
+            changedFields.add("autoUpgrade");
         }
         boolean wasEnabled = Boolean.TRUE.equals(config.getEnabled());
         if (wasEnabled != dto.isEnabled()) {
@@ -150,25 +167,21 @@ public class AiProviderConfigServiceImpl implements AiProviderConfigService {
     @Override
     public AiProviderTestResultDTO testConnection(Long adminUserId) {
         var active = resolveSavedConfigForTest();
+        var preset = AiProviderPreset.require(active.providerCode());
         var result = new AiProviderTestResultDTO();
+        result.setAvailableModels(preset.availableModels(List.of()));
         long start = System.currentTimeMillis();
         try {
-            var response = webClient.get()
-                    .uri(URI.create(joinUrl(active.baseUrl(), "/models")))
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + active.apiKey())
-                    .retrieve()
-                    .toBodilessEntity()
-                    .block(Duration.ofSeconds(10));
+            var modelIds = fetchAvailableModelIds(active);
             long latency = System.currentTimeMillis() - start;
-            result.setSuccess(response != null && response.getStatusCode().is2xxSuccessful());
+            result.setSuccess(true);
             result.setLatencyMillis((int) latency);
-            result.setMessage(result.isSuccess()
-                    ? "连接成功，HTTP " + (response != null ? response.getStatusCode().value() : 200)
-                    : "服务返回非 2xx 状态");
+            result.setMessage("连接成功，HTTP 200");
+            result.setAvailableModels(preset.availableModels(modelIds));
         } catch (Exception e) {
             result.setSuccess(false);
             result.setLatencyMillis((int) (System.currentTimeMillis() - start));
-            result.setMessage("连接失败：" + e.getClass().getSimpleName());
+            result.setMessage(e.getClass().getSimpleName());
             log.warn("[AI Provider] connection test failed: provider={}, errorType={}, latencyMs={}",
                     active.displayName(), e.getClass().getSimpleName(), result.getLatencyMillis());
         }
@@ -178,8 +191,48 @@ public class AiProviderConfigServiceImpl implements AiProviderConfigService {
         return result;
     }
 
+    @Override
+    public void refreshModelAutomatically() {
+        var config = configMapper.selectById(AiProviderConfig.SINGLE_ROW_ID);
+        if (config == null || !Boolean.TRUE.equals(config.getEnabled())
+                || !Boolean.TRUE.equals(config.getAutoUpgrade())) {
+            return;
+        }
+
+        var active = resolveSavedConfig(config);
+        var preset = AiProviderPreset.require(active.providerCode());
+        var latest = preset.latestCompatibleModel(
+                config.getGeneralModel(), fetchAvailableModelIds(active));
+        if (latest.isEmpty()) {
+            return;
+        }
+
+        String currentModel = config.getGeneralModel();
+        String nextModel = latest.get();
+        int updated = configMapper.update(null, new UpdateWrapper<AiProviderConfig>()
+                .set("general_model", nextModel)
+                .set("analysis_model", nextModel)
+                .set("updated_by", 0L)
+                .eq("id", AiProviderConfig.SINGLE_ROW_ID)
+                .eq("provider_code", config.getProviderCode())
+                .eq("general_model", currentModel)
+                .eq("auto_upgrade", 1)
+                .eq("enabled", 1));
+        if (updated == 1) {
+            auditMapper.insert(audit(0L, "AUTO_MODEL_UPGRADE",
+                    "generalModel,analysisModel", false,
+                    "同系列模型已从 " + currentModel + " 升级到 " + nextModel));
+            cachedActive = null;
+            log.info("[AI Provider] model auto-upgraded: provider={}, from={}, to={}",
+                    config.getProviderCode(), currentModel, nextModel);
+        }
+    }
+
     private ActiveAiConfig resolveSavedConfigForTest() {
-        var config = requireRow();
+        return resolveSavedConfig(requireRow());
+    }
+
+    private ActiveAiConfig resolveSavedConfig(AiProviderConfig config) {
         String apiKey = config.getApiKeyCipher() == null
                 ? envApiKey : cryptoService.decrypt(config.getApiKeyCipher());
         if (apiKey == null || apiKey.isBlank()) {
@@ -187,6 +240,7 @@ public class AiProviderConfigServiceImpl implements AiProviderConfigService {
                     "测试前必须配置 API Key");
         }
         return new ActiveAiConfig(
+                config.getProviderCode(),
                 config.getDisplayName(),
                 config.getBaseUrl(),
                 apiKey,
@@ -194,6 +248,33 @@ public class AiProviderConfigServiceImpl implements AiProviderConfigService {
                 config.getAnalysisModel(),
                 true
         );
+    }
+
+    private List<String> fetchAvailableModelIds(ActiveAiConfig active) {
+        String body = webClient.get()
+                .uri(URI.create(joinUrl(active.baseUrl(), "/models")))
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + active.apiKey())
+                .retrieve()
+                .bodyToMono(String.class)
+                .block(Duration.ofSeconds(10));
+        if (body == null || body.isBlank()) {
+            return List.of();
+        }
+        try {
+            var root = objectMapper.readTree(body);
+            var ids = new LinkedHashSet<String>();
+            root.path("data").forEach(model -> {
+                String id = model.path("id").asText("").strip();
+                if (!id.isEmpty()) {
+                    ids.add(id);
+                }
+            });
+            return List.copyOf(ids);
+        } catch (Exception e) {
+            log.warn("[AI Provider] model list parse failed: provider={}, errorType={}",
+                    active.providerCode(), e.getClass().getSimpleName());
+            return List.of();
+        }
     }
 
     @Override
@@ -207,6 +288,7 @@ public class AiProviderConfigServiceImpl implements AiProviderConfigService {
         if (config != null && Boolean.TRUE.equals(config.getEnabled()) && config.getApiKeyCipher() != null) {
             String apiKey = cryptoService.decrypt(config.getApiKeyCipher());
             var active = new ActiveAiConfig(
+                    config.getProviderCode(),
                     config.getDisplayName(),
                     config.getBaseUrl(),
                     apiKey,
@@ -220,6 +302,7 @@ public class AiProviderConfigServiceImpl implements AiProviderConfigService {
         if (config != null && Boolean.TRUE.equals(config.getEnabled())) {
             // 启用但密钥来自环境变量回退（例如历史环境 Key 仍在使用）。
             var active = new ActiveAiConfig(
+                    config.getProviderCode(),
                     config.getDisplayName(),
                     config.getBaseUrl(),
                     envApiKey,
@@ -232,6 +315,7 @@ public class AiProviderConfigServiceImpl implements AiProviderConfigService {
         }
 
         var fallback = new ActiveAiConfig(
+                AiProviderPreset.inferCode(envBaseUrl),
                 "环境变量配置",
                 envBaseUrl,
                 envApiKey,
@@ -280,9 +364,12 @@ public class AiProviderConfigServiceImpl implements AiProviderConfigService {
         view.setBaseUrl(config.getBaseUrl());
         view.setGeneralModel(config.getGeneralModel());
         view.setAnalysisModel(config.getAnalysisModel());
+        view.setAvailableModels(AiProviderPreset.require(config.getProviderCode())
+                .availableModels(List.of(config.getGeneralModel())));
         view.setApiKeyMask(config.getApiKeyMask());
         view.setApiKeyConfigured(config.getApiKeyCipher() != null);
         view.setPrivacyPolicyUrl(config.getPrivacyPolicyUrl());
+        view.setAutoUpgrade(Boolean.TRUE.equals(config.getAutoUpgrade()));
         view.setEnabled(Boolean.TRUE.equals(config.getEnabled()));
         view.setMasterKeyConfigured(cryptoService.isAvailable());
         view.setUpdatedAt(config.getUpdatedAt());

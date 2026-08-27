@@ -2,6 +2,7 @@ package com.itwanger.pairesume.payment;
 
 import com.itwanger.pairesume.common.BusinessException;
 import com.itwanger.pairesume.common.ResultCode;
+import com.itwanger.pairesume.service.WechatPayConfigService;
 import com.wechat.pay.java.core.Config;
 import com.wechat.pay.java.core.RSAAutoCertificateConfig;
 import com.wechat.pay.java.core.exception.ServiceException;
@@ -18,6 +19,7 @@ import com.wechat.pay.java.service.payments.nativepay.model.QueryOrderByOutTrade
 import com.wechat.pay.java.service.payments.nativepay.model.SceneInfo;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -39,30 +41,31 @@ public class WechatNativeMarketplacePaymentGateway implements MarketplacePayment
     private static final ZoneId PAYMENT_ZONE = ZoneId.of("Asia/Shanghai");
 
     private final MarketplacePaymentProperties properties;
-    private final NativePayService nativePayService;
-    private final NotificationParser notificationParser;
+    private final WechatPayConfigService configService;
+    private final ResourceLoader resourceLoader;
+    private final NativePayService fixedNativePayService;
+    private final NotificationParser fixedNotificationParser;
+    private volatile ClientBundle cachedClients;
 
+    @Autowired
     public WechatNativeMarketplacePaymentGateway(MarketplacePaymentProperties properties,
-                                                  ResourceLoader resourceLoader) {
+                                                  ResourceLoader resourceLoader,
+                                                  WechatPayConfigService configService) {
         this.properties = properties;
-        MarketplacePaymentProperties.Wechat wechat = properties.getWechat();
-        String privateKey = readPrivateKey(wechat.getPrivateKey(), resourceLoader);
-        Config config = new RSAAutoCertificateConfig.Builder()
-                .merchantId(require(wechat.getMerchantId(), "WECHAT_PAY_MERCHANT_ID"))
-                .privateKey(privateKey)
-                .merchantSerialNumber(require(wechat.getMerchantSerialNumber(), "WECHAT_PAY_MERCHANT_SERIAL_NUMBER"))
-                .apiV3Key(require(wechat.getApiV3Key(), "WECHAT_PAY_API_V3_KEY"))
-                .build();
-        this.nativePayService = new NativePayService.Builder().config(config).build();
-        this.notificationParser = new NotificationParser((RSAAutoCertificateConfig) config);
+        this.resourceLoader = resourceLoader;
+        this.configService = configService;
+        this.fixedNativePayService = null;
+        this.fixedNotificationParser = null;
     }
 
     WechatNativeMarketplacePaymentGateway(MarketplacePaymentProperties properties,
                                           NativePayService nativePayService,
                                           NotificationParser notificationParser) {
         this.properties = properties;
-        this.nativePayService = nativePayService;
-        this.notificationParser = notificationParser;
+        this.resourceLoader = null;
+        this.configService = null;
+        this.fixedNativePayService = nativePayService;
+        this.fixedNotificationParser = notificationParser;
     }
 
     @Override
@@ -72,23 +75,24 @@ public class WechatNativeMarketplacePaymentGateway implements MarketplacePayment
 
     @Override
     public String expectedAppId() {
-        return properties.getWechat().getAppId();
+        return activeConfig().appId();
     }
 
     @Override
     public String expectedMerchantId() {
-        return properties.getWechat().getMerchantId();
+        return activeConfig().merchantId();
     }
 
     @Override
     public PaymentPrepayResult createNativeOrder(PaymentPrepayRequest command) {
-        MarketplacePaymentProperties.Wechat wechat = properties.getWechat();
+        ClientBundle client = clients();
+        WechatPayConfigService.ActiveWechatPayConfig wechat = client.config();
         PrepayRequest request = new PrepayRequest();
-        request.setAppid(wechat.getAppId());
-        request.setMchid(wechat.getMerchantId());
+        request.setAppid(wechat.appId());
+        request.setMchid(wechat.merchantId());
         request.setDescription(command.description());
         request.setOutTradeNo(command.orderNo());
-        request.setNotifyUrl(wechat.getNotifyUrl());
+        request.setNotifyUrl(wechat.paymentNotifyUrl());
         request.setTimeExpire(command.expiresAt().atZone(PAYMENT_ZONE)
                 .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
 
@@ -103,7 +107,7 @@ public class WechatNativeMarketplacePaymentGateway implements MarketplacePayment
 
         log.info("Creating WeChat Native order orderNo={}, amountCents={}",
                 command.orderNo(), command.amountCents());
-        PrepayResponse response = nativePayService.prepay(request);
+        PrepayResponse response = client.nativePayService().prepay(request);
         if (response == null || !StringUtils.hasText(response.getCodeUrl())) {
             throw new IllegalStateException("WeChat Native prepay returned no code URL");
         }
@@ -113,11 +117,12 @@ public class WechatNativeMarketplacePaymentGateway implements MarketplacePayment
 
     @Override
     public ProviderPaymentResult queryOrder(String orderNo) {
+        ClientBundle client = clients();
         QueryOrderByOutTradeNoRequest request = new QueryOrderByOutTradeNoRequest();
-        request.setMchid(properties.getWechat().getMerchantId());
+        request.setMchid(client.config().merchantId());
         request.setOutTradeNo(orderNo);
         try {
-            return toResult(nativePayService.queryOrderByOutTradeNo(request));
+            return toResult(client.nativePayService().queryOrderByOutTradeNo(request));
         } catch (ServiceException exception) {
             if ("ORDER_NOT_EXIST".equals(exception.getErrorCode())) {
                 log.info("WeChat Native query confirmed missing order orderNo={}", orderNo);
@@ -138,10 +143,11 @@ public class WechatNativeMarketplacePaymentGateway implements MarketplacePayment
 
     @Override
     public void closeOrder(String orderNo) {
+        ClientBundle client = clients();
         CloseOrderRequest request = new CloseOrderRequest();
-        request.setMchid(properties.getWechat().getMerchantId());
+        request.setMchid(client.config().merchantId());
         request.setOutTradeNo(orderNo);
-        nativePayService.closeOrder(request);
+        client.nativePayService().closeOrder(request);
         log.info("WeChat Native order close requested orderNo={}", orderNo);
     }
 
@@ -155,7 +161,11 @@ public class WechatNativeMarketplacePaymentGateway implements MarketplacePayment
                     .signature(request.signature())
                     .body(request.body())
                     .build();
-            return toResult(notificationParser.parse(requestParam, Transaction.class));
+            NotificationParser parser = clients().notificationParser();
+            if (parser == null) {
+                throw new IllegalStateException("WeChat notification parser is unavailable");
+            }
+            return toResult(parser.parse(requestParam, Transaction.class));
         } catch (Exception exception) {
             log.warn("Rejected invalid WeChat payment notification: {}", exception.getClass().getSimpleName());
             throw new BusinessException(ResultCode.PAYMENT_NOTIFICATION_INVALID);
@@ -182,6 +192,48 @@ public class WechatNativeMarketplacePaymentGateway implements MarketplacePayment
                 amount == null ? null : amount.getTotal(),
                 paidAt
         );
+    }
+
+    private WechatPayConfigService.ActiveWechatPayConfig activeConfig() {
+        if (configService != null) {
+            return configService.resolveActive();
+        }
+        MarketplacePaymentProperties.Wechat wechat = properties.getWechat();
+        return new WechatPayConfigService.ActiveWechatPayConfig(
+                wechat.getAppId(), wechat.getMerchantId(), wechat.getPrivateKey(),
+                wechat.getMerchantSerialNumber(), wechat.getApiV3Key(),
+                wechat.getNotifyUrl(), wechat.getRefundNotifyUrl(), false);
+    }
+
+    private ClientBundle clients() {
+        if (fixedNativePayService != null) {
+            return new ClientBundle(activeConfig(), fixedNativePayService, fixedNotificationParser);
+        }
+        WechatPayConfigService.ActiveWechatPayConfig active = activeConfig();
+        ClientBundle current = cachedClients;
+        if (current != null && current.config().equals(active)) {
+            return current;
+        }
+        synchronized (this) {
+            current = cachedClients;
+            if (current != null && current.config().equals(active)) {
+                return current;
+            }
+            String privateKey = readPrivateKey(active.privateKey(), resourceLoader);
+            Config sdkConfig = new RSAAutoCertificateConfig.Builder()
+                    .merchantId(require(active.merchantId(), "WECHAT_PAY_MERCHANT_ID"))
+                    .privateKey(privateKey)
+                    .merchantSerialNumber(require(active.merchantSerialNumber(),
+                            "WECHAT_PAY_MERCHANT_SERIAL_NUMBER"))
+                    .apiV3Key(require(active.apiV3Key(), "WECHAT_PAY_API_V3_KEY"))
+                    .build();
+            current = new ClientBundle(
+                    active,
+                    new NativePayService.Builder().config(sdkConfig).build(),
+                    new NotificationParser((RSAAutoCertificateConfig) sdkConfig));
+            cachedClients = current;
+            return current;
+        }
     }
 
     private PaymentProviderState toProviderState(Transaction.TradeStateEnum state) {
@@ -233,5 +285,12 @@ public class WechatNativeMarketplacePaymentGateway implements MarketplacePayment
             throw new IllegalStateException(name + " is required when PAYMENT_PROVIDER=wechat-native");
         }
         return value.trim();
+    }
+
+    private record ClientBundle(
+            WechatPayConfigService.ActiveWechatPayConfig config,
+            NativePayService nativePayService,
+            NotificationParser notificationParser
+    ) {
     }
 }

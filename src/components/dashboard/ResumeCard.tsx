@@ -35,6 +35,7 @@ const templateDefaultAccents: Record<ResumePdfTemplateId, ThumbnailAccent> = {
   accent: 'blue',
   'campus-blue': 'blue',
   'technical-black': 'slate',
+  'vibe-resume': 'blue',
   minimal: 'slate',
   executive: 'slate',
   warm: 'warm',
@@ -91,7 +92,7 @@ export function ResumeContentThumbnail({ preview, resume }: { preview: ResumeCar
     ? 'bg-orange-50/50'
     : style.templateId === 'slate' || style.templateId === 'executive'
       ? 'bg-slate-50'
-      : style.templateId === 'campus-blue' || style.templateId === 'focus'
+      : style.templateId === 'campus-blue' || style.templateId === 'vibe-resume' || style.templateId === 'focus'
         ? 'bg-blue-50/45'
         : 'bg-white'
   const hasContent = preview.filledModuleCount > 0
@@ -110,6 +111,8 @@ export function ResumeContentThumbnail({ preview, resume }: { preview: ResumeCar
       ? 'bg-blue-700 text-white'
       : style.templateId === 'technical-black'
         ? 'border-b border-slate-800 bg-white text-slate-900'
+      : style.templateId === 'vibe-resume'
+        ? 'border-b-2 border-blue-500 bg-white text-slate-900'
       : headingStyle === 'filled'
         ? palette.soft
         : ''

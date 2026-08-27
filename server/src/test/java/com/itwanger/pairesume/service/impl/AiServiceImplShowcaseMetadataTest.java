@@ -118,7 +118,8 @@ class AiServiceImplShowcaseMetadataTest {
         var stub = org.mockito.Mockito.mock(com.itwanger.pairesume.service.AiProviderConfigService.class);
         org.mockito.Mockito.when(stub.resolveActive()).thenReturn(
                 new com.itwanger.pairesume.service.AiProviderConfigService.ActiveAiConfig(
-                        "test", "http://localhost/v1", "test-key", "general-model", "analysis-model", false));
+                        "DEEPSEEK", "test", "http://localhost/v1", "test-key",
+                        "general-model", "analysis-model", false));
         return stub;
     }
 }

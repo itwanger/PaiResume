@@ -122,6 +122,7 @@ app:
       merchant-serial-number: ${WECHAT_PAY_MERCHANT_SERIAL_NUMBER:}
       api-v3-key: ${WECHAT_PAY_API_V3_KEY:}
       notify-url: ${WECHAT_PAY_NOTIFY_URL:${app.public-url}/api/public/payments/wechat/notify}
+      refund-notify-url: ${WECHAT_PAY_REFUND_NOTIFY_URL:${app.public-url}/api/public/payments/wechat/refund-notify}
 
 spring:
   servlet:

@@ -36,11 +36,35 @@ class AiServiceImplResumeAnalysisPromptTest {
         assertFalse(prompt.contains("## 用户提示词"));
     }
 
+    @Test
+    void thinkingDisableParameterIsOmittedForGlm53Flash() {
+        var glmService = new AiServiceImpl(new ObjectMapper(), aiProviderConfigStub("GLM"));
+        var deepSeekService = new AiServiceImpl(
+                new ObjectMapper(), aiProviderConfigStub("DEEPSEEK"));
+
+        Map<String, Object> glmPayload = ReflectionTestUtils.invokeMethod(
+                glmService, "buildRequestBody", "glm-5.3-flash", "system", "user",
+                1.0d, 1000, false, true);
+        Map<String, Object> deepSeekPayload = ReflectionTestUtils.invokeMethod(
+                deepSeekService, "buildRequestBody", "deepseek-v4-flash", "system", "user",
+                1.0d, 1000, false, true);
+
+        assertFalse(glmPayload.containsKey("thinking"));
+        assertTrue(deepSeekPayload.containsKey("thinking"));
+    }
+
     private static com.itwanger.pairesume.service.AiProviderConfigService aiProviderConfigStub() {
+        return aiProviderConfigStub("DEEPSEEK");
+    }
+
+    private static com.itwanger.pairesume.service.AiProviderConfigService aiProviderConfigStub(
+            String providerCode
+    ) {
         var stub = org.mockito.Mockito.mock(com.itwanger.pairesume.service.AiProviderConfigService.class);
         org.mockito.Mockito.when(stub.resolveActive()).thenReturn(
                 new com.itwanger.pairesume.service.AiProviderConfigService.ActiveAiConfig(
-                        "test", "http://localhost/v1", "test-key", "general-model", "analysis-model", false));
+                        providerCode, "test", "http://localhost/v1", "test-key",
+                        "general-model", "analysis-model", false));
         return stub;
     }
 }

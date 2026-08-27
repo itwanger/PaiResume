@@ -188,6 +188,8 @@ for expected in \
   "WECHAT_PAY_PRIVATE_KEY='wechat-private-key-test-only'" \
   "WECHAT_PAY_MERCHANT_SERIAL_NUMBER='wechat-serial-test-only'" \
   "WECHAT_PAY_API_V3_KEY='0123456789abcdef0123456789abcdef'" \
+  "WECHAT_PAY_NOTIFY_URL='https://resume.paicoding.com/api/public/payments/wechat/notify'" \
+  "WECHAT_PAY_REFUND_NOTIFY_URL='https://resume.paicoding.com/api/public/payments/wechat/refund-notify'" \
   "RESUME_PHOTO_OSS_STAGING_PREFIX='pairesume/resume-photo/staging/'" \
   "RESUME_PHOTO_OSS_OBJECT_PREFIX='pairesume/resume-photo/objects/'"; do
   grep -Fqx -- "$expected" "$target_env" \
@@ -196,6 +198,12 @@ for expected in \
       exit 1
     }
 done
+
+grep -Eq "^AI_PROVIDER_MASTER_KEY='[A-Za-z0-9+/]{43}='$" "$target_env" \
+  || {
+    printf '目标环境文件缺少有效的后台配置加密主密钥\n' >&2
+    exit 1
+  }
 
 preflight_script="${repo_root}/scripts/production-preflight.sh"
 preflight_release="${test_root}/release"
@@ -374,6 +382,7 @@ done
 
 jwt_before="$(grep '^JWT_SECRET=' "$target_env")"
 verification_before="$(grep '^VERIFICATION_CODE_SECRET=' "$target_env")"
+config_master_key_before="$(grep '^AI_PROVIDER_MASTER_KEY=' "$target_env")"
 second_output="$(
   PAIRESUME_BOOTSTRAP_TEST_MODE=true \
   PAIRESUME_BOOTSTRAP_SOURCE_ENV="$source_env" \
@@ -382,7 +391,10 @@ second_output="$(
 )"
 jwt_after="$(grep '^JWT_SECRET=' "$target_env")"
 verification_after="$(grep '^VERIFICATION_CODE_SECRET=' "$target_env")"
-[[ "$jwt_before" == "$jwt_after" && "$verification_before" == "$verification_after" ]] \
+config_master_key_after="$(grep '^AI_PROVIDER_MASTER_KEY=' "$target_env")"
+[[ "$jwt_before" == "$jwt_after" \
+  && "$verification_before" == "$verification_after" \
+  && "$config_master_key_before" == "$config_master_key_after" ]] \
   || {
     printf '重复执行时应用密钥发生了变化\n' >&2
     exit 1

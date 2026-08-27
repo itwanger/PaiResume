@@ -1,6 +1,8 @@
 ALTER TABLE `ai_provider_config`
     ADD COLUMN `provider_code` VARCHAR(32) NOT NULL DEFAULT 'DEEPSEEK'
-        COMMENT '服务商预设编码；地址、模型和隐私政策由服务端预设决定' AFTER `id`;
+        COMMENT '服务商预设编码；地址和隐私政策由服务端预设决定' AFTER `id`,
+    ADD COLUMN `auto_upgrade` TINYINT NOT NULL DEFAULT 0
+        COMMENT '是否自动升级到同系列更高版本模型' AFTER `privacy_policy_url`;
 
 UPDATE `ai_provider_config`
 SET `base_url` = 'https://api.deepseek.com',

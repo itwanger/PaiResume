@@ -400,9 +400,11 @@ export interface AiProviderConfigView {
   baseUrl: string
   generalModel: string
   analysisModel: string
+  availableModels: AiProviderModelOption[]
   apiKeyMask: string
   apiKeyConfigured: boolean
   privacyPolicyUrl: string
+  autoUpgrade: boolean
   enabled: boolean
   masterKeyConfigured: boolean
   updatedAt: string
@@ -410,15 +412,23 @@ export interface AiProviderConfigView {
 
 export interface AiProviderConfigUpdatePayload {
   providerCode: string
+  modelId: string
   /** 留空表示保留已配置的 API Key。 */
   apiKey: string
+  autoUpgrade: boolean
   enabled: boolean
+}
+
+export interface AiProviderModelOption {
+  id: string
+  label: string
 }
 
 export interface AiProviderTestResult {
   success: boolean
   latencyMillis: number
   message: string
+  availableModels: AiProviderModelOption[]
 }
 
 export interface ResumePhotoOssConfigView {
@@ -448,6 +458,34 @@ export interface ResumePhotoOssTestResult {
   message: string
 }
 
+export interface WechatPayConfigView {
+  appId: string
+  merchantId: string
+  privateKeyMask: string | null
+  merchantSerialNumber: string
+  apiV3KeyMask: string | null
+  paymentNotifyUrl: string
+  refundNotifyUrl: string
+  storedCredentialsConfigured: boolean
+  environmentFallbackConfigured: boolean
+  masterKeyConfigured: boolean
+  enabled: boolean
+  updatedAt: string | null
+}
+
+export interface WechatPayConfigUpdatePayload {
+  appId: string
+  merchantId: string
+  /** 留空表示保留已加密的值，首次启用时也可从环境变量导入。 */
+  privateKey: string
+  merchantSerialNumber: string
+  /** 留空表示保留已加密的值，首次启用时也可从环境变量导入。 */
+  apiV3Key: string
+  paymentNotifyUrl: string
+  refundNotifyUrl: string
+  enabled: boolean
+}
+
 export const adminApi = {
   getAiProviderConfig: () =>
     client.get<ApiEnvelope<AiProviderConfigView>>('/admin/ai-provider'),
@@ -466,6 +504,12 @@ export const adminApi = {
 
   testResumePhotoOssConnection: (payload: ResumePhotoOssConfigUpdatePayload) =>
     client.post<ApiEnvelope<ResumePhotoOssTestResult>>('/admin/resume-photo-oss/test', payload),
+
+  getWechatPayConfig: () =>
+    client.get<ApiEnvelope<WechatPayConfigView>>('/admin/wechat-pay'),
+
+  updateWechatPayConfig: (payload: WechatPayConfigUpdatePayload) =>
+    client.put<ApiEnvelope<WechatPayConfigView>>('/admin/wechat-pay', payload),
 
   listResumeAnalysisPrompts: () =>
     client.get<ApiEnvelope<ResumeAnalysisPromptAdmin[]>>('/admin/resume-analysis-prompts'),

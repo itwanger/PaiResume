@@ -36,7 +36,7 @@ public class AdminAiProviderController {
         return Result.success(service.update(SecurityUtils.getCurrentUserId(), request));
     }
 
-    @Operation(summary = "测试当前生效配置的连通性")
+    @Operation(summary = "测试已保存配置并刷新可选模型")
     @PostMapping("/test")
     public Result<AiProviderTestResultDTO> testConnection() {
         return Result.success(service.testConnection(SecurityUtils.getCurrentUserId()));

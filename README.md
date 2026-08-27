@@ -185,6 +185,7 @@ npm run dev
 | `VIP_INVITE_CLAIM_TTL_SECONDS` / `VIP_INVITE_CLAIM_RETENTION_DAYS` | 未登录邀请码领取凭证的有效期与失败/过期记录保留期；默认分别为 `600` 秒和 `30` 天 |
 | `JWT_SECRET` | JWT 密钥，生产环境必须替换 |
 | `AI_API_KEY` / `AI_BASE_URL` / `AI_MODEL` / `AI_ANALYSIS_MODEL` | AI 服务配置 |
+| `AI_PROVIDER_MASTER_KEY` | Admin 敏感配置的 AES-256-GCM 主密钥，使用 `openssl rand -base64 32` 生成，只保存在权限 `0600` 的环境文件中 |
 | `FIELD_OPTIMIZE_PROMPTS_FILE` | 字段优化默认提示词配置文件路径，默认 `config/field-optimize-prompts.yml` |
 | `MAIL_USERNAME` / `MAIL_PASSWORD` / `MAIL_FROM` | SMTP 认证账号、客户端授权码和发件地址 |
 | `PAYMENT_PROVIDER` | 会员与简历市场共用的支付提供方，默认 `disabled`；本地/测试可用 `mock`，生产禁止使用 mock |
@@ -199,7 +200,8 @@ npm run dev
 | `MARKETPLACE_PAID_RECONCILIATION_INTERVAL_MINUTES` / `MARKETPLACE_PAID_DUE_RECONCILIATION_RETRY_MINUTES` | 冻结期内已支付订单的稀疏查单间隔（默认 360 分钟）与到期最终验真失败后的重试间隔（默认 5 分钟） |
 | `WECHAT_PAY_APP_ID` / `WECHAT_PAY_MERCHANT_ID` | 微信支付 AppID 与商户号 |
 | `WECHAT_PAY_PRIVATE_KEY` / `WECHAT_PAY_MERCHANT_SERIAL_NUMBER` / `WECHAT_PAY_API_V3_KEY` | 微信支付 API v3 商户密钥、证书序列号与 API v3 Key；只配置在后端 |
-| `WECHAT_PAY_NOTIFY_URL` | 微信支付回调公网 HTTPS 地址，必须精确指向 `/api/public/payments/wechat/notify` |
+| `WECHAT_PAY_NOTIFY_URL` / `WECHAT_PAY_REFUND_NOTIFY_URL` | 支付结果与退款结果的独立公网 HTTPS 通知地址，必须分别指向 `/api/public/payments/wechat/notify` 和 `/api/public/payments/wechat/refund-notify` |
+| Admin「微信支付配置」 | 可从 `.env` 导入商户凭据并加密保存；关闭后台配置时继续读取环境变量，不改变支付提供方与各业务新单开关 |
 | `RESUME_REVIEW_RECIPIENT_EMAIL` / `RESUME_REVIEW_MESSAGE_ID_DOMAIN` | 人工精修可选的独立收件邮箱和稳定邮件 Message-ID 域；收件邮箱为空时直接复用 `MAIL_FROM` |
 | `RESUME_REVIEW_MAIL_OUTBOX_MAX_ATTEMPTS` | 历史人工精修邮件 outbox 的最大尝试次数，默认 `10`；新申请在用户点击发送时直接投递附件 |
 | `RESUME_REVIEW_UPLOAD_RATE_LIMIT_WINDOW_SECONDS` / `RESUME_REVIEW_UPLOAD_RATE_LIMIT_ACCOUNT_ATTEMPTS` / `RESUME_REVIEW_UPLOAD_RATE_LIMIT_IP_ATTEMPTS` | 人工精修 PDF 提交的限流窗口、账号预算和 IP 预算 |

@@ -15,6 +15,7 @@ export const ADMIN_VIEWS = [
   'platform-config',
   'analysis-prompts',
   'ai-provider',
+  'wechat-pay',
   'resume-photo-oss',
   'audit-logs',
 ] as const
@@ -145,6 +146,11 @@ export const ADMIN_NAVIGATION: AdminNavigationGroup[] = [
         id: 'ai-provider',
         label: 'AI 服务商配置',
         shortLabel: 'AI 服务商',
+      },
+      {
+        id: 'wechat-pay',
+        label: '微信支付配置',
+        shortLabel: '微信支付',
       },
       {
         id: 'resume-photo-oss',

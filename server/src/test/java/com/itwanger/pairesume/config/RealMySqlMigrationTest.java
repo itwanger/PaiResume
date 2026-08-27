@@ -71,7 +71,7 @@ class RealMySqlMigrationTest {
                 .load();
         throughCurrent.migrate();
 
-        assertEquals("41",
+        assertEquals("42",
                 throughCurrent.info().current().getVersion().getVersion());
 
         Flyway restart = Flyway.configure()
@@ -82,7 +82,7 @@ class RealMySqlMigrationTest {
                 .load();
         assertEquals(0, restart.migrate().migrationsExecuted,
                 "已迁移到当前版本后再次执行迁移不应应用任何脚本");
-        assertEquals("41",
+        assertEquals("42",
                 restart.info().current().getVersion().getVersion());
 
         try (var connection = DriverManager.getConnection(url, username, password)) {
@@ -138,6 +138,13 @@ class RealMySqlMigrationTest {
             assertTrue(columnExists(connection, "ai_provider_config", "provider_code"));
             assertEquals("DEEPSEEK", columnDefault(
                     connection, "ai_provider_config", "provider_code"));
+            assertTrue(columnExists(connection, "ai_provider_config", "auto_upgrade"));
+            assertEquals("0", columnDefault(
+                    connection, "ai_provider_config", "auto_upgrade"));
+            assertTrue(tableExists(connection, "wechat_pay_config"));
+            assertTrue(tableExists(connection, "wechat_pay_config_audit"));
+            assertTrue(columnExists(connection, "wechat_pay_config", "payment_notify_url"));
+            assertTrue(columnExists(connection, "wechat_pay_config", "refund_notify_url"));
             assertAiProviderSeedRow(connection);
             assertPromptSeedConfigs(connection);
             assertLegacyOrdersPreserved(connection);

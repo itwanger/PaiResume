@@ -13,11 +13,14 @@ public interface AiProviderConfigService {
 
     AiProviderTestResultDTO testConnection(Long adminUserId);
 
+    void refreshModelAutomatically();
+
     ActiveAiConfig resolveActive();
 
     AiProviderDisclosureDTO disclosure();
 
     record ActiveAiConfig(
+            String providerCode,
             String displayName,
             String baseUrl,
             String apiKey,

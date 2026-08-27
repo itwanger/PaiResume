@@ -1,5 +1,6 @@
 package com.itwanger.pairesume.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.itwanger.pairesume.common.BusinessException;
 import com.itwanger.pairesume.dto.AiProviderConfigUpdateDTO;
 import com.itwanger.pairesume.entity.AiProviderConfig;
@@ -8,6 +9,7 @@ import com.itwanger.pairesume.mapper.AiProviderConfigAuditMapper;
 import com.itwanger.pairesume.mapper.AiProviderConfigMapper;
 import com.itwanger.pairesume.mapper.UserMapper;
 import com.itwanger.pairesume.service.AiProviderConfigService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -60,7 +62,8 @@ class AiProviderConfigServiceImplTest {
     void setUp() {
         cryptoService = new AiProviderCryptoService(Base64.getEncoder()
                 .encodeToString(new byte[32]));
-        service = new AiProviderConfigServiceImpl(configMapper, auditMapper, cryptoService, userMapper);
+        service = new AiProviderConfigServiceImpl(
+                configMapper, auditMapper, cryptoService, userMapper, new ObjectMapper());
         ReflectionTestUtils.setField(service, "envApiKey", "env-key");
         ReflectionTestUtils.setField(service, "envBaseUrl", "http://env-url/v1");
         ReflectionTestUtils.setField(service, "envGeneralModel", "env-general");
@@ -143,7 +146,7 @@ class AiProviderConfigServiceImplTest {
     void savingEncryptedKeyWithoutMasterKeyFailsClosedEvenWhenDisabled() {
         var noKeyCrypto = new AiProviderCryptoService("");
         var closed = new AiProviderConfigServiceImpl(
-                configMapper, auditMapper, noKeyCrypto, userMapper);
+                configMapper, auditMapper, noKeyCrypto, userMapper, new ObjectMapper());
         ReflectionTestUtils.setField(closed, "envApiKey", "env-key");
         when(configMapper.selectById(AiProviderConfig.SINGLE_ROW_ID)).thenReturn(storedConfig());
 
@@ -231,7 +234,13 @@ class AiProviderConfigServiceImplTest {
         ExecutorService executor = Executors.newSingleThreadExecutor();
         server.setExecutor(executor);
         server.createContext("/v1/models", exchange -> {
-            byte[] body = "{\"data\":[]}".getBytes(StandardCharsets.UTF_8);
+            byte[] body = """
+                    {"data":[
+                      {"id":"deepseek-v4-flash"},
+                      {"id":"deepseek-v5-flash"},
+                      {"id":"unrelated-model"}
+                    ]}
+                    """.getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().set("Content-Type", "application/json");
             exchange.sendResponseHeaders(200, body.length);
             exchange.getResponseBody().write(body);
@@ -248,9 +257,52 @@ class AiProviderConfigServiceImplTest {
 
             assertTrue(result.isSuccess());
             assertTrue(result.getLatencyMillis() >= 0);
+            assertTrue(result.getAvailableModels().stream()
+                    .anyMatch(model -> "deepseek-v5-flash".equals(model.id())));
             var audit = captureAudit();
             assertEquals("TEST", audit.getAction());
             assertFalse(audit.getDetail().contains("sk-live"));
+        } finally {
+            server.stop(0);
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void automaticRefreshUpgradesOnlyWithinSelectedFamily() throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        server.setExecutor(executor);
+        server.createContext("/models", exchange -> {
+            byte[] body = """
+                    {"data":[
+                      {"id":"deepseek-v5-flash"},
+                      {"id":"deepseek-v6-pro"},
+                      {"id":"deepseek-v7-flash-vision-exp"}
+                    ]}
+                    """.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        server.start();
+        try {
+            var config = storedConfig();
+            config.setEnabled(true);
+            config.setAutoUpgrade(true);
+            config.setBaseUrl("http://127.0.0.1:" + server.getAddress().getPort());
+            config.setApiKeyCipher(cryptoService.encrypt("sk-live-db-key"));
+            when(configMapper.selectById(AiProviderConfig.SINGLE_ROW_ID)).thenReturn(config);
+            when(configMapper.update(isNull(), any(UpdateWrapper.class))).thenReturn(1);
+
+            service.refreshModelAutomatically();
+
+            var audit = captureAudit();
+            assertEquals("AUTO_MODEL_UPGRADE", audit.getAction());
+            assertTrue(audit.getDetail().contains("deepseek-v4-flash"));
+            assertTrue(audit.getDetail().contains("deepseek-v5-flash"));
+            assertFalse(audit.getDetail().contains("deepseek-v6-pro"));
         } finally {
             server.stop(0);
             executor.shutdownNow();
@@ -316,6 +368,49 @@ class AiProviderConfigServiceImplTest {
                 result.getPrivacyPolicyUrl());
     }
 
+    @Test
+    void deepSeekModelCanBeSelected() {
+        var config = storedConfig();
+        when(configMapper.selectById(AiProviderConfig.SINGLE_ROW_ID)).thenReturn(config);
+
+        var result = service.update(ADMIN_ID,
+                update("DEEPSEEK", "deepseek-v4-pro", "", false, false));
+
+        assertEquals("deepseek-v4-pro", result.getGeneralModel());
+        assertEquals("deepseek-v4-pro", result.getAnalysisModel());
+    }
+
+    @Test
+    void switchingToGlmRequiresNewKeyAndAppliesPreset() {
+        var config = storedConfig();
+        config.setApiKeyCipher(cryptoService.encrypt("sk-deepseek-old"));
+        when(configMapper.selectById(AiProviderConfig.SINGLE_ROW_ID)).thenReturn(config);
+
+        var missingKey = assertThrows(BusinessException.class, () -> service.update(ADMIN_ID,
+                update("GLM", "glm-5.3-flash", "", false, false)));
+        assertEquals("切换 AI 服务商时必须填写新的 API Key", missingKey.getMessage());
+
+        var result = service.update(ADMIN_ID,
+                update("GLM", "glm-5.3-flash", "glm-new-key", true, false));
+        assertEquals("GLM", result.getProviderCode());
+        assertEquals("智谱 GLM", result.getDisplayName());
+        assertEquals("https://open.bigmodel.cn/api/paas/v4", result.getBaseUrl());
+        assertEquals("glm-5.3-flash", result.getGeneralModel());
+        assertTrue(result.isAutoUpgrade());
+        assertEquals("glm-new-key", cryptoService.decrypt(config.getApiKeyCipher()));
+    }
+
+    @Test
+    void modelOutsideProviderFamilyIsRejected() {
+        when(configMapper.selectById(AiProviderConfig.SINGLE_ROW_ID)).thenReturn(storedConfig());
+
+        var error = assertThrows(BusinessException.class, () -> service.update(ADMIN_ID,
+                update("DEEPSEEK", "glm-5.3-flash", "", false, false)));
+
+        assertEquals("当前服务商不支持该模型", error.getMessage());
+        verify(configMapper, never()).updateById(any(AiProviderConfig.class));
+    }
+
     private AiProviderConfig storedConfig() {
         var config = new AiProviderConfig();
         config.setId(AiProviderConfig.SINGLE_ROW_ID);
@@ -326,14 +421,29 @@ class AiProviderConfigServiceImplTest {
         config.setAnalysisModel("deepseek-v4-flash");
         config.setPrivacyPolicyUrl(
                 "https://cdn.deepseek.com/policies/zh-CN/deepseek-privacy-policy.html");
+        config.setAutoUpgrade(false);
         config.setEnabled(false);
         return config;
     }
 
     private AiProviderConfigUpdateDTO update(String providerCode, String apiKey, boolean enabled) {
+        String modelId = "GLM".equalsIgnoreCase(providerCode)
+                ? "glm-5.3-flash" : "deepseek-v4-flash";
+        return update(providerCode, modelId, apiKey, false, enabled);
+    }
+
+    private AiProviderConfigUpdateDTO update(
+            String providerCode,
+            String modelId,
+            String apiKey,
+            boolean autoUpgrade,
+            boolean enabled
+    ) {
         var dto = new AiProviderConfigUpdateDTO();
         dto.setProviderCode(providerCode);
+        dto.setModelId(modelId);
         dto.setApiKey(apiKey);
+        dto.setAutoUpgrade(autoUpgrade);
         dto.setEnabled(enabled);
         return dto;
     }

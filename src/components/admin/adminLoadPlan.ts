@@ -78,6 +78,7 @@ export const ADMIN_VIEW_LOAD_SECTIONS: Record<AdminView, readonly AdminDataSecti
   'platform-config': ['platformConfig'],
   'analysis-prompts': [],
   'ai-provider': [],
+  'wechat-pay': [],
   'resume-photo-oss': [],
   'audit-logs': ['membershipAuditLogs'],
 }

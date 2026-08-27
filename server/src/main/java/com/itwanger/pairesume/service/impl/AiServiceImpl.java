@@ -1661,7 +1661,7 @@ public class AiServiceImpl implements AiService {
         if (jsonMode) {
             payload.put("response_format", Map.of("type", "json_object"));
         }
-        if (disableThinking) {
+        if (disableThinking && !"GLM".equalsIgnoreCase(activeConfig().providerCode())) {
             payload.put("thinking", Map.of("type", "disabled"));
         }
         return payload;

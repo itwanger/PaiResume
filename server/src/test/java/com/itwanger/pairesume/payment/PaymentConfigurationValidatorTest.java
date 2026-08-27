@@ -85,6 +85,7 @@ class PaymentConfigurationValidatorTest {
         wechat.setMerchantSerialNumber("serial");
         wechat.setApiV3Key("12345678901234567890123456789012");
         wechat.setNotifyUrl("http://localhost/api/public/payments/wechat/notify");
+        wechat.setRefundNotifyUrl("http://localhost/api/public/payments/wechat/refund-notify");
         return properties;
     }
 }

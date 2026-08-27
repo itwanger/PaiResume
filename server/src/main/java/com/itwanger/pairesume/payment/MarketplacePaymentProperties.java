@@ -34,5 +34,6 @@ public class MarketplacePaymentProperties {
         private String merchantSerialNumber;
         private String apiV3Key;
         private String notifyUrl;
+        private String refundNotifyUrl;
     }
 }

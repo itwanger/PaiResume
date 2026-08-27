@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ResumeStyleUpdateDTOTest {
 
     @Test
-    void technicalBlackTemplateIsAcceptedByStyleValidation() {
+    void supportedTemplatesAreAcceptedByStyleValidation() {
         try (var factory = Validation.buildDefaultValidatorFactory()) {
             var validator = factory.getValidator();
             ResumeStyleUpdateDTO dto = new ResumeStyleUpdateDTO();
@@ -19,6 +19,9 @@ class ResumeStyleUpdateDTOTest {
             dto.setAccentPreset("auto");
             dto.setHeadingStyle("auto");
 
+            assertTrue(validator.validate(dto).isEmpty());
+
+            dto.setTemplateId("vibe-resume");
             assertTrue(validator.validate(dto).isEmpty());
 
             dto.setTemplateId("unknown-template");

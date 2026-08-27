@@ -110,6 +110,12 @@ const ICON_PATHS: Record<AdminView, ReactNode> = {
       <path d="M10 3.5v3.5M14 3.5v3.5M10 17v3.5M14 17v3.5M3.5 10H7M3.5 14H7M17 10h3.5M17 14h3.5" />
     </>
   ),
+  'wechat-pay': (
+    <>
+      <rect x="3" y="5" width="18" height="14" rx="2.5" />
+      <path d="M3 9h18M7 14h4M17 12.5v3" />
+    </>
+  ),
   'resume-photo-oss': (
     <>
       <path d="M4 7.5h16v11H4zM7 7.5l1.5-3h7l1.5 3" />

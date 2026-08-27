@@ -70,6 +70,7 @@ import { AdminShowcasePanel } from '../components/admin/AdminShowcasePanel'
 import { AdminContentLibraryPanel } from '../components/admin/AdminContentLibraryPanel'
 import { ResumeAnalysisPromptAdminPanel } from '../components/admin/ResumeAnalysisPromptAdminPanel'
 import { AiProviderAdminPanel } from '../components/admin/AiProviderAdminPanel'
+import { WechatPayAdminPanel } from '../components/admin/WechatPayAdminPanel'
 import { ResumePhotoOssAdminPanel } from '../components/admin/ResumePhotoOssAdminPanel'
 
 interface PlatformPriceDraft {
@@ -1870,6 +1871,9 @@ function AdminPageContent() {
             ) : null}
             {activeView === 'ai-provider' ? (
               <AiProviderAdminPanel />
+            ) : null}
+            {activeView === 'wechat-pay' ? (
+              <WechatPayAdminPanel />
             ) : null}
             {activeView === 'resume-photo-oss' ? (
               <ResumePhotoOssAdminPanel />
