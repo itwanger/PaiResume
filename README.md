@@ -25,17 +25,9 @@
 
 <div align="center">
 
-![派简历首页](docs/assets/screenshot-home.png)
+![派简历首页](docs/assets/screenshot-home-wide.png)
 
-*首页 — AI 评分 · 智能优化 · 一页排版*
-
-</div>
-
-<div align="center">
-
-![核心功能](docs/assets/screenshot-features.png)
-
-*核心功能 — 无损智能一页、AI 评分、AI 优化*
+*首页 — AI 评分 · 智能优化 · 一页排版，一站式智能简历优化*
 
 </div>
 
@@ -70,7 +62,7 @@
 
 <div align="center">
 
-![无损智能一页效果](docs/assets/screenshot-smart-onepage.png)
+![无损智能一页效果](docs/assets/screenshot-smart-onepage-wide.png)
 
 *实际效果 — 所有内容完整保留在 1 页内，PDF 显示 "1 / 1" 页*
 
