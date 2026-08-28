@@ -164,7 +164,7 @@ class ResumeServiceImplTest {
     }
 
     @Test
-    void renamingResumeUnpublishesFeaturedVersion() {
+    void renamingResumeKeepsFeaturedVersionPublished() {
         Resume resume = new Resume();
         resume.setId(11L);
         resume.setUserId(7L);
@@ -176,7 +176,7 @@ class ResumeServiceImplTest {
         service.update(7L, 11L, dto);
 
         verify(resumeMapper).updateById(resume);
-        verify(resumeShowcaseService).unpublishChangedResume(11L);
+        verifyNoInteractions(resumeShowcaseService);
     }
 
     @Test
@@ -206,7 +206,7 @@ class ResumeServiceImplTest {
         assertEquals("warm", result.getAccentPreset());
         assertEquals("filled", result.getHeadingStyle());
         verify(resumeMapper).updateById(resume);
-        verify(resumeShowcaseService).unpublishChangedResume(11L);
+        verifyNoInteractions(resumeShowcaseService);
     }
 
     @Test

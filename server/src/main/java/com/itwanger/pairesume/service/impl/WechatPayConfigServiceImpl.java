@@ -87,6 +87,13 @@ public class WechatPayConfigServiceImpl implements WechatPayConfigService {
 
     @Override
     @Transactional(readOnly = true)
+    public boolean isEnabled() {
+        WechatPayConfig config = configMapper.selectById(WechatPayConfig.SINGLE_ROW_ID);
+        return config != null && Boolean.TRUE.equals(config.getEnabled());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public ActiveWechatPayConfig resolveActive() {
         WechatPayConfig config = configMapper.selectById(WechatPayConfig.SINGLE_ROW_ID);
         if (config != null && Boolean.TRUE.equals(config.getEnabled())) {
@@ -102,20 +109,7 @@ public class WechatPayConfigServiceImpl implements WechatPayConfigService {
                     true
             );
         }
-
-        MarketplacePaymentProperties.Wechat env = properties.getWechat();
-        ActiveWechatPayConfig active = new ActiveWechatPayConfig(
-                normalize(env.getAppId()),
-                normalize(env.getMerchantId()),
-                normalize(env.getPrivateKey()),
-                normalize(env.getMerchantSerialNumber()),
-                normalize(env.getApiV3Key()),
-                normalize(env.getNotifyUrl()),
-                normalize(env.getRefundNotifyUrl()),
-                false
-        );
-        validateActive(active);
-        return active;
+        throw new BusinessException(ResultCode.PAYMENT_NOT_ENABLED);
     }
 
     private ArrayList<String> setIfChanged(

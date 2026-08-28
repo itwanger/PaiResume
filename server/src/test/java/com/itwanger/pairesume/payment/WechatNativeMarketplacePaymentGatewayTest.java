@@ -1,10 +1,12 @@
 package com.itwanger.pairesume.payment;
 
+import com.itwanger.pairesume.service.WechatPayConfigService;
 import com.wechat.pay.java.core.exception.ServiceException;
 import com.wechat.pay.java.service.payments.nativepay.NativePayService;
 import com.wechat.pay.java.service.payments.model.Transaction;
 import com.wechat.pay.java.service.payments.model.TransactionAmount;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.io.ResourceLoader;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -13,6 +15,17 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class WechatNativeMarketplacePaymentGatewayTest {
+
+    @Test
+    void providerFollowsAdminConfigurationWithoutRestart() {
+        WechatPayConfigService configService = mock(WechatPayConfigService.class);
+        WechatNativeMarketplacePaymentGateway gateway = new WechatNativeMarketplacePaymentGateway(
+                new MarketplacePaymentProperties(), mock(ResourceLoader.class), configService);
+        when(configService.isEnabled()).thenReturn(false, true);
+
+        assertEquals("disabled", gateway.provider());
+        assertEquals("wechat", gateway.provider());
+    }
 
     @Test
     void explicitOrderNotExistBecomesSafeFailedState() {

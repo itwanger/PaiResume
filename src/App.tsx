@@ -5,6 +5,7 @@ import HomePage from './pages/HomePage'
 import { RouteSeo } from './components/seo/RouteSeo'
 import { AUTHENTICATED_HOME_PATH } from './config/site'
 import {
+  buildEmailLoginPath,
   buildLoginPath,
   buildMembershipPath,
   getSafeInternalPath,
@@ -129,7 +130,7 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   if (!initialized) {
     return <AuthenticationLoading />
   }
-  if (!isAuthenticated) return <Navigate to={buildLoginPath('/admin')} replace />
+  if (!isAuthenticated) return <Navigate to={buildEmailLoginPath('/admin')} replace />
   if (user?.legalConsentRequired) {
     return <Navigate to={buildLegalConsentPath(location)} replace />
   }

@@ -50,3 +50,8 @@ lerna-debug.log*
 /test-results/
 /playwright-report/
 /.playwright-cli
+chart_cohort.png
+chart_school_level.png
+resume_records.ndjson
+resume_records.manifest.json
+gen_charts.py

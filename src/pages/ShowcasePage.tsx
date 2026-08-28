@@ -226,19 +226,11 @@ export default function ShowcasePage() {
                   <div className={`text-sm font-semibold ${
                     detail.accessType === 'LOGIN' ? 'text-sky-700' : 'text-amber-700'
                   }`}>
-                    {detail.accessType === 'PAID'
-                      ? `${formatCurrency(detail.priceCents)} 付费查看`
-                      : getShowcaseAccessLabel(detail.accessType)}
+                    {getShowcaseAccessLabel(detail.accessType)}
                   </div>
                   <h2 className="mt-2 text-xl font-semibold text-slate-950">
                     {detail.accessType === 'LOGIN' ? '登录后查看完整简历' : '支付后解锁这份简历'}
                   </h2>
-                  {detail.accessType === 'PAID' ? (
-                    <p className="mt-4 text-2xl font-bold text-slate-950">
-                      {formatCurrency(detail.priceCents)}
-                      <span className="ml-1 text-sm font-normal text-slate-500">单份解锁</span>
-                    </p>
-                  ) : null}
                   <ul className="mt-5 space-y-3 text-sm leading-6 text-slate-600">
                     <li>查看这份简历的完整项目、经历与技能内容</li>
                     {detail.accessType === 'PAID' ? (

@@ -8,6 +8,8 @@ public interface WechatPayConfigService {
 
     WechatPayConfigViewDTO update(Long adminUserId, WechatPayConfigUpdateDTO dto);
 
+    boolean isEnabled();
+
     ActiveWechatPayConfig resolveActive();
 
     record ActiveWechatPayConfig(

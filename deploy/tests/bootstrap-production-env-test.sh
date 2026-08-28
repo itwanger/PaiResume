@@ -172,24 +172,15 @@ for expected in \
   "PAICONGMING_WECHAT_SCENE_PREFIX='pr_'" \
   "PLANET_CORE_ACCEPTANCE_CONFIRMED='true'" \
   "AI_MODEL='deepseek-v4-flash'" \
-  "PAYMENT_PROVIDER='wechat-native'" \
   "PAYMENT_ACCEPT_NEW_ORDERS='false'" \
   "MEMBERSHIP_PAYMENT_ACCEPT_NEW_ORDERS='false'" \
   "MARKETPLACE_PAYMENT_ACCEPT_NEW_ORDERS='false'" \
-  "SHOWCASE_PAYMENT_ACCEPT_NEW_ORDERS='false'" \
   "MARKETPLACE_ENABLED='false'" \
   "RESUME_REVIEW_MAIL_OUTBOX_MAX_ATTEMPTS='10'" \
   "RESUME_REVIEW_UPLOAD_RATE_LIMIT_WINDOW_SECONDS='900'" \
   "RESUME_REVIEW_UPLOAD_RATE_LIMIT_ACCOUNT_ATTEMPTS='20'" \
   "RESUME_REVIEW_UPLOAD_RATE_LIMIT_IP_ATTEMPTS='200'" \
   "RESUME_REVIEW_PAYMENT_ACCEPTANCE_CONFIRMED='true'" \
-  "WECHAT_PAY_APP_ID='wx-test-app'" \
-  "WECHAT_PAY_MERCHANT_ID='1900000001'" \
-  "WECHAT_PAY_PRIVATE_KEY='wechat-private-key-test-only'" \
-  "WECHAT_PAY_MERCHANT_SERIAL_NUMBER='wechat-serial-test-only'" \
-  "WECHAT_PAY_API_V3_KEY='0123456789abcdef0123456789abcdef'" \
-  "WECHAT_PAY_NOTIFY_URL='https://resume.paicoding.com/api/public/payments/wechat/notify'" \
-  "WECHAT_PAY_REFUND_NOTIFY_URL='https://resume.paicoding.com/api/public/payments/wechat/refund-notify'" \
   "RESUME_PHOTO_OSS_STAGING_PREFIX='pairesume/resume-photo/staging/'" \
   "RESUME_PHOTO_OSS_OBJECT_PREFIX='pairesume/resume-photo/objects/'"; do
   grep -Fqx -- "$expected" "$target_env" \

@@ -38,6 +38,8 @@ public class PaymentConfigurationValidator {
     @PostConstruct
     public void validate() {
         String provider = normalizedProvider();
+        boolean adminWechatEnabled = wechatPayConfigService != null && wechatPayConfigService.isEnabled();
+        boolean testWechatEnabled = wechatPayConfigService == null && "wechat-native".equals(provider);
         if (!SUPPORTED_PROVIDERS.contains(provider)) {
             throw new IllegalStateException("PAYMENT_PROVIDER must be disabled, mock, or wechat-native");
         }
@@ -45,16 +47,17 @@ public class PaymentConfigurationValidator {
             throw new IllegalStateException(
                     "PAYMENT_ACCEPT_NEW_ORDERS is deprecated and must remain false; use "
                             + "MEMBERSHIP_PAYMENT_ACCEPT_NEW_ORDERS or "
-                            + "MARKETPLACE_PAYMENT_ACCEPT_NEW_ORDERS or "
-                            + "SHOWCASE_PAYMENT_ACCEPT_NEW_ORDERS"
+                            + "MARKETPLACE_PAYMENT_ACCEPT_NEW_ORDERS"
             );
         }
         if ((properties.isMembershipAcceptNewOrders()
-                || properties.isMarketplaceAcceptNewOrders()
-                || properties.isShowcaseAcceptNewOrders()) && "disabled".equals(provider)) {
+                || properties.isMarketplaceAcceptNewOrders())
+                && !"mock".equals(provider)
+                && !adminWechatEnabled
+                && !testWechatEnabled) {
             throw new IllegalStateException(
-                    "Enabling new membership, marketplace, or showcase orders requires "
-                            + "PAYMENT_PROVIDER=mock or wechat-native"
+                    "Enabling new membership or marketplace orders requires "
+                            + "mock payment in development or enabled WeChat Pay in Admin"
             );
         }
         if (resumeReviewProperties.getPaymentOrderExpireMinutes() != 30) {
@@ -91,7 +94,7 @@ public class PaymentConfigurationValidator {
         if ("mock".equals(provider) && "production".equalsIgnoreCase(normalizedEnvironment())) {
             throw new IllegalStateException("Mock payment provider is forbidden in production");
         }
-        if ("wechat-native".equals(provider)) {
+        if (adminWechatEnabled || testWechatEnabled) {
             validateWechat();
         }
     }
@@ -151,7 +154,7 @@ public class PaymentConfigurationValidator {
 
     private void require(String name, String value) {
         if (!StringUtils.hasText(value)) {
-            throw new IllegalStateException(name + " is required when PAYMENT_PROVIDER=wechat-native");
+            throw new IllegalStateException(name + " is required when WeChat Pay is enabled in Admin");
         }
     }
 

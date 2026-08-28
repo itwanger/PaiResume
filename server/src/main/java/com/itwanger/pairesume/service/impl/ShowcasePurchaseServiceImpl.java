@@ -150,8 +150,7 @@ public class ShowcasePurchaseServiceImpl implements ShowcasePurchaseService {
 
     @Override
     public boolean isPaymentEnabled() {
-        return paymentProperties.isShowcaseAcceptNewOrders()
-                && !"disabled".equals(paymentGateway.provider());
+        return !"disabled".equals(paymentGateway.provider());
     }
 
     @Override

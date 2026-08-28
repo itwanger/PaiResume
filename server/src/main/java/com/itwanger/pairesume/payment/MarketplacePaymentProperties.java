@@ -16,7 +16,6 @@ public class MarketplacePaymentProperties {
     private boolean acceptNewOrders = false;
     private boolean membershipAcceptNewOrders = false;
     private boolean marketplaceAcceptNewOrders = false;
-    private boolean showcaseAcceptNewOrders = false;
     private int orderExpireMinutes = 15;
     private int membershipOrderExpireMinutes = 30;
     private int platformFeeBasisPoints = 0;

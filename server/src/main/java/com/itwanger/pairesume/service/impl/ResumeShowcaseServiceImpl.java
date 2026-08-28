@@ -245,11 +245,6 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
         unpublishResume(resumeId);
     }
 
-    @Override
-    public void unpublishChangedResume(Long resumeId) {
-        unpublishResume(resumeId);
-    }
-
     private void unpublishResume(Long resumeId) {
         ResumeShowcase showcase = resumeShowcaseMapper.selectOne(
                 new LambdaQueryWrapper<ResumeShowcase>()

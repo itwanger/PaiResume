@@ -15,8 +15,8 @@
 ## 三阶段开关
 
 1. 知识星球邀请灰度：`DEPLOY_STAGE=free`，会员与用户市场新订单仍可关闭；派聪明扫码注册/登录必须启用，知识星球会员通过 `/vip/claim` 领取 VIP。扫码注册、VIP 开通、编辑保存、排版导出和 AI 分析必须完成 `checklists/planet-core-acceptance.md` 并设置 `PLANET_CORE_ACCEPTANCE_CONFIRMED=true`。人工精修、会员购买和用户市场分别按各自清单验收。
-2. 会员支付：先在隔离的预发布域名和测试账号中使用 `DEPLOY_STAGE=membership-acceptance`、`PAYMENT_ACCEPTANCE_ENVIRONMENT_CONFIRMED=true`、`PAYMENT_PROVIDER=wechat-native` 与真实小额商户参数执行 `checklists/wechat-payment-acceptance.md`。人工精修的会员免费排队、邮件投递和可选加急还需单独执行 `checklists/resume-review-acceptance.md`；开放加急前才要求设置 `RESUME_REVIEW_PAYMENT_ACCEPTANCE_CONFIRMED=true`。会员阶段仍由 `DEPLOY_STAGE=membership`、`MEMBERSHIP_PAYMENT_ACCEPTANCE_CONFIRMED=true` 控制。用户市场保持关闭。
-3. 用户付费简历市场：再用 `DEPLOY_STAGE=marketplace-acceptance` 在隔离环境完成 `checklists/marketplace-payment-acceptance.md`。正式获批后使用 `DEPLOY_STAGE=marketplace`、两个支付验收确认位与 `MARKETPLACE_GOVERNANCE_DUTY_CONFIRMED=true`；市场功能和两个新订单开关均允许在维护时关闭，`PAYMENT_PROVIDER` 必须继续保留 `wechat-native` 处理历史回调与对账。
+2. 会员支付：先在隔离的预发布域名和测试账号中使用 `DEPLOY_STAGE=membership-acceptance`、`PAYMENT_ACCEPTANCE_ENVIRONMENT_CONFIRMED=true`，并在 Admin 填写、启用真实微信商户配置后执行 `checklists/wechat-payment-acceptance.md`。人工精修的会员免费排队、邮件投递和可选加急还需单独执行 `checklists/resume-review-acceptance.md`；开放加急前才要求设置 `RESUME_REVIEW_PAYMENT_ACCEPTANCE_CONFIRMED=true`。会员阶段仍由 `DEPLOY_STAGE=membership`、`MEMBERSHIP_PAYMENT_ACCEPTANCE_CONFIRMED=true` 控制。用户市场保持关闭。
+3. 用户付费简历市场：再用 `DEPLOY_STAGE=marketplace-acceptance` 在隔离环境完成 `checklists/marketplace-payment-acceptance.md`。正式获批后使用 `DEPLOY_STAGE=marketplace`、两个支付验收确认位与 `MARKETPLACE_GOVERNANCE_DUTY_CONFIRMED=true`；市场功能和两个新订单开关均允许在维护时关闭，Admin 微信支付配置保持启用以处理历史回调与对账。
 
 旧变量 `PAYMENT_ACCEPT_NEW_ORDERS` 必须始终为 `false`，不能用它同时打开两类订单。
 

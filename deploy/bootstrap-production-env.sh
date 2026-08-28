@@ -346,24 +346,6 @@ planet_core_acceptance_confirmed="${PAIRESUME_PLANET_CORE_ACCEPTANCE_CONFIRMED:-
 validate_boolean_override \
   "PAIRESUME_PLANET_CORE_ACCEPTANCE_CONFIRMED" "$planet_core_acceptance_confirmed"
 
-select_required_source_value "微信支付 App ID" \
-  PAIRESUME_WECHAT_PAY_APP_ID WECHAT_PAY_APP_ID
-wechat_pay_app_id="$SELECTED_VALUE"
-select_required_source_value "微信支付商户号" \
-  PAIRESUME_WECHAT_PAY_MERCHANT_ID WECHAT_PAY_MERCHANT_ID
-wechat_pay_merchant_id="$SELECTED_VALUE"
-select_required_source_value "微信支付商户私钥" \
-  PAIRESUME_WECHAT_PAY_PRIVATE_KEY WECHAT_PAY_PRIVATE_KEY
-wechat_pay_private_key="$SELECTED_VALUE"
-select_required_source_value "微信支付商户证书序列号" \
-  PAIRESUME_WECHAT_PAY_MERCHANT_SERIAL_NUMBER WECHAT_PAY_MERCHANT_SERIAL_NUMBER
-wechat_pay_merchant_serial="$SELECTED_VALUE"
-select_required_source_value "微信支付 API v3 Key" \
-  PAIRESUME_WECHAT_PAY_API_V3_KEY WECHAT_PAY_API_V3_KEY
-wechat_pay_api_v3_key="$SELECTED_VALUE"
-[[ ${#wechat_pay_api_v3_key} -eq 32 ]] \
-  || die "微信支付 API v3 Key 必须恰好为 32 个字符"
-
 review_payment_confirmed="${PAIRESUME_REVIEW_PAYMENT_ACCEPTANCE_CONFIRMED:-false}"
 validate_boolean_override "PAIRESUME_REVIEW_PAYMENT_ACCEPTANCE_CONFIRMED" "$review_payment_confirmed"
 [[ "$review_payment_confirmed" == "true" ]] \
@@ -553,11 +535,9 @@ write_env AI_BASE_URL https://api.deepseek.com
 write_env AI_MODEL deepseek-v4-flash
 write_env AI_ANALYSIS_MODEL deepseek-v4-flash
 
-write_env PAYMENT_PROVIDER wechat-native
 write_env PAYMENT_ACCEPT_NEW_ORDERS false
 write_env MEMBERSHIP_PAYMENT_ACCEPT_NEW_ORDERS false
 write_env MARKETPLACE_PAYMENT_ACCEPT_NEW_ORDERS false
-write_env SHOWCASE_PAYMENT_ACCEPT_NEW_ORDERS false
 write_env MARKETPLACE_ENABLED false
 write_env PAYMENT_ORDER_EXPIRE_MINUTES 15
 write_env MEMBERSHIP_ORDER_EXPIRE_MINUTES 30
@@ -570,15 +550,6 @@ write_env MEMBERSHIP_PAYMENT_ACCEPTANCE_CONFIRMED false
 write_env MARKETPLACE_PAYMENT_ACCEPTANCE_CONFIRMED false
 write_env MARKETPLACE_GOVERNANCE_DUTY_CONFIRMED false
 write_env PAYMENT_ACCEPTANCE_ENVIRONMENT_CONFIRMED false
-write_env WECHAT_PAY_APP_ID "$wechat_pay_app_id"
-write_env WECHAT_PAY_MERCHANT_ID "$wechat_pay_merchant_id"
-write_env WECHAT_PAY_PRIVATE_KEY "$wechat_pay_private_key"
-write_env WECHAT_PAY_MERCHANT_SERIAL_NUMBER "$wechat_pay_merchant_serial"
-write_env WECHAT_PAY_API_V3_KEY "$wechat_pay_api_v3_key"
-write_env WECHAT_PAY_NOTIFY_URL \
-  https://resume.paicoding.com/api/public/payments/wechat/notify
-write_env WECHAT_PAY_REFUND_NOTIFY_URL \
-  https://resume.paicoding.com/api/public/payments/wechat/refund-notify
 
 chmod 0600 "$temporary_env"
 if [[ "${PAIRESUME_BOOTSTRAP_TEST_MODE:-false}" != "true" ]]; then

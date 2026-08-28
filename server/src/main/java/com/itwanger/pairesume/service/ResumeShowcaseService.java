@@ -22,7 +22,5 @@ public interface ResumeShowcaseService {
 
     ResumeShowcase unfeatureResume(Long resumeId, Long adminUserId);
 
-    void unpublishChangedResume(Long resumeId);
-
     void unpublishDeletedResume(Long resumeId);
 }

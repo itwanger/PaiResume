@@ -70,7 +70,7 @@ for name in DEPLOY_STAGE APP_ENV APP_PUBLIC_URL APP_CORS_ALLOWED_ORIGIN_PATTERNS
   MAIL_HOST MAIL_PORT MAIL_USERNAME MAIL_SSL_ENABLE \
   MAIL_PASSWORD MAIL_FROM AI_API_KEY AI_BASE_URL AI_MODEL AI_ANALYSIS_MODEL VITE_SUPPORT_EMAIL \
   VITE_OPERATOR_NAME VITE_AI_PROVIDER_NAME VITE_AI_PROVIDER_PRIVACY_URL \
-  FORWARD_HEADERS_STRATEGY RELEASE_ROOT FIELD_OPTIMIZE_PROMPTS_FILE PAYMENT_PROVIDER \
+  FORWARD_HEADERS_STRATEGY RELEASE_ROOT FIELD_OPTIMIZE_PROMPTS_FILE \
   SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE \
   SERVER_TOMCAT_THREADS_MAX SERVER_TOMCAT_THREADS_MIN_SPARE \
   SERVER_TOMCAT_MAX_CONNECTIONS SERVER_TOMCAT_ACCEPT_COUNT \
@@ -358,34 +358,7 @@ if [[ "$tomcat_max_connections" =~ ^[0-9]+$ \
   failures=$((failures + 1))
 fi
 
-validate_wechat_payment() {
-  local name
-  for name in WECHAT_PAY_APP_ID WECHAT_PAY_MERCHANT_ID WECHAT_PAY_PRIVATE_KEY \
-    WECHAT_PAY_MERCHANT_SERIAL_NUMBER WECHAT_PAY_API_V3_KEY WECHAT_PAY_NOTIFY_URL; do
-    require_value "$name"
-    reject_placeholder "$name"
-  done
-
-  local api_v3_key="${WECHAT_PAY_API_V3_KEY:-}"
-  if [[ ${#api_v3_key} -ne 32 ]]; then
-    echo "WECHAT_PAY_API_V3_KEY 必须恰好为 32 个字符" >&2
-    failures=$((failures + 1))
-  fi
-
-  local expected_notify_url="${APP_PUBLIC_URL%/}/api/public/payments/wechat/notify"
-  if [[ "${WECHAT_PAY_NOTIFY_URL:-}" != "$expected_notify_url" ]]; then
-    echo "WECHAT_PAY_NOTIFY_URL 必须精确等于 ${expected_notify_url}" >&2
-    failures=$((failures + 1))
-  fi
-}
-
 deploy_stage="${DEPLOY_STAGE:-}"
-if [[ "${PAYMENT_PROVIDER:-}" != "wechat-native" ]]; then
-  echo "人工精修是常驻付费服务，PAYMENT_PROVIDER 必须为 wechat-native" >&2
-  failures=$((failures + 1))
-else
-  validate_wechat_payment
-fi
 case "$deploy_stage" in
   free)
     require_false PAYMENT_ACCEPT_NEW_ORDERS
@@ -399,11 +372,6 @@ case "$deploy_stage" in
     require_false MARKETPLACE_PAYMENT_ACCEPT_NEW_ORDERS
     require_false MARKETPLACE_ENABLED
     require_true PAYMENT_ACCEPTANCE_ENVIRONMENT_CONFIRMED
-    if [[ "${PAYMENT_PROVIDER:-}" != "wechat-native" ]]; then
-      echo "会员支付验收模式要求 PAYMENT_PROVIDER=wechat-native" >&2
-      failures=$((failures + 1))
-    fi
-    validate_wechat_payment
     ;;
   membership)
     require_false PAYMENT_ACCEPT_NEW_ORDERS
@@ -411,11 +379,6 @@ case "$deploy_stage" in
     require_false MARKETPLACE_PAYMENT_ACCEPT_NEW_ORDERS
     require_false MARKETPLACE_ENABLED
     require_true MEMBERSHIP_PAYMENT_ACCEPTANCE_CONFIRMED
-    if [[ "${PAYMENT_PROVIDER:-}" != "wechat-native" ]]; then
-      echo "会员支付阶段要求 PAYMENT_PROVIDER=wechat-native" >&2
-      failures=$((failures + 1))
-    fi
-    validate_wechat_payment
     ;;
   marketplace-acceptance)
     require_false PAYMENT_ACCEPT_NEW_ORDERS
@@ -425,11 +388,6 @@ case "$deploy_stage" in
     require_true MEMBERSHIP_PAYMENT_ACCEPTANCE_CONFIRMED
     require_true MARKETPLACE_GOVERNANCE_DUTY_CONFIRMED
     require_true PAYMENT_ACCEPTANCE_ENVIRONMENT_CONFIRMED
-    if [[ "${PAYMENT_PROVIDER:-}" != "wechat-native" ]]; then
-      echo "用户简历市场验收模式要求 PAYMENT_PROVIDER=wechat-native" >&2
-      failures=$((failures + 1))
-    fi
-    validate_wechat_payment
     ;;
   marketplace)
     require_false PAYMENT_ACCEPT_NEW_ORDERS
@@ -439,16 +397,11 @@ case "$deploy_stage" in
     require_true MEMBERSHIP_PAYMENT_ACCEPTANCE_CONFIRMED
     require_true MARKETPLACE_PAYMENT_ACCEPTANCE_CONFIRMED
     require_true MARKETPLACE_GOVERNANCE_DUTY_CONFIRMED
-    if [[ "${PAYMENT_PROVIDER:-}" != "wechat-native" ]]; then
-      echo "用户简历市场阶段要求 PAYMENT_PROVIDER=wechat-native" >&2
-      failures=$((failures + 1))
-    fi
     if [[ "${MARKETPLACE_PAYMENT_ACCEPT_NEW_ORDERS:-false}" == "true" \
       && "${MARKETPLACE_ENABLED:-false}" != "true" ]]; then
       echo "开启市场新订单时必须同时设置 MARKETPLACE_ENABLED=true" >&2
       failures=$((failures + 1))
     fi
-    validate_wechat_payment
     ;;
   *)
     echo "DEPLOY_STAGE 必须显式设置为 free、membership-acceptance、membership、marketplace-acceptance 或 marketplace" >&2

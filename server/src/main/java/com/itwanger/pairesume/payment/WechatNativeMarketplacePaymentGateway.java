@@ -18,7 +18,7 @@ import com.wechat.pay.java.service.payments.nativepay.model.PrepayResponse;
 import com.wechat.pay.java.service.payments.nativepay.model.QueryOrderByOutTradeNoRequest;
 import com.wechat.pay.java.service.payments.nativepay.model.SceneInfo;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Component;
@@ -36,7 +36,7 @@ import java.util.Base64;
 
 @Slf4j
 @Component
-@ConditionalOnProperty(prefix = "app.payment", name = "provider", havingValue = "wechat-native")
+@ConditionalOnExpression("'${app.payment.provider:disabled}' != 'mock'")
 public class WechatNativeMarketplacePaymentGateway implements MarketplacePaymentGateway {
     private static final ZoneId PAYMENT_ZONE = ZoneId.of("Asia/Shanghai");
 
@@ -70,7 +70,7 @@ public class WechatNativeMarketplacePaymentGateway implements MarketplacePayment
 
     @Override
     public String provider() {
-        return "wechat";
+        return configService == null || configService.isEnabled() ? "wechat" : "disabled";
     }
 
     @Override
@@ -282,7 +282,7 @@ public class WechatNativeMarketplacePaymentGateway implements MarketplacePayment
 
     private String require(String value, String name) {
         if (!StringUtils.hasText(value)) {
-            throw new IllegalStateException(name + " is required when PAYMENT_PROVIDER=wechat-native");
+            throw new IllegalStateException(name + " is required when WeChat Pay is enabled in Admin");
         }
         return value.trim();
     }

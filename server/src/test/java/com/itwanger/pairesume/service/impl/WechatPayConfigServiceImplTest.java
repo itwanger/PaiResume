@@ -42,19 +42,15 @@ class WechatPayConfigServiceImplTest {
     }
 
     @Test
-    void disabledAdminRowFallsBackToEnvironmentWithDistinctCallbacks() {
+    void disabledAdminRowKeepsPaymentDisabledEvenWhenEnvironmentCredentialsExist() {
         WechatPayConfig row = emptyRow();
         configureEnvironment();
         when(configMapper.selectById(WechatPayConfig.SINGLE_ROW_ID)).thenReturn(row);
 
-        var active = service.resolveActive();
         var view = service.view();
 
-        assertFalse(active.adminManaged());
-        assertEquals("https://resume.paicoding.com/api/public/payments/wechat/notify",
-                active.paymentNotifyUrl());
-        assertEquals("https://resume.paicoding.com/api/public/payments/wechat/refund-notify",
-                active.refundNotifyUrl());
+        assertFalse(service.isEnabled());
+        assertThrows(BusinessException.class, service::resolveActive);
         assertTrue(view.isEnvironmentFallbackConfigured());
         assertFalse(view.isStoredCredentialsConfigured());
     }

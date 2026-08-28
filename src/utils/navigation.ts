@@ -48,6 +48,14 @@ export function buildLoginPath(returnTo?: string): string {
   return buildLoginPathForMode(FRONTEND_MODE, returnTo)
 }
 
+export function buildEmailLoginPath(returnTo?: string): string {
+  const searchParams = new URLSearchParams({ method: 'email' })
+  if (returnTo) {
+    searchParams.set('redirect', returnTo)
+  }
+  return `/login?${searchParams.toString()}`
+}
+
 export function getLoginEntryLabel(mode = FRONTEND_MODE): string {
   return mode === 'development' ? '本地邮箱登录' : '扫码登录'
 }

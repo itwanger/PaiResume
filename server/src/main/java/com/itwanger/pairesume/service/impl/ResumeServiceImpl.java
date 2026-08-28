@@ -325,7 +325,6 @@ public class ResumeServiceImpl implements ResumeService {
         var resume = getAndVerifyOwnership(resumeId, userId);
         resume.setTitle(dto.getTitle().strip());
         resumeMapper.updateById(resume);
-        resumeShowcaseService.unpublishChangedResume(resumeId);
         return toListVO(resume);
     }
 
@@ -339,7 +338,6 @@ public class ResumeServiceImpl implements ResumeService {
         resume.setAccentPreset(dto.getAccentPreset());
         resume.setHeadingStyle(dto.getHeadingStyle());
         resumeMapper.updateById(resume);
-        resumeShowcaseService.unpublishChangedResume(resumeId);
         return toListVO(resume);
     }
 

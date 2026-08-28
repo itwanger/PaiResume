@@ -11,7 +11,6 @@ import com.itwanger.pairesume.mapper.ResumeMapper;
 import com.itwanger.pairesume.mapper.ResumeModuleMapper;
 import com.itwanger.pairesume.security.ResumePhotoSecurityPolicy;
 import com.itwanger.pairesume.service.ResumeModuleService;
-import com.itwanger.pairesume.service.ResumeShowcaseService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,25 +27,21 @@ public class ResumeModuleServiceImpl implements ResumeModuleService {
 
     private final ResumeModuleMapper moduleMapper;
     private final ResumeMapper resumeMapper;
-    private final ResumeShowcaseService resumeShowcaseService;
     private final ResumePhotoService resumePhotoService;
 
     @Autowired
     public ResumeModuleServiceImpl(
             ResumeModuleMapper moduleMapper,
             ResumeMapper resumeMapper,
-            ResumeShowcaseService resumeShowcaseService,
             ResumePhotoService resumePhotoService
     ) {
         this.moduleMapper = moduleMapper;
         this.resumeMapper = resumeMapper;
-        this.resumeShowcaseService = resumeShowcaseService;
         this.resumePhotoService = resumePhotoService;
     }
 
-    public ResumeModuleServiceImpl(ResumeModuleMapper moduleMapper, ResumeMapper resumeMapper,
-                                   ResumeShowcaseService resumeShowcaseService) {
-        this(moduleMapper, resumeMapper, resumeShowcaseService, null);
+    public ResumeModuleServiceImpl(ResumeModuleMapper moduleMapper, ResumeMapper resumeMapper) {
+        this(moduleMapper, resumeMapper, null);
     }
 
     @Override
@@ -72,7 +67,6 @@ public class ResumeModuleServiceImpl implements ResumeModuleService {
         module.setSortOrder(dto.getSortOrder() != null ? dto.getSortOrder() : getNextSortOrder(resumeId));
         moduleMapper.insert(module);
         touchResume(resumeId);
-        resumeShowcaseService.unpublishChangedResume(resumeId);
         return hydrateForRead(module, userId);
     }
 
@@ -89,7 +83,6 @@ public class ResumeModuleServiceImpl implements ResumeModuleService {
         module.setContent(prepareForPersistence(userId, module.getModuleType(), dto.getContent()));
         moduleMapper.updateById(module);
         touchResume(resumeId);
-        resumeShowcaseService.unpublishChangedResume(resumeId);
         return hydrateForRead(module, userId);
     }
 
@@ -121,7 +114,6 @@ public class ResumeModuleServiceImpl implements ResumeModuleService {
         }
 
         touchResume(resumeId);
-        resumeShowcaseService.unpublishChangedResume(resumeId);
     }
 
     @Override
@@ -135,7 +127,6 @@ public class ResumeModuleServiceImpl implements ResumeModuleService {
         }
         moduleMapper.deleteById(moduleId);
         touchResume(resumeId);
-        resumeShowcaseService.unpublishChangedResume(resumeId);
     }
 
     private void verifyResumeOwnership(Long resumeId, Long userId) {

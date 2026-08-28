@@ -42,10 +42,17 @@ class ShowcasePurchaseServiceImplTest {
     void setUp() {
         properties = new MarketplacePaymentProperties();
         properties.setProvider("mock");
-        properties.setShowcaseAcceptNewOrders(true);
         properties.setOrderExpireMinutes(15);
         service = new ShowcasePurchaseServiceImpl(
                 showcaseMapper, orderMapper, paymentGateway, properties, qrCodeGenerator);
+    }
+
+    @Test
+    void paymentAvailabilityFollowsTheConfiguredProvider() {
+        when(paymentGateway.provider()).thenReturn("mock", "disabled");
+
+        assertTrue(service.isPaymentEnabled());
+        assertFalse(service.isPaymentEnabled());
     }
 
     @Test

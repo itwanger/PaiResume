@@ -7,7 +7,7 @@ import { LogoMark } from '../components/branding/LogoMark'
 import { getDevelopmentLoginCredentials } from '../config/developmentLogin'
 import { AUTHENTICATED_HOME_PATH } from '../config/site'
 import { useAuthStore } from '../store/authStore'
-import { getSafeInternalPath, resolveLoginMethod } from '../utils/navigation'
+import { buildEmailLoginPath, getSafeInternalPath, resolveLoginMethod } from '../utils/navigation'
 
 const REMEMBERED_EMAIL_KEY = 'rememberedEmail'
 const LEGACY_REMEMBERED_PASSWORD_KEY = 'rememberedPassword'
@@ -81,6 +81,8 @@ export default function LoginPage() {
   const passwordResetSucceeded = searchParams.get('passwordReset') === 'success'
   const emailLoginPreferred = resolveLoginMethod(searchParams.get('method')) === 'email'
   const legacyEmailMode = passwordResetSucceeded || emailLoginPreferred
+  const adminEmailLogin = legacyEmailMode && returnTo === '/admin'
+  const adminEmailLoginPath = buildEmailLoginPath('/admin')
   const passwordResetPath = `/forgot-password?${new URLSearchParams({ redirect: returnTo }).toString()}`
   const developmentDefaultsEnabled = import.meta.env.MODE === 'development' && !passwordResetSucceeded
   const initialCredentials = developmentDefaultsEnabled
@@ -110,6 +112,12 @@ export default function LoginPage() {
   useEffect(() => {
     let cancelled = false
     let pollTimer: number | null = null
+
+    if (legacyEmailMode) {
+      return () => {
+        cancelled = true
+      }
+    }
 
     const stopPolling = () => {
       if (pollTimer !== null) {
@@ -226,7 +234,7 @@ export default function LoginPage() {
       cancelled = true
       stopPolling()
     }
-  }, [completeWechatLogin, inviteClaimToken, navigate, qrRefreshKey, returnTo])
+  }, [completeWechatLogin, inviteClaimToken, legacyEmailMode, navigate, qrRefreshKey, returnTo])
 
   const handleEmailChange = (nextEmail: string) => {
     setEmail(nextEmail)
@@ -331,7 +339,9 @@ export default function LoginPage() {
         >
           {legacyEmailMode ? (
             <>
-              <h2 className="text-center text-xl font-semibold text-gray-900">邮箱密码登录</h2>
+              <h2 className="text-center text-xl font-semibold text-gray-900">
+                {adminEmailLogin ? '管理员邮箱登录' : '邮箱密码登录'}
+              </h2>
               <form
                 id="email-password-login"
                 onSubmit={handleEmailSubmit}
@@ -496,6 +506,15 @@ export default function LoginPage() {
                   </p>
                 ) : null}
               </form>
+
+              <div className="mt-5 border-t border-gray-100 pt-4 text-center">
+                <Link
+                  to={adminEmailLoginPath}
+                  className="text-sm font-medium text-primary-600 hover:text-primary-700"
+                >
+                  管理员邮箱登录
+                </Link>
+              </div>
             </>
           )}
         </main>

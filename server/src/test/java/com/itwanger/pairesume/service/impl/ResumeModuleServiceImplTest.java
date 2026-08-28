@@ -7,7 +7,6 @@ import com.itwanger.pairesume.entity.Resume;
 import com.itwanger.pairesume.entity.ResumeModule;
 import com.itwanger.pairesume.mapper.ResumeMapper;
 import com.itwanger.pairesume.mapper.ResumeModuleMapper;
-import com.itwanger.pairesume.service.ResumeShowcaseService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,13 +26,12 @@ import static org.mockito.Mockito.when;
 class ResumeModuleServiceImplTest {
     @Mock private ResumeModuleMapper moduleMapper;
     @Mock private ResumeMapper resumeMapper;
-    @Mock private ResumeShowcaseService resumeShowcaseService;
 
     private ResumeModuleServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        service = new ResumeModuleServiceImpl(moduleMapper, resumeMapper, resumeShowcaseService);
+        service = new ResumeModuleServiceImpl(moduleMapper, resumeMapper);
         Resume resume = new Resume();
         resume.setId(11L);
         resume.setUserId(7L);
@@ -69,7 +67,7 @@ class ResumeModuleServiceImplTest {
     }
 
     @Test
-    void updatingModuleUnpublishesFeaturedResume() {
+    void updatingModuleKeepsFeaturedResumePublished() {
         ResumeModule module = new ResumeModule();
         module.setId(19L);
         module.setResumeId(11L);
@@ -81,7 +79,6 @@ class ResumeModuleServiceImplTest {
         service.update(11L, 7L, 19L, dto);
 
         verify(moduleMapper).updateById(module);
-        verify(resumeShowcaseService).unpublishChangedResume(11L);
     }
 
     @Test
@@ -96,7 +93,6 @@ class ResumeModuleServiceImplTest {
         verify(moduleMapper).updateSortOrder(11L, 1L, 0);
         verify(moduleMapper).updateSortOrder(11L, 3L, 1);
         verify(moduleMapper).updateSortOrder(11L, 2L, 2);
-        verify(resumeShowcaseService).unpublishChangedResume(11L);
     }
 
     @Test
@@ -110,7 +106,6 @@ class ResumeModuleServiceImplTest {
         assertThrows(BusinessException.class, () -> service.reorder(11L, 7L, List.of(1L, 1L, 3L)));
 
         verify(moduleMapper, never()).updateSortOrder(any(), any(), any());
-        verify(resumeShowcaseService, never()).unpublishChangedResume(11L);
     }
 
     private ResumeModule module(Long id, String moduleType, int sortOrder) {

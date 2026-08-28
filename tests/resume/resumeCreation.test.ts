@@ -5,6 +5,7 @@ import {
   buildResumeEditorPath,
 } from '../../src/config/site'
 import {
+  buildEmailLoginPath,
   buildLoginPath,
   buildLoginPathForMode,
   getLoginEntryLabel,
@@ -89,4 +90,11 @@ test('登录页允许显式选择登录方式，并按环境提供默认方式',
   assert.equal(resolveLoginMethod(null, 'production'), 'wechat')
   assert.equal(resolveLoginMethod('wechat', 'development'), 'wechat')
   assert.equal(resolveLoginMethod('email', 'production'), 'email')
+})
+
+test('管理员邮箱登录入口保留后台回跳地址', () => {
+  assert.equal(
+    buildEmailLoginPath('/admin'),
+    '/login?method=email&redirect=%2Fadmin',
+  )
 })

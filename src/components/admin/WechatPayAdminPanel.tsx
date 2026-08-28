@@ -124,14 +124,14 @@ export function WechatPayAdminPanel() {
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
         <label className="block text-sm sm:col-span-2">
-          <span className="font-medium text-slate-700">配置来源</span>
+          <span className="font-medium text-slate-700">支付方式</span>
           <select
-            value={form.enabled ? 'admin' : 'environment'}
-            onChange={(event) => update({ enabled: event.target.value === 'admin' })}
+            value={form.enabled ? 'wechat' : 'disabled'}
+            onChange={(event) => update({ enabled: event.target.value === 'wechat' })}
             className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-primary-300"
           >
-            <option value="environment">.env 环境变量</option>
-            <option value="admin">后台配置</option>
+            <option value="disabled">暂不启用支付</option>
+            <option value="wechat">微信支付</option>
           </select>
         </label>
         <label className="block text-sm">
