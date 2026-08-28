@@ -15,6 +15,63 @@ body {
   min-height: 100vh;
 }
 
+/* 简历缩略图按自身宽度提升可读性，列表卡与详情卡保持同一单栏结构。 */
+.resume-content-thumbnail {
+  container-type: inline-size;
+}
+
+.resume-content-thumbnail__responsibility {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@container (min-width: 520px) {
+  .resume-content-thumbnail__masthead-label {
+    font-size: 11px;
+    line-height: 16px;
+  }
+
+  .resume-content-thumbnail__masthead-value,
+  .resume-content-thumbnail__section-heading {
+    font-size: 10px;
+    line-height: 15px;
+  }
+
+  .resume-content-thumbnail__module-count,
+  .resume-content-thumbnail__body {
+    font-size: 9px;
+    line-height: 14px;
+  }
+
+  .resume-content-thumbnail__bullet {
+    margin-top: 6px;
+  }
+}
+
+@container (min-width: 720px) {
+  .resume-content-thumbnail__masthead-label {
+    font-size: 12px;
+    line-height: 18px;
+  }
+
+  .resume-content-thumbnail__masthead-value,
+  .resume-content-thumbnail__section-heading {
+    font-size: 11px;
+    line-height: 17px;
+  }
+
+  .resume-content-thumbnail__module-count,
+  .resume-content-thumbnail__body {
+    font-size: 10px;
+    line-height: 16px;
+  }
+
+  .resume-content-thumbnail__bullet {
+    margin-top: 7px;
+  }
+}
+
 /* 编辑器表单按真实可用宽度响应，避免三栏布局下仅按视口断点误判。 */
 .editor-form-container {
   container-type: inline-size;
@@ -269,7 +326,7 @@ body {
   color: var(--admin-muted);
 }
 
-.admin-workspace input,
+.admin-workspace input:not([type='checkbox']):not([type='radio']),
 .admin-workspace select,
 .admin-workspace textarea {
   background-color: #fff;
@@ -286,14 +343,14 @@ body {
   color: #94a3b8;
 }
 
-.admin-workspace input:disabled,
+.admin-workspace input:not([type='checkbox']):not([type='radio']):disabled,
 .admin-workspace select:disabled,
 .admin-workspace textarea:disabled {
   background-color: #f1f5f9;
   color: #64748b;
 }
 
-.admin-workspace input:focus,
+.admin-workspace input:not([type='checkbox']):not([type='radio']):focus,
 .admin-workspace select:focus,
 .admin-workspace textarea:focus {
   border-color: #3369e8;

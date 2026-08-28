@@ -151,18 +151,21 @@ export default function DashboardPage() {
         <h1 className="sr-only">我的简历</h1>
         {loading ? <p className="sr-only" role="status">正在加载简历</p> : null}
 
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          <CreateResumeCard
-            disabled={creating}
-            onClick={openCreateDialog}
-          />
-          {resumeList.map((resume) => (
-            <ResumeCard
-              key={resume.id}
-              resume={resume}
-              onDelete={openDeleteDialog}
-              onRename={openRenameDialog}
+        <div className="columns-1 gap-5 sm:columns-2 lg:columns-3 xl:columns-4">
+          <div className="mb-5 break-inside-avoid">
+            <CreateResumeCard
+              disabled={creating}
+              onClick={openCreateDialog}
             />
+          </div>
+          {resumeList.map((resume) => (
+            <div key={resume.id} className="mb-5 break-inside-avoid">
+              <ResumeCard
+                resume={resume}
+                onDelete={openDeleteDialog}
+                onRename={openRenameDialog}
+              />
+            </div>
           ))}
         </div>
       </main>

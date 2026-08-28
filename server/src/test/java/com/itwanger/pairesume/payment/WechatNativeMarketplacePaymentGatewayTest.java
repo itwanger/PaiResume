@@ -5,7 +5,10 @@ import com.wechat.pay.java.core.exception.ServiceException;
 import com.wechat.pay.java.service.payments.nativepay.NativePayService;
 import com.wechat.pay.java.service.payments.model.Transaction;
 import com.wechat.pay.java.service.payments.model.TransactionAmount;
+import com.wechat.pay.java.service.payments.nativepay.model.PrepayRequest;
+import com.wechat.pay.java.service.payments.nativepay.model.PrepayResponse;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.core.io.ResourceLoader;
 
 import java.time.LocalDateTime;
@@ -14,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class WechatNativeMarketplacePaymentGatewayTest {
@@ -40,6 +44,22 @@ class WechatNativeMarketplacePaymentGatewayTest {
 
         assertEquals("disabled", gateway.provider());
         assertEquals("wechat", gateway.provider());
+    }
+
+    @Test
+    void formatsWechatExpiryAtWholeSecondPrecision() {
+        NativePayService nativePayService = mock(NativePayService.class);
+        PrepayResponse response = mock(PrepayResponse.class);
+        when(response.getCodeUrl()).thenReturn("weixin://wxpay/test");
+        when(nativePayService.prepay(any())).thenReturn(response);
+        LocalDateTime expiresAt = LocalDateTime.of(2026, 8, 28, 18, 30, 45, 123_456_789);
+
+        gateway(nativePayService).createNativeOrder(new PaymentPrepayRequest(
+                "PO" + "a".repeat(30), "description", 600, "127.0.0.1", expiresAt));
+
+        ArgumentCaptor<PrepayRequest> requestCaptor = ArgumentCaptor.forClass(PrepayRequest.class);
+        verify(nativePayService).prepay(requestCaptor.capture());
+        assertEquals("2026-08-28T18:30:45+08:00", requestCaptor.getValue().getTimeExpire());
     }
 
     @Test

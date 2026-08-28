@@ -25,6 +25,8 @@ export interface ResumeCardPreview {
   project: string
   educations?: string[]
   experiences?: string[]
+  workExperiences?: string[]
+  internships?: string[]
   projects?: ResumeCardProjectPreview[]
   skills: string[]
   moduleCounts: Record<string, number>

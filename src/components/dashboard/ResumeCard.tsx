@@ -21,6 +21,8 @@ export const EMPTY_RESUME_CARD_PREVIEW: ResumeCardPreview = {
   project: '',
   educations: [],
   experiences: [],
+  workExperiences: [],
+  internships: [],
   projects: [],
   skills: [],
   moduleCounts: {},
@@ -78,6 +80,28 @@ function resolveThumbnailHeadingStyle(templateId: ResumePdfTemplateId, headingSt
   return 'underline'
 }
 
+function skillVisualWidth(value: string) {
+  return Array.from(value).reduce((width, character) => width + (character.charCodeAt(0) <= 0x7f ? 1 : 2), 0)
+}
+
+function packSkillPreviewRows(skills: string[]) {
+  const values = Array.from(new Set(skills.map((skill) => skill.trim()).filter(Boolean)))
+  if (values.length <= 2) return values
+
+  let bestSplit = 1
+  let bestDistance = Number.POSITIVE_INFINITY
+  for (let split = 1; split < values.length; split += 1) {
+    const left = values.slice(0, split).join('；')
+    const right = values.slice(split).join('；')
+    const distance = Math.abs(skillVisualWidth(left) - skillVisualWidth(right))
+    if (distance < bestDistance) {
+      bestDistance = distance
+      bestSplit = split
+    }
+  }
+  return [values.slice(0, bestSplit).join('；'), values.slice(bestSplit).join('；')]
+}
+
 export function ResumeContentThumbnail({ preview, resume }: { preview: ResumeCardPreview; resume: ResumeStyleSource }) {
   const style = normalizeResumeStyle(resume)
   const accent = style.accentPreset === 'auto' ? templateDefaultAccents[style.templateId] : style.accentPreset
@@ -97,14 +121,37 @@ export function ResumeContentThumbnail({ preview, resume }: { preview: ResumeCar
         : 'bg-white'
   const hasContent = preview.filledModuleCount > 0
   const basicInfo = preview.basicInfo || preview.targetRole
-  const experienceLabel = (preview.moduleCounts?.work_experience || 0) > 0 ? '工作经历' : '实习经历'
+  const workExperienceCount = preview.moduleCounts?.work_experience || 0
+  const internshipCount = preview.moduleCounts?.internship || 0
   const educations = preview.educations?.length ? preview.educations : preview.education ? [preview.education] : []
-  const experiences = preview.experiences?.length ? preview.experiences : preview.experience ? [preview.experience] : []
+  const legacyExperiences = preview.experiences?.length ? preview.experiences : preview.experience ? [preview.experience] : []
+  const workExperiences = preview.workExperiences?.length
+    ? preview.workExperiences
+    : workExperienceCount > 0 && internshipCount === 0
+      ? legacyExperiences
+      : []
+  const internships = preview.internships?.length
+    ? preview.internships
+    : internshipCount > 0 && workExperienceCount === 0
+      ? legacyExperiences
+      : []
   const projects = preview.projects?.length
     ? preview.projects
     : preview.project
       ? [{ title: preview.project, description: '' }]
       : []
+  const projectResponsibilities = projects
+    .map((project) => project.description)
+    .filter(Boolean)
+  const skillRows = packSkillPreviewRows(preview.skills)
+  const visibleSections = [
+    '基本信息',
+    '教育背景',
+    '专业技能',
+    ...(internships.length ? ['实习经历'] : []),
+    ...(workExperiences.length ? ['工作经历'] : []),
+    ...(projectResponsibilities.length ? ['项目经历'] : []),
+  ]
   const mastheadClassName = style.templateId === 'executive'
     ? 'bg-slate-800 text-white'
     : style.templateId === 'campus-blue'
@@ -127,30 +174,46 @@ export function ResumeContentThumbnail({ preview, resume }: { preview: ResumeCar
 
   const renderListSection = (label: string, values: string[]) => (
     <div className="min-w-0">
-      <div className={`mb-0.5 text-[8px] font-bold leading-3 ${palette.strongText} ${sectionHeadingClassName}`}>
+      <div className={`resume-content-thumbnail__section-heading mb-0.5 text-[8px] font-bold leading-3 ${palette.strongText} ${sectionHeadingClassName}`}>
         {label}
       </div>
       <div className="space-y-0.5">
         {values.length ? values.map((value, index) => (
           <div key={`${value}-${index}`} className="flex min-w-0 items-start gap-1">
-            {values.length > 1 ? <span className={`mt-[5px] h-1 w-1 shrink-0 rounded-full ${palette.dot}`} /> : null}
-            <p className="min-w-0 truncate text-[7px] leading-3 text-slate-600">{value}</p>
+            {values.length > 1 ? <span className={`resume-content-thumbnail__bullet mt-[5px] h-1 w-1 shrink-0 rounded-full ${palette.dot}`} /> : null}
+            <p className="resume-content-thumbnail__body min-w-0 break-words text-[7px] leading-3 text-slate-600">{value}</p>
           </div>
         )) : <p className="text-[7px] leading-3 text-slate-400">待完善</p>}
       </div>
     </div>
   )
 
+  const renderResponsibilitySection = (label: string, values: string[]) => values.length ? (
+    <section className="min-h-0 min-w-0 overflow-hidden">
+      <div className={`resume-content-thumbnail__section-heading mb-0.5 text-[8px] font-bold leading-3 ${palette.strongText} ${sectionHeadingClassName}`}>
+        {label}
+      </div>
+      <ul className="space-y-0.5">
+        {values.slice(0, 2).map((value, index) => (
+          <li key={`${label}-${value}-${index}`} className="flex min-w-0 items-start gap-1">
+            <span className={`resume-content-thumbnail__bullet mt-[5px] h-1 w-1 shrink-0 rounded-full ${palette.dot}`} aria-hidden="true" />
+            <p className="resume-content-thumbnail__body resume-content-thumbnail__responsibility min-w-0 break-words text-[7px] leading-3 text-slate-600">{value}</p>
+          </li>
+        ))}
+      </ul>
+    </section>
+  ) : null
+
   return (
     <div
-      className={`relative mb-4 w-full shrink-0 overflow-hidden ${hasContent ? '' : 'h-40'} ${surfaceClassName}`}
+      className={`resume-content-thumbnail relative mb-4 w-full shrink-0 overflow-hidden ${hasContent ? '' : 'h-40'} ${surfaceClassName}`}
       data-template-id={style.templateId}
       data-accent-preset={accent}
       data-heading-style={headingStyle}
       data-density={style.density}
       data-page-mode={style.pageMode}
       aria-label={hasContent
-        ? `简历内容概览：基本信息、教育背景、专业技能${experiences.length ? `、${experienceLabel}` : ''}${projects.length ? '和项目' : ''}`
+        ? `简历内容概览：${visibleSections.join('、')}`
         : '空白简历，尚未填写内容'}
     >
       <div className={`flex flex-col overflow-hidden ${hasContent ? '' : 'h-full'}`}>
@@ -158,11 +221,11 @@ export function ResumeContentThumbnail({ preview, resume }: { preview: ResumeCar
           <>
             <div className={`px-3 py-2 ${mastheadClassName || headingClassName}`}>
               <div className="flex min-w-0 items-center gap-2">
-                <span className="shrink-0 text-[9px] font-bold leading-3">基本信息</span>
-                <span className={`min-w-0 flex-1 truncate text-[8px] leading-3 ${mastheadValueClassName}`}>
+                <span className="resume-content-thumbnail__masthead-label shrink-0 text-[9px] font-bold leading-3">基本信息</span>
+                <span className={`resume-content-thumbnail__masthead-value min-w-0 flex-1 truncate text-[8px] leading-3 ${mastheadValueClassName}`}>
                   {basicInfo || '求职方向待完善'}
                 </span>
-                <span className={`shrink-0 text-[7px] ${mastheadValueClassName}`}>
+                <span className={`resume-content-thumbnail__module-count shrink-0 text-[7px] ${mastheadValueClassName}`}>
                   {preview.filledModuleCount} 个模块
                 </span>
               </div>
@@ -172,50 +235,22 @@ export function ResumeContentThumbnail({ preview, resume }: { preview: ResumeCar
               {renderListSection('教育背景', educations.slice(0, 2))}
 
               <section className="min-w-0">
-                <div className={`mb-0.5 text-[8px] font-bold leading-3 ${palette.strongText} ${sectionHeadingClassName}`}>
+                <div className={`resume-content-thumbnail__section-heading mb-0.5 text-[8px] font-bold leading-3 ${palette.strongText} ${sectionHeadingClassName}`}>
                   专业技能
                 </div>
                 <div className="space-y-0.5">
-                  {preview.skills.length ? preview.skills.slice(0, 2).map((skill) => (
-                    <div key={skill} className="flex min-w-0 items-center gap-1">
-                      <span className={`h-1 w-1 shrink-0 rounded-full ${palette.dot}`} />
-                      <p className="min-w-0 truncate text-[7px] leading-3 text-slate-600">{skill}</p>
+                  {skillRows.length ? skillRows.slice(0, 2).map((skill, index) => (
+                    <div key={`${skill}-${index}`} className="flex min-w-0 items-start gap-1">
+                      <span className={`resume-content-thumbnail__bullet mt-[5px] h-1 w-1 shrink-0 rounded-full ${palette.dot}`} />
+                      <p className="resume-content-thumbnail__body min-w-0 truncate whitespace-nowrap text-[7px] leading-3 text-slate-600">{skill}</p>
                     </div>
                   )) : <p className="text-[7px] leading-3 text-slate-400">待完善</p>}
                 </div>
               </section>
 
-              {experiences.length ? (
-                <section className="min-h-0 min-w-0 overflow-hidden">
-                  <div className={`mb-0.5 text-[8px] font-bold leading-3 ${palette.strongText} ${sectionHeadingClassName}`}>
-                    {experienceLabel}
-                  </div>
-                  <div className="grid min-w-0 grid-cols-2 gap-x-3">
-                    {experiences.slice(0, 2).map((experience, index) => {
-                      const project = projects[index]
-                      return (
-                        <div key={`${experience}-${index}`} className="min-w-0">
-                          <p className="truncate text-[7px] font-semibold leading-[10px] text-slate-700">{experience}</p>
-                          {project?.title ? <p className="truncate text-[7px] leading-[10px] text-slate-600">{project.title}</p> : null}
-                          {project?.description ? <p className="truncate text-[6px] leading-[9px] text-slate-500">{project.description}</p> : null}
-                        </div>
-                      )
-                    })}
-                  </div>
-                </section>
-              ) : projects.length ? (
-                <section className="min-h-0 min-w-0 overflow-hidden">
-                  <div className={`mb-0.5 text-[8px] font-bold leading-3 ${palette.strongText} ${sectionHeadingClassName}`}>项目经历</div>
-                  <div className="grid grid-cols-2 gap-x-3">
-                    {projects.slice(0, 2).map((project, index) => (
-                      <div key={`${project.title}-${index}`} className="min-w-0">
-                        <p className="truncate text-[7px] font-semibold leading-[10px] text-slate-700">{project.title}</p>
-                        <p className="truncate text-[6px] leading-[9px] text-slate-500">{project.description}</p>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              ) : null}
+              {renderResponsibilitySection('实习经历', internships)}
+              {renderResponsibilitySection('工作经历', workExperiences)}
+              {renderResponsibilitySection('项目经历', projectResponsibilities)}
             </div>
           </>
         ) : (
@@ -286,7 +321,7 @@ export function ResumeCard({ resume, onDelete, onRename }: ResumeCardProps) {
   return (
     <article
       onClick={() => navigate(buildResumeEditorPath(resume.id))}
-      className={`group relative flex h-full min-h-72 cursor-pointer flex-col rounded-xl border border-gray-200 bg-white p-5 transition-all hover:border-primary-300 hover:shadow-md ${menuOpen ? 'z-20' : ''}`}
+      className={`group relative flex cursor-pointer flex-col rounded-xl border border-gray-200 bg-white p-5 transition-all hover:border-primary-300 hover:shadow-md ${menuOpen ? 'z-20' : ''}`}
     >
       <h2
         className="mb-4 whitespace-normal break-words text-base font-semibold leading-6 text-gray-900 transition-colors group-hover:text-primary-600"

@@ -109,6 +109,8 @@ public class ResumeServiceImpl implements ResumeService {
         var experiences = extractExperienceSummaries(modules);
         preview.setExperiences(experiences);
         preview.setExperience(experiences.stream().findFirst().orElse(""));
+        preview.setWorkExperiences(extractExperienceSummaries(modules, Set.of("work_experience")));
+        preview.setInternships(extractExperienceSummaries(modules, Set.of("internship")));
 
         var projects = extractProjectPreviews(modules);
         preview.setProjects(projects);
@@ -133,58 +135,146 @@ public class ResumeServiceImpl implements ResumeService {
     }
 
     private static List<String> extractExperienceSummaries(List<ResumeModule> modules) {
-        return modules.stream()
-                .filter(module -> Set.of("work_experience", "internship").contains(module.getModuleType()))
-                .map(ResumeModule::getContent)
-                .filter(Objects::nonNull)
-                .filter(ResumeServiceImpl::hasMeaningfulValue)
-                .map(content -> joinSummary(
-                        firstText(text(content, "company"), text(content, "projectName")),
-                        text(content, "position")))
-                .filter(summary -> !summary.isBlank())
-                .limit(2)
-                .toList();
+        return extractExperienceSummaries(modules, Set.of("work_experience", "internship"));
     }
 
-    private static List<ResumeCardProjectPreviewVO> extractProjectPreviews(List<ResumeModule> modules) {
-        var result = new ArrayList<ResumeCardProjectPreviewVO>();
+    private static List<String> extractExperienceSummaries(List<ResumeModule> modules, Set<String> moduleTypes) {
+        var groups = new ArrayList<List<String>>();
         for (ResumeModule module : modules) {
-            if (result.size() >= 4) break;
+            if (!moduleTypes.contains(module.getModuleType())) continue;
             var content = module.getContent();
-            if (content == null) continue;
+            if (content == null || !hasMeaningfulValue(content)) continue;
+            var summaries = extractExperienceResponsibilityLines(content);
+            if (!summaries.isEmpty()) groups.add(summaries);
+        }
+        return takeFirstAcrossGroups(groups, 2);
+    }
 
-            if (Set.of("work_experience", "internship").contains(module.getModuleType())) {
-                Object rawProjects = content.get("projects");
-                if (rawProjects instanceof Collection<?> projects) {
-                    for (Object rawProject : projects) {
-                        if (!(rawProject instanceof Map<?, ?> project)) continue;
-                        addProjectPreview(result,
-                                joinSummary(getMapText(project, "projectName"), getMapText(project, "role")),
-                                firstText(getMapText(project, "projectDescription"), getMapText(project, "techStack")));
-                        if (result.size() >= 4) break;
-                    }
-                } else {
-                    addProjectPreview(result,
-                            joinSummary(text(content, "projectName"), text(content, "role")),
-                            firstText(text(content, "projectDescription"), text(content, "techStack")));
-                }
-            } else if ("project".equals(module.getModuleType())) {
-                addProjectPreview(result,
-                        joinSummary(text(content, "projectName"), text(content, "role")),
-                        firstText(text(content, "description"), text(content, "techStack")));
+    private static List<String> extractExperienceResponsibilityLines(Map<String, Object> content) {
+        var primary = new ArrayList<String>();
+        var additional = new ArrayList<String>();
+        Object rawProjects = content.get("projects");
+        if (rawProjects instanceof Collection<?> projects) {
+            for (Object rawProject : projects) {
+                if (!(rawProject instanceof Map<?, ?> project)) continue;
+                addResponsibilityLines(
+                        primary,
+                        additional,
+                        getStringValues(project.get("responsibilities")),
+                        firstText(getMapText(project, "projectDescription"), getMapText(project, "techStack")));
             }
+        }
+        if (primary.isEmpty()) {
+            addResponsibilityLines(
+                    primary,
+                    additional,
+                    getStringValues(content.get("responsibilities")),
+                    firstText(text(content, "projectDescription"), text(content, "techStack")));
+        }
+        primary.addAll(additional);
+        return primary;
+    }
+
+    private static void addResponsibilityLines(
+            List<String> primary,
+            List<String> additional,
+            List<String> responsibilities,
+            String fallback
+    ) {
+        var details = responsibilities.isEmpty()
+                ? fallback.isBlank() ? List.<String>of() : List.of(fallback)
+                : responsibilities;
+        if (details.isEmpty()) return;
+        primary.add(details.get(0));
+        details.stream().skip(1).forEach(additional::add);
+    }
+
+    private static List<String> takeFirstAcrossGroups(List<List<String>> groups, int limit) {
+        var result = new ArrayList<String>();
+        int offset = 0;
+        while (result.size() < limit) {
+            boolean found = false;
+            for (List<String> group : groups) {
+                if (offset >= group.size()) continue;
+                String value = group.get(offset);
+                if (!value.isBlank()) result.add(value);
+                found = true;
+                if (result.size() >= limit) break;
+            }
+            if (!found) break;
+            offset++;
         }
         return result;
     }
 
-    private static void addProjectPreview(List<ResumeCardProjectPreviewVO> target, String title, String description) {
-        if (title.isBlank() && description.isBlank()) return;
-        target.add(new ResumeCardProjectPreviewVO(title, description));
+    private static List<ResumeCardProjectPreviewVO> extractProjectPreviews(List<ResumeModule> modules) {
+        var groups = new ArrayList<List<ResumeCardProjectPreviewVO>>();
+        for (ResumeModule module : modules) {
+            if (!"project".equals(module.getModuleType())) continue;
+            var content = module.getContent();
+            if (content == null || !hasMeaningfulValue(content)) continue;
+            String title = joinSummary(text(content, "projectName"), text(content, "role"));
+            List<String> responsibilities = getStringValues(content.get("achievements"));
+            if (responsibilities.isEmpty()) {
+                String fallback = firstText(text(content, "description"), text(content, "techStack"));
+                responsibilities = fallback.isBlank() ? List.of() : List.of(fallback);
+            }
+            List<ResumeCardProjectPreviewVO> previews = responsibilities.stream()
+                    .map(responsibility -> new ResumeCardProjectPreviewVO(title, responsibility))
+                    .toList();
+            if (!previews.isEmpty()) groups.add(previews);
+        }
+        return takeFirstProjectsAcrossGroups(groups, 2);
+    }
+
+    private static List<ResumeCardProjectPreviewVO> takeFirstProjectsAcrossGroups(
+            List<List<ResumeCardProjectPreviewVO>> groups,
+            int limit
+    ) {
+        var result = new ArrayList<ResumeCardProjectPreviewVO>();
+        int offset = 0;
+        while (result.size() < limit) {
+            boolean found = false;
+            for (List<ResumeCardProjectPreviewVO> group : groups) {
+                if (offset >= group.size()) continue;
+                result.add(group.get(offset));
+                found = true;
+                if (result.size() >= limit) break;
+            }
+            if (!found) break;
+            offset++;
+        }
+        return result;
     }
 
     private static String getMapText(Map<?, ?> content, String field) {
         Object value = content.get(field);
         return value instanceof String string ? string.strip() : "";
+    }
+
+    private static List<String> getStringValues(Object value) {
+        if (value instanceof Collection<?> collection) {
+            return collection.stream()
+                    .filter(String.class::isInstance)
+                    .map(String.class::cast)
+                    .map(ResumeServiceImpl::normalizeResponsibilityLine)
+                    .filter(item -> !item.isBlank())
+                    .toList();
+        }
+        if (value instanceof String string) {
+            return Arrays.stream(string.split("\\R+"))
+                    .map(ResumeServiceImpl::normalizeResponsibilityLine)
+                    .filter(line -> !line.isBlank())
+                    .toList();
+        }
+        return List.of();
+    }
+
+    private static String normalizeResponsibilityLine(String value) {
+        String normalized = value.replaceFirst("^[\\s*+\\-•·]+", "").strip();
+        if (normalized.matches("^(项目简介|核心职责)[:：]?$")) return "";
+        if (normalized.startsWith("项目简介：") || normalized.startsWith("项目简介:")) return "";
+        return normalized.replaceFirst("^核心职责[:：]\\s*", "").strip();
     }
 
     private static List<String> extractSkills(List<ResumeModule> modules) {
@@ -198,19 +288,32 @@ public class ResumeServiceImpl implements ResumeService {
                 if (result.size() >= 8) break;
             }
         }
-        if (result.isEmpty()) {
-            modules.stream()
-                    .filter(module -> Set.of("project", "work_experience", "internship").contains(module.getModuleType()))
-                    .map(ResumeModule::getContent)
-                    .filter(Objects::nonNull)
-                    .map(content -> text(content, "techStack"))
-                    .filter(value -> !value.isBlank())
-                    .flatMap(value -> Arrays.stream(value.split("[,，、/|\\s]+")))
-                    .map(String::strip)
-                    .filter(value -> !value.isBlank())
-                    .forEach(result::add);
+        for (ResumeModule module : modules) {
+            if (result.size() >= 8) break;
+            if (!Set.of("project", "work_experience", "internship").contains(module.getModuleType())) continue;
+            var content = module.getContent();
+            if (content == null) continue;
+            addTechStackSkills(result, text(content, "techStack"));
+            Object rawProjects = content.get("projects");
+            if (rawProjects instanceof Collection<?> projects) {
+                for (Object rawProject : projects) {
+                    if (!(rawProject instanceof Map<?, ?> project)) continue;
+                    addTechStackSkills(result, getMapText(project, "techStack"));
+                    if (result.size() >= 8) break;
+                }
+            }
         }
         return result.stream().limit(8).toList();
+    }
+
+    private static void addTechStackSkills(LinkedHashSet<String> target, String techStack) {
+        if (techStack == null || techStack.isBlank()) return;
+        Arrays.stream(techStack.split("[,，、/|;；]+"))
+                .map(String::strip)
+                .filter(value -> !value.isBlank())
+                .filter(value -> target.stream().noneMatch(existing ->
+                        existing.toLowerCase(Locale.ROOT).contains(value.toLowerCase(Locale.ROOT))))
+                .forEach(target::add);
     }
 
     private static void addStrings(Set<String> target, Object value) {

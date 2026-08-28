@@ -153,11 +153,11 @@ export default function ExcellentResumesPage() {
               ))}
             </div>
           ) : showcases.length ? (
-            <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+            <div className="columns-1 gap-6 md:columns-2 xl:columns-3">
               {showcases.map((showcase) => {
                 const featureLabels = getResumeStyleFeatureLabels(showcase)
                 return (
-                  <article key={showcase.id} className="group flex flex-col overflow-hidden border border-slate-200 bg-white transition hover:border-primary-200 hover:shadow-lg hover:shadow-slate-200/60">
+                  <article key={showcase.id} className="group mb-6 break-inside-avoid overflow-hidden border border-slate-200 bg-white transition hover:border-primary-200 hover:shadow-lg hover:shadow-slate-200/60">
                     <div className="border-b border-slate-100 px-5 pt-5">
                       <ResumeContentThumbnail
                         preview={showcase.preview ?? EMPTY_RESUME_CARD_PREVIEW}
@@ -240,11 +240,11 @@ export default function ExcellentResumesPage() {
                 ))}
               </div>
             ) : marketplaceListings.length ? (
-              <div className="mt-6 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+              <div className="mt-6 columns-1 gap-6 md:columns-2 xl:columns-3">
                 {marketplaceListings.map((listing) => {
                   const paid = listing.accessType === 'PAID'
                   return (
-                    <article key={listing.slug} className="group flex flex-col overflow-hidden border border-slate-200 bg-slate-50 transition hover:border-emerald-200 hover:shadow-lg hover:shadow-slate-200/60">
+                    <article key={listing.slug} className="group mb-6 break-inside-avoid overflow-hidden border border-slate-200 bg-slate-50 transition hover:border-emerald-200 hover:shadow-lg hover:shadow-slate-200/60">
                       <div className="relative border-b border-slate-100 px-8 py-7">
                         <ResumeLayoutThumbnail accent="emerald" />
                         <span className={paid

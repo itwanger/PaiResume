@@ -39,6 +39,9 @@ import java.util.Base64;
 @ConditionalOnExpression("'${app.payment.provider:disabled}' != 'mock'")
 public class WechatNativeMarketplacePaymentGateway implements MarketplacePaymentGateway {
     private static final ZoneId PAYMENT_ZONE = ZoneId.of("Asia/Shanghai");
+    private static final DateTimeFormatter WECHAT_TIME_FORMATTER =
+            DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ssXXX");
+    private static final int MAX_PROVIDER_ERROR_MESSAGE_LENGTH = 240;
 
     private final MarketplacePaymentProperties properties;
     private final WechatPayConfigService configService;
@@ -95,7 +98,7 @@ public class WechatNativeMarketplacePaymentGateway implements MarketplacePayment
         request.setOutTradeNo(orderNo);
         request.setNotifyUrl(wechat.paymentNotifyUrl());
         request.setTimeExpire(command.expiresAt().atZone(PAYMENT_ZONE)
-                .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+                .format(WECHAT_TIME_FORMATTER));
 
         Amount amount = new Amount();
         amount.setTotal(command.amountCents());
@@ -112,8 +115,9 @@ public class WechatNativeMarketplacePaymentGateway implements MarketplacePayment
         try {
             response = client.nativePayService().prepay(request);
         } catch (ServiceException exception) {
-            log.warn("WeChat Native prepay rejected orderNo={}, httpStatus={}, errorCode={}",
-                    orderNo, exception.getHttpStatusCode(), exception.getErrorCode());
+            log.warn("WeChat Native prepay rejected orderNo={}, httpStatus={}, errorCode={}, errorMessage={}",
+                    orderNo, exception.getHttpStatusCode(), exception.getErrorCode(),
+                    safeProviderErrorMessage(exception.getErrorMessage()));
             throw exception;
         }
         if (response == null || !StringUtils.hasText(response.getCodeUrl())) {
@@ -121,6 +125,19 @@ public class WechatNativeMarketplacePaymentGateway implements MarketplacePayment
         }
         log.info("WeChat Native prepay ready orderNo={}", command.orderNo());
         return new PaymentPrepayResult(provider(), null, response.getCodeUrl(), command.expiresAt());
+    }
+
+    private String safeProviderErrorMessage(String message) {
+        if (!StringUtils.hasText(message)) {
+            return "unknown";
+        }
+        String sanitized = message.replace('\r', ' ')
+                .replace('\n', ' ')
+                .replace('\t', ' ')
+                .trim();
+        return sanitized.length() <= MAX_PROVIDER_ERROR_MESSAGE_LENGTH
+                ? sanitized
+                : sanitized.substring(0, MAX_PROVIDER_ERROR_MESSAGE_LENGTH);
     }
 
     @Override

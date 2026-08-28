@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
@@ -45,6 +46,12 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
     );
     private static final Set<String> PUBLIC_BASIC_INFO_FIELDS = Set.of(
             "jobIntention", "targetCity", "salaryRange", "expectedEntryDate", "workYears"
+    );
+    private static final Pattern EMAIL_PATTERN = Pattern.compile(
+            "(?i)(?<![\\w.+-])[\\w.+-]+@[\\w.-]+\\.[a-z]{2,}(?![\\w.-])"
+    );
+    private static final Pattern MOBILE_PATTERN = Pattern.compile(
+            "(?<!\\d)(?:(?:\\+?86)[ -]?)?1[3-9](?:[ -]?\\d){9}(?!\\d)"
     );
 
     private final ResumeShowcaseMapper resumeShowcaseMapper;
@@ -438,34 +445,88 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
     private ResumeCardPreviewVO toPublicCardPreview(List<ResumeModule> modules) {
         ResumeCardPreviewVO preview = ResumeServiceImpl.buildCardPreview(modules);
         preview.setName("");
-        preview.setEducations(preview.getEducations().stream().limit(2).toList());
+        preview.setTargetRole(abbreviate(preview.getTargetRole(), 48));
+        preview.setBasicInfo(abbreviate(preview.getBasicInfo(), 72));
+        preview.setEducations(preview.getEducations().stream()
+                .limit(2)
+                .map(education -> abbreviate(education, 72))
+                .toList());
         preview.setEducation(preview.getEducations().stream().findFirst().orElse(""));
-        preview.setExperiences(preview.getExperiences().stream().limit(2).toList());
+        preview.setExperiences(preview.getExperiences().stream()
+                .limit(2)
+                .map(experience -> abbreviate(experience, 120))
+                .toList());
         preview.setExperience(preview.getExperiences().stream().findFirst().orElse(""));
+        preview.setWorkExperiences(sanitizeResponsibilities(preview.getWorkExperiences()));
+        preview.setInternships(sanitizeResponsibilities(preview.getInternships()));
         preview.setProjects(preview.getProjects().stream()
                 .limit(2)
                 .map(project -> new ResumeCardProjectPreviewVO(
-                        abbreviate(project.getTitle(), 36),
-                        abbreviate(project.getDescription(), 48)
+                        abbreviate(project.getTitle(), 48),
+                        abbreviate(project.getDescription(), 120)
                 ))
                 .toList());
         preview.setProject(preview.getProjects().stream()
                 .findFirst()
                 .map(ResumeCardProjectPreviewVO::getTitle)
                 .orElse(""));
-        preview.setSkills(preview.getSkills().stream()
-                .limit(2)
-                .map(skill -> abbreviate(skill, 48))
-                .toList());
+        preview.setSkills(packSkillPreviewRows(preview.getSkills()));
         return preview;
     }
 
+    private List<String> sanitizeResponsibilities(List<String> responsibilities) {
+        return responsibilities.stream()
+                .limit(2)
+                .map(responsibility -> abbreviate(responsibility, 120))
+                .toList();
+    }
+
+    private List<String> packSkillPreviewRows(List<String> skills) {
+        List<String> values = skills.stream()
+                .map(skill -> abbreviate(skill, 96))
+                .filter(skill -> !skill.isBlank())
+                .distinct()
+                .toList();
+        if (values.size() <= 2) return values;
+
+        int bestSplit = 1;
+        long bestScore = Long.MAX_VALUE;
+        for (int split = 1; split < values.size(); split++) {
+            String left = String.join("；", values.subList(0, split));
+            String right = String.join("；", values.subList(split, values.size()));
+            int overflow = Math.max(0, codePointLength(left) - 96)
+                    + Math.max(0, codePointLength(right) - 96);
+            long score = overflow * 10_000L + Math.abs(visualWidth(left) - visualWidth(right));
+            if (score < bestScore) {
+                bestScore = score;
+                bestSplit = split;
+            }
+        }
+        return List.of(
+                abbreviate(String.join("；", values.subList(0, bestSplit)), 96),
+                abbreviate(String.join("；", values.subList(bestSplit, values.size())), 96)
+        );
+    }
+
+    private int codePointLength(String value) {
+        return value.codePointCount(0, value.length());
+    }
+
+    private int visualWidth(String value) {
+        return value.codePoints()
+                .map(codePoint -> codePoint <= 0x7f ? 1 : 2)
+                .sum();
+    }
+
     private String abbreviate(String value, int maxLength) {
-        if (value == null) return "";
-        String normalized = value.strip();
-        return normalized.length() <= maxLength
-                ? normalized
-                : normalized.substring(0, maxLength) + "…";
+        if (value == null || maxLength <= 0) return "";
+        String normalized = value.strip().replaceAll("\\s+", " ");
+        normalized = EMAIL_PATTERN.matcher(normalized).replaceAll("[邮箱已隐藏]");
+        normalized = MOBILE_PATTERN.matcher(normalized).replaceAll("[手机号已隐藏]");
+        int codePointCount = normalized.codePointCount(0, normalized.length());
+        if (codePointCount <= maxLength) return normalized;
+        int endIndex = normalized.offsetByCodePoints(0, Math.max(0, maxLength - 1));
+        return normalized.substring(0, endIndex) + "…";
     }
 
     private String normalizedAccessType(ResumeShowcase showcase) {

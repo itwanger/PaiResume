@@ -91,23 +91,75 @@ class ResumeShowcaseServiceImplTest {
         ));
         ResumeModule skill = module(33L, 21L, "skill", Map.of(
                 "categories", List.of(Map.of("items", List.of(
-                        "熟悉 Java 并发编程",
-                        "掌握 Spring Boot",
-                        "不应进入公开缩略图的第三条技能"
+                        "熟悉 Java 并发编程与 JVM 调优",
+                        "掌握 Spring Boot、Spring AI 企业应用开发",
+                        "熟悉 RAG 检索与重排",
+                        "掌握 LangChain4j Agent 与 Function Calling"
                 )))
         ));
         ResumeModule work = module(34L, 21L, "work_experience", Map.of(
                 "company", "字节跳动",
                 "position", "软件工程师",
+                "projects", List.of(
+                        Map.of(
+                                "projectName", "AI Agent 信用评分系统",
+                                "projectDescription", "不应优先展示的项目简介",
+                                "responsibilities", List.of(
+                                        "负责网关鉴权与服务降级链路，核心接口可用性达到 99.9%",
+                                        "不应进入公开缩略图的第二条核心职责"),
+                                "techStack", "Milvus, Redis"
+                        ),
+                        Map.of(
+                                "projectName", "企业知识库",
+                                "projectDescription", "不应优先展示的知识库简介",
+                                "responsibilities", List.of("负责多路召回，联系邮箱 project@example.com"),
+                                "techStack", "Elasticsearch, Langfuse"
+                        ),
+                        Map.of(
+                                "projectName", "终端 Coding Agent",
+                                "projectDescription", "设计工具调用与上下文压缩链路"
+                        ),
+                        Map.of(
+                                "projectName", "不应公开的第四个项目",
+                                "projectDescription", "完整项目正文"
+                        )
+                )
+        ));
+        ResumeModule internship = module(35L, 21L, "internship", Map.of(
+                "company", "开源社区",
+                "position", "AI 应用开发实习生",
                 "projects", List.of(Map.of(
-                        "projectName", "AI Agent 信用评分系统",
-                        "projectDescription", "这是一段只用于缩略图预览并且必须在服务端进行长度限制的项目简介，不能通过公开列表接口返回完整正文内容。"
-                ))
+                        "projectName", "终端 Coding Agent",
+                        "responsibilities", List.of(
+                                "基于 LangGraph4j StateGraph 构建工作流引擎，实现 GraphBuilder 节点注册和边连接、NodeAdapter 适配器桥接现有执行器、StateManager 管理节点间状态传递。",
+                                "设计 ChatClientFactory 动态工厂，运行时根据节点配置创建 ChatClient，实现多厂商 LLM 无缝切换。")))
+        ));
+        ResumeModule secondWork = module(36L, 21L, "work_experience", Map.of(
+                "company", "实验室",
+                "position", "RAG 项目负责人",
+                "responsibilities", List.of("搭建知识库评测体系")
+        ));
+        ResumeModule fourthExperience = module(37L, 21L, "work_experience", Map.of(
+                "company", "不应公开的第四段经历",
+                "position", "开发工程师"
+        ));
+        ResumeModule projectOne = module(38L, 21L, "project", Map.of(
+                "projectName", "派聪明 RAG 知识库",
+                "role", "AI 应用开发",
+                "description", "不应优先展示的项目描述",
+                "achievements", List.of("利用 Elasticsearch 与向量召回实现关键词和语义双引擎检索")
+        ));
+        ResumeModule projectTwo = module(39L, 21L, "project", Map.of(
+                "projectName", "PaiCLI Agent",
+                "role", "核心开发",
+                "description", "不应优先展示的第二个项目描述",
+                "achievements", List.of("构建 ReAct 与 Multi-Agent 调度架构，联系邮箱 project@example.com")
         ));
 
         when(resumeShowcaseMapper.selectList(any())).thenReturn(List.of(publicShowcase, paidShowcase));
         when(resumeMapper.selectBatchIds(any())).thenReturn(List.of(publicResume, paidResume));
-        when(resumeModuleMapper.selectList(any())).thenReturn(List.of(basicInfo, education, skill, work));
+        when(resumeModuleMapper.selectList(any())).thenReturn(List.of(
+                basicInfo, education, skill, work, internship, secondWork, fourthExperience, projectOne, projectTwo));
 
         var cards = resumeShowcaseService.listPublishedShowcases();
 
@@ -124,11 +176,35 @@ class ResumeShowcaseServiceImplTest {
         assertEquals("", cards.get(0).getPreview().getName());
         assertEquals("Agent 工程师 · 3年 · 北京", cards.get(0).getPreview().getBasicInfo());
         assertEquals(List.of("北京邮电大学 · 硕士 · 计算机科学"), cards.get(0).getPreview().getEducations());
-        assertEquals(List.of("熟悉 Java 并发编程", "掌握 Spring Boot"), cards.get(0).getPreview().getSkills());
-        assertEquals("字节跳动 · 软件工程师", cards.get(0).getPreview().getExperiences().get(0));
-        assertEquals("AI Agent 信用评分系统", cards.get(0).getPreview().getProjects().get(0).getTitle());
-        assertTrue(cards.get(0).getPreview().getProjects().get(0).getDescription().endsWith("…"));
-        assertEquals(49, cards.get(0).getPreview().getProjects().get(0).getDescription().length());
+        assertEquals(2, cards.get(0).getPreview().getSkills().size());
+        String packedSkills = String.join("；", cards.get(0).getPreview().getSkills());
+        assertTrue(packedSkills.contains("熟悉 RAG 检索与重排"));
+        assertTrue(packedSkills.contains("LangChain4j Agent 与 Function Calling"));
+        assertTrue(packedSkills.contains("Milvus"));
+        assertTrue(cards.get(0).getPreview().getSkills().stream().allMatch(skillLine ->
+                skillLine.codePointCount(0, skillLine.length()) <= 96));
+        assertEquals(2, cards.get(0).getPreview().getExperiences().size());
+        assertEquals("负责网关鉴权与服务降级链路，核心接口可用性达到 99.9%",
+                cards.get(0).getPreview().getExperiences().get(0));
+        assertEquals("基于 LangGraph4j StateGraph 构建工作流引擎，实现 GraphBuilder 节点注册和边连接、NodeAdapter 适配器桥接现有执行器、StateManager 管理节点间状态传递。",
+                cards.get(0).getPreview().getExperiences().get(1));
+        assertTrue(cards.get(0).getPreview().getExperiences().stream().allMatch(experience ->
+                experience.codePointCount(0, experience.length()) <= 120));
+        assertEquals(List.of(
+                "负责网关鉴权与服务降级链路，核心接口可用性达到 99.9%",
+                "搭建知识库评测体系"), cards.get(0).getPreview().getWorkExperiences());
+        assertEquals(List.of(
+                "基于 LangGraph4j StateGraph 构建工作流引擎，实现 GraphBuilder 节点注册和边连接、NodeAdapter 适配器桥接现有执行器、StateManager 管理节点间状态传递。",
+                "设计 ChatClientFactory 动态工厂，运行时根据节点配置创建 ChatClient，实现多厂商 LLM 无缝切换。"),
+                cards.get(0).getPreview().getInternships());
+        assertEquals(2, cards.get(0).getPreview().getProjects().size());
+        assertEquals("派聪明 RAG 知识库 · AI 应用开发", cards.get(0).getPreview().getProjects().get(0).getTitle());
+        assertEquals("利用 Elasticsearch 与向量召回实现关键词和语义双引擎检索",
+                cards.get(0).getPreview().getProjects().get(0).getDescription());
+        assertEquals("构建 ReAct 与 Multi-Agent 调度架构，联系邮箱 [邮箱已隐藏]",
+                cards.get(0).getPreview().getProjects().get(1).getDescription());
+        assertTrue(cards.get(0).getPreview().getProjects().stream()
+                .noneMatch(projectPreview -> projectPreview.getDescription().contains("不应优先展示")));
         verifyNoInteractions(showcasePurchaseService);
     }
 

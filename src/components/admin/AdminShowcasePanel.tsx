@@ -111,7 +111,7 @@ export function AdminShowcasePanel({
       </p>
 
       {resumes.length ? (
-        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="columns-1 gap-5 sm:columns-2 xl:columns-3">
           {resumes.map((resume) => {
             const showcase = showcaseByResumeId.get(resume.id)
             const featured = showcase?.publishStatus === 'PUBLISHED'
@@ -126,7 +126,7 @@ export function AdminShowcasePanel({
               <article
                 key={resume.id}
                 aria-label={resume.title}
-                className={`flex h-full flex-col rounded-xl border bg-white p-5 transition ${
+                className={`mb-5 break-inside-avoid rounded-xl border bg-white p-5 transition ${
                   featured
                     ? 'border-primary-200 shadow-[0_16px_36px_-28px_rgba(29,78,216,0.7)]'
                     : 'border-slate-200'

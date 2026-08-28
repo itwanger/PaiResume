@@ -15,6 +15,8 @@ public class ResumeCardPreviewVO {
     private String project;
     private List<String> educations = List.of();
     private List<String> experiences = List.of();
+    private List<String> workExperiences = List.of();
+    private List<String> internships = List.of();
     private List<ResumeCardProjectPreviewVO> projects = List.of();
     private List<String> skills = List.of();
     private Map<String, Integer> moduleCounts = Map.of();

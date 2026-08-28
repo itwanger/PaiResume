@@ -504,7 +504,7 @@ export default function HomePage() {
             {loading ? (
               <div className="mt-6 text-sm text-slate-500">内容加载中…</div>
             ) : showcases.length ? (
-              <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              <div className="mt-8 columns-1 gap-6 sm:columns-2 lg:columns-3 xl:columns-4">
                 {showcases.map((showcase, index) => {
                   const paid = showcase.accessType === 'PAID'
                   const official = showcase.source === 'OFFICIAL'
@@ -547,11 +547,11 @@ export default function HomePage() {
                       delay: Math.min(index * 0.05, 0.3),
                       ease: [0.22, 1, 0.36, 1],
                     }}
-                    className="h-full"
+                    className="mb-6 break-inside-avoid"
                   >
                     <Link
                       to={showcase.href}
-                      className="group flex h-full flex-col overflow-hidden border border-slate-200 bg-white shadow-[0_18px_45px_-34px_rgba(15,23,42,0.5)] transition duration-300 ease-out hover:-translate-y-1.5 hover:border-primary-200 hover:shadow-[0_28px_60px_-32px_rgba(29,78,216,0.45)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 motion-reduce:transform-none motion-reduce:transition-none"
+                      className="group flex flex-col overflow-hidden border border-slate-200 bg-white shadow-[0_18px_45px_-34px_rgba(15,23,42,0.5)] transition duration-300 ease-out hover:-translate-y-1.5 hover:border-primary-200 hover:shadow-[0_28px_60px_-32px_rgba(29,78,216,0.45)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 motion-reduce:transform-none motion-reduce:transition-none"
                     >
                       {official ? (
                         <div className="border-b border-slate-100 px-5 pt-5">

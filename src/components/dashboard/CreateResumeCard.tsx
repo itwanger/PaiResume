@@ -10,7 +10,7 @@ export function CreateResumeCard({ disabled = false, onClick }: CreateResumeCard
       onClick={onClick}
       disabled={disabled}
       aria-haspopup="dialog"
-      className="group flex h-full min-h-64 flex-col items-center justify-center rounded-xl border border-dashed border-primary-200 bg-white p-5 text-center transition-all hover:border-primary-400 hover:bg-primary-50/60 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+      className="group flex min-h-64 w-full flex-col items-center justify-center rounded-xl border border-dashed border-primary-200 bg-white p-5 text-center transition-all hover:border-primary-400 hover:bg-primary-50/60 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
     >
       <span
         className="flex h-14 w-14 items-center justify-center rounded-full bg-primary-50 text-primary-600 transition-colors group-hover:bg-primary-100"
