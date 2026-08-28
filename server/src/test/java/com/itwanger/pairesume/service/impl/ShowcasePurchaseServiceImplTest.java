@@ -76,6 +76,7 @@ class ShowcasePurchaseServiceImplTest {
         assertEquals(64, stored.getPurchaseTokenHash().length());
         assertNotEquals(TOKEN, stored.getPurchaseTokenHash());
         assertTrue(stored.getOrderNo().startsWith("PO"));
+        assertEquals(32, stored.getOrderNo().length());
         assertEquals("PENDING", result.getOrderStatus());
         assertEquals(6600, result.getAmountCents());
         assertFalse(result.getUnlocked());

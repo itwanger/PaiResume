@@ -68,6 +68,19 @@ class MarketplaceOrderLocalServiceTest {
     }
 
     @Test
+    void newPaymentOrderUsesProviderCompatibleOrderNumber() {
+        when(listingMapper.selectOne(any())).thenReturn(paidListing());
+        when(revisionMapper.selectById(20L)).thenReturn(paidRevision());
+
+        MarketplaceOrderDecision decision = service.findOrCreate(
+                "listing", 7L, false, "new-order-key", "wechat", "WECHAT_NATIVE", true);
+
+        assertTrue(decision.order().getOrderNo().startsWith("PR"));
+        assertEquals(32, decision.order().getOrderNo().length());
+        verify(orderMapper).insert(decision.order());
+    }
+
+    @Test
     void terminalNullFieldsUseAlwaysUpdateStrategy() throws NoSuchFieldException {
         TableField activeOrderKey = ResumeViewOrder.class
                 .getDeclaredField("activeOrderKey")

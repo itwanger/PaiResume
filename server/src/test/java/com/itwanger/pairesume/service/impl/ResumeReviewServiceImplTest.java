@@ -197,6 +197,8 @@ class ResumeReviewServiceImplTest {
         assertEquals("AWAITING_PAYMENT", created.getRequestStatus());
         assertEquals("PENDING", created.getPaymentStatus());
         assertNotNull(created.getOrderNo());
+        assertTrue(created.getOrderNo().startsWith("PS"));
+        assertEquals(32, created.getOrderNo().length());
         verify(paymentGateway).createNativeOrder(any());
         verifyNoInteractions(outboxMapper);
     }

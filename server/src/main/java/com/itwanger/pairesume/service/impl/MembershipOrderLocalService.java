@@ -14,6 +14,7 @@ import com.itwanger.pairesume.payment.MembershipPlanCode;
 import com.itwanger.pairesume.payment.MembershipOrderStatus;
 import com.itwanger.pairesume.payment.MembershipPaymentReviewStatus;
 import com.itwanger.pairesume.payment.MembershipPaymentVerifier;
+import com.itwanger.pairesume.payment.PaymentOrderNoGenerator;
 import com.itwanger.pairesume.payment.PaymentProviderState;
 import com.itwanger.pairesume.payment.ProviderPaymentResult;
 import com.itwanger.pairesume.service.MembershipPlanService;
@@ -27,7 +28,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.UUID;
 
 @Slf4j
 @Service
@@ -81,7 +81,7 @@ public class MembershipOrderLocalService {
         }
 
         MembershipPaymentOrder order = new MembershipPaymentOrder();
-        order.setOrderNo("PM" + UUID.randomUUID().toString().replace("-", ""));
+        order.setOrderNo(PaymentOrderNoGenerator.generate("PM"));
         order.setUserId(userId);
         order.setIdempotencyKey(idempotencyKey);
         order.setActiveOrderKey(activeKey);

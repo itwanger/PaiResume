@@ -94,6 +94,8 @@ class MembershipOrderLocalServiceTest {
         assertEquals(6600, order.getListPriceCents());
         assertEquals(6600, order.getPayableAmountCents());
         assertEquals(365, order.getMembershipDays());
+        assertTrue(order.getOrderNo().startsWith("PM"));
+        assertEquals(32, order.getOrderNo().length());
         assertEquals(MembershipPaymentReviewStatus.NONE.name(), order.getReviewStatus());
         assertTrue(!order.getExpiresAt().isBefore(before.plusMinutes(30))
                 && !order.getExpiresAt().isAfter(LocalDateTime.now().plusMinutes(30)));

@@ -154,7 +154,7 @@ public class ResumeReviewServiceImpl implements ResumeReviewService {
         request.setPriorityFeeCents(priorityFee);
         request.setRequestStatus(priorityOrder ? "AWAITING_PAYMENT" : "EMAIL_PENDING");
         if (priorityOrder) {
-            request.setOrderNo("PS" + compactUuid());
+            request.setOrderNo(PaymentOrderNoGenerator.generate("PS"));
             request.setProvider(paymentGateway.provider());
             request.setPayChannel("NATIVE_QR");
             request.setPaymentStatus("CREATED");
@@ -247,7 +247,7 @@ public class ResumeReviewServiceImpl implements ResumeReviewService {
         request.setBasePriceCents(0);
         request.setPriorityFeeCents(priorityFee);
         request.setRequestStatus("AWAITING_PAYMENT");
-        request.setOrderNo("PS" + compactUuid());
+        request.setOrderNo(PaymentOrderNoGenerator.generate("PS"));
         request.setProvider(paymentGateway.provider());
         request.setPayChannel("NATIVE_QR");
         request.setPaymentStatus("CREATED");

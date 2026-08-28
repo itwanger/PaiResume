@@ -8,6 +8,8 @@ import com.wechat.pay.java.service.payments.model.TransactionAmount;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ResourceLoader;
 
+import java.time.LocalDateTime;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -15,6 +17,19 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class WechatNativeMarketplacePaymentGatewayTest {
+
+    @Test
+    void rejectsOversizedOrderNumberBeforeInitializingProviderClient() {
+        MarketplacePaymentProperties properties = new MarketplacePaymentProperties();
+        WechatNativeMarketplacePaymentGateway gateway =
+                new WechatNativeMarketplacePaymentGateway(
+                        properties, (NativePayService) null, null);
+        PaymentPrepayRequest request = new PaymentPrepayRequest(
+                "PO" + "a".repeat(32), "description", 600,
+                "127.0.0.1", LocalDateTime.now().plusMinutes(15));
+
+        assertThrows(IllegalArgumentException.class, () -> gateway.createNativeOrder(request));
+    }
 
     @Test
     void providerFollowsAdminConfigurationWithoutRestart() {

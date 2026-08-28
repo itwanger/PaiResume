@@ -14,6 +14,7 @@ import com.itwanger.pairesume.mapper.ResumeViewOrderMapper;
 import com.itwanger.pairesume.payment.MarketplaceOrderStatus;
 import com.itwanger.pairesume.payment.MarketplacePaymentProperties;
 import com.itwanger.pairesume.payment.MarketplacePaymentVerifier;
+import com.itwanger.pairesume.payment.PaymentOrderNoGenerator;
 import com.itwanger.pairesume.payment.PaymentProviderState;
 import com.itwanger.pairesume.payment.ProviderPaymentResult;
 import lombok.RequiredArgsConstructor;
@@ -23,7 +24,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.Objects;
 import java.util.List;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -87,7 +87,7 @@ public class MarketplaceOrderLocalService {
         int feeCents = Math.toIntExact((long) amountCents
                 * paymentProperties.getPlatformFeeBasisPoints() / 10_000L);
         ResumeViewOrder order = new ResumeViewOrder();
-        order.setOrderNo("PR" + UUID.randomUUID().toString().replace("-", ""));
+        order.setOrderNo(PaymentOrderNoGenerator.generate("PR"));
         order.setBuyerUserId(buyerUserId);
         order.setSellerUserId(listing.getSellerUserId());
         order.setListingId(listing.getId());

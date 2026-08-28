@@ -85,13 +85,14 @@ public class WechatNativeMarketplacePaymentGateway implements MarketplacePayment
 
     @Override
     public PaymentPrepayResult createNativeOrder(PaymentPrepayRequest command) {
+        String orderNo = PaymentOrderNoGenerator.requireProviderCompatible(command.orderNo());
         ClientBundle client = clients();
         WechatPayConfigService.ActiveWechatPayConfig wechat = client.config();
         PrepayRequest request = new PrepayRequest();
         request.setAppid(wechat.appId());
         request.setMchid(wechat.merchantId());
         request.setDescription(command.description());
-        request.setOutTradeNo(command.orderNo());
+        request.setOutTradeNo(orderNo);
         request.setNotifyUrl(wechat.paymentNotifyUrl());
         request.setTimeExpire(command.expiresAt().atZone(PAYMENT_ZONE)
                 .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
@@ -107,7 +108,14 @@ public class WechatNativeMarketplacePaymentGateway implements MarketplacePayment
 
         log.info("Creating WeChat Native order orderNo={}, amountCents={}",
                 command.orderNo(), command.amountCents());
-        PrepayResponse response = client.nativePayService().prepay(request);
+        PrepayResponse response;
+        try {
+            response = client.nativePayService().prepay(request);
+        } catch (ServiceException exception) {
+            log.warn("WeChat Native prepay rejected orderNo={}, httpStatus={}, errorCode={}",
+                    orderNo, exception.getHttpStatusCode(), exception.getErrorCode());
+            throw exception;
+        }
         if (response == null || !StringUtils.hasText(response.getCodeUrl())) {
             throw new IllegalStateException("WeChat Native prepay returned no code URL");
         }

@@ -12,11 +12,13 @@ import com.itwanger.pairesume.payment.MarketplacePaymentGateway;
 import com.itwanger.pairesume.payment.MarketplacePaymentProperties;
 import com.itwanger.pairesume.payment.PaymentPrepayRequest;
 import com.itwanger.pairesume.payment.PaymentPrepayResult;
+import com.itwanger.pairesume.payment.PaymentOrderNoGenerator;
 import com.itwanger.pairesume.payment.PaymentProviderState;
 import com.itwanger.pairesume.payment.ProviderPaymentResult;
 import com.itwanger.pairesume.payment.QrCodeDataUrlGenerator;
 import com.itwanger.pairesume.service.ShowcasePurchaseService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,9 +30,9 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HexFormat;
 import java.util.Objects;
-import java.util.UUID;
 import java.util.regex.Pattern;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ShowcasePurchaseServiceImpl implements ShowcasePurchaseService {
@@ -74,7 +76,7 @@ public class ShowcasePurchaseServiceImpl implements ShowcasePurchaseService {
         }
 
         ShowcasePurchaseOrder order = new ShowcasePurchaseOrder();
-        order.setOrderNo("PO" + UUID.randomUUID().toString().replace("-", ""));
+        order.setOrderNo(PaymentOrderNoGenerator.generate("PO"));
         order.setShowcaseId(showcase.getId());
         order.setPurchaseTokenHash(tokenHash);
         order.setIdempotencyKey(idempotencyKey);
@@ -118,6 +120,8 @@ public class ShowcasePurchaseServiceImpl implements ShowcasePurchaseService {
         } catch (Exception exception) {
             order.setOrderStatus("PREPAY_UNKNOWN");
             orderMapper.updateById(order);
+            log.warn("Showcase Native prepay failed orderNo={}, errorType={}",
+                    order.getOrderNo(), exception.getClass().getSimpleName());
             if (exception instanceof BusinessException businessException) throw businessException;
             throw new BusinessException(ResultCode.INTERNAL_ERROR.getCode(), "创建支付订单失败，请稍后重试");
         }
