@@ -6,17 +6,23 @@ import {
   ResumeCardStyleSummary,
   ResumeContentThumbnail,
 } from '../dashboard/ResumeCard'
-import { getResumeStyleFeatureLabels } from '../../utils/resumeStyleLabels'
+import {
+  getResumeFeatureBadgeClassName,
+  getResumeFeatureBadgeTone,
+  getResumeStyleFeatureBadges,
+} from '../../utils/resumeStyleLabels'
 import { getShowcaseAccessLabel } from '../../utils/showcaseAccess'
 
 interface AdminShowcasePanelProps {
   resumes: ResumeListItem[]
   showcases: ResumeShowcaseAdmin[]
   actionResumeId: number | null
+  actionKind: 'feature' | 'unfeature' | 'regenerate' | null
   actionError: { resumeId: number; message: string } | null
   loading: boolean
   onFeature: (resume: ResumeListItem, accessType: ResumeShowcaseAccessType, priceCents: number) => void
   onUnfeature: (resume: ResumeListItem) => void
+  onRegenerateAiReview: (resume: ResumeListItem) => void
 }
 
 const accessOptions: Array<{
@@ -59,10 +65,12 @@ export function AdminShowcasePanel({
   resumes,
   showcases,
   actionResumeId,
+  actionKind,
   actionError,
   loading,
   onFeature,
   onUnfeature,
+  onRegenerateAiReview,
 }: AdminShowcasePanelProps) {
   const [settingsResume, setSettingsResume] = useState<ResumeListItem | null>(null)
   const [accessType, setAccessType] = useState<ResumeShowcaseAccessType>('PUBLIC')
@@ -120,7 +128,7 @@ export function AdminShowcasePanel({
             const actionErrorMessage = actionError?.resumeId === resume.id
               ? actionError.message
               : null
-            const styleLabels = getResumeStyleFeatureLabels(resume)
+            const styleBadges = getResumeStyleFeatureBadges(resume)
 
             return (
               <article
@@ -160,9 +168,14 @@ export function AdminShowcasePanel({
                       <span className="rounded-full bg-primary-50 px-2.5 py-1 text-xs font-medium text-primary-700">
                         已精选
                       </span>
-                      {styleLabels.map((label) => (
-                        <span key={label} className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600">
-                          {label}
+                      {styleBadges.map((badge) => (
+                        <span
+                          key={`${badge.category}-${badge.label}`}
+                          data-feature-category={badge.category}
+                          data-feature-tone={getResumeFeatureBadgeTone(badge.category)}
+                          className={`rounded-full px-2.5 py-1 text-xs ring-1 ring-inset ${getResumeFeatureBadgeClassName(badge.category)}`}
+                        >
+                          {badge.label}
                         </span>
                       ))}
                     </div>
@@ -174,7 +187,7 @@ export function AdminShowcasePanel({
 
                 <div className="mt-auto space-y-2">
                   {featured ? (
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-3 gap-2">
                       <button
                         type="button"
                         onClick={() => openSettings(resume, showcase)}
@@ -186,12 +199,21 @@ export function AdminShowcasePanel({
                       </button>
                       <button
                         type="button"
+                        onClick={() => onRegenerateAiReview(resume)}
+                        disabled={actionsDisabled}
+                        aria-label={`重新评分 ${resume.title}`}
+                        className="rounded-lg border border-primary-200 bg-primary-50 px-3 py-2.5 text-sm font-medium text-primary-700 transition hover:border-primary-300 hover:bg-primary-100 disabled:cursor-wait disabled:opacity-55"
+                      >
+                        {pending && actionKind === 'regenerate' ? 'AI 评分中…' : '重新评分'}
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => onUnfeature(resume)}
                         disabled={actionsDisabled}
                         aria-label={`取消精选 ${resume.title}`}
                         className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 transition hover:border-slate-300 disabled:cursor-wait disabled:opacity-55"
                       >
-                        {pending ? '取消中…' : '取消精选'}
+                        {pending && actionKind === 'unfeature' ? '取消中…' : '取消精选'}
                       </button>
                     </div>
                   ) : (

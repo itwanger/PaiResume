@@ -64,7 +64,7 @@ public interface AiService {
     );
 
     /**
-     * 生成智能一页预览结果，返回压缩前后候选内容与连续长页元信息
+     * 生成智能长一页预览结果，返回压缩前后候选内容与连续长页元信息
      */
     SmartOnePagePreviewResponseDTO previewSmartOnePage(
             String resumeTitle,

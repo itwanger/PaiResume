@@ -20,6 +20,8 @@ public interface ResumeShowcaseService {
 
     ResumeShowcase featureResume(Long resumeId, Long adminUserId, String accessType, Integer priceCents);
 
+    ResumeShowcase regenerateAiReview(Long resumeId, Long adminUserId);
+
     ResumeShowcase unfeatureResume(Long resumeId, Long adminUserId);
 
     void unpublishDeletedResume(Long resumeId);

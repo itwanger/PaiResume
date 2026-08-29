@@ -222,6 +222,15 @@ public class AdminController {
         ));
     }
 
+    @Operation(summary = "重新生成精选简历 AI 点评")
+    @PostMapping("/showcases/resumes/{resumeId}/ai-review/regenerate")
+    public Result<ResumeShowcase> regenerateShowcaseAiReview(@PathVariable Long resumeId) {
+        return Result.success(resumeShowcaseService.regenerateAiReview(
+                resumeId,
+                SecurityUtils.getCurrentUserId()
+        ));
+    }
+
     @Operation(summary = "取消精选简历")
     @DeleteMapping("/showcases/resumes/{resumeId}/feature")
     public Result<ResumeShowcase> unfeatureResume(@PathVariable Long resumeId) {

@@ -109,6 +109,42 @@ class ShowcasePurchaseServiceImplTest {
         assertEquals(null, order.getActiveOrderKey());
     }
 
+    @Test
+    void latestOrderRestoresThePaidOrderForTheMatchingBrowserCredential() {
+        ResumeShowcase showcase = paidShowcase();
+        ShowcasePurchaseOrder paid = pendingOrder();
+        paid.setOrderStatus("PAID");
+        paid.setPaidAt(LocalDateTime.now().minusMinutes(2));
+        paid.setActiveOrderKey(null);
+        when(showcaseMapper.selectOne(any())).thenReturn(showcase);
+        when(orderMapper.selectOne(any())).thenReturn(paid);
+        when(showcaseMapper.selectById(11L)).thenReturn(showcase);
+
+        var result = service.getLatestOrder("featured-65", TOKEN);
+
+        assertEquals(paid.getOrderNo(), result.getOrderNo());
+        assertEquals("PAID", result.getOrderStatus());
+        assertTrue(result.getUnlocked());
+    }
+
+    @Test
+    void latestOrderRestoresTheActivePaymentQrCode() {
+        ResumeShowcase showcase = paidShowcase();
+        ShowcasePurchaseOrder pending = pendingOrder();
+        pending.setCodeUrl("mock://pay");
+        when(showcaseMapper.selectOne(any())).thenReturn(showcase);
+        when(orderMapper.selectByActiveOrderKey(any())).thenReturn(pending);
+        when(showcaseMapper.selectById(11L)).thenReturn(showcase);
+        when(qrCodeGenerator.generate("mock://pay")).thenReturn("data:image/png;base64,AA");
+
+        var result = service.getLatestOrder("featured-65", TOKEN);
+
+        assertEquals(pending.getOrderNo(), result.getOrderNo());
+        assertEquals("PENDING", result.getOrderStatus());
+        assertEquals("data:image/png;base64,AA", result.getQrCodeDataUrl());
+        assertFalse(result.getUnlocked());
+    }
+
     private ResumeShowcase paidShowcase() {
         ResumeShowcase showcase = new ResumeShowcase();
         showcase.setId(11L);

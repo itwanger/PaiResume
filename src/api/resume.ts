@@ -30,6 +30,7 @@ export interface ResumeCardPreview {
   projects?: ResumeCardProjectPreview[]
   skills: string[]
   moduleCounts: Record<string, number>
+  moduleOrder?: string[]
   filledModuleCount: number
 }
 

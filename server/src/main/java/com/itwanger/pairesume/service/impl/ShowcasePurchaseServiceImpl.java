@@ -133,6 +133,25 @@ public class ShowcasePurchaseServiceImpl implements ShowcasePurchaseService {
     }
 
     @Override
+    public ShowcasePurchaseOrderDTO getLatestOrder(String slug, String purchaseToken) {
+        String tokenHash = hashToken(purchaseToken);
+        ResumeShowcase showcase = requirePaidShowcase(slug);
+
+        ShowcasePurchaseOrder order = latestPaid(showcase.getId(), tokenHash);
+        if (order == null) {
+            order = orderMapper.selectByActiveOrderKey(showcase.getId() + ":" + tokenHash);
+        }
+        if (order == null) {
+            order = orderMapper.selectOne(new LambdaQueryWrapper<ShowcasePurchaseOrder>()
+                    .eq(ShowcasePurchaseOrder::getShowcaseId, showcase.getId())
+                    .eq(ShowcasePurchaseOrder::getPurchaseTokenHash, tokenHash)
+                    .orderByDesc(ShowcasePurchaseOrder::getId)
+                    .last("LIMIT 1"));
+        }
+        return order == null ? null : toDto(order);
+    }
+
+    @Override
     @Transactional
     public ShowcasePurchaseOrderDTO refreshOrder(String orderNo, String purchaseToken) {
         ShowcasePurchaseOrder order = requireAuthorizedOrder(orderNo, hashToken(purchaseToken));

@@ -57,7 +57,7 @@ export const resumeReferenceTemplates: ResumeReferenceTemplate[] = [
     id: 'campus-onepage',
     name: '标准校招一页模板',
     description: '结构均衡，适合绝大多数中文校招技术简历。',
-    intendedUse: '适合初版智能一页压缩，重点保留教育、项目、工作/实习、技能四块。',
+    intendedUse: '适合初版智能长一页压缩，重点保留教育、项目、工作/实习、技能四块。',
     markdownBody: `# 姓名 / 求职意向
 - 手机 | 邮箱 | GitHub | 博客
 

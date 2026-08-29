@@ -23,7 +23,11 @@ import {
   IS_LOCAL_DEVELOPMENT,
 } from '../utils/navigation'
 import type { ResumeStyleSource } from '../utils/resumeStyle'
-import { getResumeStyleFeatureLabels } from '../utils/resumeStyleLabels'
+import {
+  getResumeFeatureBadgeClassName,
+  getResumeFeatureBadgeTone,
+  getResumeStyleFeatureBadges,
+} from '../utils/resumeStyleLabels'
 import { getShowcaseAccessLabel } from '../utils/showcaseAccess'
 
 interface HomepageShowcaseCard extends ResumeStyleSource {
@@ -48,7 +52,7 @@ const HERO_FEATURES: Array<{
   iconClassName: string
 }> = [
   {
-    title: '无损智能一页',
+    title: '无损智能长一页',
     description: '完整保留全部内容，不删减、不压缩、不挤版面，智能合成一张连续长页，一页完整导出',
     icon: 'one-page',
     iconClassName: 'bg-blue-100 text-blue-700',
@@ -80,7 +84,7 @@ const MOCK_TESTIMONIALS: PublishedFeedback[] = [
     schoolOrCompany: '应届生',
     targetRole: 'Java 后端开发',
     rating: 5,
-    testimonialText: '原来项目经历写得很散，按照建议梳理后，职责和成果都更清楚。智能一页把多页内容合成一张连续长页，查看和导出都更顺畅。',
+    testimonialText: '原来项目经历写得很散，按照建议梳理后，职责和成果都更清楚。智能长一页把多页内容合成一张连续长页，查看和导出都更顺畅。',
     createdAt: '',
   },
   {
@@ -532,9 +536,9 @@ export default function HomePage() {
                     : officialAccessType === 'LOGIN'
                       ? 'bg-sky-50 text-sky-700 ring-sky-200'
                     : 'bg-emerald-50 text-emerald-700 ring-emerald-200'
-                  const featureLabels = official
-                    ? getResumeStyleFeatureLabels(showcase)
-                    : showcase.tags?.slice(0, 3) ?? []
+                  const featureBadges = official
+                    ? getResumeStyleFeatureBadges(showcase)
+                    : (showcase.tags?.slice(0, 3) ?? []).map((label) => ({ category: 'other' as const, label }))
 
                   return (
                     <motion.div
@@ -596,9 +600,14 @@ export default function HomePage() {
                         </p>
                         <span className="sr-only">{showcase.summary}</span>
                         <div className="mt-4 flex flex-wrap gap-2">
-                          {featureLabels.map((label) => (
-                            <span key={label} className="bg-slate-100 px-3 py-1 text-xs text-slate-600 ring-1 ring-inset ring-slate-200/70">
-                              {label}
+                          {featureBadges.map((badge) => (
+                            <span
+                              key={`${badge.category}-${badge.label}`}
+                              data-feature-category={badge.category}
+                              data-feature-tone={getResumeFeatureBadgeTone(badge.category)}
+                              className={`px-3 py-1 text-xs ring-1 ring-inset ${getResumeFeatureBadgeClassName(badge.category)}`}
+                            >
+                              {badge.label}
                             </span>
                           ))}
                         </div>

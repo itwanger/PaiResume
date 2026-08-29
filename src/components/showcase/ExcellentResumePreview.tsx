@@ -114,12 +114,12 @@ function ResumeHeader({
     {
       label: '电话',
       value: basicInfo?.phone || '',
-      href: basicInfo?.phone ? 'tel:' + basicInfo.phone : undefined,
+      href: basicInfo?.phone && !basicInfo.privacyMasked ? 'tel:' + basicInfo.phone : undefined,
     },
     {
       label: '邮箱',
       value: basicInfo?.email || '',
-      href: basicInfo?.email ? 'mailto:' + basicInfo.email : undefined,
+      href: basicInfo?.email && !basicInfo.privacyMasked ? 'mailto:' + basicInfo.email : undefined,
     },
     { label: '微信', value: basicInfo?.wechat || '' },
     { label: '求职意向', value: targetPosition },
@@ -129,17 +129,17 @@ function ResumeHeader({
     {
       label: 'GitHub',
       value: basicInfo?.github || '',
-      href: toExternalHref(basicInfo?.github || ''),
+      href: basicInfo?.privacyMasked ? undefined : toExternalHref(basicInfo?.github || ''),
     },
     {
       label: '博客',
       value: basicInfo?.blog || '',
-      href: toExternalHref(basicInfo?.blog || ''),
+      href: basicInfo?.privacyMasked ? undefined : toExternalHref(basicInfo?.blog || ''),
     },
     {
       label: 'LeetCode',
       value: basicInfo?.leetcode || '',
-      href: toExternalHref(basicInfo?.leetcode || ''),
+      href: basicInfo?.privacyMasked ? undefined : toExternalHref(basicInfo?.leetcode || ''),
     },
   ].filter((item) => item.value.trim())
 
@@ -156,8 +156,10 @@ function ResumeHeader({
             >
               <img
                 src={photoSource}
-                alt={basicInfo?.name ? basicInfo.name + '的简历照片' : '简历照片'}
-                className="h-full w-full object-cover object-top"
+                alt={basicInfo?.privacyMasked
+                  ? '脱敏照片占位图'
+                  : basicInfo?.name ? basicInfo.name + '的简历照片' : '简历照片'}
+                className={`h-full w-full object-cover object-top ${basicInfo?.privacyMasked ? '[image-rendering:pixelated]' : ''}`}
                 referrerPolicy="no-referrer"
               />
             </div>
@@ -167,8 +169,10 @@ function ResumeHeader({
             <h1 className="break-words text-3xl font-bold tracking-[0.08em] text-slate-900 sm:text-[38px] sm:leading-tight">
               {basicInfo?.name || '个人简历'}
             </h1>
-            {basicInfo?.isPartyMember ? (
-              <p className="mt-2 text-sm font-medium text-primary-700">政治面貌：党员</p>
+            {basicInfo?.politicalStatusMasked || basicInfo?.isPartyMember ? (
+              <p className="mt-2 text-sm font-medium text-primary-700">
+                政治面貌：{basicInfo.politicalStatusMasked ? 'xx' : '党员'}
+              </p>
             ) : null}
           </div>
         </div>

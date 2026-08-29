@@ -123,6 +123,8 @@ export function normalizeBasicInfoContent(content: Record<string, unknown>): Bas
     leetcode: toStringValue(record.leetcode),
     workYears: toStringValue(record.workYears),
     summary: toStringValue(record.summary),
+    privacyMasked: toBooleanValue(record.privacyMasked),
+    politicalStatusMasked: toBooleanValue(record.politicalStatusMasked),
   }
 }
 

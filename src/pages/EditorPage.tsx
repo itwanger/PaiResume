@@ -118,6 +118,7 @@ export default function EditorPage() {
   const editorScrollThumbRef = useRef<HTMLDivElement | null>(null)
   const styleSaveQueueRef = useRef<Promise<void>>(Promise.resolve())
   const styleSaveVersionRef = useRef(0)
+  const styleSaveErrorRef = useRef<Error | null>(null)
   const [pdfPreviewConfig, setPdfPreviewConfig] = useState<ResumePdfPreviewConfig>(DEFAULT_RESUME_PDF_PREVIEW_CONFIG)
 
   const resumeId = Number(id)
@@ -308,10 +309,17 @@ export default function EditorPage() {
       .then(async () => {
         try {
           await updateResumeStyle(resumeId, nextConfig)
-          if (styleSaveVersionRef.current === saveVersion) setExportError('')
+          if (styleSaveVersionRef.current === saveVersion) {
+            styleSaveErrorRef.current = null
+            setExportError('')
+          }
         } catch (error: unknown) {
           if (styleSaveVersionRef.current === saveVersion) {
-            setExportError(error instanceof Error ? error.message : '简历样式保存失败，请重试')
+            const saveError = error instanceof Error
+              ? error
+              : new Error('简历样式保存失败，请重试')
+            styleSaveErrorRef.current = saveError
+            setExportError(saveError.message)
           }
         }
       })
@@ -706,6 +714,8 @@ export default function EditorPage() {
     setExportError('')
     try {
       await flushResumeAutoSaves(resumeId)
+      await styleSaveQueueRef.current
+      if (styleSaveErrorRef.current) throw styleSaveErrorRef.current
       // Refresh after flushing so private OSS photos always use a newly signed
       // read URL, even when the editor has stayed open past the URL's TTL.
       const { data: latestModuleResponse } = await resumeApi.getModules(resumeId)

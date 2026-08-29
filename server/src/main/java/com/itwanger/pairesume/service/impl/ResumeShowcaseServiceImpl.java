@@ -1,9 +1,13 @@
 package com.itwanger.pairesume.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.itwanger.pairesume.common.BusinessException;
 import com.itwanger.pairesume.common.ResultCode;
 import com.itwanger.pairesume.dto.ResumeShowcaseUpsertDTO;
+import com.itwanger.pairesume.dto.ShowcaseAiReviewDTO;
+import com.itwanger.pairesume.dto.ShowcaseAiReviewSectionDTO;
+import com.itwanger.pairesume.dto.ShowcaseAiScoreBreakdownDTO;
 import com.itwanger.pairesume.dto.ShowcaseCardDTO;
 import com.itwanger.pairesume.dto.ShowcaseDetailDTO;
 import com.itwanger.pairesume.entity.Resume;
@@ -45,13 +49,25 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
             ACCESS_TYPE_PAID
     );
     private static final Set<String> PUBLIC_BASIC_INFO_FIELDS = Set.of(
-            "jobIntention", "targetCity", "salaryRange", "expectedEntryDate", "workYears"
+            "name", "email", "jobIntention", "targetCity", "salaryRange", "expectedEntryDate",
+            "phone", "wechat", "isPartyMember", "photo", "photoId", "photoWidth", "photoHeight",
+            "photoBorder", "hometown", "blog", "github", "leetcode", "workYears", "summary"
     );
+    private static final String PUBLIC_MASKED_PHOTO_DATA_URL =
+            "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAQCAYAAAAiYZ4HAAAAVElEQVR42mN49OLDf1IwA8Ua3EMzUTBBDVMW7wDjlJJuMKa+BphCop0EUgyygWgNyM4iOliJ0gBThOxhbMFLngaYR/FpgAUxA3JQomOSNaBj+mgAAJQqVMk2rnsdAAAAAElFTkSuQmCC";
     private static final Pattern EMAIL_PATTERN = Pattern.compile(
             "(?i)(?<![\\w.+-])[\\w.+-]+@[\\w.-]+\\.[a-z]{2,}(?![\\w.-])"
     );
     private static final Pattern MOBILE_PATTERN = Pattern.compile(
             "(?<!\\d)(?:(?:\\+?86)[ -]?)?1[3-9](?:[ -]?\\d){9}(?!\\d)"
+    );
+    private static final Pattern SHOWCASE_TITLE_NAME_PREFIX_PATTERN = Pattern.compile(
+            "^\\s*([\\p{IsHan}·]{2,8})(\\s*[-—–]\\s*)"
+    );
+    private static final Set<String> NON_PERSON_TITLE_MARKERS = Set.of(
+            "官方", "样例", "示例", "模板", "简历", "工程师", "开发", "设计", "经理",
+            "产品", "运营", "测试", "算法", "后端", "前端", "实习", "校招", "应届", "求职",
+            "技术", "平台", "项目", "系统", "社区", "公司", "集团", "大学", "学院", "学校"
     );
 
     private final ResumeShowcaseMapper resumeShowcaseMapper;
@@ -150,7 +166,9 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
         Resume resume = requireOwnedResume(resumeId, adminUserId);
         var sourceUpdatedAt = resume.getUpdatedAt();
         ResumeShowcase showcase = findByResumeId(resumeId);
-        if (showcase != null && "PUBLISHED".equals(showcase.getPublishStatus())) {
+        if (showcase != null
+                && "PUBLISHED".equals(showcase.getPublishStatus())
+                && showcase.getAiReview() != null) {
             if (!normalizedAccessType.equals(showcase.getAccessType())) {
                 showcase.setAccessType(normalizedAccessType);
                 showcase.setPriceCents(normalizedPriceCents);
@@ -175,7 +193,8 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
 
         var latestShowcase = findByResumeId(resumeId);
         if (latestShowcase != null) {
-            if ("PUBLISHED".equals(latestShowcase.getPublishStatus())) {
+            if ("PUBLISHED".equals(latestShowcase.getPublishStatus())
+                    && latestShowcase.getAiReview() != null) {
                 if (!normalizedAccessType.equals(latestShowcase.getAccessType())) {
                     latestShowcase.setAccessType(normalizedAccessType);
                     latestShowcase.setPriceCents(normalizedPriceCents);
@@ -201,6 +220,7 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
 
         showcase.setScoreLabel(metadata.getDisplayLabel());
         showcase.setSummary(metadata.getSummary());
+        showcase.setAiReview(metadata.getAiReview());
         showcase.setPublishStatus("PUBLISHED");
         showcase.setAccessType(normalizedAccessType);
         showcase.setPriceCents(normalizedPriceCents);
@@ -230,6 +250,50 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
             resumeShowcaseMapper.updateById(showcase);
         }
         ensureResumeStillPublishable(resumeId, adminUserId, sourceUpdatedAt, showcase);
+        return showcase;
+    }
+
+    @Override
+    public ResumeShowcase regenerateAiReview(Long resumeId, Long adminUserId) {
+        Resume resume = requireOwnedResume(resumeId, adminUserId);
+        LocalDateTime sourceUpdatedAt = resume.getUpdatedAt();
+        ResumeShowcase showcase = findByResumeId(resumeId);
+        if (showcase == null || !"PUBLISHED".equals(showcase.getPublishStatus())) {
+            throw new BusinessException(ResultCode.SHOWCASE_NOT_FOUND);
+        }
+
+        List<ResumeModule> modules = listResumeModules(resumeId);
+        boolean hasShowcaseContent = modules.stream()
+                .filter(module -> !"basic_info".equals(module.getModuleType()))
+                .anyMatch(module -> hasMeaningfulContent(module.getContent()));
+        if (!hasShowcaseContent) {
+            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "简历内容为空，无法重新生成点评");
+        }
+
+        var metadata = aiService.generateShowcaseMetadata(resume.getTitle(), modules);
+        ensureResumeVersionUnchanged(resumeId, adminUserId, sourceUpdatedAt);
+
+        ResumeShowcase metadataUpdate = new ResumeShowcase();
+        metadataUpdate.setScoreLabel(metadata.getDisplayLabel());
+        metadataUpdate.setSummary(metadata.getSummary());
+        metadataUpdate.setAiReview(metadata.getAiReview());
+        int updatedRows = resumeShowcaseMapper.update(
+                metadataUpdate,
+                new LambdaUpdateWrapper<ResumeShowcase>()
+                        .eq(ResumeShowcase::getId, showcase.getId())
+                        .eq(ResumeShowcase::getResumeId, resumeId)
+                        .eq(ResumeShowcase::getPublishStatus, "PUBLISHED")
+        );
+        if (updatedRows != 1) {
+            throw new BusinessException(
+                    ResultCode.BAD_REQUEST.getCode(),
+                    "精选状态已更新，请刷新后重试"
+            );
+        }
+
+        showcase.setScoreLabel(metadata.getDisplayLabel());
+        showcase.setSummary(metadata.getSummary());
+        showcase.setAiReview(metadata.getAiReview());
         return showcase;
     }
 
@@ -311,6 +375,22 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
     private void applyUpsert(ResumeShowcase showcase, Long adminUserId, ResumeShowcaseUpsertDTO dto) {
         requireOwnedResume(dto.getResumeId(), adminUserId);
 
+        if (showcase.getId() != null && !Objects.equals(showcase.getResumeId(), dto.getResumeId())) {
+            throw new BusinessException(
+                    ResultCode.BAD_REQUEST.getCode(),
+                    "精选记录不能更换简历，请对目标简历重新精选"
+            );
+        }
+
+        String publishStatus = dto.getPublishStatus().trim().toUpperCase();
+        String accessType = normalizeAccessTypeForWrite(dto.getAccessType());
+        if ("PUBLISHED".equals(publishStatus) && showcase.getAiReview() == null) {
+            throw new BusinessException(
+                    ResultCode.BAD_REQUEST.getCode(),
+                    "发布精选前，请通过精选设置生成 AI 点评"
+            );
+        }
+
         ResumeShowcase existingSlug = resumeShowcaseMapper.selectOne(
                 new LambdaQueryWrapper<ResumeShowcase>()
                         .eq(ResumeShowcase::getSlug, dto.getSlug().trim())
@@ -325,8 +405,8 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
         showcase.setScoreLabel(dto.getScoreLabel().trim());
         showcase.setSummary(dto.getSummary().trim());
         showcase.setDisplayOrder(dto.getDisplayOrder());
-        showcase.setPublishStatus(dto.getPublishStatus().trim().toUpperCase());
-        showcase.setAccessType(normalizeAccessTypeForWrite(dto.getAccessType()));
+        showcase.setPublishStatus(publishStatus);
+        showcase.setAccessType(accessType);
         showcase.setPriceCents(normalizePrice(showcase.getAccessType(), dto.getPriceCents()));
     }
 
@@ -425,9 +505,9 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
         ShowcaseCardDTO dto = new ShowcaseCardDTO();
         dto.setId(showcase.getId());
         dto.setSlug(showcase.getSlug());
-        dto.setTitle(resume != null ? resume.getTitle() : "官方样例");
+        dto.setTitle(resume != null ? sanitizeShowcaseTitle(resume.getTitle(), modules) : "官方样例");
         dto.setScoreLabel(showcase.getScoreLabel());
-        dto.setSummary(showcase.getSummary());
+        dto.setSummary(sanitizeShowcaseText(showcase.getSummary(), modules));
         dto.setAccessType(normalizedAccessType(showcase));
         dto.setPriceCents(showcase.getPriceCents() == null ? 0 : showcase.getPriceCents());
         if (resume != null) {
@@ -444,7 +524,9 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
 
     private ResumeCardPreviewVO toPublicCardPreview(List<ResumeModule> modules) {
         ResumeCardPreviewVO preview = ResumeServiceImpl.buildCardPreview(modules);
-        preview.setName("");
+        preview.setName(preview.getName() == null || preview.getName().isBlank()
+                ? ""
+                : maskName(preview.getName()));
         preview.setTargetRole(abbreviate(preview.getTargetRole(), 48));
         preview.setBasicInfo(abbreviate(preview.getBasicInfo(), 72));
         preview.setEducations(preview.getEducations().stream()
@@ -555,14 +637,15 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
         ShowcaseDetailDTO dto = new ShowcaseDetailDTO();
         dto.setId(showcase.getId());
         dto.setSlug(showcase.getSlug());
-        dto.setTitle(resume.getTitle());
+        dto.setTitle(sanitizeShowcaseTitle(resume.getTitle(), modules));
         dto.setPageMode(resume.getPageMode());
         dto.setTemplateId(resume.getTemplateId());
         dto.setDensity(resume.getPdfDensity());
         dto.setAccentPreset(resume.getAccentPreset());
         dto.setHeadingStyle(resume.getHeadingStyle());
         dto.setScoreLabel(showcase.getScoreLabel());
-        dto.setSummary(showcase.getSummary());
+        dto.setSummary(sanitizeShowcaseText(showcase.getSummary(), modules));
+        dto.setAiReview(sanitizeAiReview(showcase.getAiReview(), modules, locked));
         dto.setAccessType(normalizedAccessType(showcase));
         dto.setPriceCents(showcase.getPriceCents() == null ? 0 : showcase.getPriceCents());
         dto.setPaymentEnabled(isPaidAccess(showcase)
@@ -585,12 +668,33 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
 
         var publicContent = new LinkedHashMap<String, Object>();
         if (module.getContent() != null) {
+            boolean hasPhoto = hasMeaningfulContent(module.getContent().get("photo"))
+                    || hasMeaningfulContent(module.getContent().get("photoId"));
             for (var entry : module.getContent().entrySet()) {
-                if (PUBLIC_BASIC_INFO_FIELDS.contains(entry.getKey())
-                        && hasMeaningfulContent(entry.getValue())) {
-                    publicContent.put(entry.getKey(), entry.getValue());
-                }
+                if (!PUBLIC_BASIC_INFO_FIELDS.contains(entry.getKey())) continue;
+
+                Object maskedValue = switch (entry.getKey()) {
+                    case "name" -> maskTextValue(entry.getValue(), this::maskName);
+                    case "email" -> maskTextValue(entry.getValue(), this::maskEmail);
+                    case "phone" -> maskTextValue(entry.getValue(), this::maskPhone);
+                    case "wechat", "blog", "github", "leetcode" ->
+                            maskTextValue(entry.getValue(), this::maskIdentifier);
+                    case "hometown" -> maskTextValue(entry.getValue(), this::maskLocation);
+                    case "summary" -> maskTextValue(entry.getValue(), this::maskEmbeddedContacts);
+                    case "photo" -> hasPhoto ? PUBLIC_MASKED_PHOTO_DATA_URL : entry.getValue();
+                    case "photoId" -> null;
+                    case "isPartyMember" -> Boolean.TRUE.equals(entry.getValue()) ? false : entry.getValue();
+                    default -> entry.getValue();
+                };
+                publicContent.put(entry.getKey(), maskedValue);
             }
+            if (hasPhoto && !publicContent.containsKey("photo")) {
+                publicContent.put("photo", PUBLIC_MASKED_PHOTO_DATA_URL);
+            }
+            if (Boolean.TRUE.equals(module.getContent().get("isPartyMember"))) {
+                publicContent.put("politicalStatusMasked", true);
+            }
+            publicContent.put("privacyMasked", true);
         }
 
         var sanitized = new ResumeModule();
@@ -602,5 +706,204 @@ public class ResumeShowcaseServiceImpl implements ResumeShowcaseService {
         sanitized.setCreatedAt(module.getCreatedAt());
         sanitized.setUpdatedAt(module.getUpdatedAt());
         return sanitized;
+    }
+
+    private Object maskTextValue(Object value, Function<String, String> masker) {
+        if (!(value instanceof CharSequence text) || text.toString().isBlank()) {
+            return value;
+        }
+        return masker.apply(text.toString());
+    }
+
+    private String maskName(String value) {
+        String normalized = value.strip();
+        int firstCodePointEnd = normalized.offsetByCodePoints(0, 1);
+        int codePointCount = normalized.codePointCount(0, normalized.length());
+        int maskLength = Math.max(2, codePointCount - 1);
+        return normalized.substring(0, firstCodePointEnd) + "x".repeat(maskLength);
+    }
+
+    private String maskEmail(String value) {
+        String normalized = value.strip();
+        int separator = normalized.lastIndexOf('@');
+        if (separator <= 0 || separator >= normalized.length() - 1) {
+            return maskIdentifier(normalized);
+        }
+
+        String localPart = normalized.substring(0, separator);
+        String[] domainParts = normalized.substring(separator + 1).split("\\.", -1);
+        StringBuilder maskedDomain = new StringBuilder();
+        for (int index = 0; index < domainParts.length; index++) {
+            if (index > 0) maskedDomain.append('.');
+            if (index == domainParts.length - 1 && domainParts.length > 1) {
+                maskedDomain.append(domainParts[index]);
+            } else {
+                maskedDomain.append(maskToken(domainParts[index], 1, 3));
+            }
+        }
+        return maskToken(localPart, 1, 3) + "@" + maskedDomain;
+    }
+
+    private String maskPhone(String value) {
+        String normalized = value.strip();
+        String compact = normalized.replaceAll("[\\s()-]", "");
+        String prefix = "";
+        if (compact.startsWith("+86")) {
+            prefix = "+86 ";
+            compact = compact.substring(3);
+        } else if (compact.startsWith("86") && compact.length() == 13) {
+            prefix = "86 ";
+            compact = compact.substring(2);
+        }
+        if (compact.matches("1[3-9]\\d{9}")) {
+            return prefix + compact.substring(0, 3) + "****" + compact.substring(7);
+        }
+
+        int digitCount = (int) normalized.codePoints().filter(Character::isDigit).count();
+        if (digitCount == 0) return maskIdentifier(normalized);
+        int digitIndex = 0;
+        StringBuilder masked = new StringBuilder();
+        for (int codePoint : normalized.codePoints().toArray()) {
+            if (Character.isDigit(codePoint)) {
+                boolean visible = digitCount > 4
+                        && (digitIndex < 2 || digitIndex >= digitCount - 2);
+                masked.appendCodePoint(visible ? codePoint : '*');
+                digitIndex++;
+            } else {
+                masked.appendCodePoint(codePoint);
+            }
+        }
+        return masked.toString();
+    }
+
+    private String maskIdentifier(String value) {
+        String normalized = value.strip();
+        boolean revealed = false;
+        int identifierCount = 0;
+        StringBuilder masked = new StringBuilder();
+        for (int codePoint : normalized.codePoints().toArray()) {
+            if (Character.isLetterOrDigit(codePoint)) {
+                identifierCount++;
+                if (!revealed) {
+                    masked.appendCodePoint(codePoint);
+                    revealed = true;
+                } else {
+                    masked.append('*');
+                }
+            } else {
+                masked.appendCodePoint(codePoint);
+            }
+        }
+        if (identifierCount == 1) masked.append("***");
+        return masked.toString();
+    }
+
+    private String maskLocation(String value) {
+        String normalized = value.strip();
+        int firstCodePointEnd = normalized.offsetByCodePoints(0, 1);
+        return normalized.substring(0, firstCodePointEnd) + "xx";
+    }
+
+    private String maskEmbeddedContacts(String value) {
+        String masked = EMAIL_PATTERN.matcher(value)
+                .replaceAll(match -> maskEmail(match.group()));
+        return MOBILE_PATTERN.matcher(masked)
+                .replaceAll(match -> maskPhone(match.group()));
+    }
+
+    private String sanitizeShowcaseText(String value, List<ResumeModule> modules) {
+        if (value == null) return null;
+
+        String sanitized = maskEmbeddedContacts(value);
+        if (modules == null) return sanitized;
+        for (ResumeModule module : modules) {
+            if (module == null || !"basic_info".equals(module.getModuleType())
+                    || module.getContent() == null) {
+                continue;
+            }
+            Object nameValue = module.getContent().get("name");
+            if (nameValue instanceof CharSequence name && !name.toString().isBlank()) {
+                String originalName = name.toString().strip();
+                sanitized = sanitized.replace(originalName, maskName(originalName));
+            }
+            break;
+        }
+        return sanitized;
+    }
+
+    private String sanitizeShowcaseTitle(String value, List<ResumeModule> modules) {
+        String sanitized = sanitizeShowcaseText(value, modules);
+        if (sanitized == null || sanitized.isBlank()) return sanitized;
+
+        var matcher = SHOWCASE_TITLE_NAME_PREFIX_PATTERN.matcher(sanitized);
+        if (!matcher.find()) return sanitized;
+
+        String prefix = matcher.group(1);
+        boolean clearlyNotAName = NON_PERSON_TITLE_MARKERS.stream().anyMatch(prefix::contains);
+        if (clearlyNotAName) return sanitized;
+
+        return sanitized.substring(0, matcher.start(1))
+                + maskName(prefix)
+                + sanitized.substring(matcher.end(1));
+    }
+
+    private ShowcaseAiReviewDTO sanitizeAiReview(
+            ShowcaseAiReviewDTO source,
+            List<ResumeModule> modules,
+            boolean locked
+    ) {
+        if (source == null) return null;
+
+        var sanitized = new ShowcaseAiReviewDTO();
+        sanitized.setScoreVersion(source.getScoreVersion());
+        if (source.getScoreBreakdown() != null) {
+            var breakdown = new ShowcaseAiScoreBreakdownDTO();
+            breakdown.setContentCompleteness(source.getScoreBreakdown().getContentCompleteness());
+            breakdown.setJobRelevance(source.getScoreBreakdown().getJobRelevance());
+            breakdown.setEvidenceQuality(source.getScoreBreakdown().getEvidenceQuality());
+            breakdown.setExpressionQuality(source.getScoreBreakdown().getExpressionQuality());
+            sanitized.setScoreBreakdown(breakdown);
+        }
+        sanitized.setOverallScore(source.getOverallScore());
+        sanitized.setVerdict(sanitizeShowcaseText(source.getVerdict(), modules));
+        sanitized.setSections(source.getSections() == null
+                ? List.of()
+                : source.getSections().stream()
+                .filter(Objects::nonNull)
+                .map(section -> sanitizeAiReviewSection(section, modules, locked))
+                .toList());
+        sanitized.setImprovements(locked || source.getImprovements() == null
+                ? List.of()
+                : source.getImprovements().stream()
+                .filter(Objects::nonNull)
+                .map(improvement -> sanitizeShowcaseText(improvement, modules))
+                .toList());
+        return sanitized;
+    }
+
+    private ShowcaseAiReviewSectionDTO sanitizeAiReviewSection(
+            ShowcaseAiReviewSectionDTO source,
+            List<ResumeModule> modules,
+            boolean locked
+    ) {
+        var sanitized = new ShowcaseAiReviewSectionDTO();
+        sanitized.setModuleType(source.getModuleType());
+        sanitized.setTitle(sanitizeShowcaseText(source.getTitle(), modules));
+        sanitized.setReason(sanitizeShowcaseText(source.getReason(), modules));
+        sanitized.setEvidence(locked || source.getEvidence() == null
+                ? List.of()
+                : source.getEvidence().stream()
+                .filter(Objects::nonNull)
+                .map(evidence -> sanitizeShowcaseText(evidence, modules))
+                .toList());
+        return sanitized;
+    }
+
+    private String maskToken(String value, int visibleCodePoints, int minimumMaskLength) {
+        int codePointCount = value.codePointCount(0, value.length());
+        int visible = Math.min(Math.max(visibleCodePoints, 0), codePointCount);
+        int visibleEnd = value.offsetByCodePoints(0, visible);
+        return value.substring(0, visibleEnd)
+                + "*".repeat(Math.max(minimumMaskLength, codePointCount - visible));
     }
 }

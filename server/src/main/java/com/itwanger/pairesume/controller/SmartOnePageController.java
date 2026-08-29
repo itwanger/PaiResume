@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-@Tag(name = "智能一页接口")
+@Tag(name = "智能长一页接口")
 @RestController
 @RequestMapping("/resumes/{resumeId}/smart-onepage")
 public class SmartOnePageController {
@@ -36,7 +36,7 @@ public class SmartOnePageController {
         this.membershipService = membershipService;
     }
 
-    @Operation(summary = "生成智能一页预览")
+    @Operation(summary = "生成智能长一页预览")
     @PostMapping("/preview")
     public Result<?> preview(@PathVariable Long resumeId, @RequestBody SmartOnePagePreviewRequestDTO request) {
         var userId = getCurrentUserId();
@@ -49,7 +49,7 @@ public class SmartOnePageController {
         }
 
         if (request == null || request.getMode() == null || request.getMode().isBlank()) {
-            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "缺少智能一页生成参数");
+            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "缺少智能长一页生成参数");
         }
 
         var modules = moduleMapper.selectList(
@@ -60,7 +60,7 @@ public class SmartOnePageController {
         );
 
         if (modules.isEmpty()) {
-            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "请先完善简历内容后再生成智能一页");
+            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "请先完善简历内容后再生成智能长一页");
         }
 
         return Result.success(aiService.previewSmartOnePage(resume.getTitle(), modules, request));

@@ -3,6 +3,9 @@ package com.itwanger.pairesume.service.impl;
 import com.itwanger.pairesume.common.BusinessException;
 import com.itwanger.pairesume.common.ResultCode;
 import com.itwanger.pairesume.dto.ResumeShowcaseUpsertDTO;
+import com.itwanger.pairesume.dto.ShowcaseAiReviewDTO;
+import com.itwanger.pairesume.dto.ShowcaseAiReviewSectionDTO;
+import com.itwanger.pairesume.dto.ShowcaseAiScoreBreakdownDTO;
 import com.itwanger.pairesume.dto.ShowcaseMetadataDTO;
 import com.itwanger.pairesume.entity.Resume;
 import com.itwanger.pairesume.entity.ResumeModule;
@@ -10,20 +13,25 @@ import com.itwanger.pairesume.entity.ResumeShowcase;
 import com.itwanger.pairesume.mapper.ResumeMapper;
 import com.itwanger.pairesume.mapper.ResumeModuleMapper;
 import com.itwanger.pairesume.mapper.ResumeShowcaseMapper;
+import com.itwanger.pairesume.security.ResumePhotoSecurityPolicy;
 import com.itwanger.pairesume.service.AiService;
 import com.itwanger.pairesume.service.ShowcasePurchaseService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DuplicateKeyException;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -173,7 +181,15 @@ class ResumeShowcaseServiceImplTest {
         assertEquals("compact", cards.get(0).getDensity());
         assertEquals("warm", cards.get(0).getAccentPreset());
         assertEquals("filled", cards.get(0).getHeadingStyle());
-        assertEquals("", cards.get(0).getPreview().getName());
+        assertTrue(cards.get(0).getPreview().getName().startsWith("不"));
+        assertFalse(cards.get(0).getPreview().getName().contains("应公开的姓名"));
+        assertEquals(List.of(
+                "basic_info",
+                "education",
+                "skill",
+                "work_experience",
+                "internship",
+                "project"), cards.get(0).getPreview().getModuleOrder());
         assertEquals("Agent 工程师 · 3年 · 北京", cards.get(0).getPreview().getBasicInfo());
         assertEquals(List.of("北京邮电大学 · 硕士 · 计算机科学"), cards.get(0).getPreview().getEducations());
         assertEquals(2, cards.get(0).getPreview().getSkills().size());
@@ -233,6 +249,10 @@ class ResumeShowcaseServiceImplTest {
         assertEquals("PUBLIC", detail.getAccessType());
         assertTrue(!detail.isLocked());
         assertSame(module, detail.getModules().get(0));
+        assertEquals(List.of("使用 Spring Boot 实现核心服务并完成稳定性优化"),
+                detail.getAiReview().getSections().get(0).getEvidence());
+        assertEquals(List.of("可进一步补充更多可量化的业务结果"),
+                detail.getAiReview().getImprovements());
         verifyNoInteractions(showcasePurchaseService);
     }
 
@@ -248,6 +268,8 @@ class ResumeShowcaseServiceImplTest {
         assertTrue(detail.isLocked());
         assertTrue(detail.getModules().isEmpty());
         assertEquals(1, detail.getPreview().getFilledModuleCount());
+        assertTrue(detail.getAiReview().getSections().get(0).getEvidence().isEmpty());
+        assertTrue(detail.getAiReview().getImprovements().isEmpty());
         verify(showcasePurchaseService).isUnlocked(11L, null);
     }
 
@@ -339,30 +361,141 @@ class ResumeShowcaseServiceImplTest {
     }
 
     @Test
-    void showcaseDetailRemovesPersonalBasicInfo() {
+    void showcaseDetailMasksPersonalBasicInfoWithoutChangingTheOriginalLayoutFields() {
+        var sourceContent = new LinkedHashMap<String, Object>();
+        sourceContent.put("name", "张三");
+        sourceContent.put("email", "zhangsan@example.com");
+        sourceContent.put("phone", "13800138000");
+        sourceContent.put("wechat", "wx_zhangsan");
+        sourceContent.put("photoId", 88L);
+        sourceContent.put("photoWidth", 108);
+        sourceContent.put("photoHeight", 144);
+        sourceContent.put("photoBorder", true);
+        sourceContent.put("hometown", "河南洛阳");
+        sourceContent.put("github", "github.com/zhangsan");
+        sourceContent.put("blog", "https://zhangsan.dev");
+        sourceContent.put("leetcode", "leetcode.cn/u/zhangsan");
+        sourceContent.put("jobIntention", "Java 后端");
+        sourceContent.put("targetCity", "北京");
+        sourceContent.put("workYears", "3年");
+        sourceContent.put("isPartyMember", true);
+        sourceContent.put("summary", "联系 zhangsan@example.com 或 13800138000");
+        sourceContent.put("internalNote", "不应进入公开响应");
+
         ResumeModule basicInfo = new ResumeModule();
         basicInfo.setId(32L);
         basicInfo.setResumeId(21L);
         basicInfo.setModuleType("basic_info");
-        basicInfo.setContent(Map.of(
-                "name", "张三",
-                "email", "zhangsan@example.com",
-                "phone", "13800138000",
-                "photo", "data:image/png;base64,AAAA",
-                "jobIntention", "Java 后端"
-        ));
+        basicInfo.setContent(sourceContent);
+        ResumeShowcase publicShowcase = showcase("PUBLIC");
+        publicShowcase.setSummary("张三可通过 zhangsan@example.com 联系");
+        Resume sourceResume = resume();
+        sourceResume.setTitle("张三 - Java 后端简历");
+        when(resumeShowcaseMapper.selectOne(any())).thenReturn(publicShowcase);
+        when(resumeMapper.selectById(21L)).thenReturn(sourceResume);
+        when(resumeModuleMapper.selectList(any())).thenReturn(List.of(basicInfo));
+
+        var detail = resumeShowcaseService.getPublishedDetail("excellent-java", null, null);
+        var publicContent = detail.getModules().get(0).getContent();
+
+        assertEquals("张xx - Java 后端简历", detail.getTitle());
+        assertEquals("张xx可通过 z*******@e******.com 联系", detail.getSummary());
+        assertEquals("张xx", publicContent.get("name"));
+        assertEquals("z*******@e******.com", publicContent.get("email"));
+        assertEquals("138****8000", publicContent.get("phone"));
+        assertEquals("w*_********", publicContent.get("wechat"));
+        assertEquals("河xx", publicContent.get("hometown"));
+        assertEquals("g*****.***/********", publicContent.get("github"));
+        assertEquals("h****://********.***", publicContent.get("blog"));
+        assertEquals("l*******.**/*/********", publicContent.get("leetcode"));
+        assertEquals("Java 后端", publicContent.get("jobIntention"));
+        assertEquals("北京", publicContent.get("targetCity"));
+        assertEquals("3年", publicContent.get("workYears"));
+        assertEquals(false, publicContent.get("isPartyMember"));
+        assertEquals(true, publicContent.get("politicalStatusMasked"));
+        assertEquals(true, publicContent.get("privacyMasked"));
+        assertEquals("联系 z*******@e******.com 或 138****8000", publicContent.get("summary"));
+        assertEquals(108, publicContent.get("photoWidth"));
+        assertEquals(144, publicContent.get("photoHeight"));
+        assertEquals(true, publicContent.get("photoBorder"));
+        assertNull(publicContent.get("photoId"));
+        assertTrue(ResumePhotoSecurityPolicy.isSafeRasterDataUrl(publicContent.get("photo")));
+        assertFalse(publicContent.containsKey("internalNote"));
+
+        assertEquals("张三", sourceContent.get("name"));
+        assertEquals("zhangsan@example.com", sourceContent.get("email"));
+        assertEquals(88L, sourceContent.get("photoId"));
+    }
+
+    @Test
+    void showcaseDetailPreservesNameLengthWhenMaskingResumeTitle() {
+        var sourceContent = new LinkedHashMap<String, Object>();
+        sourceContent.put("name", "张天霸1");
+        sourceContent.put("jobIntention", "Agent工程师");
+
+        ResumeModule basicInfo = new ResumeModule();
+        basicInfo.setId(32L);
+        basicInfo.setResumeId(21L);
+        basicInfo.setModuleType("basic_info");
+        basicInfo.setContent(sourceContent);
+        ResumeShowcase publicShowcase = showcase("PUBLIC");
+        publicShowcase.setSummary("拥有3年Agent工程经验");
+        Resume sourceResume = resume();
+        sourceResume.setTitle("沉默王二-Agent工程师-3年工作经验");
+        when(resumeShowcaseMapper.selectOne(any())).thenReturn(publicShowcase);
+        when(resumeMapper.selectById(21L)).thenReturn(sourceResume);
+        when(resumeModuleMapper.selectList(any())).thenReturn(List.of(basicInfo));
+
+        var detail = resumeShowcaseService.getPublishedDetail("excellent-java", null, null);
+
+        assertEquals("沉xxx-Agent工程师-3年工作经验", detail.getTitle());
+        assertEquals("拥有3年Agent工程经验", detail.getSummary());
+        assertEquals("张xxx", detail.getModules().get(0).getContent().get("name"));
+        assertEquals("张天霸1", sourceContent.get("name"));
+    }
+
+    @Test
+    void showcaseDetailDoesNotTreatOfficialSamplePrefixAsAName() {
+        ResumeModule basicInfo = new ResumeModule();
+        basicInfo.setId(32L);
+        basicInfo.setResumeId(21L);
+        basicInfo.setModuleType("basic_info");
+        basicInfo.setContent(Map.of("name", "张天霸1"));
+        Resume sourceResume = resume();
+        sourceResume.setTitle("官方样例 - Java 后端高分简历");
+        when(resumeShowcaseMapper.selectOne(any())).thenReturn(showcase("PUBLIC"));
+        when(resumeMapper.selectById(21L)).thenReturn(sourceResume);
+        when(resumeModuleMapper.selectList(any())).thenReturn(List.of(basicInfo));
+
+        var detail = resumeShowcaseService.getPublishedDetail("excellent-java", null, null);
+
+        assertEquals("官方样例 - Java 后端高分简历", detail.getTitle());
+    }
+
+    @Test
+    void showcaseDetailDoesNotInventMissingNameOrPhoto() {
+        ResumeModule basicInfo = new ResumeModule();
+        basicInfo.setId(32L);
+        basicInfo.setResumeId(21L);
+        basicInfo.setModuleType("basic_info");
+        basicInfo.setContent(Map.of("jobIntention", "Java 后端"));
         when(resumeShowcaseMapper.selectOne(any())).thenReturn(showcase("PUBLIC"));
         when(resumeMapper.selectById(21L)).thenReturn(resume());
         when(resumeModuleMapper.selectList(any())).thenReturn(List.of(basicInfo));
 
         var detail = resumeShowcaseService.getPublishedDetail("excellent-java", null, null);
+        var publicContent = detail.getModules().get(0).getContent();
 
-        assertEquals(Map.of("jobIntention", "Java 后端"), detail.getModules().get(0).getContent());
+        assertEquals("Java 后端", publicContent.get("jobIntention"));
+        assertFalse(publicContent.containsKey("name"));
+        assertFalse(publicContent.containsKey("photo"));
+        assertFalse(publicContent.containsKey("politicalStatusMasked"));
     }
 
     @Test
     void creatingShowcaseNormalizesAccessType() {
         ResumeShowcaseUpsertDTO dto = showcaseUpsert(" public ");
+        dto.setPublishStatus("DRAFT");
         when(resumeMapper.selectById(21L)).thenReturn(resume());
         when(resumeShowcaseMapper.selectOne(any())).thenReturn(null);
 
@@ -376,7 +509,6 @@ class ResumeShowcaseServiceImplTest {
     void creatingShowcaseRejectsUnsupportedAccessType() {
         ResumeShowcaseUpsertDTO dto = showcaseUpsert("VIP");
         when(resumeMapper.selectById(21L)).thenReturn(resume());
-        when(resumeShowcaseMapper.selectOne(any())).thenReturn(null);
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
@@ -386,6 +518,81 @@ class ResumeShowcaseServiceImplTest {
         assertEquals(ResultCode.BAD_REQUEST.getCode(), exception.getCode());
         assertEquals("访问类型只能是 PUBLIC、LOGIN 或 PAID", exception.getMessage());
         verify(resumeShowcaseMapper, never()).insert(any(ResumeShowcase.class));
+    }
+
+    @Test
+    void creatingPublishedShowcaseWithoutAiReviewRequiresFeatureFlow() {
+        ResumeShowcaseUpsertDTO dto = showcaseUpsert("PUBLIC");
+        when(resumeMapper.selectById(21L)).thenReturn(resume());
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> resumeShowcaseService.create(7L, dto)
+        );
+
+        assertEquals(ResultCode.BAD_REQUEST.getCode(), exception.getCode());
+        assertEquals("发布精选前，请通过精选设置生成 AI 点评", exception.getMessage());
+        verify(resumeShowcaseMapper, never()).insert(any(ResumeShowcase.class));
+    }
+
+    @Test
+    void updatingShowcaseCannotRebindToAnotherResume() {
+        ResumeShowcase existing = showcase("PUBLIC");
+        ShowcaseAiReviewDTO existingReview = existing.getAiReview();
+        ResumeShowcaseUpsertDTO dto = showcaseUpsert("PUBLIC");
+        dto.setResumeId(22L);
+        Resume targetResume = resume();
+        targetResume.setId(22L);
+        when(resumeShowcaseMapper.selectById(11L)).thenReturn(existing);
+        when(resumeMapper.selectById(22L)).thenReturn(targetResume);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> resumeShowcaseService.update(11L, 7L, dto)
+        );
+
+        assertEquals(ResultCode.BAD_REQUEST.getCode(), exception.getCode());
+        assertEquals("精选记录不能更换简历，请对目标简历重新精选", exception.getMessage());
+        assertEquals(21L, existing.getResumeId());
+        assertSame(existingReview, existing.getAiReview());
+        verify(resumeShowcaseMapper, never()).updateById(any(ResumeShowcase.class));
+    }
+
+    @Test
+    void updatingPublishedShowcaseWithoutAiReviewRequiresFeatureFlow() {
+        ResumeShowcase existing = showcase("PUBLIC");
+        existing.setAiReview(null);
+        ResumeShowcaseUpsertDTO dto = showcaseUpsert("PUBLIC");
+        when(resumeShowcaseMapper.selectById(11L)).thenReturn(existing);
+        when(resumeMapper.selectById(21L)).thenReturn(resume());
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> resumeShowcaseService.update(11L, 7L, dto)
+        );
+
+        assertEquals(ResultCode.BAD_REQUEST.getCode(), exception.getCode());
+        assertEquals("发布精选前，请通过精选设置生成 AI 点评", exception.getMessage());
+        verify(resumeShowcaseMapper, never()).updateById(any(ResumeShowcase.class));
+    }
+
+    @Test
+    void updatingSameResumePreservesExistingAiReview() {
+        ResumeShowcase existing = showcase("PUBLIC");
+        ShowcaseAiReviewDTO existingReview = existing.getAiReview();
+        ResumeShowcaseUpsertDTO dto = showcaseUpsert("LOGIN");
+        dto.setSummary("更新后的摘要");
+        when(resumeShowcaseMapper.selectById(11L)).thenReturn(existing);
+        when(resumeMapper.selectById(21L)).thenReturn(resume());
+        when(resumeShowcaseMapper.selectOne(any())).thenReturn(existing);
+
+        ResumeShowcase updated = resumeShowcaseService.update(11L, 7L, dto);
+
+        assertSame(existingReview, updated.getAiReview());
+        assertEquals("更新后的摘要", updated.getSummary());
+        assertEquals("LOGIN", updated.getAccessType());
+        assertEquals("PUBLISHED", updated.getPublishStatus());
+        verify(resumeShowcaseMapper).updateById(existing);
     }
 
     @Test
@@ -438,6 +645,168 @@ class ResumeShowcaseServiceImplTest {
         assertEquals("LOGIN", result.getAccessType());
         verify(resumeShowcaseMapper).updateById(published);
         verifyNoInteractions(aiService, resumeModuleMapper);
+    }
+
+    @Test
+    void featuringPublishedLegacyResumeGeneratesMissingAiReviewOnce() {
+        ResumeShowcase published = showcase("PAID");
+        published.setPublishStatus("PUBLISHED");
+        published.setAiReview(null);
+        Resume resume = resume();
+        ResumeModule module = module();
+        ShowcaseMetadataDTO metadata = metadata();
+        when(resumeMapper.selectById(21L)).thenReturn(resume);
+        when(resumeShowcaseMapper.selectOne(any())).thenReturn(published);
+        when(resumeModuleMapper.selectList(any())).thenReturn(List.of(module));
+        when(aiService.generateShowcaseMetadata(resume.getTitle(), List.of(module))).thenReturn(metadata);
+
+        ResumeShowcase result = resumeShowcaseService.featureResume(21L, 7L, "PAID", 6600);
+
+        assertSame(published, result);
+        assertSame(metadata.getAiReview(), result.getAiReview());
+        verify(aiService).generateShowcaseMetadata(resume.getTitle(), List.of(module));
+        verify(resumeShowcaseMapper).updateById(published);
+    }
+
+    @Test
+    void regeneratingAiReviewAtomicallyUpdatesOnlyGeneratedMetadata() {
+        Resume sourceResume = resume();
+        sourceResume.setUpdatedAt(LocalDateTime.of(2026, 8, 28, 10, 0));
+        ResumeShowcase published = showcase("PAID");
+        published.setPublishStatus("PUBLISHED");
+        published.setDisplayOrder(6);
+        ShowcaseMetadataDTO refreshedMetadata = metadata();
+        refreshedMetadata.setDisplayLabel("AI 应用开发");
+        refreshedMetadata.setSummary("AI 应用经历完整，项目证据清晰");
+        refreshedMetadata.getAiReview().setOverallScore(83);
+        ResumeModule module = module();
+        when(resumeMapper.selectById(21L)).thenReturn(sourceResume, sourceResume);
+        when(resumeShowcaseMapper.selectOne(any())).thenReturn(published);
+        when(resumeModuleMapper.selectList(any())).thenReturn(List.of(module));
+        when(aiService.generateShowcaseMetadata(sourceResume.getTitle(), List.of(module)))
+                .thenReturn(refreshedMetadata);
+        when(resumeShowcaseMapper.update(any(ResumeShowcase.class), any())).thenReturn(1);
+
+        ResumeShowcase result = resumeShowcaseService.regenerateAiReview(21L, 7L);
+
+        assertSame(published, result);
+        assertEquals("AI 应用开发", result.getScoreLabel());
+        assertEquals("AI 应用经历完整，项目证据清晰", result.getSummary());
+        assertSame(refreshedMetadata.getAiReview(), result.getAiReview());
+        assertEquals("excellent-java", result.getSlug());
+        assertEquals("PAID", result.getAccessType());
+        assertEquals(6600, result.getPriceCents());
+        assertEquals(6, result.getDisplayOrder());
+        assertEquals("PUBLISHED", result.getPublishStatus());
+
+        ArgumentCaptor<ResumeShowcase> updateCaptor = ArgumentCaptor.forClass(ResumeShowcase.class);
+        verify(resumeShowcaseMapper).update(updateCaptor.capture(), any());
+        ResumeShowcase update = updateCaptor.getValue();
+        assertEquals("AI 应用开发", update.getScoreLabel());
+        assertEquals("AI 应用经历完整，项目证据清晰", update.getSummary());
+        assertSame(refreshedMetadata.getAiReview(), update.getAiReview());
+        assertNull(update.getSlug());
+        assertNull(update.getAccessType());
+        assertNull(update.getPriceCents());
+        assertNull(update.getDisplayOrder());
+        assertNull(update.getPublishStatus());
+    }
+
+    @Test
+    void regeneratingAiReviewKeepsOldMetadataWhenAiFails() {
+        Resume sourceResume = resume();
+        ResumeShowcase published = showcase("PUBLIC");
+        published.setPublishStatus("PUBLISHED");
+        ShowcaseAiReviewDTO oldReview = published.getAiReview();
+        ResumeModule module = module();
+        when(resumeMapper.selectById(21L)).thenReturn(sourceResume);
+        when(resumeShowcaseMapper.selectOne(any())).thenReturn(published);
+        when(resumeModuleMapper.selectList(any())).thenReturn(List.of(module));
+        when(aiService.generateShowcaseMetadata(sourceResume.getTitle(), List.of(module)))
+                .thenThrow(new BusinessException(ResultCode.AI_SERVICE_BUSY));
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> resumeShowcaseService.regenerateAiReview(21L, 7L)
+        );
+
+        assertEquals(ResultCode.AI_SERVICE_BUSY.getCode(), exception.getCode());
+        assertEquals("优质", published.getScoreLabel());
+        assertEquals("后端开发优质简历", published.getSummary());
+        assertSame(oldReview, published.getAiReview());
+        verify(resumeShowcaseMapper, never()).update(any(ResumeShowcase.class), any());
+    }
+
+    @Test
+    void regeneratingAiReviewRejectsResumeChangedDuringAiGeneration() {
+        Resume original = resume();
+        original.setUpdatedAt(LocalDateTime.of(2026, 8, 28, 10, 0));
+        Resume changed = resume();
+        changed.setUpdatedAt(LocalDateTime.of(2026, 8, 28, 10, 1));
+        ResumeShowcase published = showcase("PUBLIC");
+        published.setPublishStatus("PUBLISHED");
+        ShowcaseAiReviewDTO oldReview = published.getAiReview();
+        ResumeModule module = module();
+        when(resumeMapper.selectById(21L)).thenReturn(original, changed);
+        when(resumeShowcaseMapper.selectOne(any())).thenReturn(published);
+        when(resumeModuleMapper.selectList(any())).thenReturn(List.of(module));
+        when(aiService.generateShowcaseMetadata(original.getTitle(), List.of(module)))
+                .thenReturn(metadata());
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> resumeShowcaseService.regenerateAiReview(21L, 7L)
+        );
+
+        assertEquals("简历内容已更新，请重新精选", exception.getMessage());
+        assertEquals("优质", published.getScoreLabel());
+        assertEquals("后端开发优质简历", published.getSummary());
+        assertSame(oldReview, published.getAiReview());
+        verify(resumeShowcaseMapper, never()).update(any(ResumeShowcase.class), any());
+    }
+
+    @Test
+    void regeneratingAiReviewRejectsMissingOrUnpublishedShowcase() {
+        Resume sourceResume = resume();
+        ResumeShowcase draft = showcase("PUBLIC");
+        draft.setPublishStatus("DRAFT");
+        when(resumeMapper.selectById(21L)).thenReturn(sourceResume);
+        when(resumeShowcaseMapper.selectOne(any())).thenReturn(draft);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> resumeShowcaseService.regenerateAiReview(21L, 7L)
+        );
+
+        assertEquals(ResultCode.SHOWCASE_NOT_FOUND.getCode(), exception.getCode());
+        verifyNoInteractions(aiService, resumeModuleMapper);
+        verify(resumeShowcaseMapper, never()).update(any(ResumeShowcase.class), any());
+    }
+
+    @Test
+    void regeneratingAiReviewDoesNotOverwriteWhenShowcaseStateChangesBeforeWrite() {
+        Resume sourceResume = resume();
+        sourceResume.setUpdatedAt(LocalDateTime.of(2026, 8, 28, 10, 0));
+        ResumeShowcase published = showcase("PUBLIC");
+        published.setPublishStatus("PUBLISHED");
+        ShowcaseAiReviewDTO oldReview = published.getAiReview();
+        ResumeModule module = module();
+        when(resumeMapper.selectById(21L)).thenReturn(sourceResume, sourceResume);
+        when(resumeShowcaseMapper.selectOne(any())).thenReturn(published);
+        when(resumeModuleMapper.selectList(any())).thenReturn(List.of(module));
+        when(aiService.generateShowcaseMetadata(sourceResume.getTitle(), List.of(module)))
+                .thenReturn(metadata());
+        when(resumeShowcaseMapper.update(any(ResumeShowcase.class), any())).thenReturn(0);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> resumeShowcaseService.regenerateAiReview(21L, 7L)
+        );
+
+        assertEquals("精选状态已更新，请刷新后重试", exception.getMessage());
+        assertEquals("优质", published.getScoreLabel());
+        assertEquals("后端开发优质简历", published.getSummary());
+        assertSame(oldReview, published.getAiReview());
     }
 
     @Test
@@ -587,6 +956,7 @@ class ResumeShowcaseServiceImplTest {
         showcase.setSlug("excellent-java");
         showcase.setScoreLabel("优质");
         showcase.setSummary("后端开发优质简历");
+        showcase.setAiReview(aiReview());
         showcase.setAccessType(accessType);
         showcase.setPriceCents("PAID".equals(accessType) ? 6600 : 0);
         return showcase;
@@ -637,6 +1007,29 @@ class ResumeShowcaseServiceImplTest {
         ShowcaseMetadataDTO metadata = new ShowcaseMetadataDTO();
         metadata.setDisplayLabel("Java 后端");
         metadata.setSummary("包含 Java 项目与后端工程实践");
+        metadata.setAiReview(aiReview());
         return metadata;
+    }
+
+    private ShowcaseAiReviewDTO aiReview() {
+        var section = new ShowcaseAiReviewSectionDTO();
+        section.setModuleType("project");
+        section.setTitle("项目经历");
+        section.setReason("项目描述能说明技术方案、承担工作和交付结果，事实证据较为完整。");
+        section.setEvidence(List.of("使用 Spring Boot 实现核心服务并完成稳定性优化"));
+
+        var review = new ShowcaseAiReviewDTO();
+        var scoreBreakdown = new ShowcaseAiScoreBreakdownDTO();
+        scoreBreakdown.setContentCompleteness(21);
+        scoreBreakdown.setJobRelevance(21);
+        scoreBreakdown.setEvidenceQuality(25);
+        scoreBreakdown.setExpressionQuality(16);
+        review.setScoreVersion(2);
+        review.setScoreBreakdown(scoreBreakdown);
+        review.setOverallScore(83);
+        review.setVerdict("项目经历有清晰的技术行动与结果证据，岗位匹配度较高。");
+        review.setSections(List.of(section));
+        review.setImprovements(List.of("可进一步补充更多可量化的业务结果"));
+        return review;
     }
 }

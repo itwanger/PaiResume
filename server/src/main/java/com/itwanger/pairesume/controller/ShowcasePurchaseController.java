@@ -42,6 +42,14 @@ public class ShowcasePurchaseController {
         return Result.success(purchaseService.getOrder(orderNo, purchaseToken));
     }
 
+    @GetMapping("/{slug}/orders/latest")
+    public Result<ShowcasePurchaseOrderDTO> latest(
+            @PathVariable String slug,
+            @RequestHeader(TOKEN_HEADER) String purchaseToken
+    ) {
+        return Result.success(purchaseService.getLatestOrder(slug, purchaseToken));
+    }
+
     @PostMapping("/orders/{orderNo}/refresh")
     public Result<ShowcasePurchaseOrderDTO> refresh(
             @PathVariable String orderNo,

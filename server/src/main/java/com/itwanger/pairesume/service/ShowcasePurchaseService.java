@@ -9,6 +9,8 @@ public interface ShowcasePurchaseService {
 
     ShowcasePurchaseOrderDTO getOrder(String orderNo, String purchaseToken);
 
+    ShowcasePurchaseOrderDTO getLatestOrder(String slug, String purchaseToken);
+
     ShowcasePurchaseOrderDTO refreshOrder(String orderNo, String purchaseToken);
 
     boolean isUnlocked(Long showcaseId, String purchaseToken);

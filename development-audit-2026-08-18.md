@@ -116,9 +116,9 @@
 - 本轮验证：
   - 自动化测试：新增 `tests/resume/downloadResumePdf.test.ts`（node --test，2 项）——`downloadResumePdf` 客户端生成 blob 后触发 `a[download]` 点击并释放对象 URL；`generateResumePdfBlob` 产出真实 `%PDF-` 字节流（node 环境真实字体渲染）。既有 `awardPdf`、`experiencePdf` 等渲染层测试继续覆盖分项内容。
   - 真实浏览器验证（本地前后端 + 登录用户）：点击"导出 PDF"后网络请求只有 `GET /api/resumes/43/modules`（导出前 flush 自动保存后重新读取最新模块，与 EditorPage 代码路径一致）和浏览器本地 `fetch /fonts/noto-sans-sc-*.otf` 字体加载，**无任何服务端 PDF 渲染接口调用**。
-  - 浏览器内内容抽查（页面内调用真实导出管线 + PDFJS 解析）：标准模式 6 页 241KB，文本含姓名、教育背景，首部为"姓名：沉默王二求职意向：AI应用开发工程师…"；智能一页（内容无损）模式压缩为 2 长页。
+  - 浏览器内内容抽查（页面内调用真实导出管线 + PDFJS 解析）：标准模式 6 页 241KB，文本含姓名、教育背景，首部为"姓名：沉默王二求职意向：AI应用开发工程师…"；智能长一页（内容无损）模式压缩为 2 长页。
   - 发布包静态检查：`build-release.sh` 制品契约仅 `dist/`、单个后端 JAR、`config/` 与 manifest，不含 Node、`node_modules`、PDF worker、源码；systemd unit `ExecStart` 仅 `java -jar`。生产主机现场核查仍属 PROD-002 运维范围。
-  - 覆盖边界：页面模式验证了标准与智能一页两种；8 个模板和照片场景未逐一浏览器验证（模板渲染已有预览面板即时可见性保障），如需可后续补充。
+  - 覆盖边界：页面模式验证了标准与智能长一页两种；8 个模板和照片场景未逐一浏览器验证（模板渲染已有预览面板即时可见性保障），如需可后续补充。
 - 验证结果：node --test 2 项通过；浏览器导出、网络、内容抽查全部符合预期；`git diff --check` 通过。
 
 ### QA-003 页面级 E2E 基线

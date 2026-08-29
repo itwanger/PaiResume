@@ -18,6 +18,7 @@ import { parseInlineMarkdownSegments } from '../../utils/inlineMarkdown'
 import { normalizePhotoSource } from '../../utils/resumePhoto'
 import { normalizeInlineText } from '../../utils/resumeText'
 import { formatAwardDisplayText } from '../../utils/yearInput'
+import { resolvePdfPreviewOutputScale } from '../../utils/pdfPreview'
 import {
   findBasicInfoContent,
   getModuleDisplayLabel,
@@ -370,7 +371,7 @@ function PdfPreviewCard({
           const baseViewport = page.getViewport({ scale: 1 })
           const scale = containerWidth / baseViewport.width
           const viewport = page.getViewport({ scale })
-          const outputScale = window.devicePixelRatio || 1
+          const outputScale = resolvePdfPreviewOutputScale(window.devicePixelRatio)
 
           const canvas = document.createElement('canvas')
           const context = canvas.getContext('2d')
@@ -378,8 +379,8 @@ function PdfPreviewCard({
             throw new Error('PDF 预览上下文创建失败')
           }
 
-          canvas.width = Math.floor(viewport.width * outputScale)
-          canvas.height = Math.floor(viewport.height * outputScale)
+          canvas.width = Math.ceil(viewport.width * outputScale)
+          canvas.height = Math.ceil(viewport.height * outputScale)
           canvas.style.width = `${viewport.width}px`
           canvas.style.height = `${viewport.height}px`
 
@@ -493,8 +494,8 @@ function normalizeExternalUrl(value: string) {
   return /^https?:\/\//i.test(value) ? value : `https://${value}`
 }
 
-function renderContactItem(label: string, value: string) {
-  const isLink = label === 'GitHub' || label === '博客'
+function renderContactItem(label: string, value: string, privacyMasked = false) {
+  const isLink = !privacyMasked && (label === 'GitHub' || label === '博客')
   const normalizedUrl = isLink ? normalizeExternalUrl(value) : ''
 
   return (
@@ -613,7 +614,7 @@ function ModulePreviewSection({
           ['手机号', content.phone as string],
           ['微信', content.wechat as string],
           ['意向城市', content.targetCity as string],
-          ['政治面貌', content.isPartyMember ? '党员' : ''],
+          ['政治面貌', content.politicalStatusMasked ? 'xx' : content.isPartyMember ? '党员' : ''],
           ['GitHub', content.github as string],
           ['博客', content.blog as string],
           ['籍贯', content.hometown as string],
@@ -631,14 +632,18 @@ function ModulePreviewSection({
                 </div>
                 <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-gray-600">
                   {contactItems.map(([itemLabel, itemValue]) => (
-                    renderContactItem(itemLabel as string, itemValue as string)
+                    renderContactItem(itemLabel as string, itemValue as string, content.privacyMasked)
                   ))}
                 </div>
               </div>
               {photoSource ? (
                 <div className="flex justify-start sm:justify-end">
                   <div className={`aspect-[3/4] w-[108px] overflow-hidden shadow-[0_10px_25px_-18px_rgba(15,23,42,0.4)] ${photoFrameClassName}`}>
-                    <img src={photoSource} alt="简历照片" className="h-full w-full object-cover" />
+                    <img
+                      src={photoSource}
+                      alt={content.privacyMasked ? '脱敏照片占位图' : '简历照片'}
+                      className={`h-full w-full object-cover ${content.privacyMasked ? '[image-rendering:pixelated]' : ''}`}
+                    />
                   </div>
                 </div>
               ) : null}

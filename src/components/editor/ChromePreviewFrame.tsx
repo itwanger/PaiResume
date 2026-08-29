@@ -501,7 +501,7 @@ export function ChromePreviewFrame({
               value={pageMode}
               options={[
                 { value: 'standard', label: '标准 PDF（可能分页）' },
-                { value: 'continuous', label: '智能一页（内容无损）' },
+                { value: 'continuous', label: '智能长一页（内容无损）' },
               ]}
               onChange={selectPageMode}
             />

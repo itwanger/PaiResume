@@ -89,6 +89,10 @@ public class ResumeServiceImpl implements ResumeService {
                 ignored -> 1,
                 Integer::sum,
                 LinkedHashMap::new)));
+        preview.setModuleOrder(meaningfulModules.stream()
+                .map(ResumeModule::getModuleType)
+                .distinct()
+                .toList());
 
         var basicInfo = firstContent(modules, "basic_info");
         var jobIntention = firstContent(modules, "job_intention");

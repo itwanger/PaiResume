@@ -10,6 +10,8 @@ import com.itwanger.pairesume.dto.SmartOnePageModuleDecisionDTO;
 import com.itwanger.pairesume.dto.SmartOnePagePreviewMetaDTO;
 import com.itwanger.pairesume.dto.SmartOnePagePreviewRequestDTO;
 import com.itwanger.pairesume.dto.SmartOnePagePreviewResponseDTO;
+import com.itwanger.pairesume.dto.ShowcaseAiReviewDTO;
+import com.itwanger.pairesume.dto.ShowcaseAiReviewSectionDTO;
 import com.itwanger.pairesume.dto.ShowcaseMetadataDTO;
 import com.itwanger.pairesume.dto.LibraryAiDraftRequestDTO;
 import com.itwanger.pairesume.entity.ResumeModule;
@@ -61,9 +63,30 @@ public class AiServiceImpl implements AiService {
     private static final Pattern SHOWCASE_CONTACT_PATTERN = Pattern.compile(
             "(?i)(?:[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}|(?<!\\d)1[3-9]\\d{9}(?!\\d))"
     );
+    private static final Pattern SHOWCASE_UUID_PATTERN = Pattern.compile(
+            "(?i)^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$"
+    );
+    private static final Pattern SHOWCASE_PURE_DATE_PATTERN = Pattern.compile(
+            "(?i)^(?=.*(?:19|20)\\d{2})(?:(?:19|20)\\d{2}|\\d{1,2}|年|月|日|至今|现在|present|[-–—~～/.\\s])+$"
+    );
+    private static final int SHOWCASE_SCORE_VERSION = 2;
+    private static final int SHOWCASE_CONTENT_COMPLETENESS_MAX = 25;
+    private static final int SHOWCASE_JOB_RELEVANCE_MAX = 25;
+    private static final int SHOWCASE_EVIDENCE_QUALITY_MAX = 30;
+    private static final int SHOWCASE_EXPRESSION_QUALITY_MAX = 20;
     private static final Set<String> ALLOWED_ISSUE_TYPES = Set.of("missing", "weak", "format", "content");
     private static final Set<String> IGNORED_ANALYSIS_FIELDS = Set.of("basic_info.summary", "professional_summary", "skill", "专业技能");
     private static final Set<String> OPTIMIZABLE_MODULE_TYPES = Set.of("internship", "work_experience", "project", "research", "skill");
+    private static final Set<String> SHOWCASE_REVIEW_FOCUS_MODULE_TYPES = Set.of(
+            "skill", "internship", "work_experience", "project"
+    );
+    private static final Set<String> SHOWCASE_REVIEW_OPTIONAL_MODULE_TYPES = Set.of(
+            "education", "research", "paper", "award"
+    );
+    private static final Set<String> SHOWCASE_REVIEW_MODULE_TYPES = Set.of(
+            "skill", "internship", "work_experience", "project",
+            "education", "research", "paper", "award"
+    );
     private static final Map<String, String> MODULE_LABELS = Map.of(
             "basic_info", "基本信息",
             "education", "教育背景",
@@ -821,10 +844,10 @@ public class AiServiceImpl implements AiService {
         try {
             var response = invokeChatCompletion(
                     activeConfig().analysisModel(),
-                    "你负责生成公开简历卡片的结构化元数据。只能依据输入内容概括，不能补充、猜测或编造事实。必须严格输出 JSON。",
+                    "你负责生成公开精选简历的结构化元数据和专业点评。只能依据输入内容概括，不能补充、猜测或编造事实，不得包含姓名或联系方式。必须严格输出 JSON。",
                     prompt,
                     0.2,
-                    800,
+                    2400,
                     true,
                     true
             );
@@ -833,6 +856,7 @@ public class AiServiceImpl implements AiService {
                 throw new BusinessException(ResultCode.AI_SERVICE_BUSY);
             }
             var metadata = parseShowcaseMetadataResponse(response);
+            validateShowcaseReviewAgainstModules(metadata, modules);
             validateShowcaseMetadataAgainstPrivateInfo(metadata, modules);
             return metadata;
         } catch (BusinessException e) {
@@ -1033,10 +1057,10 @@ public class AiServiceImpl implements AiService {
 
     private void validateSmartOnePageRequest(SmartOnePagePreviewRequestDTO request) {
         if (request == null) {
-            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "缺少智能一页请求参数");
+            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "缺少智能长一页请求参数");
         }
         if (!"layout_only".equals(request.getMode()) && !"optimize_and_layout".equals(request.getMode())) {
-            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "不支持的智能一页模式");
+            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "不支持的智能长一页模式");
         }
         if (request.getTemplateId() == null || request.getTemplateId().isBlank()) {
             throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "请选择参考模板");
@@ -1198,7 +1222,7 @@ public class AiServiceImpl implements AiService {
         var presetRules = skillPreset == null ? "" : String.join("\n", skillPreset.getModuleRules());
 
         return """
-                请基于整份简历上下文，对其中一个模块进行“智能一页”压缩预处理。
+                请基于整份简历上下文，对其中一个模块进行“智能长一页”压缩预处理。
 
                 ## 简历标题
                 %s
@@ -1409,7 +1433,7 @@ public class AiServiceImpl implements AiService {
             return "AI 已检查整份简历，当前内容整体已经比较成熟，本次默认全部保留原文。";
         }
 
-        return "AI 已生成智能一页候选方案：建议替换 %d 个模块，保留原文 %d 个模块。你可以继续逐模块覆盖默认决策。"
+        return "AI 已生成智能长一页候选方案：建议替换 %d 个模块，保留原文 %d 个模块。你可以继续逐模块覆盖默认决策。"
                 .formatted(optimizedCount, keptCount);
     }
 
@@ -1716,11 +1740,12 @@ public class AiServiceImpl implements AiService {
                     || SHOWCASE_SCORE_LABEL_PATTERN.matcher(displayLabel).find()
                     || rawSummary.length() < 40
                     || SHOWCASE_CONTACT_PATTERN.matcher(displayLabel + " " + rawSummary).find()) {
-                throw new BusinessException(ResultCode.AI_RESPONSE_INVALID);
+                throw invalidShowcaseMetadata("card-contract");
             }
 
             result.setDisplayLabel(displayLabel);
             result.setSummary(truncateText(rawSummary, 100));
+            normalizeShowcaseAiReview(result.getAiReview());
             return result;
         } catch (BusinessException e) {
             throw e;
@@ -1729,6 +1754,100 @@ public class AiServiceImpl implements AiService {
                     e.getClass().getSimpleName(), response == null ? 0 : response.length());
             throw new BusinessException(ResultCode.AI_RESPONSE_INVALID);
         }
+    }
+
+    private void normalizeShowcaseAiReview(ShowcaseAiReviewDTO review) throws Exception {
+        if (review == null
+                || !Objects.equals(review.getScoreVersion(), SHOWCASE_SCORE_VERSION)
+                || review.getScoreBreakdown() == null
+                || review.getSections() == null
+                || review.getSections().isEmpty()
+                || review.getSections().size() > 6
+                || review.getImprovements() == null
+                || review.getImprovements().size() > 3) {
+            throw invalidShowcaseMetadata("review-shape");
+        }
+
+        var scoreBreakdown = review.getScoreBreakdown();
+        if (!isShowcaseScoreInRange(
+                scoreBreakdown.getContentCompleteness(), SHOWCASE_CONTENT_COMPLETENESS_MAX)
+                || !isShowcaseScoreInRange(
+                scoreBreakdown.getJobRelevance(), SHOWCASE_JOB_RELEVANCE_MAX)
+                || !isShowcaseScoreInRange(
+                scoreBreakdown.getEvidenceQuality(), SHOWCASE_EVIDENCE_QUALITY_MAX)
+                || !isShowcaseScoreInRange(
+                scoreBreakdown.getExpressionQuality(), SHOWCASE_EXPRESSION_QUALITY_MAX)) {
+            throw invalidShowcaseMetadata("review-score-breakdown");
+        }
+        review.setOverallScore(
+                scoreBreakdown.getContentCompleteness()
+                        + scoreBreakdown.getJobRelevance()
+                        + scoreBreakdown.getEvidenceQuality()
+                        + scoreBreakdown.getExpressionQuality()
+        );
+
+        var serialized = objectMapper.writeValueAsString(review);
+        if (serialized.length() > 12_000 || SHOWCASE_CONTACT_PATTERN.matcher(serialized).find()) {
+            throw invalidShowcaseMetadata("review-size-or-contact");
+        }
+
+        var verdict = truncateText(review.getVerdict(), 120);
+        if (verdict.length() < 12) {
+            throw invalidShowcaseMetadata("verdict-length");
+        }
+
+        var normalizedSections = new ArrayList<ShowcaseAiReviewSectionDTO>();
+        var seenModuleTypes = new LinkedHashSet<String>();
+        for (var section : review.getSections()) {
+            if (section == null) {
+                throw invalidShowcaseMetadata("section-null");
+            }
+
+            var moduleType = truncateText(section.getModuleType(), 32).toLowerCase(Locale.ROOT);
+            var title = truncateText(section.getTitle(), 16);
+            var reason = truncateText(section.getReason(), 220);
+            if ("basic_info".equals(moduleType)
+                    || !SHOWCASE_REVIEW_MODULE_TYPES.contains(moduleType)
+                    || !seenModuleTypes.add(moduleType)
+                    || title.length() < 2
+                    || reason.length() < 16
+                    || (section.getEvidence() != null && section.getEvidence().size() > 3)) {
+                throw invalidShowcaseMetadata("section-contract");
+            }
+
+            var evidence = new ArrayList<String>();
+            for (var rawEvidence : section.getEvidence() == null ? List.<String>of() : section.getEvidence()) {
+                var normalizedEvidence = truncateText(rawEvidence, 140);
+                if (normalizedEvidence.length() < 6) {
+                    continue;
+                }
+                evidence.add(normalizedEvidence);
+            }
+
+            var normalizedSection = new ShowcaseAiReviewSectionDTO();
+            normalizedSection.setModuleType(moduleType);
+            normalizedSection.setTitle(title);
+            normalizedSection.setReason(reason);
+            normalizedSection.setEvidence(List.copyOf(evidence));
+            normalizedSections.add(normalizedSection);
+        }
+
+        var normalizedImprovements = new ArrayList<String>();
+        for (var rawImprovement : review.getImprovements()) {
+            var improvement = truncateText(rawImprovement, 120);
+            if (improvement.length() < 6) {
+                continue;
+            }
+            normalizedImprovements.add(improvement);
+        }
+
+        review.setVerdict(verdict);
+        review.setSections(List.copyOf(normalizedSections));
+        review.setImprovements(List.copyOf(normalizedImprovements));
+    }
+
+    private boolean isShowcaseScoreInRange(Integer score, int maxScore) {
+        return score != null && score >= 0 && score <= maxScore;
     }
 
     @SuppressWarnings("unchecked")
@@ -1769,26 +1888,217 @@ public class AiServiceImpl implements AiService {
             return;
         }
 
-        var publicText = String.join(" ",
-                metadata.getDisplayLabel(),
-                metadata.getSummary()
-        ).toLowerCase(Locale.ROOT);
+        var publicText = normalizeShowcaseEvidenceText(showcaseMetadataPublicText(metadata));
 
         for (var module : modules) {
             if (!"basic_info".equals(module.getModuleType()) || module.getContent() == null) {
                 continue;
             }
-            for (var key : List.of("name", "email", "phone", "wechat")) {
+            for (var key : List.of(
+                    "name", "email", "phone", "wechat",
+                    "blog", "github", "leetcode"
+            )) {
                 var rawValue = module.getContent().get(key);
                 if (!(rawValue instanceof String value)) {
                     continue;
                 }
-                var normalized = value.trim().toLowerCase(Locale.ROOT);
+                var normalized = normalizeShowcaseEvidenceText(value);
                 if (normalized.length() >= 2 && publicText.contains(normalized)) {
-                    throw new BusinessException(ResultCode.AI_RESPONSE_INVALID);
+                    throw invalidShowcaseMetadata("private-basic-info");
                 }
             }
         }
+    }
+
+    private void validateShowcaseReviewAgainstModules(
+            ShowcaseMetadataDTO metadata,
+            List<ResumeModule> modules
+    ) {
+        var availableModuleTypes = modules == null
+                ? Set.<String>of()
+                : modules.stream()
+                .filter(Objects::nonNull)
+                .filter(module -> SHOWCASE_REVIEW_MODULE_TYPES.contains(module.getModuleType()))
+                .filter(module -> isMeaningfulValue(module.getContent()))
+                .map(ResumeModule::getModuleType)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        var reviewedModuleTypes = metadata.getAiReview().getSections().stream()
+                .map(ShowcaseAiReviewSectionDTO::getModuleType)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        var requiredFocusTypes = availableModuleTypes.stream()
+                .filter(SHOWCASE_REVIEW_FOCUS_MODULE_TYPES::contains)
+                .collect(Collectors.toSet());
+        long optionalReviewCount = reviewedModuleTypes.stream()
+                .filter(SHOWCASE_REVIEW_OPTIONAL_MODULE_TYPES::contains)
+                .count();
+        if (availableModuleTypes.isEmpty()
+                || !availableModuleTypes.containsAll(reviewedModuleTypes)
+                || !reviewedModuleTypes.containsAll(requiredFocusTypes)
+                || optionalReviewCount > 2) {
+            throw invalidShowcaseMetadata("module-coverage");
+        }
+
+        for (var section : metadata.getAiReview().getSections()) {
+            var sourceModules = modules.stream()
+                    .filter(Objects::nonNull)
+                    .filter(module -> section.getModuleType().equals(module.getModuleType()))
+                    .toList();
+            var sourceTexts = sourceModules.stream()
+                    .map(ResumeModule::getContent)
+                    .filter(Objects::nonNull)
+                    .map(String::valueOf)
+                    .map(this::normalizeShowcaseEvidenceText)
+                    .toList();
+
+            var verifiedEvidence = new LinkedHashSet<String>();
+            for (var evidence : section.getEvidence()) {
+                var readableEvidence = cleanShowcaseEvidenceForDisplay(evidence);
+                var normalizedEvidence = normalizeShowcaseEvidenceText(readableEvidence);
+                if (normalizedEvidence.length() >= 6
+                        && sourceTexts.stream().anyMatch(source -> source.contains(normalizedEvidence))) {
+                    verifiedEvidence.add(readableEvidence);
+                }
+            }
+            int discardedCount = section.getEvidence().size() - verifiedEvidence.size();
+            if (discardedCount > 0) {
+                log.warn(
+                        "AI showcase evidence replaced with source excerpt: moduleType={}, discardedCount={}",
+                        section.getModuleType(), discardedCount
+                );
+            }
+
+            for (var fallback : buildShowcaseEvidenceFallback(sourceModules)) {
+                if (verifiedEvidence.size() >= 2) break;
+                verifiedEvidence.add(fallback);
+            }
+            if (verifiedEvidence.isEmpty()) {
+                throw invalidShowcaseMetadata("evidence-source-empty");
+            }
+            section.setEvidence(List.copyOf(verifiedEvidence));
+        }
+    }
+
+    private List<String> buildShowcaseEvidenceFallback(List<ResumeModule> modules) {
+        var candidates = new LinkedHashSet<String>();
+        for (var module : modules) {
+            if (module != null) {
+                collectShowcaseEvidenceCandidates(module.getContent(), candidates);
+            }
+        }
+
+        var substantial = candidates.stream()
+                .filter(candidate -> candidate.codePointCount(0, candidate.length()) >= 12)
+                .limit(2)
+                .toList();
+        if (!substantial.isEmpty()) return substantial;
+        return candidates.stream().limit(2).toList();
+    }
+
+    private String cleanShowcaseEvidenceForDisplay(String value) {
+        if (value == null) return "";
+        var cleaned = value.replaceAll("\\s+", " ").trim().replaceFirst(
+                "(?i)^(?:categories|items|school|major|degree|department|company|position|"
+                        + "projectName|projectDescription|description|responsibilities|achievements|"
+                        + "techStack|journalName|awardName|workContent|content)\\s*[:：]\\s*",
+                ""
+        );
+        if ((cleaned.contains("{") || cleaned.contains("[")) && cleaned.contains("=")) {
+            return "";
+        }
+        if (cleaned.matches("(?i)^(?:is985|is211|isDoubleFirst)\\s*[:：=].*$")) {
+            return "";
+        }
+        if (isShowcaseEvidenceStructureValue(cleaned)) {
+            return "";
+        }
+        return cleaned;
+    }
+
+    private void collectShowcaseEvidenceCandidates(Object value, LinkedHashSet<String> candidates) {
+        if (value instanceof CharSequence text) {
+            var candidate = text.toString().replaceAll("\\s+", " ").trim();
+            if (candidate.codePointCount(0, candidate.length()) < 6
+                    || SHOWCASE_CONTACT_PATTERN.matcher(candidate).find()
+                    || isShowcaseEvidenceStructureValue(candidate)) {
+                return;
+            }
+            int codePointCount = candidate.codePointCount(0, candidate.length());
+            int endIndex = candidate.offsetByCodePoints(0, Math.min(codePointCount, 140));
+            candidates.add(candidate.substring(0, endIndex));
+            return;
+        }
+        if (value instanceof Map<?, ?> mapValue) {
+            mapValue.forEach((key, item) -> {
+                if (!isShowcaseEvidenceStructureField(key)) {
+                    collectShowcaseEvidenceCandidates(item, candidates);
+                }
+            });
+            return;
+        }
+        if (value instanceof List<?> listValue) {
+            if (!listValue.isEmpty() && listValue.stream().allMatch(CharSequence.class::isInstance)) {
+                var combined = listValue.stream()
+                        .map(String::valueOf)
+                        .filter(item -> !item.isBlank())
+                        .collect(Collectors.joining("、"));
+                collectShowcaseEvidenceCandidates(combined, candidates);
+            }
+            listValue.forEach(item -> collectShowcaseEvidenceCandidates(item, candidates));
+        }
+    }
+
+    private boolean isShowcaseEvidenceStructureField(Object key) {
+        if (key == null) return false;
+        var field = String.valueOf(key).trim();
+        var normalized = field.toLowerCase(Locale.ROOT).replace("_", "").replace("-", "");
+        return normalized.endsWith("id")
+                || "photo".equals(normalized)
+                || "photoid".equals(normalized)
+                || "photourl".equals(normalized)
+                || "avatar".equals(normalized)
+                || "avatarurl".equals(normalized);
+    }
+
+    private boolean isShowcaseEvidenceStructureValue(String value) {
+        if (value == null || value.isBlank()) return false;
+        var normalized = value.trim();
+        return SHOWCASE_UUID_PATTERN.matcher(normalized).matches()
+                || SHOWCASE_PURE_DATE_PATTERN.matcher(normalized).matches();
+    }
+
+    private BusinessException invalidShowcaseMetadata(String reason) {
+        log.warn("AI showcase metadata rejected: reason={}", reason);
+        return new BusinessException(ResultCode.AI_RESPONSE_INVALID);
+    }
+
+    private String normalizeShowcaseEvidenceText(String value) {
+        if (value == null) return "";
+        return value.toLowerCase(Locale.ROOT)
+                .replaceAll("[\\s\\p{Punct}\\p{P}]+", "");
+    }
+
+    private String showcaseMetadataPublicText(ShowcaseMetadataDTO metadata) {
+        var text = new StringJoiner(" ")
+                .add(metadata.getDisplayLabel())
+                .add(metadata.getSummary());
+        var review = metadata.getAiReview();
+        if (review == null) {
+            return text.toString();
+        }
+        text.add(review.getVerdict());
+        if (review.getSections() != null) {
+            for (var section : review.getSections()) {
+                if (section == null) continue;
+                text.add(section.getTitle()).add(section.getReason());
+                if (section.getEvidence() != null) {
+                    section.getEvidence().forEach(text::add);
+                }
+            }
+        }
+        if (review.getImprovements() != null) {
+            review.getImprovements().forEach(text::add);
+        }
+        return text.toString();
     }
 
     private String resolveAnalysisPayload(com.fasterxml.jackson.databind.JsonNode root, String rawResponse) {
@@ -2438,6 +2748,8 @@ public class AiServiceImpl implements AiService {
     private String buildShowcaseMetadataPrompt(String resumeTitle, List<ResumeModule> modules) {
         var moduleSummaries = sortResumeModules(modules).stream()
                 .filter(module -> !"basic_info".equals(module.getModuleType()))
+                .filter(module -> SHOWCASE_REVIEW_MODULE_TYPES.contains(module.getModuleType()))
+                .filter(module -> isMeaningfulValue(module.getContent()))
                 .map(this::buildModuleSummary)
                 .toList();
 
@@ -2454,12 +2766,38 @@ public class AiServiceImpl implements AiService {
                 1. 只能使用简历中真实存在的信息，不得虚构技术栈、公司、学校、经历或结果。
                 2. displayLabel 是 2-12 个字的岗位或技术方向，例如“Java 后端”“AI 应用”，禁止输出分数、“高分”“优质”等自夸词。
                 3. summary 用 40-100 个字概括这份简历的岗位方向、核心经历与技术特点，不出现姓名、邮箱、电话、微信、照片等个人信息。
-                4. 严格只返回 JSON，不要输出解释、标题或 Markdown 代码块。
+                4. aiReview.scoreVersion 固定输出整数 2。scoreBreakdown 必须先依据本份简历逐项独立评分：contentCompleteness 内容完整度 0-25；jobRelevance 岗位相关性 0-25；evidenceQuality 可核验事实与量化证据 0-30；expressionQuality 表达质量 0-20。服务端会把四项相加得到总分，禁止输出 overallScore、固定分或默认分。
+                5. 精选身份不代表高分。每份简历必须根据实际内容重新判断，不得复制其他简历或结构示意的分数。四项合计 90-100 只适用于多个核心模块都有可核验成果且短板很少；80-89 表示整体较强但仍有明确短板；70-79 表示基础可用但完整度或证据不足；60-69 表示存在明显缺口；低于 60 表示需要较大幅度重构。
+                6. verdict 用 12-80 个字给出与分项评分一致的总体判断，不喊口号；低分必须说清主要缺口，高分必须有原文证据支撑。
+                7. aiReview.sections 总数为 1-6 项。专业技能（skill）、实习经历（internship）、工作经历（work_experience）、项目经历（project）只要在输入中实际存在且有内容，就必须逐项覆盖；再从教育背景（education）、科研经历（research）、论文期刊（paper）、荣誉奖项（award）中最多选择 2 个确有亮点的模块。不得新增不存在的模块，moduleType 必须原样使用输入标题括号中的值。
+                8. 每项点评写清“好在哪里”：reason 用 16-120 个字说明该模块的优势，evidence 列出 1-3 条原文连续短摘录。evidence 必须逐字来自对应模块原文，不得改写、拼接、概括或补充原文没有的数据。
+                9. improvements 给出 0-3 条仍可优化的地方；没有可靠依据时返回空数组。不得为了凑数制造问题。
+                10. 所有公开文本均不得出现姓名、邮箱、电话、微信、照片、个人主页等身份或联系方式，也不得把基本信息当作点评模块。
+                11. 严格只返回 JSON，不要输出解释、标题或 Markdown 代码块。下方尖括号是字段类型占位，必须替换为符合范围的 JSON 整数，不能原样输出。
 
                 JSON 结构：
                 {
                   "displayLabel": "Java 后端",
-                  "summary": "摘要"
+                  "summary": "摘要",
+                  "aiReview": {
+                    "scoreVersion": 2,
+                    "scoreBreakdown": {
+                      "contentCompleteness": <0到25的整数>,
+                      "jobRelevance": <0到25的整数>,
+                      "evidenceQuality": <0到30的整数>,
+                      "expressionQuality": <0到20的整数>
+                    },
+                    "verdict": "岗位匹配度高，经历描述有清晰的技术行动和结果证据。",
+                    "sections": [
+                      {
+                        "moduleType": "skill",
+                        "title": "专业技能",
+                        "reason": "技能组织围绕目标岗位展开，并能与经历中的实际应用相互印证。",
+                        "evidence": ["原文中可直接核对的技术或结果证据"]
+                      }
+                    ],
+                    "improvements": ["仍可进一步补充的具体信息"]
+                  }
                 }
                 """.formatted(
                 resumeTitle == null || resumeTitle.isBlank() ? "未命名简历" : resumeTitle,
@@ -2471,6 +2809,9 @@ public class AiServiceImpl implements AiService {
         var builder = new StringBuilder();
         builder.append("### ")
                 .append(MODULE_LABELS.getOrDefault(module.getModuleType(), module.getModuleType()))
+                .append("（moduleType: ")
+                .append(module.getModuleType())
+                .append('）')
                 .append('\n');
 
         appendStructuredContent(builder, module.getContent(), "");

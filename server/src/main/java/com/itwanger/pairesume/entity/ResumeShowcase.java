@@ -5,6 +5,8 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
+import com.itwanger.pairesume.dto.ShowcaseAiReviewDTO;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -22,6 +24,9 @@ public class ResumeShowcase {
     private String scoreLabel;
 
     private String summary;
+
+    @TableField(typeHandler = JacksonTypeHandler.class)
+    private ShowcaseAiReviewDTO aiReview;
 
     private Integer displayOrder;
 

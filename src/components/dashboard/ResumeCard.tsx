@@ -26,10 +26,13 @@ export const EMPTY_RESUME_CARD_PREVIEW: ResumeCardPreview = {
   projects: [],
   skills: [],
   moduleCounts: {},
+  moduleOrder: [],
   filledModuleCount: 0,
 }
 
 type ThumbnailAccent = Exclude<ResumePdfAccentPreset, 'auto'>
+type ThumbnailSectionKey = 'education' | 'skill' | 'internship' | 'work_experience' | 'project'
+type ThumbnailHeadingVariant = Exclude<ResumePdfHeadingStyle, 'auto'> | 'plain'
 
 const templateDefaultAccents: Record<ResumePdfTemplateId, ThumbnailAccent> = {
   default: 'blue',
@@ -54,27 +57,29 @@ const accentClasses: Record<ThumbnailAccent, {
   soft: string
   chip: string
   ring: string
+  solid: string
 }> = {
   blue: {
     text: 'text-blue-700', strongText: 'text-blue-900', border: 'border-blue-200', bar: 'border-blue-600', dot: 'bg-blue-600',
-    soft: 'bg-blue-50/75', chip: 'bg-blue-50 text-blue-700', ring: 'ring-blue-200',
+    soft: 'bg-blue-50/75', chip: 'bg-blue-50 text-blue-700', ring: 'ring-blue-200', solid: 'bg-blue-700',
   },
   slate: {
     text: 'text-slate-600', strongText: 'text-slate-900', border: 'border-slate-300', bar: 'border-slate-600', dot: 'bg-slate-600',
-    soft: 'bg-slate-100/80', chip: 'bg-slate-100 text-slate-700', ring: 'ring-slate-300',
+    soft: 'bg-slate-100/80', chip: 'bg-slate-100 text-slate-700', ring: 'ring-slate-300', solid: 'bg-slate-800',
   },
   warm: {
     text: 'text-amber-700', strongText: 'text-amber-900', border: 'border-orange-200', bar: 'border-amber-700', dot: 'bg-amber-700',
-    soft: 'bg-orange-50/80', chip: 'bg-orange-50 text-amber-800', ring: 'ring-orange-200',
+    soft: 'bg-orange-50/80', chip: 'bg-orange-50 text-amber-800', ring: 'ring-orange-200', solid: 'bg-amber-800',
   },
   emerald: {
     text: 'text-emerald-700', strongText: 'text-emerald-900', border: 'border-emerald-200', bar: 'border-emerald-600', dot: 'bg-emerald-600',
-    soft: 'bg-emerald-50/75', chip: 'bg-emerald-50 text-emerald-700', ring: 'ring-emerald-200',
+    soft: 'bg-emerald-50/75', chip: 'bg-emerald-50 text-emerald-700', ring: 'ring-emerald-200', solid: 'bg-emerald-700',
   },
 }
 
-function resolveThumbnailHeadingStyle(templateId: ResumePdfTemplateId, headingStyle: ResumePdfHeadingStyle) {
+function resolveThumbnailHeadingStyle(templateId: ResumePdfTemplateId, headingStyle: ResumePdfHeadingStyle): ThumbnailHeadingVariant {
   if (headingStyle !== 'auto') return headingStyle
+  if (templateId === 'minimal') return 'plain'
   if (templateId === 'campus-blue' || templateId === 'executive' || templateId === 'slate') return 'filled'
   if (templateId === 'focus') return 'bar'
   return 'underline'
@@ -104,21 +109,11 @@ function packSkillPreviewRows(skills: string[]) {
 
 export function ResumeContentThumbnail({ preview, resume }: { preview: ResumeCardPreview; resume: ResumeStyleSource }) {
   const style = normalizeResumeStyle(resume)
+  const isCompact = style.density === 'compact'
   const accent = style.accentPreset === 'auto' ? templateDefaultAccents[style.templateId] : style.accentPreset
   const palette = accentClasses[accent]
   const headingStyle = resolveThumbnailHeadingStyle(style.templateId, style.headingStyle)
-  const headingClassName = headingStyle === 'filled'
-    ? palette.soft
-    : headingStyle === 'bar'
-      ? `border-l-4 ${palette.bar}`
-      : `border-b ${palette.border}`
-  const surfaceClassName = style.templateId === 'warm'
-    ? 'bg-orange-50/50'
-    : style.templateId === 'slate' || style.templateId === 'executive'
-      ? 'bg-slate-50'
-      : style.templateId === 'campus-blue' || style.templateId === 'vibe-resume' || style.templateId === 'focus'
-        ? 'bg-blue-50/45'
-        : 'bg-white'
+  const surfaceClassName = 'bg-white'
   const hasContent = preview.filledModuleCount > 0
   const basicInfo = preview.basicInfo || preview.targetRole
   const workExperienceCount = preview.moduleCounts?.work_experience || 0
@@ -141,72 +136,144 @@ export function ResumeContentThumbnail({ preview, resume }: { preview: ResumeCar
       ? [{ title: preview.project, description: '' }]
       : []
   const projectResponsibilities = projects
-    .map((project) => project.description)
+    .map((project) => [project.title, project.description].filter(Boolean).join('：'))
     .filter(Boolean)
   const skillRows = packSkillPreviewRows(preview.skills)
-  const visibleSections = [
-    '基本信息',
-    '教育背景',
-    '专业技能',
-    ...(internships.length ? ['实习经历'] : []),
-    ...(workExperiences.length ? ['工作经历'] : []),
-    ...(projectResponsibilities.length ? ['项目经历'] : []),
-  ]
+  const sectionLabels: Record<ThumbnailSectionKey, string> = {
+    education: '教育背景',
+    skill: '专业技能',
+    internship: '实习经历',
+    work_experience: '工作经历',
+    project: '项目经历',
+  }
+  const availableSections = new Set<ThumbnailSectionKey>([
+    ...(educations.length ? ['education' as const] : []),
+    ...(skillRows.length ? ['skill' as const] : []),
+    ...(internships.length ? ['internship' as const] : []),
+    ...(workExperiences.length ? ['work_experience' as const] : []),
+    ...(projectResponsibilities.length ? ['project' as const] : []),
+  ])
+  const defaultSectionOrder: ThumbnailSectionKey[] = ['education', 'skill', 'internship', 'work_experience', 'project']
+  const orderedSections = Array.from(new Set([
+    ...(preview.moduleOrder ?? []).filter((moduleType): moduleType is ThumbnailSectionKey => (
+      defaultSectionOrder.includes(moduleType as ThumbnailSectionKey)
+    )),
+    ...defaultSectionOrder,
+  ])).filter((moduleType) => availableSections.has(moduleType))
+  const visibleSections = ['基本信息', ...orderedSections.map((moduleType) => sectionLabels[moduleType])]
   const mastheadClassName = style.templateId === 'executive'
-    ? 'bg-slate-800 text-white'
+    ? `${palette.solid} text-white`
     : style.templateId === 'campus-blue'
       ? 'bg-blue-700 text-white'
       : style.templateId === 'technical-black'
         ? 'border-b border-slate-800 bg-white text-slate-900'
       : style.templateId === 'vibe-resume'
         ? 'border-b-2 border-blue-500 bg-white text-slate-900'
-      : headingStyle === 'filled'
-        ? palette.soft
         : ''
+  const mastheadVariantClassName = style.templateId === 'executive'
+    ? 'resume-content-thumbnail__masthead--dark'
+    : style.templateId === 'campus-blue'
+      ? 'resume-content-thumbnail__masthead--brand'
+      : style.templateId === 'technical-black'
+        ? 'resume-content-thumbnail__masthead--monochrome'
+        : style.templateId === 'warm'
+          ? 'resume-content-thumbnail__masthead--warm'
+          : 'resume-content-thumbnail__masthead--plain'
   const mastheadValueClassName = style.templateId === 'executive' || style.templateId === 'campus-blue'
     ? 'text-white/80'
     : 'text-slate-600'
+  const usesSoftFilledHeading = headingStyle === 'filled'
+    && style.headingStyle === 'auto'
+    && (style.templateId === 'campus-blue' || style.templateId === 'slate')
   const sectionHeadingClassName = headingStyle === 'filled'
-    ? `${palette.soft} rounded-sm px-1.5 py-0.5`
-    : headingStyle === 'bar'
-      ? `border-l-2 ${palette.bar} pl-1.5`
-      : `border-b ${palette.border} pb-0.5`
+    ? `${usesSoftFilledHeading ? palette.soft : `${palette.solid} text-white`} rounded-sm px-1.5 ${isCompact ? 'py-px' : 'py-0.5'}`
+    : headingStyle === 'underline'
+      ? `${style.templateId === 'vibe-resume' ? 'border-b-2' : 'border-b'} ${palette.border} pb-0.5`
+      : ''
+  const sectionHeadingTextClassName = headingStyle === 'filled' && !usesSoftFilledHeading
+    ? 'text-white'
+    : palette.strongText
+  const sectionContainerClassName = headingStyle === 'bar'
+    ? `border-l-2 ${palette.bar} pl-1.5`
+    : style.templateId === 'slate' && style.headingStyle === 'auto'
+      ? 'bg-slate-50 px-1.5 py-1'
+      : ''
+  const mastheadPaddingClassName = isCompact ? 'px-2.5 py-1.5' : 'px-3 py-2'
+  const bodyPaddingClassName = isCompact ? 'px-2.5 py-1.5' : 'px-3 py-2'
+  const sectionGapClassName = isCompact ? 'gap-0.5' : 'gap-1.5'
+  const titleSizeClassName = isCompact ? 'text-[9px] leading-3' : 'text-[10px] leading-4'
+  const metaSizeClassName = isCompact ? 'text-[6.5px] leading-[10px]' : 'text-[7.5px] leading-3'
+  const sectionTitleSizeClassName = isCompact ? 'text-[7px] leading-[10px]' : 'text-[8px] leading-3'
+  const bodySizeClassName = isCompact ? 'text-[6.5px] leading-[10px]' : 'text-[7px] leading-3'
+  const bulletMarginClassName = isCompact ? 'mt-[3px]' : 'mt-[5px]'
+  const displayName = preview.name || preview.targetRole || '基本信息'
+  const displayRole = preview.name ? preview.targetRole : ''
 
   const renderListSection = (label: string, values: string[]) => (
-    <div className="min-w-0">
-      <div className={`resume-content-thumbnail__section-heading mb-0.5 text-[8px] font-bold leading-3 ${palette.strongText} ${sectionHeadingClassName}`}>
+    <section className={`resume-content-thumbnail__section min-w-0 ${sectionContainerClassName}`} data-section-label={label}>
+      <h3 className={`resume-content-thumbnail__section-heading resume-content-thumbnail__section-heading--${headingStyle} ${isCompact ? 'mb-px' : 'mb-0.5'} font-bold ${sectionTitleSizeClassName} ${sectionHeadingTextClassName} ${sectionHeadingClassName}`}>
         {label}
-      </div>
-      <div className="space-y-0.5">
+      </h3>
+      <div className={isCompact ? 'space-y-px' : 'space-y-0.5'}>
         {values.length ? values.map((value, index) => (
           <div key={`${value}-${index}`} className="flex min-w-0 items-start gap-1">
-            {values.length > 1 ? <span className={`resume-content-thumbnail__bullet mt-[5px] h-1 w-1 shrink-0 rounded-full ${palette.dot}`} /> : null}
-            <p className="resume-content-thumbnail__body min-w-0 break-words text-[7px] leading-3 text-slate-600">{value}</p>
+            {values.length > 1 ? <span className={`resume-content-thumbnail__bullet ${bulletMarginClassName} h-1 w-1 shrink-0 rounded-full ${palette.dot}`} /> : null}
+            <p className={`resume-content-thumbnail__body min-w-0 break-words text-slate-600 ${bodySizeClassName}`}>{value}</p>
           </div>
-        )) : <p className="text-[7px] leading-3 text-slate-400">待完善</p>}
+        )) : <p className={`text-slate-400 ${bodySizeClassName}`}>待完善</p>}
       </div>
-    </div>
+    </section>
   )
 
   const renderResponsibilitySection = (label: string, values: string[]) => values.length ? (
-    <section className="min-h-0 min-w-0 overflow-hidden">
-      <div className={`resume-content-thumbnail__section-heading mb-0.5 text-[8px] font-bold leading-3 ${palette.strongText} ${sectionHeadingClassName}`}>
+    <section className={`resume-content-thumbnail__section min-h-0 min-w-0 overflow-hidden ${sectionContainerClassName}`} data-section-label={label}>
+      <h3 className={`resume-content-thumbnail__section-heading resume-content-thumbnail__section-heading--${headingStyle} ${isCompact ? 'mb-px' : 'mb-0.5'} font-bold ${sectionTitleSizeClassName} ${sectionHeadingTextClassName} ${sectionHeadingClassName}`}>
         {label}
-      </div>
-      <ul className="space-y-0.5">
+      </h3>
+      <ul className={isCompact ? 'space-y-px' : 'space-y-0.5'}>
         {values.slice(0, 2).map((value, index) => (
           <li key={`${label}-${value}-${index}`} className="flex min-w-0 items-start gap-1">
-            <span className={`resume-content-thumbnail__bullet mt-[5px] h-1 w-1 shrink-0 rounded-full ${palette.dot}`} aria-hidden="true" />
-            <p className="resume-content-thumbnail__body resume-content-thumbnail__responsibility min-w-0 break-words text-[7px] leading-3 text-slate-600">{value}</p>
+            <span className={`resume-content-thumbnail__bullet ${bulletMarginClassName} h-1 w-1 shrink-0 rounded-full ${palette.dot}`} aria-hidden="true" />
+            <p className={`resume-content-thumbnail__body resume-content-thumbnail__responsibility min-w-0 break-words text-slate-600 ${bodySizeClassName}`}>{value}</p>
           </li>
         ))}
       </ul>
     </section>
   ) : null
 
+  const renderSection = (moduleType: ThumbnailSectionKey) => {
+    switch (moduleType) {
+      case 'education':
+        return renderListSection(sectionLabels.education, educations.slice(0, 2))
+      case 'skill':
+        return (
+          <section className={`resume-content-thumbnail__section min-w-0 ${sectionContainerClassName}`} data-section-label={sectionLabels.skill}>
+            <h3 className={`resume-content-thumbnail__section-heading resume-content-thumbnail__section-heading--${headingStyle} ${isCompact ? 'mb-px' : 'mb-0.5'} font-bold ${sectionTitleSizeClassName} ${sectionHeadingTextClassName} ${sectionHeadingClassName}`}>
+              {sectionLabels.skill}
+            </h3>
+            <div className={isCompact ? 'space-y-px' : 'space-y-0.5'}>
+              {skillRows.slice(0, 2).map((skill, index) => (
+                <div key={`${skill}-${index}`} className="flex min-w-0 items-start gap-1">
+                  <span className={`resume-content-thumbnail__bullet ${bulletMarginClassName} h-1 w-1 shrink-0 rounded-full ${palette.dot}`} />
+                  <p className={`resume-content-thumbnail__body min-w-0 truncate whitespace-nowrap text-slate-600 ${bodySizeClassName}`}>{skill}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )
+      case 'internship':
+        return renderResponsibilitySection(sectionLabels.internship, internships)
+      case 'work_experience':
+        return renderResponsibilitySection(sectionLabels.work_experience, workExperiences)
+      case 'project':
+        return renderResponsibilitySection(sectionLabels.project, projectResponsibilities)
+    }
+  }
+
   return (
     <div
       className={`resume-content-thumbnail relative mb-4 w-full shrink-0 overflow-hidden ${hasContent ? '' : 'h-40'} ${surfaceClassName}`}
+      data-thumbnail-renderer="lightweight-template"
       data-template-id={style.templateId}
       data-accent-preset={accent}
       data-heading-style={headingStyle}
@@ -219,38 +286,33 @@ export function ResumeContentThumbnail({ preview, resume }: { preview: ResumeCar
       <div className={`flex flex-col overflow-hidden ${hasContent ? '' : 'h-full'}`}>
         {hasContent ? (
           <>
-            <div className={`px-3 py-2 ${mastheadClassName || headingClassName}`}>
-              <div className="flex min-w-0 items-center gap-2">
-                <span className="resume-content-thumbnail__masthead-label shrink-0 text-[9px] font-bold leading-3">基本信息</span>
-                <span className={`resume-content-thumbnail__masthead-value min-w-0 flex-1 truncate text-[8px] leading-3 ${mastheadValueClassName}`}>
-                  {basicInfo || '求职方向待完善'}
-                </span>
-                <span className={`resume-content-thumbnail__module-count shrink-0 text-[7px] ${mastheadValueClassName}`}>
-                  {preview.filledModuleCount} 个模块
-                </span>
+            <div
+              className={`resume-content-thumbnail__masthead ${mastheadVariantClassName} ${mastheadPaddingClassName} ${mastheadClassName}`}
+              aria-label="简历缩略图抬头"
+            >
+              <div className={`flex min-w-0 items-baseline ${isCompact ? 'gap-1.5' : 'gap-2'}`}>
+                <span className={`resume-content-thumbnail__masthead-label min-w-0 truncate font-bold ${titleSizeClassName}`}>{displayName}</span>
+                {displayRole ? (
+                  <span className={`resume-content-thumbnail__masthead-role min-w-0 flex-1 truncate ${mastheadValueClassName} ${metaSizeClassName}`}>
+                    {displayRole}
+                  </span>
+                ) : null}
               </div>
+              {basicInfo && basicInfo !== displayRole ? (
+                <p className={`resume-content-thumbnail__masthead-value mt-0.5 truncate ${mastheadValueClassName} ${metaSizeClassName}`}>
+                  {basicInfo}
+                </p>
+              ) : null}
             </div>
 
-            <div className={`flex min-h-0 flex-col overflow-hidden px-3 py-2 ${style.density === 'compact' ? 'gap-1' : 'gap-1.5'}`}>
-              {renderListSection('教育背景', educations.slice(0, 2))}
-
-              <section className="min-w-0">
-                <div className={`resume-content-thumbnail__section-heading mb-0.5 text-[8px] font-bold leading-3 ${palette.strongText} ${sectionHeadingClassName}`}>
-                  专业技能
-                </div>
-                <div className="space-y-0.5">
-                  {skillRows.length ? skillRows.slice(0, 2).map((skill, index) => (
-                    <div key={`${skill}-${index}`} className="flex min-w-0 items-start gap-1">
-                      <span className={`resume-content-thumbnail__bullet mt-[5px] h-1 w-1 shrink-0 rounded-full ${palette.dot}`} />
-                      <p className="resume-content-thumbnail__body min-w-0 truncate whitespace-nowrap text-[7px] leading-3 text-slate-600">{skill}</p>
-                    </div>
-                  )) : <p className="text-[7px] leading-3 text-slate-400">待完善</p>}
-                </div>
-              </section>
-
-              {renderResponsibilitySection('实习经历', internships)}
-              {renderResponsibilitySection('工作经历', workExperiences)}
-              {renderResponsibilitySection('项目经历', projectResponsibilities)}
+            <div
+              className={`resume-content-thumbnail__sections resume-content-thumbnail__sections--${style.density} flex min-h-0 flex-col overflow-hidden ${bodyPaddingClassName} ${sectionGapClassName}`}
+              data-section-order={orderedSections.join(',')}
+              aria-label="简历缩略图内容区"
+            >
+              {orderedSections.map((moduleType) => (
+                <div key={moduleType}>{renderSection(moduleType)}</div>
+              ))}
             </div>
           </>
         ) : (

@@ -651,6 +651,11 @@ export const adminApi = {
       `/admin/showcases/resumes/${resumeId}/feature`,
     ),
 
+  regenerateShowcaseAiReview: (resumeId: number) =>
+    client.post<ApiEnvelope<ResumeShowcaseAdmin>>(
+      `/admin/showcases/resumes/${resumeId}/ai-review/regenerate`,
+    ),
+
   listMarketplaceListings: (params: AdminMarketListingQuery) =>
     client.get<ApiEnvelope<MarketplacePage<AdminMarketListing>>>(
       '/admin/marketplace/listings',

@@ -144,7 +144,7 @@ export default function ChromePreviewPage() {
   }, [])
 
   const iframeTitle = useMemo(
-    () => (pageMode === 'continuous' ? '简历模板预览 - 智能一页' : '简历模板预览 - 标准 PDF'),
+    () => (pageMode === 'continuous' ? '简历模板预览 - 智能长一页' : '简历模板预览 - 标准 PDF'),
     [pageMode]
   )
   const pdfViewerUrl = useMemo(() => {

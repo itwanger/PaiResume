@@ -20,5 +20,6 @@ public class ResumeCardPreviewVO {
     private List<ResumeCardProjectPreviewVO> projects = List.of();
     private List<String> skills = List.of();
     private Map<String, Integer> moduleCounts = Map.of();
+    private List<String> moduleOrder = List.of();
     private Integer filledModuleCount = 0;
 }

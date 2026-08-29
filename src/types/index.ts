@@ -21,6 +21,8 @@ export interface BasicInfoContent {
   leetcode: string
   workYears: string
   summary: string
+  privacyMasked?: boolean
+  politicalStatusMasked?: boolean
 }
 
 export interface EducationContent {

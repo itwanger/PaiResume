@@ -19,7 +19,11 @@ import {
   buildMarketplaceListingPath,
   buildShowcasePath,
 } from '../utils/navigation'
-import { getResumeStyleFeatureLabels } from '../utils/resumeStyleLabels'
+import {
+  getResumeFeatureBadgeClassName,
+  getResumeFeatureBadgeTone,
+  getResumeStyleFeatureBadges,
+} from '../utils/resumeStyleLabels'
 
 function formatCurrency(cents: number): string {
   return `¥${(cents / 100).toFixed(2)}`
@@ -155,7 +159,7 @@ export default function ExcellentResumesPage() {
           ) : showcases.length ? (
             <div className="columns-1 gap-6 md:columns-2 xl:columns-3">
               {showcases.map((showcase) => {
-                const featureLabels = getResumeStyleFeatureLabels(showcase)
+                const featureBadges = getResumeStyleFeatureBadges(showcase)
                 return (
                   <article key={showcase.id} className="group mb-6 break-inside-avoid overflow-hidden border border-slate-200 bg-white transition hover:border-primary-200 hover:shadow-lg hover:shadow-slate-200/60">
                     <div className="border-b border-slate-100 px-5 pt-5">
@@ -171,8 +175,15 @@ export default function ExcellentResumesPage() {
                       </div>
                       <p className="mt-4 line-clamp-2 text-sm leading-6 text-slate-600">{showcase.summary}</p>
                       <div className="mt-4 flex flex-wrap gap-2">
-                        {featureLabels.map((label) => (
-                          <span key={label} className="bg-slate-100 px-2.5 py-1 text-xs text-slate-600">{label}</span>
+                        {featureBadges.map((badge) => (
+                          <span
+                            key={`${badge.category}-${badge.label}`}
+                            data-feature-category={badge.category}
+                            data-feature-tone={getResumeFeatureBadgeTone(badge.category)}
+                            className={`px-2.5 py-1 text-xs ring-1 ring-inset ${getResumeFeatureBadgeClassName(badge.category)}`}
+                          >
+                            {badge.label}
+                          </span>
                         ))}
                       </div>
                       <button

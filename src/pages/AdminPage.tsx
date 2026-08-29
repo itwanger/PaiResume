@@ -302,6 +302,9 @@ function AdminPageContent() {
   const [savingConfig, setSavingConfig] = useState(false)
   const [savingMembershipPlanCode, setSavingMembershipPlanCode] = useState<string | null>(null)
   const [showcaseActionResumeId, setShowcaseActionResumeId] = useState<number | null>(null)
+  const [showcaseActionKind, setShowcaseActionKind] = useState<
+    'feature' | 'unfeature' | 'regenerate' | null
+  >(null)
   const [showcaseActionError, setShowcaseActionError] = useState<{
     resumeId: number
     message: string
@@ -1518,6 +1521,7 @@ function AdminPageContent() {
     priceCents: number,
   ) => {
     setShowcaseActionResumeId(resume.id)
+    setShowcaseActionKind('feature')
     setShowcaseActionError(null)
     setError('')
     setSuccess('')
@@ -1537,11 +1541,13 @@ function AdminPageContent() {
       })
     } finally {
       setShowcaseActionResumeId(null)
+      setShowcaseActionKind(null)
     }
   }
 
   const handleUnfeatureShowcase = async (resume: ResumeListItem) => {
     setShowcaseActionResumeId(resume.id)
+    setShowcaseActionKind('unfeature')
     setShowcaseActionError(null)
     setError('')
     setSuccess('')
@@ -1556,6 +1562,28 @@ function AdminPageContent() {
       })
     } finally {
       setShowcaseActionResumeId(null)
+      setShowcaseActionKind(null)
+    }
+  }
+
+  const handleRegenerateShowcaseAiReview = async (resume: ResumeListItem) => {
+    setShowcaseActionResumeId(resume.id)
+    setShowcaseActionKind('regenerate')
+    setShowcaseActionError(null)
+    setError('')
+    setSuccess('')
+    try {
+      const response = await adminApi.regenerateShowcaseAiReview(resume.id)
+      setShowcases((current) => upsertShowcase(current, response.data.data))
+      setSuccess(`已重新生成「${resume.title}」的 AI 点评`)
+    } catch (err: unknown) {
+      setShowcaseActionError({
+        resumeId: resume.id,
+        message: getAdminErrorMessage(err, '重新评分失败'),
+      })
+    } finally {
+      setShowcaseActionResumeId(null)
+      setShowcaseActionKind(null)
     }
   }
 
@@ -1848,10 +1876,12 @@ function AdminPageContent() {
                     resumes={resumes}
                     showcases={showcases}
                     actionResumeId={showcaseActionResumeId}
+                    actionKind={showcaseActionKind}
                     actionError={showcaseActionError}
                     loading={loadingSections.has('showcases') || loadingSections.has('resumes')}
                     onFeature={(resume, accessType, priceCents) => void handleFeatureShowcase(resume, accessType, priceCents)}
                     onUnfeature={(resume) => void handleUnfeatureShowcase(resume)}
+                    onRegenerateAiReview={(resume) => void handleRegenerateShowcaseAiReview(resume)}
                   />
                 ) : null}
               </section>

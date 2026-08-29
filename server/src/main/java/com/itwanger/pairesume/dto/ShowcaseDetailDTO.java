@@ -18,6 +18,7 @@ public class ShowcaseDetailDTO {
     private String headingStyle;
     private String scoreLabel;
     private String summary;
+    private ShowcaseAiReviewDTO aiReview;
     private String accessType;
     private Integer priceCents;
     private boolean paymentEnabled;

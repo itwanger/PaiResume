@@ -102,9 +102,9 @@ export const RESUME_PDF_TEMPLATES: ResumePdfTemplateOption[] = [
   {
     id: 'default',
     icon: '◫',
-    name: '正常标准',
+    name: '系统默认',
     description: '稳健、清晰，适合大多数投递场景。',
-    previewTitle: '正常标准',
+    previewTitle: '系统默认',
     previewSummary: '适合常规投递场景，整体观感稳定，不会抢内容本身的注意力。',
     previewHighlights: ['信息平衡', '留白适中', '阅读稳定'],
   },
@@ -1408,9 +1408,9 @@ function ResumePdfDocument({
         { label: '籍贯：', value: basicInfo.hometown },
         { label: '求职意向：', value: displayJobIntention },
         { label: '意向城市：', value: basicInfo.targetCity },
-        { label: '政治面貌：', value: basicInfo.isPartyMember ? '党员' : '' },
-        { label: 'GitHub：', value: basicInfo.github, href: normalizeExternalUrl(basicInfo.github) },
-        { label: '博客：', value: basicInfo.blog, href: normalizeExternalUrl(basicInfo.blog) },
+        { label: '政治面貌：', value: basicInfo.politicalStatusMasked ? 'xx' : basicInfo.isPartyMember ? '党员' : '' },
+        { label: 'GitHub：', value: basicInfo.github, href: basicInfo.privacyMasked ? undefined : normalizeExternalUrl(basicInfo.github) },
+        { label: '博客：', value: basicInfo.blog, href: basicInfo.privacyMasked ? undefined : normalizeExternalUrl(basicInfo.blog) },
         { label: 'LeetCode：', value: basicInfo.leetcode },
       ].filter((item) => Boolean(item.value))
     : []
@@ -1455,17 +1455,26 @@ function ResumePdfDocument({
           {basicInfo.phone ? <Text><Text style={headerLabelStyle}>手机号：</Text>{basicInfo.phone}</Text> : null}
           {basicInfo.wechat ? <Text><Text style={headerLabelStyle}>微信：</Text>{basicInfo.wechat}</Text> : null}
           {basicInfo.targetCity ? <Text><Text style={headerLabelStyle}>意向城市：</Text>{basicInfo.targetCity}</Text> : null}
-          {basicInfo.isPartyMember ? <Text><Text style={headerLabelStyle}>政治面貌：</Text>党员</Text> : null}
+          {basicInfo.politicalStatusMasked || basicInfo.isPartyMember ? (
+            <Text>
+              <Text style={headerLabelStyle}>政治面貌：</Text>
+              {basicInfo.politicalStatusMasked ? 'xx' : '党员'}
+            </Text>
+          ) : null}
           {basicInfo.github ? (
             <Text>
               <Text style={headerLabelStyle}>GitHub：</Text>
-              <Link src={normalizeExternalUrl(basicInfo.github)} style={headerLinkStyle}>{basicInfo.github}</Link>
+              {basicInfo.privacyMasked
+                ? basicInfo.github
+                : <Link src={normalizeExternalUrl(basicInfo.github)} style={headerLinkStyle}>{basicInfo.github}</Link>}
             </Text>
           ) : null}
           {basicInfo.blog ? (
             <Text>
               <Text style={headerLabelStyle}>博客：</Text>
-              <Link src={normalizeExternalUrl(basicInfo.blog)} style={headerLinkStyle}>{basicInfo.blog}</Link>
+              {basicInfo.privacyMasked
+                ? basicInfo.blog
+                : <Link src={normalizeExternalUrl(basicInfo.blog)} style={headerLinkStyle}>{basicInfo.blog}</Link>}
             </Text>
           ) : null}
           {basicInfo.hometown ? <Text><Text style={headerLabelStyle}>籍贯：</Text>{basicInfo.hometown}</Text> : null}
@@ -1481,8 +1490,8 @@ function ResumePdfDocument({
         { value: basicInfo.phone },
         { value: basicInfo.email },
         { value: basicInfo.wechat },
-        { value: basicInfo.github, href: normalizeExternalUrl(basicInfo.github) },
-        { value: basicInfo.blog, href: normalizeExternalUrl(basicInfo.blog) },
+        { value: basicInfo.github, href: basicInfo.privacyMasked ? undefined : normalizeExternalUrl(basicInfo.github) },
+        { value: basicInfo.blog, href: basicInfo.privacyMasked ? undefined : normalizeExternalUrl(basicInfo.blog) },
         { value: basicInfo.targetCity },
       ].filter((item) => Boolean(item.value))
     : []
@@ -1530,8 +1539,8 @@ function ResumePdfDocument({
         { value: basicInfo.phone },
         { value: basicInfo.email },
         { value: basicInfo.wechat ? `微信：${basicInfo.wechat}` : '' },
-        { value: basicInfo.github, href: normalizeExternalUrl(basicInfo.github) },
-        { value: basicInfo.blog, href: normalizeExternalUrl(basicInfo.blog) },
+        { value: basicInfo.github, href: basicInfo.privacyMasked ? undefined : normalizeExternalUrl(basicInfo.github) },
+        { value: basicInfo.blog, href: basicInfo.privacyMasked ? undefined : normalizeExternalUrl(basicInfo.blog) },
       ].filter((item) => Boolean(item.value))
     : []
 

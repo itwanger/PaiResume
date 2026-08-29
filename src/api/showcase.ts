@@ -4,6 +4,27 @@ import type { MarketplaceOrder } from './marketplace'
 
 export type ShowcaseAccessType = 'PUBLIC' | 'LOGIN' | 'PAID'
 
+export interface ShowcaseAiReviewSection {
+  moduleType: string
+  title: string
+  reason: string
+  evidence: string[]
+}
+
+export interface ShowcaseAiReview {
+  scoreVersion?: number
+  scoreBreakdown?: {
+    contentCompleteness: number
+    jobRelevance: number
+    evidenceQuality: number
+    expressionQuality: number
+  }
+  overallScore: number
+  verdict: string
+  sections: ShowcaseAiReviewSection[]
+  improvements: string[]
+}
+
 export interface ShowcaseDetail {
   id: number
   slug: string
@@ -20,6 +41,7 @@ export interface ShowcaseDetail {
   density?: string
   accentPreset?: string
   headingStyle?: string
+  aiReview?: ShowcaseAiReview | null
   modules: ResumeModule[]
   updatedAt: string
 }
@@ -41,6 +63,12 @@ export const showcaseApi = {
   order: (orderNo: string, purchaseToken: string) =>
     client.get<ApiEnvelope<MarketplaceOrder>>(
       `/public/showcases/orders/${encodeURIComponent(orderNo)}`,
+      { headers: { 'X-Showcase-Purchase-Token': purchaseToken } },
+    ),
+
+  latestOrder: (slug: string, purchaseToken: string) =>
+    client.get<ApiEnvelope<MarketplaceOrder | null>>(
+      `/public/showcases/${encodeURIComponent(slug)}/orders/latest`,
       { headers: { 'X-Showcase-Purchase-Token': purchaseToken } },
     ),
 
