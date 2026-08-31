@@ -1,5 +1,6 @@
 import type { ResumeModule } from '../api/resume'
 import type { Experience, Resume } from '../types'
+import { getEducationDetailItems } from './educationDetails'
 import {
   normalizeBasicInfoContent,
   normalizeEducationContent,
@@ -21,7 +22,10 @@ function buildEducationDescription(content: ReturnType<typeof normalizeEducation
     content.isDoubleFirst ? '双一流' : '',
   ].filter(Boolean)
 
-  return tags.join(' · ')
+  const details = getEducationDetailItems(content)
+    .map((item) => `${item.label}：${item.value}`)
+
+  return [tags.join(' · '), ...details].filter(Boolean).join('\n')
 }
 
 function buildResearchExperience(module: ResumeModule): Experience {

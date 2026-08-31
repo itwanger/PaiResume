@@ -311,6 +311,7 @@ function ShowcasePaymentPanel({
   purchasing,
   refreshing,
   error,
+  refreshMessage,
   onCreate,
   onRefresh,
 }: {
@@ -319,6 +320,7 @@ function ShowcasePaymentPanel({
   purchasing: boolean
   refreshing: boolean
   error: string
+  refreshMessage: string
   onCreate: () => void
   onRefresh: () => void
 }) {
@@ -327,7 +329,7 @@ function ShowcasePaymentPanel({
   const unlocked = paidOrder || !detail.locked
   const hasQrCode = status === 'PENDING' && Boolean(order?.qrCodeDataUrl)
   const canRefresh = order && status
-    ? !unlocked && !['FAILED', 'CLOSED', 'REFUNDED', 'REFUND_REQUIRED'].includes(status)
+    ? !unlocked && !['FAILED', 'CLOSED', 'EXPIRED', 'REFUNDED', 'REFUND_REQUIRED'].includes(status)
     : false
   const canCreate = detail.locked
     && detail.paymentEnabled
@@ -336,7 +338,6 @@ function ShowcasePaymentPanel({
   return (
     <aside
       aria-label="简历支付信息"
-      aria-live="polite"
       className="border border-slate-200 bg-white p-5 shadow-[0_24px_70px_-42px_rgba(15,23,42,0.38)] sm:p-6"
     >
       <p className="text-xs font-semibold tracking-[0.16em] text-primary-700">解锁完整简历</p>
@@ -404,6 +405,11 @@ function ShowcasePaymentPanel({
       ) : null}
 
       {error ? <p className="mt-4 text-sm leading-6 text-red-600" role="alert">{error}</p> : null}
+      {refreshMessage ? (
+        <p className="mt-4 text-sm leading-6 text-slate-600" role="status" aria-live="polite">
+          {refreshMessage}
+        </p>
+      ) : null}
 
       {canRefresh ? (
         <button
@@ -439,7 +445,8 @@ export default function ShowcasePage() {
   const [purchasing, setPurchasing] = useState(false)
   const [refreshingOrder, setRefreshingOrder] = useState(false)
   const [paymentError, setPaymentError] = useState('')
-  const pollingRef = useRef(false)
+  const [orderRefreshMessage, setOrderRefreshMessage] = useState('')
+  const orderRefreshInFlightRef = useRef<Promise<MarketplaceOrder> | null>(null)
   const orderBootstrapRef = useRef('')
   const resumeStyle = normalizeResumeStyle(detail)
   const featureBadges = detail ? getResumeStyleFeatureBadges(detail) : []
@@ -472,31 +479,51 @@ export default function ShowcasePage() {
     }
   }, [loadDetail])
 
+  const refreshPaymentOrder = useCallback((): Promise<MarketplaceOrder> | null => {
+    if (!order) return null
+    if (orderRefreshInFlightRef.current) return orderRefreshInFlightRef.current
+
+    const request = Promise.resolve().then(async () => {
+      const { data: response } = await showcaseApi.refreshOrder(order.orderNo, purchaseToken)
+      const nextOrder = response.data
+      await acceptPaidOrder(nextOrder)
+      setPaymentError('')
+      if (getMarketplaceOrderStatus(nextOrder) !== 'PENDING') {
+        setOrderRefreshMessage('')
+      }
+      return nextOrder
+    })
+    orderRefreshInFlightRef.current = request
+    const clearRequest = () => {
+      if (orderRefreshInFlightRef.current === request) {
+        orderRefreshInFlightRef.current = null
+      }
+    }
+    void request.then(clearRequest, clearRequest)
+    return request
+  }, [acceptPaidOrder, order, purchaseToken])
+
   useEffect(() => {
     if (!order || hasMarketplaceOrderAccess(order)
       || ['FAILED', 'CLOSED', 'EXPIRED', 'REFUNDED', 'REFUND_REQUIRED'].includes(getMarketplaceOrderStatus(order))) {
       return
     }
-    const timer = window.setInterval(async () => {
-      if (pollingRef.current) return
-      pollingRef.current = true
-      try {
-        const { data: response } = await showcaseApi.refreshOrder(order.orderNo, purchaseToken)
-        await acceptPaidOrder(response.data)
-      } catch {
+    const timer = window.setInterval(() => {
+      const request = refreshPaymentOrder()
+      if (!request) return
+      void request.catch(() => {
         // 自动确认失败时保留当前二维码，用户仍可手动确认。
-      } finally {
-        pollingRef.current = false
-      }
+      })
     }, 2500)
     return () => window.clearInterval(timer)
-  }, [acceptPaidOrder, order, purchaseToken])
+  }, [order, refreshPaymentOrder])
 
   const createPaymentOrder = useCallback(async () => {
     if (!detail || detail.accessType !== 'PAID' || purchasing || !detail.paymentEnabled) return
 
     setPurchasing(true)
     setPaymentError('')
+    setOrderRefreshMessage('')
     try {
       const { data: response } = await showcaseApi.createOrder(
         slug,
@@ -520,6 +547,7 @@ export default function ShowcasePage() {
     const bootstrapOrder = async () => {
       setPurchasing(true)
       setPaymentError('')
+      setOrderRefreshMessage('')
       try {
         const { data: latestResponse } = await showcaseApi.latestOrder(slug, purchaseToken)
         if (orderBootstrapRef.current !== bootstrapKey) return
@@ -561,9 +589,14 @@ export default function ShowcasePage() {
     if (!order || refreshingOrder) return
     setRefreshingOrder(true)
     setPaymentError('')
+    setOrderRefreshMessage('')
     try {
-      const { data: response } = await showcaseApi.refreshOrder(order.orderNo, purchaseToken)
-      await acceptPaidOrder(response.data)
+      const nextOrder = await refreshPaymentOrder()
+      if (!nextOrder) return
+      const nextStatus = getMarketplaceOrderStatus(nextOrder)
+      setOrderRefreshMessage(nextStatus === 'PENDING'
+        ? '已查询，当前仍等待支付'
+        : `已查询，${getOrderStatusLabel(nextStatus)}`)
     } catch (err: unknown) {
       setPaymentError(err instanceof Error ? err.message : '订单状态刷新失败')
     } finally {
@@ -615,6 +648,7 @@ export default function ShowcasePage() {
                       purchasing={purchasing}
                       refreshing={refreshingOrder}
                       error={paymentError}
+                      refreshMessage={orderRefreshMessage}
                       onCreate={() => void createPaymentOrder()}
                       onRefresh={() => void handleRefreshOrder()}
                     />

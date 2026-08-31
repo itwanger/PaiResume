@@ -18,12 +18,20 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -86,6 +94,7 @@ class ShowcasePurchaseServiceImplTest {
     void paidProviderResultUnlocksOnlyTheMatchingBrowserCredential() {
         ShowcasePurchaseOrder order = pendingOrder();
         when(orderMapper.selectByOrderNo(any())).thenReturn(order);
+        when(orderMapper.selectByOrderNoForUpdate(any())).thenReturn(order);
         when(paymentGateway.provider()).thenReturn("mock");
         when(paymentGateway.expectedAppId()).thenReturn("mock-app");
         when(paymentGateway.expectedMerchantId()).thenReturn("mock-merchant");
@@ -107,6 +116,168 @@ class ShowcasePurchaseServiceImplTest {
         assertTrue(result.getUnlocked());
         assertEquals("transaction-1", order.getProviderTransactionId());
         assertEquals(null, order.getActiveOrderKey());
+    }
+
+    @Test
+    void expiredPendingOrderClosesProviderAndReleasesActiveOrderKey() {
+        ShowcasePurchaseOrder order = expiredPendingOrder();
+        stubRefreshOrder(order);
+        when(showcaseMapper.selectById(11L)).thenReturn(paidShowcase());
+        when(paymentGateway.queryOrder(order.getOrderNo())).thenReturn(
+                providerResult(order, PaymentProviderState.PENDING, null, null),
+                providerResult(order, PaymentProviderState.CLOSED, null, null)
+        );
+        List<String> persistedStates = new ArrayList<>();
+        doAnswer(invocation -> {
+            ShowcasePurchaseOrder update = invocation.getArgument(0);
+            persistedStates.add(update.getOrderStatus() + ":" + update.getActiveOrderKey());
+            return 1;
+        }).when(orderMapper).updateById(any(ShowcasePurchaseOrder.class));
+
+        var result = service.refreshOrder(order.getOrderNo(), TOKEN);
+
+        assertEquals("CLOSED", result.getOrderStatus());
+        assertEquals(null, order.getActiveOrderKey());
+        assertFalse(persistedStates.contains("EXPIRED:11:hash"));
+        assertTrue(persistedStates.contains("CLOSED:null"));
+        verify(paymentGateway).closeOrder(order.getOrderNo());
+        verify(paymentGateway, times(2)).queryOrder(order.getOrderNo());
+    }
+
+    @Test
+    void successfulCloseReleasesExpiredOrderEvenWhenProviderRecheckStillLooksPending() {
+        ShowcasePurchaseOrder order = expiredPendingOrder();
+        stubRefreshOrder(order);
+        when(showcaseMapper.selectById(11L)).thenReturn(paidShowcase());
+        when(paymentGateway.queryOrder(order.getOrderNo())).thenReturn(
+                providerResult(order, PaymentProviderState.PENDING, null, null),
+                providerResult(order, PaymentProviderState.PENDING, null, null)
+        );
+
+        var result = service.refreshOrder(order.getOrderNo(), TOKEN);
+
+        assertEquals("EXPIRED", result.getOrderStatus());
+        assertEquals(null, order.getActiveOrderKey());
+        assertTrue(order.getClosedAt() != null);
+        verify(paymentGateway).closeOrder(order.getOrderNo());
+    }
+
+    @Test
+    void paidResultAfterProviderCloseStillUnlocksExpiredOrder() {
+        ShowcasePurchaseOrder order = expiredPendingOrder();
+        LocalDateTime paidAt = LocalDateTime.now();
+        stubRefreshOrder(order);
+        when(showcaseMapper.selectById(11L)).thenReturn(paidShowcase());
+        when(paymentGateway.queryOrder(order.getOrderNo())).thenReturn(
+                providerResult(order, PaymentProviderState.PENDING, null, null),
+                providerResult(order, PaymentProviderState.PAID, "transaction-late", paidAt)
+        );
+
+        var result = service.refreshOrder(order.getOrderNo(), TOKEN);
+
+        assertEquals("PAID", result.getOrderStatus());
+        assertTrue(result.getUnlocked());
+        assertEquals("transaction-late", order.getProviderTransactionId());
+        assertEquals(paidAt, order.getPaidAt());
+        assertEquals(null, order.getActiveOrderKey());
+        verify(paymentGateway).closeOrder(order.getOrderNo());
+    }
+
+    @Test
+    void paidResultBeforeProviderCloseSkipsCloseAndUnlocksExpiredOrder() {
+        ShowcasePurchaseOrder order = expiredPendingOrder();
+        stubRefreshOrder(order);
+        when(showcaseMapper.selectById(11L)).thenReturn(paidShowcase());
+        when(paymentGateway.queryOrder(order.getOrderNo())).thenReturn(
+                providerResult(order, PaymentProviderState.PAID, "transaction-before-close", LocalDateTime.now())
+        );
+
+        var result = service.refreshOrder(order.getOrderNo(), TOKEN);
+
+        assertEquals("PAID", result.getOrderStatus());
+        assertTrue(result.getUnlocked());
+        verify(paymentGateway, never()).closeOrder(any());
+        verify(paymentGateway).queryOrder(order.getOrderNo());
+    }
+
+    @Test
+    void lockedRereadPreservesConcurrentPaidResultInsteadOfApplyingStalePendingQuery() {
+        ShowcasePurchaseOrder initial = expiredPendingOrder();
+        ShowcasePurchaseOrder concurrentlyPaid = expiredPendingOrder();
+        concurrentlyPaid.setOrderStatus("PAID");
+        concurrentlyPaid.setProviderTransactionId("transaction-callback");
+        concurrentlyPaid.setPaidAt(LocalDateTime.now());
+        concurrentlyPaid.setActiveOrderKey(null);
+        when(orderMapper.selectByOrderNo(initial.getOrderNo())).thenReturn(initial);
+        when(orderMapper.selectByOrderNoForUpdate(initial.getOrderNo())).thenReturn(concurrentlyPaid);
+        when(paymentGateway.queryOrder(initial.getOrderNo())).thenReturn(
+                providerResult(initial, PaymentProviderState.PENDING, null, null)
+        );
+        when(showcaseMapper.selectById(11L)).thenReturn(paidShowcase());
+
+        var result = service.refreshOrder(initial.getOrderNo(), TOKEN);
+
+        assertEquals("PAID", result.getOrderStatus());
+        assertTrue(result.getUnlocked());
+        assertEquals("transaction-callback", concurrentlyPaid.getProviderTransactionId());
+        verify(paymentGateway, never()).closeOrder(any());
+        verify(orderMapper, never()).updateById(any(ShowcasePurchaseOrder.class));
+    }
+
+    @Test
+    void lockedRereadPreservesConcurrentClosedResultInsteadOfApplyingStalePendingQuery() {
+        assertLockedTerminalIsPreserved("CLOSED");
+    }
+
+    @Test
+    void lockedRereadPreservesConcurrentFailedResultInsteadOfApplyingStalePendingQuery() {
+        assertLockedTerminalIsPreserved("FAILED");
+    }
+
+    @Test
+    void lockedRereadPreservesFinishedExpiredResultInsteadOfApplyingStalePendingQuery() {
+        assertLockedTerminalIsPreserved("EXPIRED");
+    }
+
+    @Test
+    void prepayUnknownClosesAndRechecksWithoutWaitingForLocalExpiry() {
+        ShowcasePurchaseOrder order = pendingOrder();
+        order.setOrderStatus("PREPAY_UNKNOWN");
+        order.setCodeUrl(null);
+        order.setExpiresAt(LocalDateTime.now().plusMinutes(10));
+        stubRefreshOrder(order);
+        when(showcaseMapper.selectById(11L)).thenReturn(paidShowcase());
+        when(paymentGateway.queryOrder(order.getOrderNo())).thenReturn(
+                providerResult(order, PaymentProviderState.PENDING, null, null),
+                providerResult(order, PaymentProviderState.CLOSED, null, null)
+        );
+
+        var result = service.refreshOrder(order.getOrderNo(), TOKEN);
+
+        assertEquals("CLOSED", result.getOrderStatus());
+        assertEquals(null, order.getActiveOrderKey());
+        verify(paymentGateway).closeOrder(order.getOrderNo());
+        verify(paymentGateway, times(2)).queryOrder(order.getOrderNo());
+    }
+
+    @Test
+    void closeFailureKeepsExpiredOrderReservedWhileProviderStillReportsPending() {
+        ShowcasePurchaseOrder order = expiredPendingOrder();
+        stubRefreshOrder(order);
+        when(paymentGateway.queryOrder(order.getOrderNo())).thenReturn(
+                providerResult(order, PaymentProviderState.PENDING, null, null),
+                providerResult(order, PaymentProviderState.PENDING, null, null)
+        );
+        doThrow(new IllegalStateException("close failed"))
+                .when(paymentGateway).closeOrder(order.getOrderNo());
+
+        assertThrows(com.itwanger.pairesume.common.BusinessException.class,
+                () -> service.refreshOrder(order.getOrderNo(), TOKEN));
+
+        assertEquals("PENDING", order.getOrderStatus());
+        assertEquals("11:hash", order.getActiveOrderKey());
+        verify(paymentGateway).closeOrder(order.getOrderNo());
+        verify(paymentGateway, times(2)).queryOrder(order.getOrderNo());
     }
 
     @Test
@@ -169,5 +340,60 @@ class ShowcasePurchaseServiceImplTest {
         order.setOrderStatus("PENDING");
         order.setExpiresAt(LocalDateTime.now().plusMinutes(10));
         return order;
+    }
+
+    private ShowcasePurchaseOrder expiredPendingOrder() {
+        ShowcasePurchaseOrder order = pendingOrder();
+        order.setExpiresAt(LocalDateTime.now().minusMinutes(1));
+        return order;
+    }
+
+    private void stubRefreshOrder(ShowcasePurchaseOrder order) {
+        when(orderMapper.selectByOrderNo(order.getOrderNo())).thenReturn(order);
+        when(orderMapper.selectByOrderNoForUpdate(order.getOrderNo())).thenReturn(order);
+        when(paymentGateway.provider()).thenReturn("mock");
+        when(paymentGateway.expectedAppId()).thenReturn("mock-app");
+        when(paymentGateway.expectedMerchantId()).thenReturn("mock-merchant");
+    }
+
+    private void assertLockedTerminalIsPreserved(String terminalStatus) {
+        ShowcasePurchaseOrder initial = expiredPendingOrder();
+        ShowcasePurchaseOrder terminal = expiredPendingOrder();
+        terminal.setOrderStatus(terminalStatus);
+        terminal.setActiveOrderKey(null);
+        terminal.setClosedAt(LocalDateTime.now());
+        when(orderMapper.selectByOrderNo(initial.getOrderNo())).thenReturn(initial);
+        when(orderMapper.selectByOrderNoForUpdate(initial.getOrderNo())).thenReturn(terminal);
+        when(paymentGateway.queryOrder(initial.getOrderNo())).thenReturn(
+                providerResult(initial, PaymentProviderState.PENDING, null, null)
+        );
+        when(showcaseMapper.selectById(11L)).thenReturn(paidShowcase());
+
+        var result = service.refreshOrder(initial.getOrderNo(), TOKEN);
+
+        assertEquals(terminalStatus, result.getOrderStatus());
+        assertEquals(null, terminal.getActiveOrderKey());
+        verify(paymentGateway, never()).closeOrder(any());
+        verify(orderMapper, never()).updateById(any(ShowcasePurchaseOrder.class));
+    }
+
+    private ProviderPaymentResult providerResult(
+            ShowcasePurchaseOrder order,
+            PaymentProviderState state,
+            String transactionId,
+            LocalDateTime paidAt
+    ) {
+        return new ProviderPaymentResult(
+                state,
+                order.getOrderNo(),
+                transactionId,
+                "mock-app",
+                "mock-merchant",
+                "CNY",
+                state == PaymentProviderState.CLOSED || state == PaymentProviderState.FAILED
+                        ? null
+                        : order.getAmountCents(),
+                paidAt
+        );
     }
 }

@@ -10,7 +10,7 @@ import type {
 export const RESUME_STYLE_STORAGE_KEY_PREFIX = 'pai-resume.pdf-preview-config'
 
 const templateIds = new Set<ResumePdfTemplateId>([
-  'default', 'compact', 'accent', 'campus-blue', 'technical-black', 'vibe-resume', 'minimal', 'executive', 'warm', 'slate', 'focus',
+  'default', 'compact', 'accent', 'campus-blue', 'campus-black', 'technical-black', 'vibe-resume', 'minimal', 'executive', 'warm', 'slate', 'focus',
 ])
 const densities = new Set<ResumePdfDensity>(['normal', 'compact'])
 const accentPresets = new Set<ResumePdfAccentPreset>(['auto', 'blue', 'slate', 'warm', 'emerald'])

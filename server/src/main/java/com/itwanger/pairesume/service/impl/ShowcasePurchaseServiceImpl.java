@@ -154,12 +154,42 @@ public class ShowcasePurchaseServiceImpl implements ShowcasePurchaseService {
     @Override
     @Transactional
     public ShowcasePurchaseOrderDTO refreshOrder(String orderNo, String purchaseToken) {
-        ShowcasePurchaseOrder order = requireAuthorizedOrder(orderNo, hashToken(purchaseToken));
+        String tokenHash = hashToken(purchaseToken);
+        ShowcasePurchaseOrder order = requireAuthorizedOrder(orderNo, tokenHash);
         if ("PAID".equals(order.getOrderStatus()) || "REFUNDED".equals(order.getOrderStatus())) {
             return toDto(order);
         }
-        ProviderPaymentResult result = paymentGateway.queryOrder(orderNo);
-        applyProviderResult(order, result);
+
+        ProviderPaymentResult first = paymentGateway.queryOrder(orderNo);
+        order = requireAuthorizedOrderForUpdate(orderNo, tokenHash);
+        if (shouldPreserveLockedTerminal(order, first)) {
+            return toDto(order);
+        }
+        applyProviderResult(order, first);
+        boolean unusablePrepay = "PREPAY_UNKNOWN".equals(order.getOrderStatus());
+        if (first.state() != PaymentProviderState.PENDING
+                || (!unusablePrepay && !isExpired(order))) {
+            return toDto(order);
+        }
+
+        RuntimeException closeFailure = null;
+        try {
+            paymentGateway.closeOrder(orderNo);
+        } catch (RuntimeException exception) {
+            closeFailure = exception;
+            log.warn("Showcase provider close needs recheck orderNo={}, errorType={}",
+                    orderNo, exception.getClass().getSimpleName());
+        }
+
+        ProviderPaymentResult afterClose = paymentGateway.queryOrder(orderNo);
+        applyProviderResult(order, afterClose);
+        if (afterClose.state() == PaymentProviderState.PENDING) {
+            if (closeFailure != null) {
+                throw new BusinessException(ResultCode.INTERNAL_ERROR.getCode(),
+                        "支付订单状态确认中，请稍后重试");
+            }
+            finishExpiredOrder(order);
+        }
         return toDto(order);
     }
 
@@ -211,6 +241,34 @@ public class ShowcasePurchaseServiceImpl implements ShowcasePurchaseService {
         orderMapper.updateById(order);
     }
 
+    private boolean isExpired(ShowcasePurchaseOrder order) {
+        return order.getExpiresAt() != null
+                && !order.getExpiresAt().isAfter(LocalDateTime.now());
+    }
+
+    private boolean shouldPreserveLockedTerminal(
+            ShowcasePurchaseOrder order,
+            ProviderPaymentResult providerResult
+    ) {
+        String status = order.getOrderStatus();
+        if ("PAID".equals(status) || "REFUNDED".equals(status)) {
+            return true;
+        }
+        if (providerResult != null && providerResult.state() == PaymentProviderState.PAID) {
+            return false;
+        }
+        return "CLOSED".equals(status)
+                || "FAILED".equals(status)
+                || ("EXPIRED".equals(status) && order.getActiveOrderKey() == null);
+    }
+
+    private void finishExpiredOrder(ShowcasePurchaseOrder order) {
+        order.setOrderStatus("EXPIRED");
+        order.setClosedAt(LocalDateTime.now());
+        order.setActiveOrderKey(null);
+        orderMapper.updateById(order);
+    }
+
     private void verifyProviderResult(ShowcasePurchaseOrder order, ProviderPaymentResult result) {
         if (result == null
                 || !Objects.equals(order.getOrderNo(), result.orderNo())
@@ -254,6 +312,15 @@ public class ShowcasePurchaseServiceImpl implements ShowcasePurchaseService {
 
     private ShowcasePurchaseOrder requireAuthorizedOrder(String orderNo, String tokenHash) {
         ShowcasePurchaseOrder order = orderMapper.selectByOrderNo(orderNo);
+        if (order == null) throw new BusinessException(ResultCode.SHOWCASE_ORDER_NOT_FOUND);
+        if (!Objects.equals(order.getPurchaseTokenHash(), tokenHash)) {
+            throw new BusinessException(ResultCode.SHOWCASE_PURCHASE_TOKEN_INVALID);
+        }
+        return order;
+    }
+
+    private ShowcasePurchaseOrder requireAuthorizedOrderForUpdate(String orderNo, String tokenHash) {
+        ShowcasePurchaseOrder order = orderMapper.selectByOrderNoForUpdate(orderNo);
         if (order == null) throw new BusinessException(ResultCode.SHOWCASE_ORDER_NOT_FOUND);
         if (!Objects.equals(order.getPurchaseTokenHash(), tokenHash)) {
             throw new BusinessException(ResultCode.SHOWCASE_PURCHASE_TOKEN_INVALID);

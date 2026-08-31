@@ -37,6 +37,7 @@ const templateLabels: Record<ResumePdfTemplateId, string> = {
   compact: '紧凑模式',
   accent: '蓝调重点',
   'campus-blue': '校园技术蓝',
+  'campus-black': '黑白校招',
   'technical-black': '黑白技术',
   'vibe-resume': 'Vibe 高密技术',
   minimal: '极简留白',

@@ -19,6 +19,7 @@ import {
   normalizeSkillContent,
 } from '../../utils/moduleContent'
 import { parseInlineMarkdownSegments } from '../../utils/inlineMarkdown'
+import { getEducationDetailItems } from '../../utils/educationDetails'
 import { normalizePublicPhotoSource } from '../../utils/resumePhoto'
 import { normalizeInlineText } from '../../utils/resumeText'
 import { formatAwardDisplayText } from '../../utils/yearInput'
@@ -229,6 +230,9 @@ function ModuleGroup({
           content.degree,
           content.startDate,
           content.endDate,
+          content.academicPerformance,
+          content.majorCourses,
+          content.languageProficiency,
         ]))
 
       if (entries.length === 0) return null
@@ -242,6 +246,7 @@ function ModuleGroup({
                 content.is211 ? '211' : '',
                 content.isDoubleFirst ? '双一流' : '',
               ].filter(Boolean)
+              const educationDetails = getEducationDetailItems(content)
 
               return (
                 <div
@@ -270,6 +275,17 @@ function ModuleGroup({
                   <p className="text-slate-600 sm:text-right">
                     {formatMonthRange(content.startDate, content.endDate)}
                   </p>
+
+                  {educationDetails.length > 0 ? (
+                    <div className="space-y-1 text-sm text-slate-700 sm:col-span-3">
+                      {educationDetails.map((detail) => (
+                        <p key={detail.key}>
+                          <span className="font-semibold text-slate-900">{detail.label}：</span>
+                          {detail.value}
+                        </p>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               )
             })}

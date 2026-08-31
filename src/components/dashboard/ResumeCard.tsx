@@ -39,6 +39,7 @@ const templateDefaultAccents: Record<ResumePdfTemplateId, ThumbnailAccent> = {
   compact: 'blue',
   accent: 'blue',
   'campus-blue': 'blue',
+  'campus-black': 'slate',
   'technical-black': 'slate',
   'vibe-resume': 'blue',
   minimal: 'slate',
@@ -165,6 +166,8 @@ export function ResumeContentThumbnail({ preview, resume }: { preview: ResumeCar
     ? `${palette.solid} text-white`
     : style.templateId === 'campus-blue'
       ? 'bg-blue-700 text-white'
+      : style.templateId === 'campus-black'
+        ? 'border-b-2 border-slate-900 bg-white text-slate-900'
       : style.templateId === 'technical-black'
         ? 'border-b border-slate-800 bg-white text-slate-900'
       : style.templateId === 'vibe-resume'
@@ -174,7 +177,7 @@ export function ResumeContentThumbnail({ preview, resume }: { preview: ResumeCar
     ? 'resume-content-thumbnail__masthead--dark'
     : style.templateId === 'campus-blue'
       ? 'resume-content-thumbnail__masthead--brand'
-      : style.templateId === 'technical-black'
+      : style.templateId === 'campus-black' || style.templateId === 'technical-black'
         ? 'resume-content-thumbnail__masthead--monochrome'
         : style.templateId === 'warm'
           ? 'resume-content-thumbnail__masthead--warm'
@@ -188,7 +191,7 @@ export function ResumeContentThumbnail({ preview, resume }: { preview: ResumeCar
   const sectionHeadingClassName = headingStyle === 'filled'
     ? `${usesSoftFilledHeading ? palette.soft : `${palette.solid} text-white`} rounded-sm px-1.5 ${isCompact ? 'py-px' : 'py-0.5'}`
     : headingStyle === 'underline'
-      ? `${style.templateId === 'vibe-resume' ? 'border-b-2' : 'border-b'} ${palette.border} pb-0.5`
+      ? `${style.templateId === 'vibe-resume' || style.templateId === 'campus-black' ? 'border-b-2' : 'border-b'} ${palette.border} pb-0.5`
       : ''
   const sectionHeadingTextClassName = headingStyle === 'filled' && !usesSoftFilledHeading
     ? 'text-white'

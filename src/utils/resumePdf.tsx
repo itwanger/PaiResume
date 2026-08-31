@@ -26,6 +26,7 @@ import {
   normalizeSkillContent,
 } from './moduleContent'
 import { parseInlineMarkdownSegments } from './inlineMarkdown'
+import { getEducationDetailItems } from './educationDetails'
 import { normalizePhotoSource } from './resumePhoto'
 import { getModuleDisplayLabel, sortResumeModulesForDisplay } from './resumeDisplay'
 import { normalizeInlineText } from './resumeText'
@@ -63,6 +64,7 @@ export type ResumePdfTemplateId =
   | 'compact'
   | 'accent'
   | 'campus-blue'
+  | 'campus-black'
   | 'technical-black'
   | 'vibe-resume'
   | 'minimal'
@@ -134,6 +136,15 @@ export const RESUME_PDF_TEMPLATES: ResumePdfTemplateOption[] = [
     previewTitle: '校园技术蓝',
     previewSummary: '参考优质校招简历的紧凑排版，让教育背景、项目经历和技术成果更易扫描。',
     previewHighlights: ['浅蓝分区栏', '照片左置', '联系分栏'],
+  },
+  {
+    id: 'campus-black',
+    icon: '▤',
+    name: '黑白校招',
+    description: '左置姓名与岗位、粗黑分区线和学校前置教育栏，适合校招技术简历。',
+    previewTitle: '黑白校招',
+    previewSummary: '以黑白高对比排版承载教育详情、实习职责与技术成果，学校信息优先呈现。',
+    previewHighlights: ['学校前置', '教育详情', '粗黑分区线'],
   },
   {
     id: 'technical-black',
@@ -380,6 +391,43 @@ function getBaseResumePdfTheme(templateId: ResolvedResumePdfTemplateId): ResumeP
         linkColor: '#1768e5',
         chipTextColor: '#173a86',
         chipBackgroundColor: '#eef6ff',
+        paragraphTop: 2,
+        listItemTop: 1,
+        orderedIndent: 9,
+        inlineMetaRowGap: 2,
+        inlineMetaColumnGap: 7,
+        inlineMetaItemRight: 7,
+        inlineMetaItemBottom: 1,
+        chipGap: 3,
+        chipTop: 1,
+        chipFontSize: 7.8,
+        chipHorizontalPadding: 4,
+        chipVerticalPadding: 1.2,
+      }
+    case 'campus-black':
+      return {
+        pagePadding: 18,
+        baseFontSize: 9.8,
+        titleSize: 22,
+        subtitleSize: 11.2,
+        lineHeight: 1.34,
+        headerBottom: 6,
+        headerRowGap: 8,
+        headerRowBottom: 3,
+        contactGap: 7,
+        sectionGap: 6,
+        itemGap: 4,
+        sectionTitleSize: 13,
+        sectionTitleBottom: 4,
+        sectionTitlePaddingBottom: 2,
+        sectionTitleColor: '#111111',
+        sectionTitleBorderColor: '#111111',
+        labelColor: '#171717',
+        bodyColor: '#262626',
+        mutedColor: '#444444',
+        linkColor: '#1268d6',
+        chipTextColor: '#262626',
+        chipBackgroundColor: '#f3f4f6',
         paragraphTop: 2,
         listItemTop: 1,
         orderedIndent: 9,
@@ -996,7 +1044,16 @@ function estimateContinuousPageHeight(modules: ResumeModule[]) {
 
     if (module.moduleType === 'education') {
       const content = normalizeEducationContent(module.content)
-      textVolume += textLengthForPage([content.school, content.department, content.major, content.degree])
+      textVolume += textLengthForPage([
+        content.school,
+        content.department,
+        content.major,
+        content.degree,
+        content.academicPerformance,
+        content.majorCourses,
+        content.languageProficiency,
+      ])
+      bulletCount += getEducationDetailItems(content).length
       continue
     }
 
@@ -1241,6 +1298,7 @@ function getResumePdfSectionHeadingVariant(
     case 'campus-blue':
       return 'filled'
     case 'vibe-resume':
+    case 'campus-black':
     case 'technical-black':
       return 'underline'
     case 'executive':
@@ -1281,6 +1339,7 @@ function ResumePdfDocument({
   const styles = createResumePdfStyles(theme)
   const isCompactDensity = resolvedThemeConfig.density === 'compact'
   const isCampusBlue = resolvedThemeConfig.templateId === 'campus-blue'
+  const isCampusBlack = resolvedThemeConfig.templateId === 'campus-black'
   const isTechnicalBlack = resolvedThemeConfig.templateId === 'technical-black'
   const isVibeResume = resolvedThemeConfig.templateId === 'vibe-resume'
   const isMinimal = resolvedThemeConfig.templateId === 'minimal'
@@ -1306,6 +1365,7 @@ function ResumePdfDocument({
   const useCompactPhotoEducationLayout = isCompactDensity
     && hasPhoto
     && !isCampusBlue
+    && !isCampusBlack
     && !isTechnicalBlack
     && !isVibeResume
     && educationModules.length > 0
@@ -1355,6 +1415,9 @@ function ResumePdfDocument({
     : []
   const sectionTitleStyle = [
     styles.sectionTitle,
+    ...(isCampusBlack && resolvedThemeConfig.headingStyle === 'auto'
+      ? [{ borderBottomWidth: 2.2, color: '#111111', paddingBottom: 2, marginBottom: 5 }]
+      : []),
     ...(isVibeResume && resolvedThemeConfig.headingStyle === 'auto'
       ? [{ borderBottomWidth: 2, color: theme.sectionTitleColor, paddingBottom: 2, marginBottom: 5 }]
       : []),
@@ -1481,6 +1544,64 @@ function ResumePdfDocument({
           {basicInfo.workYears ? <Text><Text style={headerLabelStyle}>工作年限：</Text>{basicInfo.workYears}</Text> : null}
           {basicInfo.leetcode ? <Text><Text style={headerLabelStyle}>LeetCode：</Text>{basicInfo.leetcode}</Text> : null}
         </View>
+      </View>
+    ) : null
+  )
+
+  const campusBlackContactItems: Array<{ label: string; value: string; href?: string }> = basicInfo
+    ? [
+        { label: '手机：', value: basicInfo.phone },
+        { label: '邮箱：', value: basicInfo.email, href: basicInfo.privacyMasked ? undefined : basicInfo.email ? `mailto:${basicInfo.email}` : undefined },
+        { label: '微信：', value: basicInfo.wechat },
+        { label: '籍贯：', value: basicInfo.hometown },
+        { label: '城市：', value: basicInfo.targetCity },
+        { label: '工作年限：', value: basicInfo.workYears },
+      ].filter((item) => Boolean(item.value))
+    : []
+
+  const renderCampusBlackHeaderBlock = () => (
+    basicInfo ? (
+      <View style={[styles.header, { minHeight: hasPhoto ? 82 : 62, position: 'relative', marginBottom: 5 }]}>
+        <View style={{ ...(isCompactDensity ? { width: '100%' as const } : {}), paddingRight: hasPhoto ? 72 : 0 }}>
+          <View style={{ minHeight: 32, flexDirection: 'row', alignItems: 'flex-end', gap: 24 }}>
+            <Text style={{ fontSize: theme.titleSize, fontWeight: 700, color: '#111111' }}>
+              {basicInfo.name || '未填写'}
+            </Text>
+            {displayJobIntention ? (
+              <Text style={{ fontSize: theme.subtitleSize, fontWeight: 700, color: '#171717', paddingBottom: 2 }}>
+                <Text style={styles.label}>求职岗位：</Text>
+                {displayJobIntention}
+              </Text>
+            ) : null}
+          </View>
+          {campusBlackContactItems.length > 0 ? (
+            <View style={{ marginTop: 13, flexDirection: 'row', flexWrap: 'wrap', rowGap: 4, columnGap: 12 }}>
+              {campusBlackContactItems.map((item) => (
+                <Text key={item.label} style={styles.muted}>
+                  <Text style={styles.label}>{item.label}</Text>
+                  {item.href ? <Link src={item.href} style={styles.link}>{item.value}</Link> : item.value}
+                </Text>
+              ))}
+            </View>
+          ) : null}
+        </View>
+        {hasPhoto ? (
+          <View
+            style={[
+              styles.photoFrame,
+              {
+                position: 'absolute',
+                top: 0,
+                right: 0,
+                width: 58,
+                height: 74,
+                ...(hasPhotoBorder ? { borderWidth: 1, borderColor: '#b8b8b8' } : {}),
+              },
+            ]}
+          >
+            <Image src={photoSource} style={styles.photoImage} />
+          </View>
+        ) : null}
       </View>
     ) : null
   )
@@ -1651,6 +1772,7 @@ function ResumePdfDocument({
             content.department ? `院系：${content.department}` : '',
             content.major ? `专业：${content.major}` : '',
           ].filter(Boolean)
+          const educationDetails = getEducationDetailItems(content)
 
           return (
             <View
@@ -1662,7 +1784,20 @@ function ResumePdfDocument({
                   : []),
               ]}
             >
-              {isTechnicalBlack || isVibeResume ? (
+              {isCampusBlack ? (
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
+                  <Text style={[styles.strong, { flexGrow: 1, flexShrink: 1, flexBasis: 0 }]}>
+                    {content.school || '未填写'}
+                    {schoolTags.length > 0 ? `（${schoolTags.join(' / ')}）` : ''}
+                  </Text>
+                  <Text style={[styles.strong, { width: 210, textAlign: 'center' }]}>
+                    {[content.major || content.department, content.degree].filter(Boolean).join(' | ')}
+                  </Text>
+                  <Text style={[styles.strong, { width: 108, textAlign: 'right' }]}>
+                    {formatTechnicalMonthRange(content.startDate, content.endDate)}
+                  </Text>
+                </View>
+              ) : isTechnicalBlack || isVibeResume ? (
                 <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
                   <Text style={[styles.strong, { flexGrow: 1, flexShrink: 1, flexBasis: 0 }]}>
                     {content.school || '未填写'}
@@ -1730,6 +1865,37 @@ function ResumePdfDocument({
                   </View>
                 </>
               )}
+              {educationDetails.length > 0 ? (
+                <View style={{ marginTop: 1 }}>
+                  {educationDetails.map((detail) => (
+                    isCampusBlack || isTechnicalBlack ? (
+                      <View
+                        key={detail.key}
+                        style={{ flexDirection: 'row', alignItems: 'flex-start', marginTop: 1 }}
+                      >
+                        <Text style={{ width: 9 }}>•</Text>
+                        <View style={{ flexGrow: 1, flexShrink: 1, flexBasis: 0 }}>
+                          {renderWrappedLabeledText(
+                            styles,
+                            `${detail.label}：`,
+                            detail.value,
+                            `education-${educationModule.id}-${detail.key}`
+                          )}
+                        </View>
+                      </View>
+                    ) : (
+                      <View key={detail.key}>
+                        {renderWrappedLabeledText(
+                          styles,
+                          `${detail.label}：`,
+                          detail.value,
+                          `education-${educationModule.id}-${detail.key}`
+                        )}
+                      </View>
+                    )
+                  ))}
+                </View>
+              ) : null}
             </View>
           )
         })}
@@ -1749,6 +1915,12 @@ function ResumePdfDocument({
             <Text style={[styles.strong, { flexGrow: 1, flexShrink: 1, flexBasis: 0, color: theme.labelColor }]}>{content.projectName || '项目'}</Text>
             <Text style={[styles.strong, { width: 110, textAlign: 'center', color: theme.labelColor }]}>{content.role}</Text>
             <Text style={[styles.muted, { width: 108, textAlign: 'right' }]}>{formatTechnicalMonthRange(content.startDate, content.endDate)}</Text>
+          </View>
+        ) : isCampusBlack ? (
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
+            <Text style={[styles.strong, { width: 108 }]}>{formatTechnicalMonthRange(content.startDate, content.endDate)}</Text>
+            <Text style={[styles.strong, { flexGrow: 1, flexShrink: 1, flexBasis: 0, textAlign: 'center' }]}>{content.projectName || '项目'}</Text>
+            <Text style={[styles.strong, { width: 110, textAlign: 'right' }]}>{content.role}</Text>
           </View>
         ) : isTechnicalBlack ? (
           <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
@@ -1780,7 +1952,7 @@ function ResumePdfDocument({
             <Text><Text style={styles.label}>核心职责：</Text></Text>
             {content.achievements.map((item, index) => (
               <View key={`${index}-${item}`} style={styles.listItem}>
-                {isCampusBlue || isTechnicalBlack || isVibeResume
+                {isCampusBlue || isCampusBlack || isTechnicalBlack || isVibeResume
                   ? renderBulletItem(styles, item, `project-${projectModule.id}-${index}`)
                   : renderOrderedItem(styles, item, index, `project-${projectModule.id}-${index}`)}
               </View>
@@ -1796,6 +1968,8 @@ function ResumePdfDocument({
       <Page size={pageSize} style={styles.page}>
         {isVibeResume ? (
           renderVibeResumeHeaderBlock()
+        ) : isCampusBlack ? (
+          renderCampusBlackHeaderBlock()
         ) : isTechnicalBlack ? (
           renderTechnicalBlackHeaderBlock()
         ) : isCampusBlue ? (
@@ -1866,6 +2040,12 @@ function ResumePdfDocument({
                               <Text style={[styles.strong, { width: 122, textAlign: 'center', color: theme.labelColor }]}>{content.position}</Text>
                               <Text style={[styles.muted, { width: 108, textAlign: 'right' }]}>{formatTechnicalMonthRange(content.startDate, content.endDate)}</Text>
                             </View>
+                          ) : isCampusBlack ? (
+                            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
+                              <Text style={[styles.strong, { width: 108 }]}>{formatTechnicalMonthRange(content.startDate, content.endDate)}</Text>
+                              <Text style={[styles.strong, { flexGrow: 1, flexShrink: 1, flexBasis: 0, textAlign: 'center' }]}>{content.company || '公司'}</Text>
+                              <Text style={[styles.strong, { width: 122, textAlign: 'right' }]}>{content.position}</Text>
+                            </View>
                           ) : isTechnicalBlack ? (
                             <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
                               <Text style={[styles.strong, { flexGrow: 1, flexShrink: 1, flexBasis: 0 }]}>{content.company || '公司'}</Text>
@@ -1889,7 +2069,13 @@ function ResumePdfDocument({
                                 ]}
                               >
                                 {projectTitle || project.startDate || project.endDate ? (
-                                  isTechnicalBlack || isVibeResume ? (
+                                  isCampusBlack ? (
+                                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
+                                      <Text style={[styles.strong, { width: 108 }]}>{formatTechnicalMonthRange(project.startDate, project.endDate)}</Text>
+                                      <Text style={[styles.strong, { flexGrow: 1, flexShrink: 1, flexBasis: 0, textAlign: 'center' }]}>{project.projectName}</Text>
+                                      <Text style={[styles.strong, { width: 110, textAlign: 'right' }]}>{project.role}</Text>
+                                    </View>
+                                  ) : isTechnicalBlack || isVibeResume ? (
                                     <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
                                       <Text style={[styles.strong, { flexGrow: 1, flexShrink: 1, flexBasis: 0, ...(isVibeResume ? { color: theme.labelColor } : {}) }]}>{project.projectName}</Text>
                                       <Text style={[styles.strong, { width: 110, textAlign: 'center', ...(isVibeResume ? { color: theme.labelColor } : {}) }]}>{project.role}</Text>
@@ -1920,7 +2106,7 @@ function ResumePdfDocument({
                                     <Text><Text style={styles.label}>核心职责：</Text></Text>
                                     {project.responsibilities.filter(Boolean).map((line, index) => (
                                       <View key={`${index}-${line}`} style={styles.listItem}>
-                                        {isCampusBlue || isTechnicalBlack || isVibeResume
+                                        {isCampusBlue || isCampusBlack || isTechnicalBlack || isVibeResume
                                           ? renderBulletItem(styles, line, `duty-${experienceModule.id}-${projectIndex}-${index}`)
                                           : renderOrderedItem(styles, line, index, `duty-${experienceModule.id}-${projectIndex}-${index}`)}
                                       </View>
@@ -1957,12 +2143,12 @@ function ResumePdfDocument({
                 '专业技能',
                 (
                   <>
-                  {isTechnicalBlack || isVibeResume ? visibleCategories.map((category, index) => (
+                  {isCampusBlack || isTechnicalBlack || isVibeResume ? visibleCategories.map((category, index) => (
                     <View key={index} style={styles.listItem}>
                       {renderBulletItem(
                         styles,
                         `${category.name ? `**${category.name}：** ` : ''}${category.items.join('；')}`,
-                        `${isVibeResume ? 'vibe' : 'technical'}-skill-${index}`
+                        `${isVibeResume ? 'vibe' : isCampusBlack ? 'campus-black' : 'technical'}-skill-${index}`
                       )}
                     </View>
                   )) : visibleCategories.map((category, index) => {

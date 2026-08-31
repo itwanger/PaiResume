@@ -15,6 +15,7 @@ import {
   normalizeSkillContent,
 } from '../../utils/moduleContent'
 import { parseInlineMarkdownSegments } from '../../utils/inlineMarkdown'
+import { getEducationDetailItems } from '../../utils/educationDetails'
 import { normalizePhotoSource } from '../../utils/resumePhoto'
 import { normalizeInlineText } from '../../utils/resumeText'
 import { formatAwardDisplayText } from '../../utils/yearInput'
@@ -675,6 +676,7 @@ function ModulePreviewSection({
                   content.department ? `院系：${content.department}` : '',
                   content.major ? `专业：${content.major}` : '',
                 ].filter(Boolean)
+                const educationDetails = getEducationDetailItems(content)
 
                 return (
                   <div
@@ -728,6 +730,16 @@ function ModulePreviewSection({
                         )}
                       </>
                     )}
+                    {educationDetails.length > 0 ? (
+                      <div className="space-y-1 text-sm text-gray-600">
+                        {educationDetails.map((detail) => (
+                          <p key={detail.key}>
+                            <span className="font-semibold text-gray-700">{detail.label}：</span>
+                            {detail.value}
+                          </p>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                 )
               })}

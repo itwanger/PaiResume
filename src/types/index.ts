@@ -33,6 +33,9 @@ export interface EducationContent {
   degree: string
   startDate: string
   endDate: string
+  academicPerformance: string
+  majorCourses: string
+  languageProficiency: string
   is985: boolean
   is211: boolean
   isDoubleFirst: boolean

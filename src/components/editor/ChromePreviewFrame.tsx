@@ -121,6 +121,45 @@ function TemplateTonePreview({
           </div>
         </div>
       )
+    case 'campus-black':
+      return (
+        <div className={`${frameClassName} shadow-[inset_0_0_0_1px_rgba(148,163,184,0.85)]`}>
+          <div className="space-y-1.5 px-3 py-3 text-[10px] text-slate-600">
+            <div className="relative min-h-11 border-b-2 border-slate-900 pb-2 pr-10">
+              <div className="flex items-baseline gap-2">
+                <span className="text-[13px] font-bold text-slate-950">{name}</span>
+                <span className="truncate font-semibold text-slate-800">求职岗位</span>
+              </div>
+              <div className="mt-2 grid grid-cols-3 gap-1">
+                <MiniLine className="w-full bg-slate-300" />
+                <MiniLine className="w-full bg-slate-300" />
+                <MiniLine className="w-4/5 bg-slate-300" />
+              </div>
+              <div className="absolute right-0 top-0 h-10 w-8 bg-slate-200 ring-1 ring-slate-300" />
+            </div>
+            <div className="border-b-2 border-slate-900 pb-0.5 font-bold text-slate-900">教育背景</div>
+            <div className="grid grid-cols-[1fr_1fr_auto] gap-1 font-semibold text-slate-800">
+              <span>学校</span>
+              <span className="text-center">专业 | 学位</span>
+              <span className="text-right">时间</span>
+            </div>
+            <div className="space-y-1 pl-1">
+              <MiniLine className="w-full bg-slate-200" />
+              <MiniLine className="w-4/5 bg-slate-200" />
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <PreviewStatusBadge isActive={isActive} />
+              <div className="grid min-w-0 flex-1 grid-cols-3 gap-1">
+                {previewHighlights.map((highlight, index) => (
+                  <div key={`${templateId}-highlight-${index}`} className="truncate bg-slate-100 px-1 py-0.5 text-center font-medium text-slate-700">
+                    {highlight || ' '}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )
     case 'technical-black':
       return (
         <div className={`${frameClassName} shadow-[inset_0_0_0_1px_rgba(203,213,225,0.95)]`}>

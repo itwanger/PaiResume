@@ -213,6 +213,39 @@ export function EducationForm({ resumeId, moduleId, initialContent, timelineMess
             className="rounded border-gray-300" /> 双一流
         </label>
       </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">学业表现</label>
+        <textarea
+          value={content.academicPerformance}
+          onChange={(e) => update('academicPerformance', e.target.value)}
+          aria-label="学业表现"
+          rows={2}
+          placeholder="GPA、专业排名、奖学金等"
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none text-sm resize-none"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">主修课程</label>
+        <textarea
+          value={content.majorCourses}
+          onChange={(e) => update('majorCourses', e.target.value)}
+          aria-label="主修课程"
+          rows={2}
+          placeholder="数据结构、操作系统、计算机网络"
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none text-sm resize-none"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">四六级 / 英语能力</label>
+        <input
+          type="text"
+          value={content.languageProficiency}
+          onChange={(e) => update('languageProficiency', e.target.value)}
+          aria-label="四六级 / 英语能力"
+          placeholder="CET-6 494，CET-4 492"
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none text-sm"
+        />
+      </div>
       {timelineMessages.length > 0 ? (
         <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
           {timelineMessages.map((message) => <p key={message}>{message}</p>)}

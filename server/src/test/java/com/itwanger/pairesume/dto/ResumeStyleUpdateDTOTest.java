@@ -24,6 +24,9 @@ class ResumeStyleUpdateDTOTest {
             dto.setTemplateId("vibe-resume");
             assertTrue(validator.validate(dto).isEmpty());
 
+            dto.setTemplateId("campus-black");
+            assertTrue(validator.validate(dto).isEmpty());
+
             dto.setTemplateId("unknown-template");
             assertFalse(validator.validate(dto).isEmpty());
         }

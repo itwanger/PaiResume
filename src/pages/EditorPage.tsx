@@ -1304,7 +1304,8 @@ function getDefaultContentMap(): Record<ModuleType, Record<string, unknown>> {
     },
     education: {
       school: '', schoolLogo: '', department: '', major: '', degree: '',
-      startDate: '', endDate: '', is985: false, is211: false, isDoubleFirst: false,
+      startDate: '', endDate: '', academicPerformance: '', majorCourses: '', languageProficiency: '',
+      is985: false, is211: false, isDoubleFirst: false,
     },
     internship: {
       company: '', position: '', startDate: '', endDate: '', projects: [],

@@ -12,7 +12,7 @@ public class ResumeStyleUpdateDTO {
 
     @NotBlank(message = "请选择简历模板")
     @Pattern(
-            regexp = "default|compact|accent|campus-blue|technical-black|vibe-resume|minimal|executive|warm|slate|focus",
+            regexp = "default|compact|accent|campus-blue|campus-black|technical-black|vibe-resume|minimal|executive|warm|slate|focus",
             message = "简历模板不受支持"
     )
     private String templateId;
