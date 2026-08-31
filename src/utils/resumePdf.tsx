@@ -31,6 +31,7 @@ import { normalizePhotoSource } from './resumePhoto'
 import { getModuleDisplayLabel, sortResumeModulesForDisplay } from './resumeDisplay'
 import { normalizeInlineText } from './resumeText'
 import { formatAwardDisplayText } from './yearInput'
+import { resolveCompactInternshipHeader } from './experienceDisplay'
 
 function resolveFontSource(fileName: string) {
   if (typeof window === 'undefined') {
@@ -2032,9 +2033,38 @@ function ResumePdfDocument({
                         const projectTitle = [project.projectName, project.role].filter(Boolean).join(' - ')
                         return Boolean(projectTitle || project.startDate || project.endDate || project.techStack || project.projectDescription || project.responsibilities.some(Boolean))
                       })
+                      const compactInternshipProject = isCompactDensity
+                        && !isWorkExperience
+                        && visibleProjects.length === 1
+                        && visibleProjects[0].projectName.trim()
+                        ? visibleProjects[0]
+                        : null
+                      const compactInternshipHeader = compactInternshipProject
+                        ? resolveCompactInternshipHeader(content, compactInternshipProject)
+                        : null
                       return (
                         <View key={experienceModule.id} style={styles.item}>
-                          {isVibeResume ? (
+                          {compactInternshipHeader && isVibeResume ? (
+                            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: theme.chipBackgroundColor, borderLeftWidth: 3, borderLeftColor: theme.linkColor, paddingHorizontal: 7, paddingVertical: 4 }}>
+                              <Text style={[styles.strong, { flexGrow: 1, flexShrink: 1, flexBasis: 0, color: theme.labelColor }]}>{compactInternshipHeader.title}</Text>
+                              <Text style={[styles.muted, { width: 108, textAlign: 'right' }]}>{formatTechnicalMonthRange(compactInternshipHeader.startDate, compactInternshipHeader.endDate)}</Text>
+                            </View>
+                          ) : compactInternshipHeader && isCampusBlack ? (
+                            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
+                              <Text style={[styles.strong, { width: 108 }]}>{formatTechnicalMonthRange(compactInternshipHeader.startDate, compactInternshipHeader.endDate)}</Text>
+                              <Text style={[styles.strong, { flexGrow: 1, flexShrink: 1, flexBasis: 0, textAlign: 'center' }]}>{compactInternshipHeader.title}</Text>
+                            </View>
+                          ) : compactInternshipHeader && isTechnicalBlack ? (
+                            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
+                              <Text style={[styles.strong, { flexGrow: 1, flexShrink: 1, flexBasis: 0 }]}>{compactInternshipHeader.title}</Text>
+                              <Text style={[styles.strong, { width: 108, textAlign: 'right' }]}>{formatTechnicalMonthRange(compactInternshipHeader.startDate, compactInternshipHeader.endDate)}</Text>
+                            </View>
+                          ) : compactInternshipHeader ? (
+                            <View style={styles.rowBetween}>
+                              <Text style={styles.strong}>{compactInternshipHeader.title}</Text>
+                              <Text style={styles.muted}>{formatMonthRange(compactInternshipHeader.startDate, compactInternshipHeader.endDate)}</Text>
+                            </View>
+                          ) : isVibeResume ? (
                             <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: theme.chipBackgroundColor, borderLeftWidth: 3, borderLeftColor: theme.linkColor, paddingHorizontal: 7, paddingVertical: 4 }}>
                               <Text style={[styles.strong, { flexGrow: 1, flexShrink: 1, flexBasis: 0, color: theme.labelColor }]}>{content.company || '公司'}</Text>
                               <Text style={[styles.strong, { width: 122, textAlign: 'center', color: theme.labelColor }]}>{content.position}</Text>
@@ -2060,15 +2090,16 @@ function ResumePdfDocument({
                           )}
                           {visibleProjects.map((project, projectIndex) => {
                             const projectTitle = [project.projectName, project.role].filter(Boolean).join(' - ')
+                            const isMergedCompactProject = compactInternshipProject?.id === project.id
                             return (
                               <View
                                 key={project.id}
                                 style={[
                                   styles.item,
-                                  { marginTop: 5 },
+                                  { marginTop: isMergedCompactProject ? 0 : 5 },
                                 ]}
                               >
-                                {projectTitle || project.startDate || project.endDate ? (
+                                {!isMergedCompactProject && (projectTitle || project.startDate || project.endDate) ? (
                                   isCampusBlack ? (
                                     <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
                                       <Text style={[styles.strong, { width: 108 }]}>{formatTechnicalMonthRange(project.startDate, project.endDate)}</Text>

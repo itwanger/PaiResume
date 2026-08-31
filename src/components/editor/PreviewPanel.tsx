@@ -19,6 +19,7 @@ import { getEducationDetailItems } from '../../utils/educationDetails'
 import { normalizePhotoSource } from '../../utils/resumePhoto'
 import { normalizeInlineText } from '../../utils/resumeText'
 import { formatAwardDisplayText } from '../../utils/yearInput'
+import { resolveCompactInternshipHeader } from '../../utils/experienceDisplay'
 import { resolvePdfPreviewOutputScale } from '../../utils/pdfPreview'
 import {
   findBasicInfoContent,
@@ -759,25 +760,42 @@ function ModulePreviewSection({
                 const projectTitle = [project.projectName, project.role].filter(Boolean).join(' - ')
                 return Boolean(projectTitle || project.startDate || project.endDate || project.techStack || project.projectDescription || project.responsibilities.some(Boolean))
               })
+              const compactInternshipProject = compactDensity
+                && module.moduleType === 'internship'
+                && visibleProjects.length === 1
+                && visibleProjects[0].projectName.trim()
+                ? visibleProjects[0]
+                : null
+              const compactInternshipHeader = compactInternshipProject
+                ? resolveCompactInternshipHeader(content, compactInternshipProject)
+                : null
               return (
                 <div key={id}>
                   <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
-                    <div className="font-semibold text-gray-800 sm:whitespace-nowrap">{companyTitle || '公司 - 职位'}</div>
+                    <div className="font-semibold text-gray-800 sm:whitespace-nowrap">
+                      {compactInternshipHeader?.title || companyTitle || '公司 - 职位'}
+                    </div>
                     <span className="text-sm text-gray-400 sm:shrink-0">
-                      {formatMonthRange(content.startDate, content.endDate)}
+                      {formatMonthRange(
+                        compactInternshipHeader ? compactInternshipHeader.startDate : content.startDate,
+                        compactInternshipHeader ? compactInternshipHeader.endDate : content.endDate,
+                      )}
                     </span>
                   </div>
-                  <div className="mt-3 space-y-3">
+                  <div className={compactInternshipHeader ? 'mt-1 space-y-1' : 'mt-3 space-y-3'}>
                     {visibleProjects.map((project) => {
                       const projectTitle = [project.projectName, project.role].filter(Boolean).join(' - ')
+                      const isMergedCompactProject = compactInternshipProject?.id === project.id
                       return (
-                        <div key={project.id} className="bg-white/80 px-4 py-3.5">
-                          <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
-                            {projectTitle ? <p className="whitespace-nowrap text-sm font-semibold text-gray-800">{projectTitle}</p> : <span />}
-                            {project.startDate || project.endDate ? (
-                              <span className="text-sm text-gray-400 sm:shrink-0">{formatMonthRange(project.startDate, project.endDate)}</span>
-                            ) : null}
-                          </div>
+                        <div key={project.id} className={isMergedCompactProject ? 'pt-1' : 'bg-white/80 px-4 py-3.5'}>
+                          {!isMergedCompactProject ? (
+                            <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
+                              {projectTitle ? <p className="whitespace-nowrap text-sm font-semibold text-gray-800">{projectTitle}</p> : <span />}
+                              {project.startDate || project.endDate ? (
+                                <span className="text-sm text-gray-400 sm:shrink-0">{formatMonthRange(project.startDate, project.endDate)}</span>
+                              ) : null}
+                            </div>
+                          ) : null}
                           {project.projectDescription ? (
                             <p className="mt-1.5 text-sm text-gray-600"><span className="text-gray-500">项目简介：</span>{project.projectDescription}</p>
                           ) : null}
