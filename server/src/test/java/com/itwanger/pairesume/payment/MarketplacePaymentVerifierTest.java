@@ -55,7 +55,7 @@ class MarketplacePaymentVerifierTest {
     void acceptsTrustedTerminalMissingOrderWithoutAmount() {
         ProviderPaymentResult result = new ProviderPaymentResult(
                 PaymentProviderState.FAILED, "PR-1", null,
-                "app-id", "merchant-id", "CNY", null, null);
+                "app-id", "merchant-id", null, null, null);
 
         verifier.verify(order, result);
     }

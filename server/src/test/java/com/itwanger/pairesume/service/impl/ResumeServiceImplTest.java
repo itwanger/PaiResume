@@ -231,11 +231,19 @@ class ResumeServiceImplTest {
         resume.setUserId(7L);
         resume.setStatus(1);
         when(resumeMapper.selectById(11L)).thenReturn(resume);
+        ResumeModule basicInfo = module(11L, "basic_info", Map.of(
+                "name", "张天霸",
+                "jobIntention", "Agent 工程师"));
+        when(resumeModuleMapper.selectList(any())).thenReturn(List.of(basicInfo));
         ResumeUpdateDTO dto = new ResumeUpdateDTO();
         dto.setTitle("AI 应用开发简历");
 
-        service.update(7L, 11L, dto);
+        var result = service.update(7L, 11L, dto);
 
+        assertEquals("AI 应用开发简历", result.getTitle());
+        assertEquals("张天霸", result.getPreview().getName());
+        assertEquals("Agent 工程师", result.getPreview().getTargetRole());
+        assertEquals(1, result.getPreview().getFilledModuleCount());
         verify(resumeMapper).updateById(resume);
         verifyNoInteractions(resumeShowcaseService);
     }

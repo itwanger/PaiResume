@@ -15,6 +15,7 @@ import com.itwanger.pairesume.payment.PaymentPrepayResult;
 import com.itwanger.pairesume.payment.PaymentOrderNoGenerator;
 import com.itwanger.pairesume.payment.PaymentProviderState;
 import com.itwanger.pairesume.payment.ProviderPaymentResult;
+import com.itwanger.pairesume.payment.ProviderPaymentResultValidator;
 import com.itwanger.pairesume.payment.QrCodeDataUrlGenerator;
 import com.itwanger.pairesume.service.ShowcasePurchaseService;
 import lombok.RequiredArgsConstructor;
@@ -270,24 +271,8 @@ public class ShowcasePurchaseServiceImpl implements ShowcasePurchaseService {
     }
 
     private void verifyProviderResult(ShowcasePurchaseOrder order, ProviderPaymentResult result) {
-        if (result == null
-                || !Objects.equals(order.getOrderNo(), result.orderNo())
-                || !Objects.equals(order.getProvider(), paymentGateway.provider())
-                || !Objects.equals(paymentGateway.expectedAppId(), result.appId())
-                || !Objects.equals(paymentGateway.expectedMerchantId(), result.merchantId())
-                || !"CNY".equals(result.currency())) {
-            throw new BusinessException(ResultCode.PAYMENT_NOTIFICATION_INVALID);
-        }
-        if (result.amountCents() == null) {
-            if (result.state() == PaymentProviderState.PAID
-                    || result.state() == PaymentProviderState.PENDING
-                    || result.state() == PaymentProviderState.REFUND_PENDING_VERIFICATION
-                    || result.state() == PaymentProviderState.REFUNDED) {
-                throw new BusinessException(ResultCode.PAYMENT_NOTIFICATION_INVALID);
-            }
-        } else if (!Objects.equals(order.getAmountCents(), result.amountCents())) {
-            throw new BusinessException(ResultCode.PAYMENT_AMOUNT_MISMATCH);
-        }
+        ProviderPaymentResultValidator.verifyIdentityAndAmount(
+                order.getOrderNo(), order.getProvider(), order.getAmountCents(), paymentGateway, result);
         if (result.state() == PaymentProviderState.PAID
                 && (!StringUtils.hasText(result.transactionId()) || result.paidAt() == null)) {
             throw new BusinessException(ResultCode.PAYMENT_NOTIFICATION_INVALID);

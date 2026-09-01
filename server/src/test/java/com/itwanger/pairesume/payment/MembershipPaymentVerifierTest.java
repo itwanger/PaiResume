@@ -58,6 +58,15 @@ class MembershipPaymentVerifierTest {
                 () -> verifier.verify(order, paid("app", "merchant", 6600, null)));
     }
 
+    @Test
+    void acceptsClosedResultWithoutFinancialFields() {
+        ProviderPaymentResult closed = new ProviderPaymentResult(
+                PaymentProviderState.CLOSED, "PM123", null, "app", "merchant",
+                null, null, null);
+
+        assertDoesNotThrow(() -> verifier.verify(order, closed));
+    }
+
     private ProviderPaymentResult paid(String appId, String merchantId,
                                        int amountCents, LocalDateTime paidAt) {
         return new ProviderPaymentResult(

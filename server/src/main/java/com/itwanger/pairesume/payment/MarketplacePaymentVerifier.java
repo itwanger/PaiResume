@@ -15,24 +15,8 @@ public class MarketplacePaymentVerifier {
     private final MarketplacePaymentGateway gateway;
 
     public void verify(ResumeViewOrder order, ProviderPaymentResult result) {
-        if (result == null
-                || !Objects.equals(order.getOrderNo(), result.orderNo())
-                || !Objects.equals(order.getProvider(), gateway.provider())
-                || !Objects.equals(gateway.expectedAppId(), result.appId())
-                || !Objects.equals(gateway.expectedMerchantId(), result.merchantId())
-                || !"CNY".equals(result.currency())) {
-            throw new BusinessException(ResultCode.PAYMENT_NOTIFICATION_INVALID);
-        }
-        if (result.amountCents() == null) {
-            if (result.state() == PaymentProviderState.PAID
-                    || result.state() == PaymentProviderState.PENDING
-                    || result.state() == PaymentProviderState.REFUND_PENDING_VERIFICATION
-                    || result.state() == PaymentProviderState.REFUNDED) {
-                throw new BusinessException(ResultCode.PAYMENT_NOTIFICATION_INVALID);
-            }
-        } else if (!Objects.equals(order.getAmountCents(), result.amountCents())) {
-            throw new BusinessException(ResultCode.PAYMENT_AMOUNT_MISMATCH);
-        }
+        ProviderPaymentResultValidator.verifyIdentityAndAmount(
+                order.getOrderNo(), order.getProvider(), order.getAmountCents(), gateway, result);
         boolean transactionRequired = result.state() == PaymentProviderState.PAID
                 || result.state() == PaymentProviderState.REFUND_PENDING_VERIFICATION
                 || result.state() == PaymentProviderState.REFUNDED;

@@ -35,6 +35,7 @@ import {
   type ResumePdfPageMode,
   type ResumePdfPreviewConfig,
 } from '../utils/resumePdf'
+import { downloadResumeMarkdown } from '../utils/resumeMarkdown'
 import {
   normalizeResumeStyle,
   readStoredResumeStyle,
@@ -89,6 +90,7 @@ export default function EditorPage() {
   const [aiModuleId, setAiModuleId] = useState<number | null>(null)
   const [editorView, setEditorView] = useState<EditorView>('module')
   const [exporting, setExporting] = useState(false)
+  const [markdownExporting, setMarkdownExporting] = useState(false)
   const [exportError, setExportError] = useState('')
   const [membershipNavigationError, setMembershipNavigationError] = useState('')
   const [membershipNavigationPending, setMembershipNavigationPending] = useState(false)
@@ -739,6 +741,30 @@ export default function EditorPage() {
     }
   }, [modules.length, pdfPreviewConfig.accentPreset, pdfPreviewConfig.density, pdfPreviewConfig.headingStyle, pdfPreviewConfig.templateId, resumeId, resumeTitle])
 
+  const handleExportMarkdown = useCallback(async () => {
+    if (modules.length === 0) {
+      setExportError('请先完善简历内容后再导出 Markdown')
+      return
+    }
+
+    setMarkdownExporting(true)
+    setExportError('')
+    try {
+      await flushResumeAutoSaves(resumeId)
+      const { data: latestModuleResponse } = await resumeApi.getModules(resumeId)
+      const latestModules = latestModuleResponse.data
+      if (latestModules.length === 0) {
+        throw new Error('请先完善简历内容后再导出 Markdown')
+      }
+      downloadResumeMarkdown(latestModules, resumeId, { documentTitle: resumeTitle })
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : '导出 Markdown 失败，请稍后重试'
+      setExportError(message)
+    } finally {
+      setMarkdownExporting(false)
+    }
+  }, [modules.length, resumeId, resumeTitle])
+
   const openResumeReviewPage = useCallback(async () => {
     setExportError('')
     try {
@@ -1012,9 +1038,11 @@ export default function EditorPage() {
               config={pdfPreviewConfig}
               onConfigChange={handlePdfPreviewConfigChange}
               onExportPdf={(pageMode) => void handleExportPdf(pageMode)}
+              onExportMarkdown={() => void handleExportMarkdown()}
               onRequestReview={() => void openResumeReviewPage()}
               reviewButtonRef={resumeReviewTriggerRef}
               exporting={exporting}
+              markdownExporting={markdownExporting}
               exportError={exportError}
             />
           ) : activeModuleType ? (

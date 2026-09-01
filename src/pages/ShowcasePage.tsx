@@ -188,33 +188,30 @@ function LockedShowcasePreview({ detail }: { detail: ShowcaseDetail }) {
 
 function ShowcaseAiReviewPanel({
   review,
-  fallbackSummary,
 }: {
-  review?: ShowcaseAiReview | null
-  fallbackSummary: string
+  review: ShowcaseAiReview
 }) {
-  const hasReview = review != null
-  const score = review && Number.isFinite(review.overallScore)
+  const score = Number.isFinite(review.overallScore)
     ? Math.max(0, Math.min(100, Math.round(review.overallScore)))
     : null
-  const sections = review?.sections?.filter((section) => (
+  const sections = review.sections?.filter((section) => (
     section.title?.trim() && section.reason?.trim()
   )) ?? []
-  const improvements = review?.improvements?.filter((item) => item?.trim()).slice(0, 3) ?? []
-  const verdict = review?.verdict?.trim() || fallbackSummary.trim()
+  const improvements = review.improvements?.filter((item) => item?.trim()).slice(0, 3) ?? []
+  const verdict = review.verdict?.trim()
 
   return (
     <aside
-      aria-label={hasReview ? 'AI 精选点评' : '精选概览'}
+      aria-label="AI 精选点评"
       className="border border-slate-200 bg-white p-5 shadow-[0_24px_70px_-42px_rgba(15,23,42,0.38)] sm:p-6"
     >
       <div className="flex items-start justify-between gap-5">
         <div>
           <p className="text-xs font-semibold tracking-[0.16em] text-primary-700">
-            {hasReview ? 'AI 简历点评' : '精选概览'}
+            AI 简历点评
           </p>
           <h2 className="mt-2 text-xl font-semibold tracking-[-0.02em] text-slate-950">
-            {hasReview ? '为什么值得参考' : '这份简历的核心特点'}
+            为什么值得参考
           </h2>
         </div>
         {score != null ? (
@@ -446,6 +443,7 @@ export default function ShowcasePage() {
   const [refreshingOrder, setRefreshingOrder] = useState(false)
   const [paymentError, setPaymentError] = useState('')
   const [orderRefreshMessage, setOrderRefreshMessage] = useState('')
+  const [autoRefreshPaused, setAutoRefreshPaused] = useState(false)
   const orderRefreshInFlightRef = useRef<Promise<MarketplaceOrder> | null>(null)
   const orderBootstrapRef = useRef('')
   const resumeStyle = normalizeResumeStyle(detail)
@@ -504,7 +502,7 @@ export default function ShowcasePage() {
   }, [acceptPaidOrder, order, purchaseToken])
 
   useEffect(() => {
-    if (!order || hasMarketplaceOrderAccess(order)
+    if (!order || autoRefreshPaused || hasMarketplaceOrderAccess(order)
       || ['FAILED', 'CLOSED', 'EXPIRED', 'REFUNDED', 'REFUND_REQUIRED'].includes(getMarketplaceOrderStatus(order))) {
       return
     }
@@ -512,11 +510,16 @@ export default function ShowcasePage() {
       const request = refreshPaymentOrder()
       if (!request) return
       void request.catch(() => {
-        // 自动确认失败时保留当前二维码，用户仍可手动确认。
+        // 自动确认失败后暂停轮询，保留当前订单供用户手动重试。
+        setAutoRefreshPaused(true)
       })
     }, 2500)
     return () => window.clearInterval(timer)
-  }, [order, refreshPaymentOrder])
+  }, [autoRefreshPaused, order, refreshPaymentOrder])
+
+  useEffect(() => {
+    setAutoRefreshPaused(false)
+  }, [order?.orderNo])
 
   const createPaymentOrder = useCallback(async () => {
     if (!detail || detail.accessType !== 'PAID' || purchasing || !detail.paymentEnabled) return
@@ -593,11 +596,13 @@ export default function ShowcasePage() {
     try {
       const nextOrder = await refreshPaymentOrder()
       if (!nextOrder) return
+      setAutoRefreshPaused(false)
       const nextStatus = getMarketplaceOrderStatus(nextOrder)
       setOrderRefreshMessage(nextStatus === 'PENDING'
         ? '已查询，当前仍等待支付'
         : `已查询，${getOrderStatusLabel(nextStatus)}`)
     } catch (err: unknown) {
+      setAutoRefreshPaused(true)
       setPaymentError(err instanceof Error ? err.message : '订单状态刷新失败')
     } finally {
       setRefreshingOrder(false)
@@ -654,10 +659,9 @@ export default function ShowcasePage() {
                     />
                   ) : null}
 
-                  <ShowcaseAiReviewPanel
-                    review={detail.aiReview}
-                    fallbackSummary={detail.summary ?? ''}
-                  />
+                  {detail.aiReview ? (
+                    <ShowcaseAiReviewPanel review={detail.aiReview} />
+                  ) : null}
 
                   {detail.accessType !== 'PAID' && detail.locked ? (
                     <button

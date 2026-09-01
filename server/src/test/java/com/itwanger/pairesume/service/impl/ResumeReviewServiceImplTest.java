@@ -516,7 +516,7 @@ class ResumeReviewServiceImplTest {
         ProviderPaymentResult pending = new ProviderPaymentResult(PaymentProviderState.PENDING,
                 "PS5", null, "app", "merchant", "CNY", 100, null);
         ProviderPaymentResult closed = new ProviderPaymentResult(PaymentProviderState.CLOSED,
-                "PS5", null, "app", "merchant", "CNY", 100, null);
+                "PS5", null, "app", "merchant", null, null, null);
         when(paymentGateway.queryOrder("PS5")).thenReturn(pending, closed);
 
         service.reconcileExpiredPayment(5L);

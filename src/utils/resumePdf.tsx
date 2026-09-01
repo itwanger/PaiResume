@@ -1078,12 +1078,14 @@ function estimateContinuousPageHeight(modules: ResumeModule[]) {
 
     if (module.moduleType === 'skill') {
       const content = normalizeSkillContent(module.content)
-      textVolume += textLengthForPage(
-        content.categories.flatMap((category) => [
-          category.name,
-          ...category.items.filter((item) => item.trim().length > 0),
-        ])
+      const visibleSkillItems = content.categories.flatMap((category) =>
+        category.items.filter((item) => item.trim().length > 0)
       )
+      textVolume += textLengthForPage([
+        ...content.categories.map((category) => category.name),
+        ...visibleSkillItems,
+      ])
+      bulletCount += visibleSkillItems.length
       continue
     }
 
@@ -2169,18 +2171,28 @@ function ResumePdfDocument({
                   items: category.items.filter((item) => item.trim().length > 0),
                 }))
                 .filter((category) => category.items.length > 0)
+              const denseSkillKeyPrefix = isVibeResume
+                ? 'vibe'
+                : isCampusBlack
+                  ? 'campus-black'
+                  : 'technical'
               return renderSectionBlock(
                 module.id,
                 '专业技能',
                 (
                   <>
                   {isCampusBlack || isTechnicalBlack || isVibeResume ? visibleCategories.map((category, index) => (
-                    <View key={index} style={styles.listItem}>
-                      {renderBulletItem(
-                        styles,
-                        `${category.name ? `**${category.name}：** ` : ''}${category.items.join('；')}`,
-                        `${isVibeResume ? 'vibe' : isCampusBlack ? 'campus-black' : 'technical'}-skill-${index}`
-                      )}
+                    <View key={index} style={styles.item}>
+                      {category.name.trim() ? <Text style={styles.strong}>{category.name}</Text> : null}
+                      {category.items.map((item, itemIndex) => (
+                        <View key={itemIndex} style={styles.listItem}>
+                          {renderBulletItem(
+                            styles,
+                            item,
+                            `${denseSkillKeyPrefix}-skill-${index}-${itemIndex}`
+                          )}
+                        </View>
+                      ))}
                     </View>
                   )) : visibleCategories.map((category, index) => {
                       const hasTitle = Boolean(category.name.trim())

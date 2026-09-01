@@ -15,9 +15,11 @@ interface ChromePreviewFrameProps {
   config: ResumePdfPreviewConfig
   onConfigChange: (nextConfig: ResumePdfPreviewConfig) => void
   onExportPdf?: (pageMode: ResumePdfPageMode) => void
+  onExportMarkdown?: () => void
   onRequestReview?: () => void
   reviewButtonRef?: Ref<HTMLButtonElement>
   exporting?: boolean
+  markdownExporting?: boolean
   exportError?: string
 }
 
@@ -500,9 +502,11 @@ export function ChromePreviewFrame({
   config,
   onConfigChange,
   onExportPdf,
+  onExportMarkdown,
   onRequestReview,
   reviewButtonRef,
   exporting = false,
+  markdownExporting = false,
   exportError = '',
 }: ChromePreviewFrameProps) {
   const [refreshKey, setRefreshKey] = useState(0)
@@ -556,7 +560,7 @@ export function ChromePreviewFrame({
               onChange={(nextDensity) => updateConfig({ density: nextDensity })}
             />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <button
               type="button"
               onClick={() => setRefreshKey((current) => current + 1)}
@@ -585,9 +589,24 @@ export function ChromePreviewFrame({
                 type="button"
                 onClick={() => onExportPdf(pageMode)}
                 loading={exporting}
+                disabled={markdownExporting}
                 className="shrink-0"
               >
                 导出 PDF
+              </Button>
+            ) : null}
+            {onExportMarkdown ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                aria-label="导出 Markdown"
+                onClick={onExportMarkdown}
+                loading={markdownExporting}
+                disabled={exporting}
+                className="shrink-0"
+              >
+                Markdown
               </Button>
             ) : null}
             {onRequestReview ? (

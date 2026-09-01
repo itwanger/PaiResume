@@ -265,15 +265,23 @@ body {
   box-shadow: none !important;
 }
 
-/* 历史页面里的 primary / violet 按钮都回归品牌蓝，语义性红黄绿仍保留。 */
-.admin-workspace button[class*='bg-primary-']:not(.segmented-control__option),
-.admin-workspace button[class*='bg-violet-']:not(.segmented-control__option) {
+/* 只将历史页面里的实心 primary / violet 按钮收敛为品牌蓝。 */
+.admin-workspace button[class~='bg-primary-500']:not(.segmented-control__option),
+.admin-workspace button[class~='bg-primary-600']:not(.segmented-control__option),
+.admin-workspace button[class~='bg-primary-700']:not(.segmented-control__option),
+.admin-workspace button[class~='bg-violet-500']:not(.segmented-control__option),
+.admin-workspace button[class~='bg-violet-600']:not(.segmented-control__option),
+.admin-workspace button[class~='bg-violet-700']:not(.segmented-control__option) {
   background-color: var(--admin-brand-strong) !important;
   box-shadow: 0 8px 18px -12px rgba(29, 78, 216, 0.9);
 }
 
-.admin-workspace button[class*='bg-primary-']:not(.segmented-control__option):hover:not(:disabled),
-.admin-workspace button[class*='bg-violet-']:not(.segmented-control__option):hover:not(:disabled) {
+.admin-workspace button[class~='bg-primary-500']:not(.segmented-control__option):hover:not(:disabled),
+.admin-workspace button[class~='bg-primary-600']:not(.segmented-control__option):hover:not(:disabled),
+.admin-workspace button[class~='bg-primary-700']:not(.segmented-control__option):hover:not(:disabled),
+.admin-workspace button[class~='bg-violet-500']:not(.segmented-control__option):hover:not(:disabled),
+.admin-workspace button[class~='bg-violet-600']:not(.segmented-control__option):hover:not(:disabled),
+.admin-workspace button[class~='bg-violet-700']:not(.segmented-control__option):hover:not(:disabled) {
   background-color: #1e40af !important;
 }
 

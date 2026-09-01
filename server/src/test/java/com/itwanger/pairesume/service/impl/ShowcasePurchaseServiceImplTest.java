@@ -389,7 +389,9 @@ class ShowcasePurchaseServiceImplTest {
                 transactionId,
                 "mock-app",
                 "mock-merchant",
-                "CNY",
+                state == PaymentProviderState.CLOSED || state == PaymentProviderState.FAILED
+                        ? null
+                        : "CNY",
                 state == PaymentProviderState.CLOSED || state == PaymentProviderState.FAILED
                         ? null
                         : order.getAmountCents(),

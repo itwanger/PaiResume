@@ -582,16 +582,8 @@ public class ResumeReviewServiceImpl implements ResumeReviewService {
     }
 
     private void verifyPayment(ResumeReviewRequest request, ProviderPaymentResult result) {
-        if (result == null || !Objects.equals(request.getOrderNo(), result.orderNo())
-                || !Objects.equals(request.getProvider(), paymentGateway.provider())
-                || !Objects.equals(paymentGateway.expectedAppId(), result.appId())
-                || !Objects.equals(paymentGateway.expectedMerchantId(), result.merchantId())
-                || !"CNY".equals(result.currency())) {
-            throw new BusinessException(ResultCode.PAYMENT_NOTIFICATION_INVALID);
-        }
-        if (result.amountCents() != null && !Objects.equals(request.getPriceCents(), result.amountCents())) {
-            throw new BusinessException(ResultCode.PAYMENT_AMOUNT_MISMATCH);
-        }
+        ProviderPaymentResultValidator.verifyIdentityAndAmount(
+                request.getOrderNo(), request.getProvider(), request.getPriceCents(), paymentGateway, result);
         if (result.state() == PaymentProviderState.PAID
                 && (!StringUtils.hasText(result.transactionId()) || result.paidAt() == null
                 || result.amountCents() == null)) {

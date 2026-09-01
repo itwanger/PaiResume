@@ -469,7 +469,12 @@ public class ResumeServiceImpl implements ResumeService {
         vo.setId(resume.getId());
         vo.setTitle(resume.getTitle());
         applyStyle(resume, vo);
-        vo.setPreview(new ResumeCardPreviewVO());
+        var modules = resumeModuleMapper.selectList(
+                new LambdaQueryWrapper<ResumeModule>()
+                        .eq(ResumeModule::getResumeId, resume.getId())
+                        .orderByAsc(ResumeModule::getSortOrder)
+                        .orderByAsc(ResumeModule::getId));
+        vo.setPreview(buildCardPreview(modules));
         vo.setCreatedAt(resume.getCreatedAt());
         vo.setUpdatedAt(resume.getUpdatedAt());
         return vo;

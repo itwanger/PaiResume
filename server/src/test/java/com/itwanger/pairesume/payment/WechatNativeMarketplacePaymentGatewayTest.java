@@ -14,6 +14,7 @@ import org.springframework.core.io.ResourceLoader;
 import java.time.LocalDateTime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -117,6 +118,25 @@ class WechatNativeMarketplacePaymentGatewayTest {
         ProviderPaymentResult result = gateway(nativePayService).queryOrder("PR-refund");
 
         assertEquals(PaymentProviderState.REFUND_PENDING_VERIFICATION, result.state());
+    }
+
+    @Test
+    void closedTransactionWithoutAmountKeepsFinancialFieldsAbsent() {
+        NativePayService nativePayService = mock(NativePayService.class);
+        Transaction transaction = mock(Transaction.class);
+        when(transaction.getOutTradeNo()).thenReturn("PO-closed");
+        when(transaction.getTradeState()).thenReturn(Transaction.TradeStateEnum.CLOSED);
+        when(transaction.getAppid()).thenReturn("app-id");
+        when(transaction.getMchid()).thenReturn("merchant-id");
+        when(transaction.getAmount()).thenReturn(null);
+        when(nativePayService.queryOrderByOutTradeNo(any())).thenReturn(transaction);
+
+        ProviderPaymentResult result = gateway(nativePayService).queryOrder("PO-closed");
+
+        assertEquals(PaymentProviderState.CLOSED, result.state());
+        assertEquals("PO-closed", result.orderNo());
+        assertNull(result.currency());
+        assertNull(result.amountCents());
     }
 
     private WechatNativeMarketplacePaymentGateway gateway(NativePayService service) {
