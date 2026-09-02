@@ -1,0 +1,104 @@
+<slide>
+  <style>
+    <fill>
+      <fillColor color="rgb(241, 226, 194)"/>
+    </fill>
+  </style>
+  <data>
+    <shape type="rect" topLeftX="0" topLeftY="0" width="960" height="60">
+      <fill>
+        <fillColor color="rgb(22, 70, 184)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="40" topLeftY="15" width="300" height="30">
+      <content textType="caption" fontSize="11" color="rgb(241, 226, 194)" fontFamily="思源黑体" letterSpacing="2">
+        <p>01 / 产品介绍</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="750" topLeftY="15" width="170" height="30">
+      <content textType="caption" fontSize="11" color="rgb(241, 226, 194)" fontFamily="思源黑体" textAlign="right" letterSpacing="2">
+        <p>PAI RESUME · 03</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="60" topLeftY="90" width="440" height="50">
+      <content textType="caption" fontSize="14" color="rgb(255, 79, 135)" fontFamily="思源黑体" bold="true" letterSpacing="3">
+        <p>WHAT IS PAI RESUME</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="55" topLeftY="130" width="450" height="120">
+      <content textType="title" fontSize="44" color="rgb(23, 21, 18)" fontFamily="思源黑体" bold="true" lineSpacing="multiple:1.2">
+        <p>让 AI 和你一起，</p>
+        <p>写一份<span color="rgb(22, 70, 184)">高质量简历</span>。</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="60" topLeftY="270" width="50" height="4">
+      <fill>
+        <fillColor color="rgb(255, 79, 135)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="60" topLeftY="290" width="440" height="100">
+      <content textType="body" fontSize="15" color="rgb(23, 21, 18)" fontFamily="思源宋体" lineSpacing="multiple:1.8">
+        <p>派简历是一款 AI 驱动的在线简历制作工具。从 AI 评分到问题诊断，再到内容优化与智能排版，派简历不仅能为你提供写作灵感，还能把枯燥的工作经历、实习经历和项目经历提炼升华。</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="60" topLeftY="410" width="130" height="100">
+      <fill>
+        <fillColor color="rgb(22, 70, 184)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="70" topLeftY="420" width="110" height="30">
+      <content textType="headline" fontSize="24" color="rgb(241, 226, 194)" fontFamily="思源黑体" bold="true">
+        <p>AI 评分</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="70" topLeftY="455" width="110" height="45">
+      <content textType="caption" fontSize="11" color="rgb(200, 210, 230)" fontFamily="思源黑体" lineSpacing="multiple:1.4">
+        <p>多维度智能诊断，发现简历问题</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="205" topLeftY="410" width="130" height="100">
+      <fill>
+        <fillColor color="rgb(255, 79, 135)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="215" topLeftY="420" width="110" height="30">
+      <content textType="headline" fontSize="24" color="rgb(255, 255, 255)" fontFamily="思源黑体" bold="true">
+        <p>智能优化</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="215" topLeftY="455" width="110" height="45">
+      <content textType="caption" fontSize="11" color="rgb(255, 220, 230)" fontFamily="思源黑体" lineSpacing="multiple:1.4">
+        <p>一键改写经历描述，提升专业度</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="350" topLeftY="410" width="130" height="100">
+      <fill>
+        <fillColor color="rgb(23, 21, 18)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="360" topLeftY="420" width="110" height="30">
+      <content textType="headline" fontSize="24" color="rgb(241, 226, 194)" fontFamily="思源黑体" bold="true">
+        <p>一页排版</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="360" topLeftY="455" width="110" height="45">
+      <content textType="caption" fontSize="11" color="rgb(180, 170, 160)" fontFamily="思源黑体" lineSpacing="multiple:1.4">
+        <p>12种模板，智能长一页，一键导出</p>
+      </content>
+    </shape>
+    <img src="QqISbcjiyoRkPJx8IcWcG02jnYb" topLeftX="540" topLeftY="90" width="380" height="420">
+      <crop type="rect" presetHandlers="4"/>
+      <border color="rgb(23, 21, 18)" width="2"/>
+    </img>
+    <shape type="text" topLeftX="540" topLeftY="515" width="380" height="18">
+      <content textType="caption" fontSize="10" color="rgb(100, 90, 80)" fontFamily="思源黑体" textAlign="center">
+        <p>FIG.02 / 派简历首页</p>
+      </content>
+    </shape>
+  </data>
+  <note>
+    <content textType="body" fontSize="14">
+      <p>派简历的核心价值可以用三个词概括：AI评分、智能优化、一页排版。它不是一个简单的简历模板工具，而是一个AI驱动的简历写作助手，能帮你发现问题、优化内容、最终导出一份专业的简历。</p>
+    </content>
+  </note>
+</slide>

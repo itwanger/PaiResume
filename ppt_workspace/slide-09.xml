@@ -1,0 +1,91 @@
+<slide>
+  <style>
+    <fill>
+      <fillColor color="rgb(23, 21, 18)"/>
+    </fill>
+  </style>
+  <data>
+    <shape type="rect" topLeftX="0" topLeftY="0" width="960" height="60">
+      <fill>
+        <fillColor color="rgb(22, 70, 184)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="40" topLeftY="15" width="300" height="30">
+      <content textType="caption" fontSize="11" color="rgb(241, 226, 194)" fontFamily="思源黑体" letterSpacing="2">
+        <p>02 / 核心功能</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="750" topLeftY="15" width="170" height="30">
+      <content textType="caption" fontSize="11" color="rgb(241, 226, 194)" fontFamily="思源黑体" textAlign="right" letterSpacing="2">
+        <p>PAI RESUME · 09</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="60" topLeftY="90" width="500" height="40">
+      <content textType="caption" fontSize="14" color="rgb(255, 79, 135)" fontFamily="思源黑体" bold="true" letterSpacing="3">
+        <p>LIVE PREVIEW / 实时预览</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="55" topLeftY="130" width="500" height="100">
+      <content textType="title" fontSize="40" color="rgb(241, 226, 194)" fontFamily="思源黑体" bold="true" lineSpacing="multiple:1.2">
+        <p>边写边看，</p>
+        <p>所见即<span color="rgb(255, 79, 135)">所得</span>。</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="60" topLeftY="250" width="50" height="4">
+      <fill>
+        <fillColor color="rgb(255, 79, 135)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="60" topLeftY="270" width="480" height="80">
+      <content textType="body" fontSize="15" color="rgb(200, 190, 180)" fontFamily="思源宋体" lineSpacing="multiple:1.8">
+        <p>填写过程中随时可以切换到文本预览和 PDF 预览。文本预览方便快速浏览内容，PDF 预览则 1:1 还原最终导出效果，共几页、排版如何，一目了然。</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="60" topLeftY="370" width="200" height="130">
+      <fill>
+        <fillColor color="rgb(40, 38, 35)"/>
+      </fill>
+      <border color="rgb(22, 70, 184)" width="1"/>
+    </shape>
+    <shape type="text" topLeftX="75" topLeftY="385" width="170" height="25">
+      <content textType="body" fontSize="15" color="rgb(22, 70, 184)" fontFamily="思源黑体" bold="true">
+        <p>文本预览</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="75" topLeftY="415" width="170" height="75">
+      <content textType="caption" fontSize="11" color="rgb(160, 150, 140)" fontFamily="思源宋体" lineSpacing="multiple:1.6">
+        <p>纯文本形式快速浏览全部内容，方便检查信息完整性和逻辑顺序。</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="280" topLeftY="370" width="200" height="130">
+      <fill>
+        <fillColor color="rgb(40, 38, 35)"/>
+      </fill>
+      <border color="rgb(255, 79, 135)" width="1"/>
+    </shape>
+    <shape type="text" topLeftX="295" topLeftY="385" width="170" height="25">
+      <content textType="body" fontSize="15" color="rgb(255, 79, 135)" fontFamily="思源黑体" bold="true">
+        <p>PDF 预览</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="295" topLeftY="415" width="170" height="75">
+      <content textType="caption" fontSize="11" color="rgb(160, 150, 140)" fontFamily="思源宋体" lineSpacing="multiple:1.6">
+        <p>1:1 还原最终导出效果，分页、排版、字体全部真实呈现。</p>
+      </content>
+    </shape>
+    <img src="BSv7bPO0so4PHIxCgLMcVyUQnWc" topLeftX="530" topLeftY="90" width="370" height="410">
+      <crop type="rect" presetHandlers="4"/>
+      <border color="rgb(241, 226, 194)" width="2"/>
+    </img>
+    <shape type="text" topLeftX="530" topLeftY="505" width="370" height="18">
+      <content textType="caption" fontSize="10" color="rgb(160, 150, 140)" fontFamily="思源黑体" textAlign="center">
+        <p>FIG.11 / PDF 实时预览（3页完整呈现）</p>
+      </content>
+    </shape>
+  </data>
+  <note>
+    <content textType="body" fontSize="14">
+      <p>实时预览是派简历非常贴心的功能。填写过程中随时可以切换到文本预览或PDF预览。文本预览方便快速浏览内容，PDF预览则1:1还原最终导出效果，你能清楚地看到简历有几页、排版如何、有没有溢出。这份简历我们填完后PDF预览显示共3页，内容非常充实。</p>
+    </content>
+  </note>
+</slide>

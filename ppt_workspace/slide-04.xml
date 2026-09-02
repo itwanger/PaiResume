@@ -1,0 +1,106 @@
+<slide>
+  <style>
+    <fill>
+      <fillColor color="rgb(241, 226, 194)"/>
+    </fill>
+  </style>
+  <data>
+    <shape type="rect" topLeftX="0" topLeftY="0" width="960" height="60">
+      <fill>
+        <fillColor color="rgb(22, 70, 184)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="40" topLeftY="15" width="300" height="30">
+      <content textType="caption" fontSize="11" color="rgb(241, 226, 194)" fontFamily="思源黑体" letterSpacing="2">
+        <p>02 / 核心功能</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="750" topLeftY="15" width="170" height="30">
+      <content textType="caption" fontSize="11" color="rgb(241, 226, 194)" fontFamily="思源黑体" textAlign="right" letterSpacing="2">
+        <p>PAI RESUME · 04</p>
+      </content>
+    </shape>
+    <img src="VeXkbfUKCo031nxrz5Mcrd2VnOg" topLeftX="60" topLeftY="90" width="380" height="420">
+      <crop type="rect" presetHandlers="4"/>
+      <border color="rgb(23, 21, 18)" width="2"/>
+    </img>
+    <shape type="text" topLeftX="60" topLeftY="515" width="380" height="18">
+      <content textType="caption" fontSize="10" color="rgb(100, 90, 80)" fontFamily="思源黑体" textAlign="center">
+        <p>FIG.03 / 模块化编辑菜单</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="490" topLeftY="90" width="420" height="40">
+      <content textType="caption" fontSize="14" color="rgb(255, 79, 135)" fontFamily="思源黑体" bold="true" letterSpacing="3">
+        <p>MODULAR EDITING / 模块化编辑</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="485" topLeftY="130" width="430" height="80">
+      <content textType="title" fontSize="36" color="rgb(23, 21, 18)" fontFamily="思源黑体" bold="true" lineSpacing="multiple:1.2">
+        <p>9大模块，</p>
+        <p>按需组合你的简历。</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="490" topLeftY="225" width="50" height="4">
+      <fill>
+        <fillColor color="rgb(255, 79, 135)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="490" topLeftY="245" width="420" height="60">
+      <content textType="body" fontSize="14" color="rgb(23, 21, 18)" fontFamily="思源宋体" lineSpacing="multiple:1.7">
+        <p>基本信息、教育背景、实习经历、项目经历、科研经历、专业技能、论文期刊、荣誉奖项、工作经历——9大模块自由组合，只展示你想展示的内容。</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="490" topLeftY="320" width="200" height="80">
+      <fill>
+        <fillColor color="rgb(255, 255, 255)"/>
+      </fill>
+      <border color="rgb(22, 70, 184)" width="1"/>
+    </shape>
+    <shape type="text" topLeftX="505" topLeftY="330" width="170" height="25">
+      <content textType="body" fontSize="15" color="rgb(22, 70, 184)" fontFamily="思源黑体" bold="true">
+        <p>灵活添加删除</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="505" topLeftY="358" width="170" height="35">
+      <content textType="caption" fontSize="11" color="rgb(100, 90, 80)" fontFamily="思源黑体" lineSpacing="multiple:1.4">
+        <p>不需要的模块一键删除，需要的随时添加</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="710" topLeftY="320" width="200" height="80">
+      <fill>
+        <fillColor color="rgb(255, 255, 255)"/>
+      </fill>
+      <border color="rgb(255, 79, 135)" width="1"/>
+    </shape>
+    <shape type="text" topLeftX="725" topLeftY="330" width="170" height="25">
+      <content textType="body" fontSize="15" color="rgb(255, 79, 135)" fontFamily="思源黑体" bold="true">
+        <p>自由调整顺序</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="725" topLeftY="358" width="170" height="35">
+      <content textType="caption" fontSize="11" color="rgb(100, 90, 80)" fontFamily="思源黑体" lineSpacing="multiple:1.4">
+        <p>拖拽调整模块顺序，突出你的核心优势</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="490" topLeftY="420" width="420" height="90">
+      <fill>
+        <fillColor color="rgb(23, 21, 18)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="510" topLeftY="435" width="380" height="25">
+      <content textType="body" fontSize="14" color="rgb(241, 226, 194)" fontFamily="思源黑体" bold="true">
+        <p>从历史资料填入</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="510" topLeftY="465" width="380" height="35">
+      <content textType="caption" fontSize="12" color="rgb(180, 170, 160)" fontFamily="思源宋体" lineSpacing="multiple:1.5">
+        <p>填写过的内容自动保存，新建简历一键导入，不用重复填写。你的简历资料库，越用越聪明。</p>
+      </content>
+    </shape>
+  </data>
+  <note>
+    <content textType="body" fontSize="14">
+      <p>模块化编辑是派简历的基础功能。9大模块覆盖了简历所需的所有内容类型，你可以根据自己的情况灵活添加、删除和调整顺序。更贴心的是"从历史资料填入"功能，填写过的内容会自动保存，下次新建简历时一键导入。</p>
+    </content>
+  </note>
+</slide>

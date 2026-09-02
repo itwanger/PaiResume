@@ -3,6 +3,7 @@ import { useParams, useSearchParams } from 'react-router-dom'
 import { resumeApi } from '../api/resume'
 import { useResumeStore } from '../store/resumeStore'
 import {
+  DEFAULT_RESUME_PDF_PREVIEW_CONFIG,
   generateResumePdfPreviewAsset,
   resolveResumePdfAccentPreset,
   resolveResumePdfDensity,
@@ -30,7 +31,9 @@ export default function ChromePreviewPage() {
   const refreshToken = searchParams.get('refresh') ?? ''
   const pageMode: ResumePdfPageMode = searchParams.get('pageMode') === 'continuous'
     ? 'continuous'
-    : 'standard'
+    : searchParams.get('pageMode') === 'standard'
+      ? 'standard'
+      : DEFAULT_RESUME_PDF_PREVIEW_CONFIG.pageMode
   const templateId: ResumePdfTemplateId = resolveResumePdfTemplateId(searchParams.get('templateId'))
   const densityParam = searchParams.get('density')
   const accentPresetParam = searchParams.get('accentPreset')

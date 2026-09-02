@@ -1,0 +1,89 @@
+<slide>
+  <style>
+    <fill>
+      <fillColor color="rgb(241, 226, 194)"/>
+    </fill>
+  </style>
+  <data>
+    <shape type="rect" topLeftX="0" topLeftY="0" width="960" height="60">
+      <fill>
+        <fillColor color="rgb(22, 70, 184)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="40" topLeftY="15" width="300" height="30">
+      <content textType="caption" fontSize="11" color="rgb(241, 226, 194)" fontFamily="思源黑体" letterSpacing="2">
+        <p>04 / 排版导出</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="750" topLeftY="15" width="170" height="30">
+      <content textType="caption" fontSize="11" color="rgb(241, 226, 194)" fontFamily="思源黑体" textAlign="right" letterSpacing="2">
+        <p>PAI RESUME · 10</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="60" topLeftY="80" width="500" height="35">
+      <content textType="caption" fontSize="14" color="rgb(255, 79, 135)" fontFamily="思源黑体" bold="true" letterSpacing="3">
+        <p>LAYOUT &amp; EXPORT / 排版导出</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="55" topLeftY="115" width="500" height="50">
+      <content textType="title" fontSize="36" color="rgb(23, 21, 18)" fontFamily="思源黑体" bold="true">
+        <p>12种模板，一键导出专业PDF</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="60" topLeftY="172" width="50" height="4">
+      <fill>
+        <fillColor color="rgb(255, 79, 135)"/>
+      </fill>
+    </shape>
+    <img src="DxA8bSPznoNmSvxVXFica45VnFh" topLeftX="60" topLeftY="195" width="430" height="155">
+      <crop type="rect" presetHandlers="4"/>
+      <border color="rgb(23, 21, 18)" width="2"/>
+    </img>
+    <shape type="text" topLeftX="60" topLeftY="353" width="430" height="16">
+      <content textType="caption" fontSize="9" color="rgb(100, 90, 80)" fontFamily="思源黑体" textAlign="center">
+        <p>FIG.12 / 排版导出主界面（标准PDF/智能长一页/密度切换）</p>
+      </content>
+    </shape>
+    <img src="NS4jby8NJozFkWxTyHFczFh1nTc" topLeftX="510" topLeftY="195" width="390" height="155">
+      <crop type="rect" presetHandlers="4"/>
+      <border color="rgb(23, 21, 18)" width="2"/>
+    </img>
+    <shape type="text" topLeftX="510" topLeftY="353" width="390" height="16">
+      <content textType="caption" fontSize="9" color="rgb(100, 90, 80)" fontFamily="思源黑体" textAlign="center">
+        <p>FIG.13 / 12种模板任选（蓝调重点已选中）</p>
+      </content>
+    </shape>
+    <img src="MQxOb8tSpoj6xgxgciLcZn4gnHf" topLeftX="60" topLeftY="385" width="280" height="130">
+      <crop type="rect" presetHandlers="4"/>
+      <border color="rgb(22, 70, 184)" width="2"/>
+    </img>
+    <shape type="text" topLeftX="60" topLeftY="518" width="280" height="14">
+      <content textType="caption" fontSize="9" color="rgb(22, 70, 184)" fontFamily="思源黑体" textAlign="center" bold="true">
+        <p>智能长一页（内容无损）</p>
+      </content>
+    </shape>
+    <img src="NKW6bGE6Go1T1qx4yVLckyhxn9e" topLeftX="360" topLeftY="385" width="280" height="130">
+      <crop type="rect" presetHandlers="4"/>
+      <border color="rgb(255, 79, 135)" width="2"/>
+    </img>
+    <shape type="text" topLeftX="360" topLeftY="518" width="280" height="14">
+      <content textType="caption" fontSize="9" color="rgb(255, 79, 135)" fontFamily="思源黑体" textAlign="center" bold="true">
+        <p>紧凑密度（信息更密集）</p>
+      </content>
+    </shape>
+    <img src="DbtwbSEJgouQCKxDUrJcXT4cnEh" topLeftX="660" topLeftY="385" width="240" height="130">
+      <crop type="rect" presetHandlers="4"/>
+      <border color="rgb(23, 21, 18)" width="2"/>
+    </img>
+    <shape type="text" topLeftX="660" topLeftY="518" width="240" height="14">
+      <content textType="caption" fontSize="9" color="rgb(23, 21, 18)" fontFamily="思源黑体" textAlign="center" bold="true">
+        <p>一键导出PDF</p>
+      </content>
+    </shape>
+  </data>
+  <note>
+    <content textType="body" fontSize="14">
+      <p>排版导出是派简历最惊艳的功能。12种精美模板任选，从系统默认、蓝调重点、校园技术蓝到Vibe高密技术，总有一款适合你。更厉害的是"智能长一页"功能，能把多页简历内容无损压缩到一页，特别适合校招投递。还有标准/紧凑两种密度切换，最后一键导出PDF，整个过程不到10秒。</p>
+    </content>
+  </note>
+</slide>

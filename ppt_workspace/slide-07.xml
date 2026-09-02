@@ -1,0 +1,67 @@
+<slide>
+  <style>
+    <fill>
+      <fillColor color="rgb(241, 226, 194)"/>
+    </fill>
+  </style>
+  <data>
+    <shape type="rect" topLeftX="0" topLeftY="0" width="960" height="60">
+      <fill>
+        <fillColor color="rgb(22, 70, 184)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="40" topLeftY="15" width="300" height="30">
+      <content textType="caption" fontSize="11" color="rgb(241, 226, 194)" fontFamily="思源黑体" letterSpacing="2">
+        <p>03 / 实战演示</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="750" topLeftY="15" width="170" height="30">
+      <content textType="caption" fontSize="11" color="rgb(241, 226, 194)" fontFamily="思源黑体" textAlign="right" letterSpacing="2">
+        <p>PAI RESUME · 07</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="60" topLeftY="85" width="500" height="35">
+      <content textType="caption" fontSize="14" color="rgb(255, 79, 135)" fontFamily="思源黑体" bold="true" letterSpacing="3">
+        <p>LIVE DEMO / 经历是简历的灵魂</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="55" topLeftY="120" width="600" height="50">
+      <content textType="title" fontSize="34" color="rgb(23, 21, 18)" fontFamily="思源黑体" bold="true">
+        <p>第二步：科研经历 + 实习经历</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="60" topLeftY="178" width="50" height="4">
+      <fill>
+        <fillColor color="rgb(255, 79, 135)"/>
+      </fill>
+    </shape>
+    <img src="Ag0rb7hwZon1xJxrCCvcGPYjn1g" topLeftX="60" topLeftY="200" width="410" height="290">
+      <crop type="rect" presetHandlers="4"/>
+      <border color="rgb(23, 21, 18)" width="2"/>
+    </img>
+    <shape type="text" topLeftX="60" topLeftY="495" width="410" height="18">
+      <content textType="caption" fontSize="10" color="rgb(100, 90, 80)" fontFamily="思源黑体" textAlign="center">
+        <p>FIG.07 / 科研经历填写</p>
+      </content>
+    </shape>
+    <img src="QESibQ9NWotF6xxOn9tcqYBWnwh" topLeftX="490" topLeftY="200" width="410" height="290">
+      <crop type="rect" presetHandlers="4"/>
+      <border color="rgb(23, 21, 18)" width="2"/>
+    </img>
+    <shape type="text" topLeftX="490" topLeftY="495" width="410" height="18">
+      <content textType="caption" fontSize="10" color="rgb(100, 90, 80)" fontFamily="思源黑体" textAlign="center">
+        <p>FIG.08 / 实习经历填写（字节+百度）</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="60" topLeftY="520" width="840" height="1">
+      <fill>
+        <fillColor color="rgb(200, 185, 160)"/>
+      </fill>
+    </shape>
+  </data>
+  <note>
+    <content textType="body" fontSize="14">
+      <p>第二步是填写科研经历和实习经历，这是简历的灵魂。科研经历支持项目背景、工作内容、研究成果的结构化填写，还能标注论文投稿状态。实习经历采用"管理项目"的方式，每段实习可以包含多个项目，每个项目都有项目名称、角色、时间、技术栈、项目简介和核心职责。这份简历里我们填了字节跳动和百度两段实习。</p>
+    </content>
+  </note>
+</slide>

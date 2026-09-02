@@ -1,0 +1,96 @@
+<slide>
+  <style>
+    <fill>
+      <fillColor color="rgb(23, 21, 18)"/>
+    </fill>
+  </style>
+  <data>
+    <shape type="rect" topLeftX="0" topLeftY="0" width="960" height="60">
+      <fill>
+        <fillColor color="rgb(22, 70, 184)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="40" topLeftY="15" width="300" height="30">
+      <content textType="caption" fontSize="11" color="rgb(241, 226, 194)" fontFamily="思源黑体" letterSpacing="2">
+        <p>02 / 核心功能</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="750" topLeftY="15" width="170" height="30">
+      <content textType="caption" fontSize="11" color="rgb(241, 226, 194)" fontFamily="思源黑体" textAlign="right" letterSpacing="2">
+        <p>PAI RESUME · 05</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="60" topLeftY="90" width="500" height="40">
+      <content textType="caption" fontSize="14" color="rgb(255, 79, 135)" fontFamily="思源黑体" bold="true" letterSpacing="3">
+        <p>AI OPTIMIZATION / AI 智能优化</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="55" topLeftY="130" width="500" height="120">
+      <content textType="title" fontSize="42" color="rgb(241, 226, 194)" fontFamily="思源黑体" bold="true" lineSpacing="multiple:1.2">
+        <p>不会写经历？</p>
+        <p>让 AI <span color="rgb(255, 79, 135)">帮你写</span>。</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="60" topLeftY="270" width="50" height="4">
+      <fill>
+        <fillColor color="rgb(255, 79, 135)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="60" topLeftY="290" width="480" height="80">
+      <content textType="body" fontSize="15" color="rgb(200, 190, 180)" fontFamily="思源宋体" lineSpacing="multiple:1.8">
+        <p>每一条经历描述旁边都有"AI优化"按钮。点击一下，AI 就能把你干巴巴的工作描述，改写成专业、有亮点、有数据支撑的简历语言。</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="60" topLeftY="390" width="220" height="120">
+      <fill>
+        <fillColor color="rgb(40, 38, 35)"/>
+      </fill>
+      <border color="rgb(22, 70, 184)" width="1"/>
+    </shape>
+    <shape type="text" topLeftX="75" topLeftY="405" width="190" height="25">
+      <content textType="body" fontSize="14" color="rgb(22, 70, 184)" fontFamily="思源黑体" bold="true">
+        <p>优化前</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="75" topLeftY="435" width="190" height="65">
+      <content textType="caption" fontSize="12" color="rgb(160, 150, 140)" fontFamily="思源宋体" lineSpacing="multiple:1.6">
+        <p>"负责后端开发，写了一些接口，参与了项目的部分工作。"</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="295" topLeftY="430" width="40" height="40">
+      <content textType="headline" fontSize="28" color="rgb(255, 79, 135)" fontFamily="思源黑体" bold="true" textAlign="center">
+        <p>→</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="350" topLeftY="390" width="220" height="120">
+      <fill>
+        <fillColor color="rgb(40, 38, 35)"/>
+      </fill>
+      <border color="rgb(255, 79, 135)" width="1"/>
+    </shape>
+    <shape type="text" topLeftX="365" topLeftY="405" width="190" height="25">
+      <content textType="body" fontSize="14" color="rgb(255, 79, 135)" fontFamily="思源黑体" bold="true">
+        <p>优化后</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="365" topLeftY="435" width="190" height="65">
+      <content textType="caption" fontSize="12" color="rgb(220, 210, 200)" fontFamily="思源宋体" lineSpacing="multiple:1.6">
+        <p>"主导核心服务后端架构设计，实现 15+ 高并发接口，QPS 提升 40%，系统可用性达 99.9%。"</p>
+      </content>
+    </shape>
+    <img src="JTKpblIU0ojqn1xRzTScVULmnZg" topLeftX="610" topLeftY="90" width="310" height="420">
+      <crop type="rect" presetHandlers="4"/>
+      <border color="rgb(241, 226, 194)" width="2"/>
+    </img>
+    <shape type="text" topLeftX="610" topLeftY="515" width="310" height="18">
+      <content textType="caption" fontSize="10" color="rgb(160, 150, 140)" fontFamily="思源黑体" textAlign="center">
+        <p>FIG.04 / 专业技能模块 AI 优化入口</p>
+      </content>
+    </shape>
+  </data>
+  <note>
+    <content textType="body" fontSize="14">
+      <p>AI智能优化是派简历最实用的功能之一。很多同学写简历时最大的痛点就是"不会描述自己的经历"，干巴巴的几句话完全体现不出价值。派简历在每一条经历旁边都放了AI优化按钮，点击一下就能生成专业、有数据支撑的描述。</p>
+    </content>
+  </note>
+</slide>

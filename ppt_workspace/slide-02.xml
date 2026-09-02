@@ -1,0 +1,141 @@
+<slide>
+  <style>
+    <fill>
+      <fillColor color="rgb(241, 226, 194)"/>
+    </fill>
+  </style>
+  <data>
+    <shape type="rect" topLeftX="0" topLeftY="0" width="960" height="60">
+      <fill>
+        <fillColor color="rgb(22, 70, 184)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="40" topLeftY="15" width="300" height="30">
+      <content textType="caption" fontSize="11" color="rgb(241, 226, 194)" fontFamily="思源黑体" letterSpacing="2">
+        <p>CONTENTS / 目录</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="750" topLeftY="15" width="170" height="30">
+      <content textType="caption" fontSize="11" color="rgb(241, 226, 194)" fontFamily="思源黑体" textAlign="right" letterSpacing="2">
+        <p>PAI RESUME · 02</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="60" topLeftY="90" width="400" height="60">
+      <content textType="title" fontSize="42" color="rgb(23, 21, 18)" fontFamily="思源黑体" bold="true">
+        <p>本期目录</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="60" topLeftY="155" width="60" height="4">
+      <fill>
+        <fillColor color="rgb(255, 79, 135)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="60" topLeftY="190" width="420" height="50">
+      <content textType="body" fontSize="14" color="rgb(23, 21, 18)" fontFamily="思源宋体" lineSpacing="multiple:1.6">
+        <p>从产品介绍到实战演示，全方位展示派简历如何帮助你打造一份让面试官心动的高质量简历。</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="540" topLeftY="90" width="60" height="40">
+      <content textType="headline" fontSize="28" color="rgb(22, 70, 184)" fontFamily="思源黑体" bold="true">
+        <p>01</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="610" topLeftY="95" width="300" height="30">
+      <content textType="body" fontSize="18" color="rgb(23, 21, 18)" fontFamily="思源黑体" bold="true">
+        <p>产品介绍</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="610" topLeftY="122" width="300" height="20">
+      <content textType="caption" fontSize="11" color="rgb(100, 90, 80)" fontFamily="思源黑体">
+        <p>什么是派简历 · 核心价值</p>
+      </content>
+    </shape>
+    <line startX="540" startY="155" endX="900" endY="155">
+      <border color="rgb(200, 185, 160)" width="1"/>
+    </line>
+    <shape type="text" topLeftX="540" topLeftY="170" width="60" height="40">
+      <content textType="headline" fontSize="28" color="rgb(22, 70, 184)" fontFamily="思源黑体" bold="true">
+        <p>02</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="610" topLeftY="175" width="300" height="30">
+      <content textType="body" fontSize="18" color="rgb(23, 21, 18)" fontFamily="思源黑体" bold="true">
+        <p>核心功能</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="610" topLeftY="202" width="300" height="20">
+      <content textType="caption" fontSize="11" color="rgb(100, 90, 80)" fontFamily="思源黑体">
+        <p>模块化编辑 · AI优化 · 实时预览</p>
+      </content>
+    </shape>
+    <line startX="540" startY="235" endX="900" endY="235">
+      <border color="rgb(200, 185, 160)" width="1"/>
+    </line>
+    <shape type="text" topLeftX="540" topLeftY="250" width="60" height="40">
+      <content textType="headline" fontSize="28" color="rgb(22, 70, 184)" fontFamily="思源黑体" bold="true">
+        <p>03</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="610" topLeftY="255" width="300" height="30">
+      <content textType="body" fontSize="18" color="rgb(23, 21, 18)" fontFamily="思源黑体" bold="true">
+        <p>实战演示</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="610" topLeftY="282" width="300" height="20">
+      <content textType="caption" fontSize="11" color="rgb(100, 90, 80)" fontFamily="思源黑体">
+        <p>27届Agent开发岗简历全流程</p>
+      </content>
+    </shape>
+    <line startX="540" startY="315" endX="900" endY="315">
+      <border color="rgb(200, 185, 160)" width="1"/>
+    </line>
+    <shape type="text" topLeftX="540" topLeftY="330" width="60" height="40">
+      <content textType="headline" fontSize="28" color="rgb(22, 70, 184)" fontFamily="思源黑体" bold="true">
+        <p>04</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="610" topLeftY="335" width="300" height="30">
+      <content textType="body" fontSize="18" color="rgb(23, 21, 18)" fontFamily="思源黑体" bold="true">
+        <p>排版导出</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="610" topLeftY="362" width="300" height="20">
+      <content textType="caption" fontSize="11" color="rgb(100, 90, 80)" fontFamily="思源黑体">
+        <p>12种模板 · 智能长一页 · 一键导出</p>
+      </content>
+    </shape>
+    <line startX="540" startY="395" endX="900" endY="395">
+      <border color="rgb(200, 185, 160)" width="1"/>
+    </line>
+    <shape type="text" topLeftX="540" topLeftY="410" width="60" height="40">
+      <content textType="headline" fontSize="28" color="rgb(255, 79, 135)" fontFamily="思源黑体" bold="true">
+        <p>05</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="610" topLeftY="415" width="300" height="30">
+      <content textType="body" fontSize="18" color="rgb(23, 21, 18)" fontFamily="思源黑体" bold="true">
+        <p>立即开始</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="610" topLeftY="442" width="300" height="20">
+      <content textType="caption" fontSize="11" color="rgb(100, 90, 80)" fontFamily="思源黑体">
+        <p>扫码使用 · 让AI帮你写简历</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="60" topLeftY="470" width="400" height="50">
+      <fill>
+        <fillColor color="rgb(22, 70, 184)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="80" topLeftY="480" width="360" height="30">
+      <content textType="caption" fontSize="13" color="rgb(241, 226, 194)" fontFamily="思源黑体" letterSpacing="1">
+        <p>resume.paicoding.com · 扫码开始制作</p>
+      </content>
+    </shape>
+  </data>
+  <note>
+    <content textType="body" fontSize="14">
+      <p>本次分享分为五个部分：产品介绍、核心功能、实战演示、排版导出和立即开始。我们会用一份真实的27届Agent开发岗简历，从头到尾演示派简历的完整使用流程。</p>
+    </content>
+  </note>
+</slide>

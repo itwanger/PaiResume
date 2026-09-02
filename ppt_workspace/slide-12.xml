@@ -1,0 +1,91 @@
+<slide>
+  <style>
+    <fill>
+      <fillColor color="rgb(22, 70, 184)"/>
+    </fill>
+  </style>
+  <data>
+    <shape type="rect" topLeftX="0" topLeftY="0" width="960" height="60">
+      <fill>
+        <fillColor color="rgb(23, 21, 18)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="40" topLeftY="15" width="300" height="30">
+      <content textType="caption" fontSize="11" color="rgb(241, 226, 194)" fontFamily="思源黑体" letterSpacing="2">
+        <p>05 / 立即开始</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="750" topLeftY="15" width="170" height="30">
+      <content textType="caption" fontSize="11" color="rgb(241, 226, 194)" fontFamily="思源黑体" textAlign="right" letterSpacing="2">
+        <p>PAI RESUME · 12</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="60" topLeftY="100" width="500" height="40">
+      <content textType="caption" fontSize="16" color="rgb(255, 79, 135)" fontFamily="思源黑体" bold="true" letterSpacing="4">
+        <p>GET STARTED NOW</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="55" topLeftY="145" width="700" height="180">
+      <content textType="title" fontSize="72" color="rgb(241, 226, 194)" fontFamily="思源黑体" bold="true" lineSpacing="multiple:1.15" letterSpacing="-2">
+        <p>你的下一份</p>
+        <p>好简历，</p>
+        <p>从<span color="rgb(255, 79, 135)">派简历</span>开始。</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="60" topLeftY="350" width="60" height="4">
+      <fill>
+        <fillColor color="rgb(255, 79, 135)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="60" topLeftY="370" width="500" height="50">
+      <content textType="body" fontSize="18" color="rgb(220, 210, 200)" fontFamily="思源宋体" lineSpacing="multiple:1.6">
+        <p>扫码访问，立即开始制作你的专属简历。</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="60" topLeftY="440" width="400" height="70">
+      <fill>
+        <fillColor color="rgb(241, 226, 194)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="80" topLeftY="450" width="360" height="25">
+      <content textType="body" fontSize="16" color="rgb(22, 70, 184)" fontFamily="思源黑体" bold="true">
+        <p>resume.paicoding.com</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="80" topLeftY="478" width="360" height="25">
+      <content textType="caption" fontSize="12" color="rgb(100, 90, 80)" fontFamily="思源黑体">
+        <p>AI 驱动的智能简历工具 · 免费使用</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="500" topLeftY="440" width="70" height="70">
+      <fill>
+        <fillColor color="rgb(255, 79, 135)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="500" topLeftY="455" width="70" height="40">
+      <content textType="headline" fontSize="28" color="rgb(255, 255, 255)" fontFamily="思源黑体" bold="true" textAlign="center">
+        <p>AI</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="590" topLeftY="450" width="320" height="25">
+      <content textType="body" fontSize="14" color="rgb(241, 226, 194)" fontFamily="思源黑体" bold="true">
+        <p>让 AI 和你一起写简历</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="590" topLeftY="478" width="320" height="25">
+      <content textType="caption" fontSize="11" color="rgb(180, 190, 210)" fontFamily="思源黑体">
+        <p>AI 评分 · 智能优化 · 一页排版 · 一键导出</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="60" topLeftY="525" width="840" height="15">
+      <content textType="caption" fontSize="10" color="rgb(180, 190, 210)" fontFamily="思源黑体" textAlign="center" letterSpacing="2">
+        <p>PAI RESUME · 让每个人都拥有一份好简历 · VOL.01 · 2026</p>
+      </content>
+    </shape>
+  </data>
+  <note>
+    <content textType="body" fontSize="14">
+      <p>最后，邀请大家立即开始使用派简历。访问resume.paicoding.com，免费注册，就能开始制作你的专属简历。AI评分帮你发现问题，智能优化帮你提升内容，12种模板和智能长一页帮你排版，最后一键导出PDF。从今天开始，让AI和你一起写一份让面试官心动的好简历。谢谢大家！</p>
+    </content>
+  </note>
+</slide>

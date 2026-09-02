@@ -628,8 +628,8 @@ export function ChromePreviewFrame({
         ) : null}
       </div>
 
-      <div className="grid bg-slate-100 lg:h-[calc(100vh-12rem)] lg:min-h-[500px] lg:grid-cols-[232px_minmax(0,1fr)] lg:overflow-hidden">
-        <aside className="border-b border-slate-200 bg-white lg:overflow-y-auto lg:border-b-0 lg:border-r">
+      <div className="grid grid-cols-[minmax(0,1fr)] bg-slate-100 lg:h-[calc(100vh-12rem)] lg:min-h-[500px] lg:grid-cols-[232px_minmax(0,1fr)] lg:overflow-hidden">
+        <aside className="min-w-0 border-b border-slate-200 bg-white lg:overflow-y-auto lg:border-b-0 lg:border-r">
           <div className="sticky top-0 z-10 border-b border-slate-200 bg-white p-3">
             <SegmentedControl
               ariaLabel="预览设置"
@@ -707,7 +707,7 @@ export function ChromePreviewFrame({
         <section
           aria-label="PDF 预览区域"
           tabIndex={0}
-          className="h-[72dvh] min-h-[420px] overflow-hidden bg-slate-100 p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500 sm:p-5 lg:h-auto lg:min-h-0"
+          className="h-[72dvh] min-h-[420px] min-w-0 overflow-hidden bg-slate-100 p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500 sm:p-5 lg:h-auto lg:min-h-0"
         >
           <div className="mx-auto h-full w-full max-w-[980px]">
             <div className="h-full overflow-hidden border border-slate-200 bg-white shadow-[0_12px_32px_rgba(15,23,42,0.12)]">

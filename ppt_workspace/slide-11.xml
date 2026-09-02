@@ -1,0 +1,107 @@
+<slide>
+  <style>
+    <fill>
+      <fillColor color="rgb(23, 21, 18)"/>
+    </fill>
+  </style>
+  <data>
+    <shape type="rect" topLeftX="0" topLeftY="0" width="960" height="60">
+      <fill>
+        <fillColor color="rgb(22, 70, 184)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="40" topLeftY="15" width="300" height="30">
+      <content textType="caption" fontSize="11" color="rgb(241, 226, 194)" fontFamily="思源黑体" letterSpacing="2">
+        <p>04 / 排版导出</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="750" topLeftY="15" width="170" height="30">
+      <content textType="caption" fontSize="11" color="rgb(241, 226, 194)" fontFamily="思源黑体" textAlign="right" letterSpacing="2">
+        <p>PAI RESUME · 11</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="60" topLeftY="85" width="500" height="35">
+      <content textType="caption" fontSize="14" color="rgb(255, 79, 135)" fontFamily="思源黑体" bold="true" letterSpacing="3">
+        <p>FINAL RESULT / 最终效果</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="55" topLeftY="120" width="450" height="100">
+      <content textType="title" fontSize="40" color="rgb(241, 226, 194)" fontFamily="思源黑体" bold="true" lineSpacing="multiple:1.2">
+        <p>从空白到专业，</p>
+        <p>只用了<span color="rgb(255, 79, 135)">15分钟</span>。</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="60" topLeftY="240" width="50" height="4">
+      <fill>
+        <fillColor color="rgb(255, 79, 135)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="60" topLeftY="260" width="420" height="100">
+      <content textType="body" fontSize="15" color="rgb(200, 190, 180)" fontFamily="思源宋体" lineSpacing="multiple:1.8">
+        <p>一份包含基本信息、教育背景、科研经历、两段实习、专业技能、项目经历的完整 Agent 开发岗简历，蓝调重点模板，智能长一页，紧凑密度，一键导出 PDF。</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="60" topLeftY="380" width="130" height="120">
+      <fill>
+        <fillColor color="rgb(40, 38, 35)"/>
+      </fill>
+      <border color="rgb(22, 70, 184)" width="1"/>
+    </shape>
+    <shape type="text" topLeftX="70" topLeftY="395" width="110" height="40">
+      <content textType="headline" fontSize="32" color="rgb(22, 70, 184)" fontFamily="思源黑体" bold="true">
+        <p>6大</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="70" topLeftY="440" width="110" height="50">
+      <content textType="caption" fontSize="11" color="rgb(160, 150, 140)" fontFamily="思源黑体" lineSpacing="multiple:1.4">
+        <p>模块全部填写完成，内容充实</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="205" topLeftY="380" width="130" height="120">
+      <fill>
+        <fillColor color="rgb(40, 38, 35)"/>
+      </fill>
+      <border color="rgb(255, 79, 135)" width="1"/>
+    </shape>
+    <shape type="text" topLeftX="215" topLeftY="395" width="110" height="40">
+      <content textType="headline" fontSize="32" color="rgb(255, 79, 135)" fontFamily="思源黑体" bold="true">
+        <p>1页</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="215" topLeftY="440" width="110" height="50">
+      <content textType="caption" fontSize="11" color="rgb(160, 150, 140)" fontFamily="思源黑体" lineSpacing="multiple:1.4">
+        <p>智能长一页，内容无损压缩</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="350" topLeftY="380" width="130" height="120">
+      <fill>
+        <fillColor color="rgb(40, 38, 35)"/>
+      </fill>
+      <border color="rgb(241, 226, 194)" width="1"/>
+    </shape>
+    <shape type="text" topLeftX="360" topLeftY="395" width="110" height="40">
+      <content textType="headline" fontSize="32" color="rgb(241, 226, 194)" fontFamily="思源黑体" bold="true">
+        <p>10s</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="360" topLeftY="440" width="110" height="50">
+      <content textType="caption" fontSize="11" color="rgb(160, 150, 140)" fontFamily="思源黑体" lineSpacing="multiple:1.4">
+        <p>从排版到导出PDF，一键完成</p>
+      </content>
+    </shape>
+    <img src="ALRPbLoKkodvu0xzrVUcY6NmnXg" topLeftX="530" topLeftY="85" width="370" height="420">
+      <crop type="rect" presetHandlers="4"/>
+      <border color="rgb(241, 226, 194)" width="2"/>
+    </img>
+    <shape type="text" topLeftX="530" topLeftY="510" width="370" height="18">
+      <content textType="caption" fontSize="10" color="rgb(160, 150, 140)" fontFamily="思源黑体" textAlign="center">
+        <p>FIG.14 / 最终简历效果（蓝调重点模板）</p>
+      </content>
+    </shape>
+  </data>
+  <note>
+    <content textType="body" fontSize="14">
+      <p>这就是最终效果。从空白简历到一份专业的Agent开发岗简历，我们只用了大约15分钟。6大模块全部填写完成，包含两段大厂实习和科研经历。通过智能长一页功能，所有内容无损压缩到一页，蓝调重点模板，紧凑密度，最后一键导出PDF。整个流程非常顺畅。</p>
+    </content>
+  </note>
+</slide>

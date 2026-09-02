@@ -103,6 +103,15 @@ export interface ResumePdfPreviewMeta {
 
 export const RESUME_PDF_TEMPLATES: ResumePdfTemplateOption[] = [
   {
+    id: 'focus',
+    icon: '◎',
+    name: '重点聚焦',
+    description: '加大关键信息对比，适合想突出经历亮点的场景。',
+    previewTitle: '重点聚焦',
+    previewSummary: '适合想把核心项目和关键能力快速抛给招聘方的简历。',
+    previewHighlights: ['重点对比', '亮点更显', '扫描更快'],
+  },
+  {
     id: 'default',
     icon: '◫',
     name: '系统默认',
@@ -201,21 +210,12 @@ export const RESUME_PDF_TEMPLATES: ResumePdfTemplateOption[] = [
     previewSummary: '适合后端、基础架构类简历，观感更像高质量技术文档。',
     previewHighlights: ['冷灰色系', '文档感强', '结构优先'],
   },
-  {
-    id: 'focus',
-    icon: '◎',
-    name: '重点聚焦',
-    description: '加大关键信息对比，适合想突出经历亮点的场景。',
-    previewTitle: '重点聚焦',
-    previewSummary: '适合想把核心项目和关键能力快速抛给招聘方的简历。',
-    previewHighlights: ['重点对比', '亮点更显', '扫描更快'],
-  },
 ]
 
 export const DEFAULT_RESUME_PDF_PREVIEW_CONFIG: ResumePdfPreviewConfig = {
-  pageMode: 'standard',
-  templateId: 'default',
-  density: 'normal',
+  pageMode: 'continuous',
+  templateId: 'focus',
+  density: 'compact',
   accentPreset: 'auto',
   headingStyle: 'auto',
 }
@@ -229,14 +229,14 @@ export function resolveResumePdfTemplateId(value: string | null | undefined): Re
   if (value && RESUME_PDF_TEMPLATE_IDS.has(value as ResumePdfTemplateId)) {
     return value as ResumePdfTemplateId
   }
-  return 'default'
+  return DEFAULT_RESUME_PDF_PREVIEW_CONFIG.templateId
 }
 
 export function resolveResumePdfDensity(value: string | null | undefined): ResumePdfDensity {
   if (value && RESUME_PDF_DENSITIES.has(value as ResumePdfDensity)) {
     return value as ResumePdfDensity
   }
-  return 'normal'
+  return DEFAULT_RESUME_PDF_PREVIEW_CONFIG.density
 }
 
 export function resolveResumePdfAccentPreset(value: string | null | undefined): ResumePdfAccentPreset {
@@ -1322,7 +1322,7 @@ function ResumePdfDocument({
   modules,
   documentTitle,
   pageSize = 'A4',
-  templateId = 'default',
+  templateId = DEFAULT_RESUME_PDF_PREVIEW_CONFIG.templateId,
   density = DEFAULT_RESUME_PDF_PREVIEW_CONFIG.density,
   accentPreset = DEFAULT_RESUME_PDF_PREVIEW_CONFIG.accentPreset,
   headingStyle = DEFAULT_RESUME_PDF_PREVIEW_CONFIG.headingStyle,
@@ -2325,7 +2325,8 @@ function buildResumePdfPreviewMeta(
   modules: ResumeModule[],
   options?: ResumePdfOptions
 ): ResumePdfPreviewMeta {
-  const fallbackHeight = options?.pageMode === 'continuous'
+  const pageMode = options?.pageMode ?? DEFAULT_RESUME_PDF_PREVIEW_CONFIG.pageMode
+  const fallbackHeight = pageMode === 'continuous'
     ? estimateContinuousPageHeight(modules)
     : A4_HEIGHT
   const rootNode = layout && typeof layout === 'object'
@@ -2334,7 +2335,7 @@ function buildResumePdfPreviewMeta(
   const layoutPages = Array.isArray(rootNode?.children) ? rootNode.children : []
   const pageHeights = layoutPages
     .map((page) => {
-      const pageHeight = options?.pageMode === 'continuous'
+      const pageHeight = pageMode === 'continuous'
         ? getContinuousPageContentHeight(page, options)
         : page?.box?.height
       return typeof pageHeight === 'number' && Number.isFinite(pageHeight) && pageHeight > 0
@@ -2415,7 +2416,7 @@ async function renderResumePdfAsset(
       modules={modules}
       documentTitle={buildFileName(modules, undefined, options)}
       pageSize={pageSize}
-      templateId={options?.templateId ?? 'default'}
+      templateId={options?.templateId ?? DEFAULT_RESUME_PDF_PREVIEW_CONFIG.templateId}
       density={options?.density}
       accentPreset={options?.accentPreset}
       headingStyle={options?.headingStyle}
@@ -2437,7 +2438,8 @@ async function renderResumePdfAsset(
 }
 
 export async function generateResumePdfPreviewAsset(modules: ResumeModule[], options?: ResumePdfOptions) {
-  if (options?.pageMode === 'continuous') {
+  const pageMode = options?.pageMode ?? DEFAULT_RESUME_PDF_PREVIEW_CONFIG.pageMode
+  if (pageMode === 'continuous') {
     const estimatedHeight = estimateContinuousPageHeight(modules)
     const firstPass = await renderResumePdfAsset(modules, [A4_WIDTH, estimatedHeight], options)
     const actualHeight = firstPass.previewMeta.pageHeights[0]

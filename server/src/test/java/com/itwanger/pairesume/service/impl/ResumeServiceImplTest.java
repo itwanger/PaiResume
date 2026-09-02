@@ -189,7 +189,11 @@ class ResumeServiceImplTest {
 
         ArgumentCaptor<Resume> resumeCaptor = ArgumentCaptor.forClass(Resume.class);
         verify(resumeMapper).insert(resumeCaptor.capture());
-        assertEquals("Java 后端求职简历", resumeCaptor.getValue().getTitle());
+        Resume createdResume = resumeCaptor.getValue();
+        assertEquals("Java 后端求职简历", createdResume.getTitle());
+        assertEquals("continuous", createdResume.getPageMode());
+        assertEquals("focus", createdResume.getTemplateId());
+        assertEquals("compact", createdResume.getPdfDensity());
     }
 
     @Test

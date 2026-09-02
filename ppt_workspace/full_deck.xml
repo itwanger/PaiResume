@@ -1,0 +1,1150 @@
+<presentation id="KC2FsqD98lE6ArdUE33c1qCEnXc" xmlns="https://www.larkoffice.com/sml/2.0" width="960" height="540">
+  <title>派简历 - 让每个人都拥有一份好简历</title>
+  <theme>
+    <textStyles>
+      <headline fontColor="rgba(31, 35, 41, 1)"/>
+      <sub-headline fontColor="rgba(31, 35, 41, 1)"/>
+      <body fontColor="rgba(31, 35, 41, 1)"/>
+      <caption fontColor="rgba(155, 158, 162, 1)" fontSize="14"/>
+    </textStyles>
+  </theme>
+  <slide id="pww">
+    <style>
+      <fill id="fww">
+        <fillColor color="rgba(241, 226, 194, 1)"/>
+      </fill>
+    </style>
+    <data>
+      <shape width="960" height="80" topLeftX="0" topLeftY="0" presetHandlers="0" type="rect" id="bDP">
+        <fill>
+          <fillColor color="rgba(22, 70, 184, 1)"/>
+        </fill>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="400" height="40" topLeftX="40" topLeftY="20" type="text" id="bDU">
+        <content textType="caption" fontSize="12" fontFamily="思源黑体" color="rgba(241, 226, 194, 1)" letterSpacing="2">
+          <p>PAI RESUME · VOL.01 · 2026</p>
+        </content>
+      </shape>
+      <shape width="220" height="40" topLeftX="700" topLeftY="20" type="text" id="bDd">
+        <content textType="caption" fontSize="12" fontFamily="思源黑体" color="rgba(241, 226, 194, 1)" letterSpacing="2" textAlign="right">
+          <p>ISSUE / 创刊号</p>
+        </content>
+      </shape>
+      <shape width="600" height="40" topLeftX="60" topLeftY="100" type="text" id="bDw">
+        <content textType="caption" fontSize="16" fontFamily="思源黑体" color="rgba(255, 79, 135, 1)" bold="true" letterSpacing="4">
+          <p>AI 驱动的智能简历工具</p>
+        </content>
+      </shape>
+      <shape width="560" height="120" topLeftX="55" topLeftY="150" type="text" id="bDK">
+        <content textType="title" fontSize="96" fontFamily="思源黑体" color="rgba(23, 21, 18, 1)" bold="true" letterSpacing="-2" wrap="false">
+          <p>派简历</p>
+        </content>
+      </shape>
+      <shape width="560" height="50" topLeftX="60" topLeftY="270" type="text" id="bDD">
+        <content textType="headline" fontSize="36" fontFamily="思源黑体" color="rgba(22, 70, 184, 1)" bold="true" letterSpacing="4" wrap="false">
+          <p>PAI <span color="rgba(255, 79, 135, 1)">RESUME</span></p>
+        </content>
+      </shape>
+      <shape width="480" height="70" topLeftX="60" topLeftY="340" type="text" id="bDr">
+        <content fontSize="18" fontFamily="思源宋体" color="rgba(23, 21, 18, 1)" lineSpacing="multiple:1.6">
+          <p>让 AI 和你一起，写一份高质量简历。</p>
+          <p>面试官和 HR 看一眼就会爱上。</p>
+        </content>
+      </shape>
+      <shape width="3" height="50" topLeftX="60" topLeftY="430" presetHandlers="0" type="rect" id="bDS">
+        <fill>
+          <fillColor color="rgba(255, 79, 135, 1)"/>
+        </fill>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="400" height="50" topLeftX="75" topLeftY="430" type="text" id="bDv">
+        <content textType="caption" fontSize="12" fontFamily="思源黑体" color="rgba(23, 21, 18, 1)">
+          <p>AI 评分 · 智能优化 · 一页排版</p>
+          <p>从发现问题到完成修改，一站式搞定</p>
+        </content>
+      </shape>
+      <img id="bDV" src="ALRPbLoKkodvu0xzrVUcY6NmnXg" width="300" height="170" topLeftX="620" topLeftY="320">
+        <crop type="rect" leftOffset="0" rightOffset="0" topOffset="83.4507042253521" bottomOffset="83.4507042253521" presetHandlers="4"/>
+        <border color="rgba(23, 21, 18, 1)"/>
+      </img>
+      <shape width="300" height="18" topLeftX="620" topLeftY="495" type="text" id="bDO">
+        <content textType="caption" fontSize="10" fontFamily="思源黑体" color="rgba(23, 21, 18, 1)" textAlign="center">
+          <p>FIG.01 / 实时预览效果</p>
+        </content>
+      </shape>
+    </data>
+    <note id="bDJ">
+      <content>
+        <p>大家好，今天给大家介绍一款AI驱动的智能简历工具——派简历。它的核心理念是让AI和你一起写一份高质量简历，从AI评分到问题诊断，再到内容优化与智能排版，一站式搞定。</p>
+      </content>
+    </note>
+  </slide>
+  <slide id="pwq">
+    <style>
+      <fill id="fwq">
+        <fillColor color="rgba(241, 226, 194, 1)"/>
+      </fill>
+    </style>
+    <data>
+      <shape width="960" height="60" topLeftX="0" topLeftY="0" presetHandlers="0" type="rect" id="bJU">
+        <fill>
+          <fillColor color="rgba(22, 70, 184, 1)"/>
+        </fill>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="300" height="30" topLeftX="40" topLeftY="15" type="text" id="bJu">
+        <content textType="caption" fontSize="11" fontFamily="思源黑体" color="rgba(241, 226, 194, 1)" letterSpacing="2">
+          <p>CONTENTS / 目录</p>
+        </content>
+      </shape>
+      <shape width="170" height="30" topLeftX="750" topLeftY="15" type="text" id="bJx">
+        <content textType="caption" fontSize="11" fontFamily="思源黑体" color="rgba(241, 226, 194, 1)" letterSpacing="2" textAlign="right">
+          <p>PAI RESUME · 02</p>
+        </content>
+      </shape>
+      <shape width="400" height="60" topLeftX="60" topLeftY="90" type="text" id="bJS">
+        <content textType="title" fontSize="42" fontFamily="思源黑体" color="rgba(23, 21, 18, 1)" bold="true">
+          <p>本期目录</p>
+        </content>
+      </shape>
+      <shape width="60" height="4" topLeftX="60" topLeftY="155" presetHandlers="0" type="rect" id="bJW">
+        <fill>
+          <fillColor color="rgba(255, 79, 135, 1)"/>
+        </fill>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="420" height="50" topLeftX="60" topLeftY="190" type="text" id="bJc">
+        <content fontSize="14" fontFamily="思源宋体" color="rgba(23, 21, 18, 1)" lineSpacing="multiple:1.6">
+          <p>从产品介绍到实战演示，全方位展示派简历如何帮助你打造一份让面试官心动的高质量简历。</p>
+        </content>
+      </shape>
+      <shape width="60" height="40" topLeftX="540" topLeftY="90" type="text" id="bJz">
+        <content textType="headline" fontSize="28" fontFamily="思源黑体" color="rgba(22, 70, 184, 1)" bold="true">
+          <p>01</p>
+        </content>
+      </shape>
+      <shape width="300" height="30" topLeftX="610" topLeftY="95" type="text" id="bDt">
+        <content fontSize="18" fontFamily="思源黑体" color="rgba(23, 21, 18, 1)" bold="true">
+          <p>产品介绍</p>
+        </content>
+      </shape>
+      <shape width="300" height="20" topLeftX="610" topLeftY="122" type="text" id="bJd">
+        <content textType="caption" fontSize="11" fontFamily="思源黑体" color="rgba(100, 90, 80, 1)">
+          <p>什么是派简历 · 核心价值</p>
+        </content>
+      </shape>
+      <line id="bJm" startX="540" startY="155" endX="900.0013888862097" endY="155">
+        <border color="rgba(200, 185, 160, 1)" width="1"/>
+      </line>
+      <shape width="60" height="40" topLeftX="540" topLeftY="170" type="text" id="bJh">
+        <content textType="headline" fontSize="28" fontFamily="思源黑体" color="rgba(22, 70, 184, 1)" bold="true">
+          <p>02</p>
+        </content>
+      </shape>
+      <shape width="300" height="30" topLeftX="610" topLeftY="175" type="text" id="bDR">
+        <content fontSize="18" fontFamily="思源黑体" color="rgba(23, 21, 18, 1)" bold="true">
+          <p>核心功能</p>
+        </content>
+      </shape>
+      <shape width="300" height="20" topLeftX="610" topLeftY="202" type="text" id="bJv">
+        <content textType="caption" fontSize="11" fontFamily="思源黑体" color="rgba(100, 90, 80, 1)">
+          <p>模块化编辑 · AI优化 · 实时预览</p>
+        </content>
+      </shape>
+      <line id="bJX" startX="540" startY="235" endX="900.0013888862097" endY="235">
+        <border color="rgba(200, 185, 160, 1)" width="1"/>
+      </line>
+      <shape width="60" height="40" topLeftX="540" topLeftY="250" type="text" id="bJo">
+        <content textType="headline" fontSize="28" fontFamily="思源黑体" color="rgba(22, 70, 184, 1)" bold="true">
+          <p>03</p>
+        </content>
+      </shape>
+      <shape width="300" height="30" topLeftX="610" topLeftY="255" type="text" id="bJJ">
+        <content fontSize="18" fontFamily="思源黑体" color="rgba(23, 21, 18, 1)" bold="true">
+          <p>实战演示</p>
+        </content>
+      </shape>
+      <shape width="300" height="20" topLeftX="610" topLeftY="282" type="text" id="bJw">
+        <content textType="caption" fontSize="11" fontFamily="思源黑体" color="rgba(100, 90, 80, 1)">
+          <p>27届Agent开发岗简历全流程</p>
+        </content>
+      </shape>
+      <line id="bJs" startX="540" startY="315" endX="900.0013888862097" endY="315">
+        <border color="rgba(200, 185, 160, 1)" width="1"/>
+      </line>
+      <shape width="60" height="40" topLeftX="540" topLeftY="330" type="text" id="bJD">
+        <content textType="headline" fontSize="28" fontFamily="思源黑体" color="rgba(22, 70, 184, 1)" bold="true">
+          <p>04</p>
+        </content>
+      </shape>
+      <shape width="300" height="30" topLeftX="610" topLeftY="335" type="text" id="bJV">
+        <content fontSize="18" fontFamily="思源黑体" color="rgba(23, 21, 18, 1)" bold="true">
+          <p>排版导出</p>
+        </content>
+      </shape>
+      <shape width="300" height="20" topLeftX="610" topLeftY="362" type="text" id="bJB">
+        <content textType="caption" fontSize="11" fontFamily="思源黑体" color="rgba(100, 90, 80, 1)">
+          <p>12种模板 · 智能长一页 · 一键导出</p>
+        </content>
+      </shape>
+      <line id="bJP" startX="540" startY="395" endX="900.0013888862097" endY="395">
+        <border color="rgba(200, 185, 160, 1)" width="1"/>
+      </line>
+      <shape width="60" height="40" topLeftX="540" topLeftY="410" type="text" id="bJK">
+        <content textType="headline" fontSize="28" fontFamily="思源黑体" color="rgba(255, 79, 135, 1)" bold="true">
+          <p>05</p>
+        </content>
+      </shape>
+      <shape width="300" height="30" topLeftX="610" topLeftY="415" type="text" id="bJF">
+        <content fontSize="18" fontFamily="思源黑体" color="rgba(23, 21, 18, 1)" bold="true">
+          <p>立即开始</p>
+        </content>
+      </shape>
+      <shape width="300" height="20" topLeftX="610" topLeftY="442" type="text" id="bJY">
+        <content textType="caption" fontSize="11" fontFamily="思源黑体" color="rgba(100, 90, 80, 1)">
+          <p>扫码使用 · 让AI帮你写简历</p>
+        </content>
+      </shape>
+      <shape width="400" height="50" topLeftX="60" topLeftY="470" presetHandlers="0" type="rect" id="bJr">
+        <fill>
+          <fillColor color="rgba(22, 70, 184, 1)"/>
+        </fill>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="360" height="30" topLeftX="80" topLeftY="480" type="text" id="bJO">
+        <content textType="caption" fontSize="13" fontFamily="思源黑体" color="rgba(241, 226, 194, 1)" letterSpacing="1">
+          <p>resume.paicoding.com · 扫码开始制作</p>
+        </content>
+      </shape>
+    </data>
+    <note id="bJZ">
+      <content>
+        <p>本次分享分为五个部分：产品介绍、核心功能、实战演示、排版导出和立即开始。我们会用一份真实的27届Agent开发岗简历，从头到尾演示派简历的完整使用流程。</p>
+      </content>
+    </note>
+  </slide>
+  <slide id="pwI">
+    <style>
+      <fill id="fwI">
+        <fillColor color="rgba(241, 226, 194, 1)"/>
+      </fill>
+    </style>
+    <data>
+      <shape width="960" height="60" topLeftX="0" topLeftY="0" presetHandlers="0" type="rect" id="bDI">
+        <fill>
+          <fillColor color="rgba(22, 70, 184, 1)"/>
+        </fill>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="300" height="30" topLeftX="40" topLeftY="15" type="text" id="bDf">
+        <content textType="caption" fontSize="11" fontFamily="思源黑体" color="rgba(241, 226, 194, 1)" letterSpacing="2">
+          <p>01 / 产品介绍</p>
+        </content>
+      </shape>
+      <shape width="170" height="30" topLeftX="750" topLeftY="15" type="text" id="bDi">
+        <content textType="caption" fontSize="11" fontFamily="思源黑体" color="rgba(241, 226, 194, 1)" letterSpacing="2" textAlign="right">
+          <p>PAI RESUME · 03</p>
+        </content>
+      </shape>
+      <shape width="440" height="50" topLeftX="60" topLeftY="90" type="text" id="bDH">
+        <content textType="caption" fontSize="14" fontFamily="思源黑体" color="rgba(255, 79, 135, 1)" bold="true" letterSpacing="3">
+          <p>WHAT IS PAI RESUME</p>
+        </content>
+      </shape>
+      <shape width="450" height="120" topLeftX="55" topLeftY="130" type="text" id="bDq">
+        <content textType="title" fontSize="44" fontFamily="思源黑体" color="rgba(23, 21, 18, 1)" bold="true" lineSpacing="multiple:1.2">
+          <p>让 AI 和你一起，</p>
+          <p>写一份<span color="rgba(22, 70, 184, 1)">高质量简历</span>。</p>
+        </content>
+      </shape>
+      <shape width="50" height="4" topLeftX="60" topLeftY="270" presetHandlers="0" type="rect" id="bDp">
+        <fill>
+          <fillColor color="rgba(255, 79, 135, 1)"/>
+        </fill>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="440" height="100" topLeftX="60" topLeftY="290" type="text" id="bDa">
+        <content fontSize="15" fontFamily="思源宋体" color="rgba(23, 21, 18, 1)" lineSpacing="multiple:1.8">
+          <p>派简历是一款 AI 驱动的在线简历制作工具。从 AI 评分到问题诊断，再到内容优化与智能排版，派简历不仅能为你提供写作灵感，还能把枯燥的工作经历、实习经历和项目经历提炼升华。</p>
+        </content>
+      </shape>
+      <shape width="130" height="100" topLeftX="60" topLeftY="410" presetHandlers="0" type="rect" id="bDL">
+        <fill>
+          <fillColor color="rgba(22, 70, 184, 1)"/>
+        </fill>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="110" height="30" topLeftX="70" topLeftY="420" type="text" id="bDj">
+        <content textType="headline" fontSize="24" fontFamily="思源黑体" color="rgba(241, 226, 194, 1)" bold="true">
+          <p>AI 评分</p>
+        </content>
+      </shape>
+      <shape width="110" height="45" topLeftX="70" topLeftY="455" type="text" id="bDM">
+        <content textType="caption" fontSize="11" fontFamily="思源黑体" color="rgba(200, 210, 230, 1)" lineSpacing="multiple:1.4">
+          <p>多维度智能诊断，发现简历问题</p>
+        </content>
+      </shape>
+      <shape width="130" height="100" topLeftX="205" topLeftY="410" presetHandlers="0" type="rect" id="bDN">
+        <fill>
+          <fillColor color="rgba(255, 79, 135, 1)"/>
+        </fill>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="110" height="30" topLeftX="215" topLeftY="420" type="text" id="bDb">
+        <content textType="headline" fontSize="24" fontFamily="思源黑体" color="rgba(255, 255, 255, 1)" bold="true">
+          <p>智能优化</p>
+        </content>
+      </shape>
+      <shape width="110" height="45" topLeftX="215" topLeftY="455" type="text" id="bDg">
+        <content textType="caption" fontSize="11" fontFamily="思源黑体" color="rgba(255, 220, 230, 1)" lineSpacing="multiple:1.4">
+          <p>一键改写经历描述，提升专业度</p>
+        </content>
+      </shape>
+      <shape width="130" height="100" topLeftX="350" topLeftY="410" presetHandlers="0" type="rect" id="bDT">
+        <fill>
+          <fillColor color="rgba(23, 21, 18, 1)"/>
+        </fill>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="110" height="30" topLeftX="360" topLeftY="420" type="text" id="bDQ">
+        <content textType="headline" fontSize="24" fontFamily="思源黑体" color="rgba(241, 226, 194, 1)" bold="true">
+          <p>一页排版</p>
+        </content>
+      </shape>
+      <shape width="110" height="45" topLeftX="360" topLeftY="455" type="text" id="bDk">
+        <content textType="caption" fontSize="11" fontFamily="思源黑体" color="rgba(180, 170, 160, 1)" lineSpacing="multiple:1.4">
+          <p>12种模板，智能长一页，一键导出</p>
+        </content>
+      </shape>
+      <img id="bDe" src="QqISbcjiyoRkPJx8IcWcG02jnYb" width="380" height="420" topLeftX="540" topLeftY="90">
+        <crop type="rect" leftOffset="0" rightOffset="-5.684341886080802e-14" topOffset="3.3708920187793296" bottomOffset="3.370892018779273" presetHandlers="4"/>
+        <border color="rgba(23, 21, 18, 1)"/>
+      </img>
+      <shape width="380" height="18" topLeftX="540" topLeftY="515" type="text" id="bDn">
+        <content textType="caption" fontSize="10" fontFamily="思源黑体" color="rgba(100, 90, 80, 1)" textAlign="center">
+          <p>FIG.02 / 派简历首页</p>
+        </content>
+      </shape>
+    </data>
+    <note id="bDl">
+      <content>
+        <p>派简历的核心价值可以用三个词概括：AI评分、智能优化、一页排版。它不是一个简单的简历模板工具，而是一个AI驱动的简历写作助手，能帮你发现问题、优化内容、最终导出一份专业的简历。</p>
+      </content>
+    </note>
+  </slide>
+  <slide id="pwk">
+    <style>
+      <fill id="fwk">
+        <fillColor color="rgba(241, 226, 194, 1)"/>
+      </fill>
+    </style>
+    <data>
+      <shape width="960" height="60" topLeftX="0" topLeftY="0" presetHandlers="0" type="rect" id="bDB">
+        <fill>
+          <fillColor color="rgba(22, 70, 184, 1)"/>
+        </fill>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="300" height="30" topLeftX="40" topLeftY="15" type="text" id="bDz">
+        <content textType="caption" fontSize="11" fontFamily="思源黑体" color="rgba(241, 226, 194, 1)" letterSpacing="2">
+          <p>02 / 核心功能</p>
+        </content>
+      </shape>
+      <shape width="170" height="30" topLeftX="750" topLeftY="15" type="text" id="bDh">
+        <content textType="caption" fontSize="11" fontFamily="思源黑体" color="rgba(241, 226, 194, 1)" letterSpacing="2" textAlign="right">
+          <p>PAI RESUME · 04</p>
+        </content>
+      </shape>
+      <img id="bDA" src="VeXkbfUKCo031nxrz5Mcrd2VnOg" width="380" height="420" topLeftX="60" topLeftY="90">
+        <crop type="rect" leftOffset="0" rightOffset="-5.684341886080802e-14" topOffset="3.3708920187793296" bottomOffset="3.370892018779273" presetHandlers="4"/>
+        <border color="rgba(23, 21, 18, 1)"/>
+      </img>
+      <shape width="380" height="18" topLeftX="60" topLeftY="515" type="text" id="bDW">
+        <content textType="caption" fontSize="10" fontFamily="思源黑体" color="rgba(100, 90, 80, 1)" textAlign="center">
+          <p>FIG.03 / 模块化编辑菜单</p>
+        </content>
+      </shape>
+      <shape width="420" height="40" topLeftX="490" topLeftY="90" type="text" id="bDs">
+        <content textType="caption" fontSize="14" fontFamily="思源黑体" color="rgba(255, 79, 135, 1)" bold="true" letterSpacing="3">
+          <p>MODULAR EDITING / 模块化编辑</p>
+        </content>
+      </shape>
+      <shape width="430" height="80" topLeftX="485" topLeftY="130" type="text" id="bDx">
+        <content textType="title" fontSize="36" fontFamily="思源黑体" color="rgba(23, 21, 18, 1)" bold="true" lineSpacing="multiple:1.2">
+          <p>9大模块，</p>
+          <p>按需组合你的简历。</p>
+        </content>
+      </shape>
+      <shape width="50" height="4" topLeftX="490" topLeftY="225" presetHandlers="0" type="rect" id="bDE">
+        <fill>
+          <fillColor color="rgba(255, 79, 135, 1)"/>
+        </fill>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="420" height="60" topLeftX="490" topLeftY="245" type="text" id="bDG">
+        <content fontSize="14" fontFamily="思源宋体" color="rgba(23, 21, 18, 1)" lineSpacing="multiple:1.7">
+          <p>基本信息、教育背景、实习经历、项目经历、科研经历、专业技能、论文期刊、荣誉奖项、工作经历——9大模块自由组合，只展示你想展示的内容。</p>
+        </content>
+      </shape>
+      <shape width="200" height="80" topLeftX="490" topLeftY="320" presetHandlers="0" type="rect" id="bDC">
+        <fill>
+          <fillColor color="rgba(255, 255, 255, 1)"/>
+        </fill>
+        <border color="rgba(22, 70, 184, 1)" width="1"/>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="170" height="25" topLeftX="505" topLeftY="330" type="text" id="bDu">
+        <content fontSize="15" fontFamily="思源黑体" color="rgba(22, 70, 184, 1)" bold="true">
+          <p>灵活添加删除</p>
+        </content>
+      </shape>
+      <shape width="170" height="35" topLeftX="505" topLeftY="358" type="text" id="bDX">
+        <content textType="caption" fontSize="11" fontFamily="思源黑体" color="rgba(100, 90, 80, 1)" lineSpacing="multiple:1.4">
+          <p>不需要的模块一键删除，需要的随时添加</p>
+        </content>
+      </shape>
+      <shape width="200" height="80" topLeftX="710" topLeftY="320" presetHandlers="0" type="rect" id="bDZ">
+        <fill>
+          <fillColor color="rgba(255, 255, 255, 1)"/>
+        </fill>
+        <border color="rgba(255, 79, 135, 1)" width="1"/>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="170" height="25" topLeftX="725" topLeftY="330" type="text" id="bDF">
+        <content fontSize="15" fontFamily="思源黑体" color="rgba(255, 79, 135, 1)" bold="true">
+          <p>自由调整顺序</p>
+        </content>
+      </shape>
+      <shape width="170" height="35" topLeftX="725" topLeftY="358" type="text" id="bDm">
+        <content textType="caption" fontSize="11" fontFamily="思源黑体" color="rgba(100, 90, 80, 1)" lineSpacing="multiple:1.4">
+          <p>拖拽调整模块顺序，突出你的核心优势</p>
+        </content>
+      </shape>
+      <shape width="420" height="90" topLeftX="490" topLeftY="420" presetHandlers="0" type="rect" id="bDY">
+        <fill>
+          <fillColor color="rgba(23, 21, 18, 1)"/>
+        </fill>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="380" height="25" topLeftX="510" topLeftY="435" type="text" id="bDo">
+        <content fontSize="14" fontFamily="思源黑体" color="rgba(241, 226, 194, 1)" bold="true">
+          <p>从历史资料填入</p>
+        </content>
+      </shape>
+      <shape width="380" height="35" topLeftX="510" topLeftY="465" type="text" id="bDy">
+        <content textType="caption" fontSize="12" fontFamily="思源宋体" color="rgba(180, 170, 160, 1)">
+          <p>填写过的内容自动保存，新建简历一键导入，不用重复填写。你的简历资料库，越用越聪明。</p>
+        </content>
+      </shape>
+    </data>
+    <note id="bDc">
+      <content>
+        <p>模块化编辑是派简历的基础功能。9大模块覆盖了简历所需的所有内容类型，你可以根据自己的情况灵活添加、删除和调整顺序。更贴心的是&quot;从历史资料填入&quot;功能，填写过的内容会自动保存，下次新建简历时一键导入。</p>
+      </content>
+    </note>
+  </slide>
+  <slide id="pwh">
+    <style>
+      <fill id="fwh">
+        <fillColor color="rgba(23, 21, 18, 1)"/>
+      </fill>
+    </style>
+    <data>
+      <shape width="960" height="60" topLeftX="0" topLeftY="0" presetHandlers="0" type="rect" id="bJg">
+        <fill>
+          <fillColor color="rgba(22, 70, 184, 1)"/>
+        </fill>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="300" height="30" topLeftX="40" topLeftY="15" type="text" id="bJM">
+        <content textType="caption" fontSize="11" fontFamily="思源黑体" color="rgba(241, 226, 194, 1)" letterSpacing="2">
+          <p>02 / 核心功能</p>
+        </content>
+      </shape>
+      <shape width="170" height="30" topLeftX="750" topLeftY="15" type="text" id="bJR">
+        <content textType="caption" fontSize="11" fontFamily="思源黑体" color="rgba(241, 226, 194, 1)" letterSpacing="2" textAlign="right">
+          <p>PAI RESUME · 05</p>
+        </content>
+      </shape>
+      <shape width="500" height="40" topLeftX="60" topLeftY="90" type="text" id="brr">
+        <content textType="caption" fontSize="14" fontFamily="思源黑体" color="rgba(255, 79, 135, 1)" bold="true" letterSpacing="3">
+          <p>AI OPTIMIZATION / AI 智能优化</p>
+        </content>
+      </shape>
+      <shape width="500" height="120" topLeftX="55" topLeftY="130" type="text" id="bJn">
+        <content textType="title" fontSize="42" fontFamily="思源黑体" color="rgba(241, 226, 194, 1)" bold="true" lineSpacing="multiple:1.2">
+          <p>不会写经历？</p>
+          <p>让 AI <span color="rgba(255, 79, 135, 1)">帮你写</span>。</p>
+        </content>
+      </shape>
+      <shape width="50" height="4" topLeftX="60" topLeftY="270" presetHandlers="0" type="rect" id="bJT">
+        <fill>
+          <fillColor color="rgba(255, 79, 135, 1)"/>
+        </fill>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="480" height="80" topLeftX="60" topLeftY="290" type="text" id="bJQ">
+        <content fontSize="15" fontFamily="思源宋体" color="rgba(200, 190, 180, 1)" lineSpacing="multiple:1.8">
+          <p>每一条经历描述旁边都有&quot;AI优化&quot;按钮。点击一下，AI 就能把你干巴巴的工作描述，改写成专业、有亮点、有数据支撑的简历语言。</p>
+        </content>
+      </shape>
+      <shape width="220" height="120" topLeftX="60" topLeftY="390" presetHandlers="0" type="rect" id="bJt">
+        <fill>
+          <fillColor color="rgba(40, 38, 35, 1)"/>
+        </fill>
+        <border color="rgba(22, 70, 184, 1)" width="1"/>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="190" height="25" topLeftX="75" topLeftY="405" type="text" id="bJH">
+        <content fontSize="14" fontFamily="思源黑体" color="rgba(22, 70, 184, 1)" bold="true">
+          <p>优化前</p>
+        </content>
+      </shape>
+      <shape width="190" height="65" topLeftX="75" topLeftY="435" type="text" id="bJl">
+        <content textType="caption" fontSize="12" fontFamily="思源宋体" color="rgba(160, 150, 140, 1)" lineSpacing="multiple:1.6">
+          <p>&quot;负责后端开发，写了一些接口，参与了项目的部分工作。&quot;</p>
+        </content>
+      </shape>
+      <shape width="40" height="40" topLeftX="295" topLeftY="430" type="text" id="bJI">
+        <content textType="headline" fontSize="28" fontFamily="思源黑体" color="rgba(255, 79, 135, 1)" bold="true" textAlign="center">
+          <p>→</p>
+        </content>
+      </shape>
+      <shape width="220" height="120" topLeftX="350" topLeftY="390" presetHandlers="0" type="rect" id="brD">
+        <fill>
+          <fillColor color="rgba(40, 38, 35, 1)"/>
+        </fill>
+        <border color="rgba(255, 79, 135, 1)" width="1"/>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="190" height="25" topLeftX="365" topLeftY="405" type="text" id="bJj">
+        <content fontSize="14" fontFamily="思源黑体" color="rgba(255, 79, 135, 1)" bold="true">
+          <p>优化后</p>
+        </content>
+      </shape>
+      <shape width="190" height="65" topLeftX="365" topLeftY="435" type="text" id="bJq">
+        <content textType="caption" fontSize="12" fontFamily="思源宋体" color="rgba(220, 210, 200, 1)" lineSpacing="multiple:1.6">
+          <p>&quot;主导核心服务后端架构设计，实现 15+ 高并发接口，QPS 提升 40%，系统可用性达 99.9%。&quot;</p>
+        </content>
+      </shape>
+      <img id="bJp" src="JTKpblIU0ojqn1xRzTScVULmnZg" width="310" height="420" topLeftX="610" topLeftY="90">
+        <crop type="rect" leftOffset="31.998327759197196" rightOffset="31.998327759197423" topOffset="0" bottomOffset="-5.684341886080802e-14" presetHandlers="4"/>
+        <border color="rgba(241, 226, 194, 1)"/>
+      </img>
+      <shape width="310" height="18" topLeftX="610" topLeftY="515" type="text" id="brJ">
+        <content textType="caption" fontSize="10" fontFamily="思源黑体" color="rgba(160, 150, 140, 1)" textAlign="center">
+          <p>FIG.04 / 专业技能模块 AI 优化入口</p>
+        </content>
+      </shape>
+    </data>
+    <note id="bJb">
+      <content>
+        <p>AI智能优化是派简历最实用的功能之一。很多同学写简历时最大的痛点就是&quot;不会描述自己的经历&quot;，干巴巴的几句话完全体现不出价值。派简历在每一条经历旁边都放了AI优化按钮，点击一下就能生成专业、有数据支撑的描述。</p>
+      </content>
+    </note>
+  </slide>
+  <slide id="pwf">
+    <style>
+      <fill id="fwf">
+        <fillColor color="rgba(241, 226, 194, 1)"/>
+      </fill>
+    </style>
+    <data>
+      <shape width="960" height="60" topLeftX="0" topLeftY="0" presetHandlers="0" type="rect" id="bJC">
+        <fill>
+          <fillColor color="rgba(22, 70, 184, 1)"/>
+        </fill>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="300" height="30" topLeftX="40" topLeftY="15" type="text" id="bJf">
+        <content textType="caption" fontSize="11" fontFamily="思源黑体" color="rgba(241, 226, 194, 1)" letterSpacing="2">
+          <p>03 / 实战演示</p>
+        </content>
+      </shape>
+      <shape width="170" height="30" topLeftX="750" topLeftY="15" type="text" id="bJN">
+        <content textType="caption" fontSize="11" fontFamily="思源黑体" color="rgba(241, 226, 194, 1)" letterSpacing="2" textAlign="right">
+          <p>PAI RESUME · 06</p>
+        </content>
+      </shape>
+      <shape width="500" height="35" topLeftX="60" topLeftY="85" type="text" id="bJi">
+        <content textType="caption" fontSize="14" fontFamily="思源黑体" color="rgba(255, 79, 135, 1)" bold="true" letterSpacing="3">
+          <p>LIVE DEMO / 27届 Agent 开发岗简历</p>
+        </content>
+      </shape>
+      <shape width="600" height="50" topLeftX="55" topLeftY="120" type="text" id="bJE">
+        <content textType="title" fontSize="34" fontFamily="思源黑体" color="rgba(23, 21, 18, 1)" bold="true">
+          <p>第一步：基本信息 + 教育背景</p>
+        </content>
+      </shape>
+      <shape width="50" height="4" topLeftX="60" topLeftY="178" presetHandlers="0" type="rect" id="bJA">
+        <fill>
+          <fillColor color="rgba(255, 79, 135, 1)"/>
+        </fill>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <img id="bJk" src="Zt2Sb17CdoAbnfxZRoEcJm3Lnfb" width="410" height="289.99999999999994" topLeftX="60" topLeftY="200">
+        <crop type="rect" leftOffset="0" rightOffset="0" topOffset="85.21596244131456" bottomOffset="85.21596244131462" presetHandlers="4"/>
+        <border color="rgba(23, 21, 18, 1)"/>
+      </img>
+      <shape width="410" height="18" topLeftX="60" topLeftY="495" type="text" id="bJa">
+        <content textType="caption" fontSize="10" fontFamily="思源黑体" color="rgba(100, 90, 80, 1)" textAlign="center">
+          <p>FIG.05 / 基本信息填写</p>
+        </content>
+      </shape>
+      <img id="bJe" src="LfuzbD0xNoxV4mxUd3AckqdFnec" width="410" height="289.99999999999994" topLeftX="490" topLeftY="200">
+        <crop type="rect" leftOffset="0" rightOffset="0" topOffset="85.21596244131456" bottomOffset="85.21596244131462" presetHandlers="4"/>
+        <border color="rgba(23, 21, 18, 1)"/>
+      </img>
+      <shape width="410" height="18" topLeftX="490" topLeftY="495" type="text" id="bJL">
+        <content textType="caption" fontSize="10" fontFamily="思源黑体" color="rgba(100, 90, 80, 1)" textAlign="center">
+          <p>FIG.06 / 教育背景填写</p>
+        </content>
+      </shape>
+      <shape width="840" height="1" topLeftX="60" topLeftY="520" presetHandlers="0" type="rect" id="bJG">
+        <fill>
+          <fillColor color="rgba(200, 185, 160, 1)"/>
+        </fill>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+    </data>
+    <note id="bJy">
+      <content>
+        <p>现在进入实战演示环节。我们以一份27届Agent开发岗的简历为例，从头到尾演示完整流程。第一步是填写基本信息和教育背景。基本信息包括姓名、邮箱、求职意向、手机号等；教育背景支持211、双一流标签，GPA、专业排名、主修课程、英语成绩都能详细填写。</p>
+      </content>
+    </note>
+  </slide>
+  <slide id="pwE">
+    <style>
+      <fill id="fwE">
+        <fillColor color="rgba(241, 226, 194, 1)"/>
+      </fill>
+    </style>
+    <data>
+      <shape width="960" height="60" topLeftX="0" topLeftY="0" presetHandlers="0" type="rect" id="brs">
+        <fill>
+          <fillColor color="rgba(22, 70, 184, 1)"/>
+        </fill>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="300" height="30" topLeftX="40" topLeftY="15" type="text" id="brY">
+        <content textType="caption" fontSize="11" fontFamily="思源黑体" color="rgba(241, 226, 194, 1)" letterSpacing="2">
+          <p>03 / 实战演示</p>
+        </content>
+      </shape>
+      <shape width="170" height="30" topLeftX="750" topLeftY="15" type="text" id="brx">
+        <content textType="caption" fontSize="11" fontFamily="思源黑体" color="rgba(241, 226, 194, 1)" letterSpacing="2" textAlign="right">
+          <p>PAI RESUME · 07</p>
+        </content>
+      </shape>
+      <shape width="500" height="35" topLeftX="60" topLeftY="85" type="text" id="bro">
+        <content textType="caption" fontSize="14" fontFamily="思源黑体" color="rgba(255, 79, 135, 1)" bold="true" letterSpacing="3">
+          <p>LIVE DEMO / 经历是简历的灵魂</p>
+        </content>
+      </shape>
+      <shape width="600" height="50" topLeftX="55" topLeftY="120" type="text" id="brE">
+        <content textType="title" fontSize="34" fontFamily="思源黑体" color="rgba(23, 21, 18, 1)" bold="true">
+          <p>第二步：科研经历 + 实习经历</p>
+        </content>
+      </shape>
+      <shape width="50" height="4" topLeftX="60" topLeftY="178" presetHandlers="0" type="rect" id="brW">
+        <fill>
+          <fillColor color="rgba(255, 79, 135, 1)"/>
+        </fill>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <img id="brB" src="Ag0rb7hwZon1xJxrCCvcGPYjn1g" width="410" height="289.99999999999994" topLeftX="60" topLeftY="200">
+        <crop type="rect" leftOffset="0" rightOffset="0" topOffset="85.21596244131456" bottomOffset="85.21596244131462" presetHandlers="4"/>
+        <border color="rgba(23, 21, 18, 1)"/>
+      </img>
+      <shape width="410" height="18" topLeftX="60" topLeftY="495" type="text" id="brZ">
+        <content textType="caption" fontSize="10" fontFamily="思源黑体" color="rgba(100, 90, 80, 1)" textAlign="center">
+          <p>FIG.07 / 科研经历填写</p>
+        </content>
+      </shape>
+      <img id="brz" src="QESibQ9NWotF6xxOn9tcqYBWnwh" width="410" height="289.99999999999994" topLeftX="490" topLeftY="200">
+        <crop type="rect" leftOffset="0" rightOffset="0" topOffset="85.21596244131456" bottomOffset="85.21596244131462" presetHandlers="4"/>
+        <border color="rgba(23, 21, 18, 1)"/>
+      </img>
+      <shape width="410" height="18" topLeftX="490" topLeftY="495" type="text" id="brh">
+        <content textType="caption" fontSize="10" fontFamily="思源黑体" color="rgba(100, 90, 80, 1)" textAlign="center">
+          <p>FIG.08 / 实习经历填写（字节+百度）</p>
+        </content>
+      </shape>
+      <shape width="840" height="1" topLeftX="60" topLeftY="520" presetHandlers="0" type="rect" id="brX">
+        <fill>
+          <fillColor color="rgba(200, 185, 160, 1)"/>
+        </fill>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+    </data>
+    <note id="brm">
+      <content>
+        <p>第二步是填写科研经历和实习经历，这是简历的灵魂。科研经历支持项目背景、工作内容、研究成果的结构化填写，还能标注论文投稿状态。实习经历采用&quot;管理项目&quot;的方式，每段实习可以包含多个项目，每个项目都有项目名称、角色、时间、技术栈、项目简介和核心职责。这份简历里我们填了字节跳动和百度两段实习。</p>
+      </content>
+    </note>
+  </slide>
+  <slide id="pwW">
+    <style>
+      <fill id="fwW">
+        <fillColor color="rgba(241, 226, 194, 1)"/>
+      </fill>
+    </style>
+    <data>
+      <shape width="960" height="60" topLeftX="0" topLeftY="0" presetHandlers="0" type="rect" id="brv">
+        <fill>
+          <fillColor color="rgba(22, 70, 184, 1)"/>
+        </fill>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="300" height="30" topLeftX="40" topLeftY="15" type="text" id="brV">
+        <content textType="caption" fontSize="11" fontFamily="思源黑体" color="rgba(241, 226, 194, 1)" letterSpacing="2">
+          <p>03 / 实战演示</p>
+        </content>
+      </shape>
+      <shape width="170" height="30" topLeftX="750" topLeftY="15" type="text" id="brO">
+        <content textType="caption" fontSize="11" fontFamily="思源黑体" color="rgba(241, 226, 194, 1)" letterSpacing="2" textAlign="right">
+          <p>PAI RESUME · 08</p>
+        </content>
+      </shape>
+      <shape width="500" height="35" topLeftX="60" topLeftY="85" type="text" id="bru">
+        <content textType="caption" fontSize="14" fontFamily="思源黑体" color="rgba(255, 79, 135, 1)" bold="true" letterSpacing="3">
+          <p>LIVE DEMO / 技术栈与项目成果</p>
+        </content>
+      </shape>
+      <shape width="600" height="50" topLeftX="55" topLeftY="120" type="text" id="brc">
+        <content textType="title" fontSize="34" fontFamily="思源黑体" color="rgba(23, 21, 18, 1)" bold="true">
+          <p>第三步：专业技能 + 项目经历</p>
+        </content>
+      </shape>
+      <shape width="50" height="4" topLeftX="60" topLeftY="178" presetHandlers="0" type="rect" id="brP">
+        <fill>
+          <fillColor color="rgba(255, 79, 135, 1)"/>
+        </fill>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <img id="brU" src="JTKpblIU0ojqn1xRzTScVULmnZg" width="410" height="289.99999999999994" topLeftX="60" topLeftY="200">
+        <crop type="rect" leftOffset="0" rightOffset="0" topOffset="85.21596244131456" bottomOffset="85.21596244131462" presetHandlers="4"/>
+        <border color="rgba(23, 21, 18, 1)"/>
+      </img>
+      <shape width="410" height="18" topLeftX="60" topLeftY="495" type="text" id="brd">
+        <content textType="caption" fontSize="10" fontFamily="思源黑体" color="rgba(100, 90, 80, 1)" textAlign="center">
+          <p>FIG.09 / 专业技能（4大分类，每条可AI优化）</p>
+        </content>
+      </shape>
+      <img id="brw" src="GCjrbyensofve4xXQiFc3oVgnqc" width="410" height="289.99999999999994" topLeftX="490" topLeftY="200">
+        <crop type="rect" leftOffset="0" rightOffset="0" topOffset="85.21596244131456" bottomOffset="85.21596244131462" presetHandlers="4"/>
+        <border color="rgba(23, 21, 18, 1)"/>
+      </img>
+      <shape width="410" height="18" topLeftX="490" topLeftY="495" type="text" id="brK">
+        <content textType="caption" fontSize="10" fontFamily="思源黑体" color="rgba(100, 90, 80, 1)" textAlign="center">
+          <p>FIG.10 / 项目经历（智能简历Agent项目）</p>
+        </content>
+      </shape>
+      <shape width="840" height="1" topLeftX="60" topLeftY="520" presetHandlers="0" type="rect" id="brF">
+        <fill>
+          <fillColor color="rgba(200, 185, 160, 1)"/>
+        </fill>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+    </data>
+    <note id="brS">
+      <content>
+        <p>第三步是填写专业技能和项目经历。专业技能支持分类管理，比如编程语言、AI与大模型、Agent开发、后端与工程化，每条技能旁边都有AI优化按钮。项目经历和实习经历类似，支持项目名称、角色、时间、技术栈、项目简介和核心职责的结构化填写。到这里，一份完整的简历六大模块就全部填写完成了。</p>
+      </content>
+    </note>
+  </slide>
+  <slide id="pwe">
+    <style>
+      <fill id="fwe">
+        <fillColor color="rgba(23, 21, 18, 1)"/>
+      </fill>
+    </style>
+    <data>
+      <shape width="960" height="60" topLeftX="0" topLeftY="0" presetHandlers="0" type="rect" id="bPP">
+        <fill>
+          <fillColor color="rgba(22, 70, 184, 1)"/>
+        </fill>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="300" height="30" topLeftX="40" topLeftY="15" type="text" id="bPd">
+        <content textType="caption" fontSize="11" fontFamily="思源黑体" color="rgba(241, 226, 194, 1)" letterSpacing="2">
+          <p>02 / 核心功能</p>
+        </content>
+      </shape>
+      <shape width="170" height="30" topLeftX="750" topLeftY="15" type="text" id="brQ">
+        <content textType="caption" fontSize="11" fontFamily="思源黑体" color="rgba(241, 226, 194, 1)" letterSpacing="2" textAlign="right">
+          <p>PAI RESUME · 09</p>
+        </content>
+      </shape>
+      <shape width="500" height="40" topLeftX="60" topLeftY="90" type="text" id="brI">
+        <content textType="caption" fontSize="14" fontFamily="思源黑体" color="rgba(255, 79, 135, 1)" bold="true" letterSpacing="3">
+          <p>LIVE PREVIEW / 实时预览</p>
+        </content>
+      </shape>
+      <shape width="500" height="100" topLeftX="55" topLeftY="130" type="text" id="bPD">
+        <content textType="title" fontSize="40" fontFamily="思源黑体" color="rgba(241, 226, 194, 1)" bold="true" lineSpacing="multiple:1.2">
+          <p>边写边看，</p>
+          <p>所见即<span color="rgba(255, 79, 135, 1)">所得</span>。</p>
+        </content>
+      </shape>
+      <shape width="50" height="4" topLeftX="60" topLeftY="250" presetHandlers="0" type="rect" id="bPS">
+        <fill>
+          <fillColor color="rgba(255, 79, 135, 1)"/>
+        </fill>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="480" height="80" topLeftX="60" topLeftY="270" type="text" id="brl">
+        <content fontSize="15" fontFamily="思源宋体" color="rgba(200, 190, 180, 1)" lineSpacing="multiple:1.8">
+          <p>填写过程中随时可以切换到文本预览和 PDF 预览。文本预览方便快速浏览内容，PDF 预览则 1:1 还原最终导出效果，共几页、排版如何，一目了然。</p>
+        </content>
+      </shape>
+      <shape width="200" height="130" topLeftX="60" topLeftY="370" presetHandlers="0" type="rect" id="brp">
+        <fill>
+          <fillColor color="rgba(40, 38, 35, 1)"/>
+        </fill>
+        <border color="rgba(22, 70, 184, 1)" width="1"/>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="170" height="25" topLeftX="75" topLeftY="385" type="text" id="bPJ">
+        <content fontSize="15" fontFamily="思源黑体" color="rgba(22, 70, 184, 1)" bold="true">
+          <p>文本预览</p>
+        </content>
+      </shape>
+      <shape width="170" height="75" topLeftX="75" topLeftY="415" type="text" id="bPU">
+        <content textType="caption" fontSize="11" fontFamily="思源宋体" color="rgba(160, 150, 140, 1)" lineSpacing="multiple:1.6">
+          <p>纯文本形式快速浏览全部内容，方便检查信息完整性和逻辑顺序。</p>
+        </content>
+      </shape>
+      <shape width="200" height="130" topLeftX="280" topLeftY="370" presetHandlers="0" type="rect" id="brq">
+        <fill>
+          <fillColor color="rgba(40, 38, 35, 1)"/>
+        </fill>
+        <border color="rgba(255, 79, 135, 1)" width="1"/>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="170" height="25" topLeftX="295" topLeftY="385" type="text" id="brR">
+        <content fontSize="15" fontFamily="思源黑体" color="rgba(255, 79, 135, 1)" bold="true">
+          <p>PDF 预览</p>
+        </content>
+      </shape>
+      <shape width="170" height="75" topLeftX="295" topLeftY="415" type="text" id="bPr">
+        <content textType="caption" fontSize="11" fontFamily="思源宋体" color="rgba(160, 150, 140, 1)" lineSpacing="multiple:1.6">
+          <p>1:1 还原最终导出效果，分页、排版、字体全部真实呈现。</p>
+        </content>
+      </shape>
+      <img id="bPv" src="BSv7bPO0so4PHIxCgLMcVyUQnWc" width="370" height="409.99999999999994" topLeftX="530" topLeftY="90">
+        <crop type="rect" leftOffset="0" rightOffset="0" topOffset="2.7558685446009292" bottomOffset="2.7558685446010145" presetHandlers="4"/>
+        <border color="rgba(241, 226, 194, 1)"/>
+      </img>
+      <shape width="370" height="18" topLeftX="530" topLeftY="505" type="text" id="brM">
+        <content textType="caption" fontSize="10" fontFamily="思源黑体" color="rgba(160, 150, 140, 1)" textAlign="center">
+          <p>FIG.11 / PDF 实时预览（3页完整呈现）</p>
+        </content>
+      </shape>
+    </data>
+    <note id="brt">
+      <content>
+        <p>实时预览是派简历非常贴心的功能。填写过程中随时可以切换到文本预览或PDF预览。文本预览方便快速浏览内容，PDF预览则1:1还原最终导出效果，你能清楚地看到简历有几页、排版如何、有没有溢出。这份简历我们填完后PDF预览显示共3页，内容非常充实。</p>
+      </content>
+    </note>
+  </slide>
+  <slide id="pwD">
+    <style>
+      <fill id="fwD">
+        <fillColor color="rgba(241, 226, 194, 1)"/>
+      </fill>
+    </style>
+    <data>
+      <shape width="960" height="60" topLeftX="0" topLeftY="0" presetHandlers="0" type="rect" id="brN">
+        <fill>
+          <fillColor color="rgba(22, 70, 184, 1)"/>
+        </fill>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="300" height="30" topLeftX="40" topLeftY="15" type="text" id="brb">
+        <content textType="caption" fontSize="11" fontFamily="思源黑体" color="rgba(241, 226, 194, 1)" letterSpacing="2">
+          <p>04 / 排版导出</p>
+        </content>
+      </shape>
+      <shape width="170" height="30" topLeftX="750" topLeftY="15" type="text" id="brg">
+        <content textType="caption" fontSize="11" fontFamily="思源黑体" color="rgba(241, 226, 194, 1)" letterSpacing="2" textAlign="right">
+          <p>PAI RESUME · 10</p>
+        </content>
+      </shape>
+      <shape width="500" height="35" topLeftX="60" topLeftY="80" type="text" id="brA">
+        <content textType="caption" fontSize="14" fontFamily="思源黑体" color="rgba(255, 79, 135, 1)" bold="true" letterSpacing="3">
+          <p>LAYOUT &amp; EXPORT / 排版导出</p>
+        </content>
+      </shape>
+      <shape width="500" height="50" topLeftX="55" topLeftY="115" type="text" id="bra">
+        <content textType="title" fontSize="36" fontFamily="思源黑体" color="rgba(23, 21, 18, 1)" bold="true">
+          <p>12种模板，一键导出专业PDF</p>
+        </content>
+      </shape>
+      <shape width="50" height="4" topLeftX="60" topLeftY="172" presetHandlers="0" type="rect" id="brL">
+        <fill>
+          <fillColor color="rgba(255, 79, 135, 1)"/>
+        </fill>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <img id="brj" src="DxA8bSPznoNmSvxVXFica45VnFh" width="430" height="155.00000000000003" topLeftX="60" topLeftY="195">
+        <crop type="rect" leftOffset="0" rightOffset="0" topOffset="163.94600938967136" bottomOffset="163.9460093896713" presetHandlers="4"/>
+        <border color="rgba(23, 21, 18, 1)"/>
+      </img>
+      <shape width="430" height="16" topLeftX="60" topLeftY="353" type="text" id="bry">
+        <content textType="caption" fontSize="9" fontFamily="思源黑体" color="rgba(100, 90, 80, 1)" textAlign="center">
+          <p>FIG.12 / 排版导出主界面（标准PDF/智能长一页/密度切换）</p>
+        </content>
+      </shape>
+      <img id="brf" src="NS4jby8NJozFkWxTyHFczFh1nTc" width="390" height="155.00000000000006" topLeftX="510" topLeftY="194.99999999999997">
+        <crop type="rect" leftOffset="0" rightOffset="0" topOffset="141.48591549295773" bottomOffset="141.48591549295764" presetHandlers="4"/>
+        <border color="rgba(23, 21, 18, 1)"/>
+      </img>
+      <shape width="390" height="16" topLeftX="510" topLeftY="353" type="text" id="bri">
+        <content textType="caption" fontSize="9" fontFamily="思源黑体" color="rgba(100, 90, 80, 1)" textAlign="center">
+          <p>FIG.13 / 12种模板任选（蓝调重点已选中）</p>
+        </content>
+      </shape>
+      <img id="brH" src="MQxOb8tSpoj6xgxgciLcZn4gnHf" width="280" height="130" topLeftX="60" topLeftY="385">
+        <crop type="rect" leftOffset="0" rightOffset="0" topOffset="62.13743356112377" bottomOffset="62.13743356112377" presetHandlers="4"/>
+        <border color="rgba(22, 70, 184, 1)"/>
+      </img>
+      <shape width="280" height="14" topLeftX="60" topLeftY="518" type="text" id="brG">
+        <content textType="caption" fontSize="9" fontFamily="思源黑体" color="rgba(22, 70, 184, 1)" bold="true" textAlign="center">
+          <p>智能长一页（内容无损）</p>
+        </content>
+      </shape>
+      <img id="brk" src="NKW6bGE6Go1T1qx4yVLckyhxn9e" width="280" height="130" topLeftX="360" topLeftY="385">
+        <crop type="rect" leftOffset="0" rightOffset="0" topOffset="62.13743356112377" bottomOffset="62.13743356112377" presetHandlers="4"/>
+        <border color="rgba(255, 79, 135, 1)"/>
+      </img>
+      <shape width="280" height="14" topLeftX="360" topLeftY="518" type="text" id="bre">
+        <content textType="caption" fontSize="9" fontFamily="思源黑体" color="rgba(255, 79, 135, 1)" bold="true" textAlign="center">
+          <p>紧凑密度（信息更密集）</p>
+        </content>
+      </shape>
+      <img id="brn" src="DbtwbSEJgouQCKxDUrJcXT4cnEh" width="240" height="130" topLeftX="660" topLeftY="385">
+        <crop type="rect" leftOffset="0" rightOffset="0" topOffset="43.97494305239178" bottomOffset="43.97494305239181" presetHandlers="4"/>
+        <border color="rgba(23, 21, 18, 1)"/>
+      </img>
+      <shape width="240" height="14" topLeftX="660" topLeftY="518" type="text" id="brT">
+        <content textType="caption" fontSize="9" fontFamily="思源黑体" color="rgba(23, 21, 18, 1)" bold="true" textAlign="center">
+          <p>一键导出PDF</p>
+        </content>
+      </shape>
+    </data>
+    <note id="brC">
+      <content>
+        <p>排版导出是派简历最惊艳的功能。12种精美模板任选，从系统默认、蓝调重点、校园技术蓝到Vibe高密技术，总有一款适合你。更厉害的是&quot;智能长一页&quot;功能，能把多页简历内容无损压缩到一页，特别适合校招投递。还有标准/紧凑两种密度切换，最后一键导出PDF，整个过程不到10秒。</p>
+      </content>
+    </note>
+  </slide>
+  <slide id="pwl">
+    <style>
+      <fill id="fwl">
+        <fillColor color="rgba(23, 21, 18, 1)"/>
+      </fill>
+    </style>
+    <data>
+      <shape width="960" height="60" topLeftX="0" topLeftY="0" presetHandlers="0" type="rect" id="bPH">
+        <fill>
+          <fillColor color="rgba(22, 70, 184, 1)"/>
+        </fill>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="300" height="30" topLeftX="40" topLeftY="15" type="text" id="bPo">
+        <content textType="caption" fontSize="11" fontFamily="思源黑体" color="rgba(241, 226, 194, 1)" letterSpacing="2">
+          <p>04 / 排版导出</p>
+        </content>
+      </shape>
+      <shape width="170" height="30" topLeftX="750" topLeftY="15" type="text" id="bPy">
+        <content textType="caption" fontSize="11" fontFamily="思源黑体" color="rgba(241, 226, 194, 1)" letterSpacing="2" textAlign="right">
+          <p>PAI RESUME · 11</p>
+        </content>
+      </shape>
+      <shape width="500" height="35" topLeftX="60" topLeftY="85" type="text" id="bPf">
+        <content textType="caption" fontSize="14" fontFamily="思源黑体" color="rgba(255, 79, 135, 1)" bold="true" letterSpacing="3">
+          <p>FINAL RESULT / 最终效果</p>
+        </content>
+      </shape>
+      <shape width="450" height="100" topLeftX="55" topLeftY="120" type="text" id="bPL">
+        <content textType="title" fontSize="40" fontFamily="思源黑体" color="rgba(241, 226, 194, 1)" bold="true" lineSpacing="multiple:1.2">
+          <p>从空白到专业，</p>
+          <p>只用了<span color="rgba(255, 79, 135, 1)">15分钟</span>。</p>
+        </content>
+      </shape>
+      <shape width="50" height="4" topLeftX="60" topLeftY="240" presetHandlers="0" type="rect" id="bPj">
+        <fill>
+          <fillColor color="rgba(255, 79, 135, 1)"/>
+        </fill>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="420" height="100" topLeftX="60" topLeftY="260" type="text" id="bPh">
+        <content fontSize="15" fontFamily="思源宋体" color="rgba(200, 190, 180, 1)" lineSpacing="multiple:1.8">
+          <p>一份包含基本信息、教育背景、科研经历、两段实习、专业技能、项目经历的完整 Agent 开发岗简历，蓝调重点模板，智能长一页，紧凑密度，一键导出 PDF。</p>
+        </content>
+      </shape>
+      <shape width="130" height="120" topLeftX="60" topLeftY="380" presetHandlers="0" type="rect" id="bPA">
+        <fill>
+          <fillColor color="rgba(40, 38, 35, 1)"/>
+        </fill>
+        <border color="rgba(22, 70, 184, 1)" width="1"/>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="110" height="40" topLeftX="70" topLeftY="395" type="text" id="bPa">
+        <content textType="headline" fontSize="32" fontFamily="思源黑体" color="rgba(22, 70, 184, 1)" bold="true">
+          <p>6大</p>
+        </content>
+      </shape>
+      <shape width="110" height="50" topLeftX="70" topLeftY="440" type="text" id="bPb">
+        <content textType="caption" fontSize="11" fontFamily="思源黑体" color="rgba(160, 150, 140, 1)" lineSpacing="multiple:1.4">
+          <p>模块全部填写完成，内容充实</p>
+        </content>
+      </shape>
+      <shape width="130" height="120" topLeftX="205" topLeftY="380" presetHandlers="0" type="rect" id="bPg">
+        <fill>
+          <fillColor color="rgba(40, 38, 35, 1)"/>
+        </fill>
+        <border color="rgba(255, 79, 135, 1)" width="1"/>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="110" height="40" topLeftX="215" topLeftY="395" type="text" id="bPE">
+        <content textType="headline" fontSize="32" fontFamily="思源黑体" color="rgba(255, 79, 135, 1)" bold="true">
+          <p>1页</p>
+        </content>
+      </shape>
+      <shape width="110" height="50" topLeftX="215" topLeftY="440" type="text" id="bPC">
+        <content textType="caption" fontSize="11" fontFamily="思源黑体" color="rgba(160, 150, 140, 1)" lineSpacing="multiple:1.4">
+          <p>智能长一页，内容无损压缩</p>
+        </content>
+      </shape>
+      <shape width="130" height="120" topLeftX="350" topLeftY="380" presetHandlers="0" type="rect" id="bPN">
+        <fill>
+          <fillColor color="rgba(40, 38, 35, 1)"/>
+        </fill>
+        <border color="rgba(241, 226, 194, 1)" width="1"/>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="110" height="40" topLeftX="360" topLeftY="395" type="text" id="bPn">
+        <content textType="headline" fontSize="32" fontFamily="思源黑体" color="rgba(241, 226, 194, 1)" bold="true">
+          <p>10s</p>
+        </content>
+      </shape>
+      <shape width="110" height="50" topLeftX="360" topLeftY="440" type="text" id="bPG">
+        <content textType="caption" fontSize="11" fontFamily="思源黑体" color="rgba(160, 150, 140, 1)" lineSpacing="multiple:1.4">
+          <p>从排版到导出PDF，一键完成</p>
+        </content>
+      </shape>
+      <img id="bPk" src="ALRPbLoKkodvu0xzrVUcY6NmnXg" width="370" height="420" topLeftX="530" topLeftY="85">
+        <crop type="rect" leftOffset="1.9983277591971955" rightOffset="1.9983277591974797" topOffset="0" bottomOffset="0" presetHandlers="4"/>
+        <border color="rgba(241, 226, 194, 1)"/>
+      </img>
+      <shape width="370" height="18" topLeftX="530" topLeftY="510" type="text" id="bPe">
+        <content textType="caption" fontSize="10" fontFamily="思源黑体" color="rgba(160, 150, 140, 1)" textAlign="center">
+          <p>FIG.14 / 最终简历效果（蓝调重点模板）</p>
+        </content>
+      </shape>
+    </data>
+    <note id="bPi">
+      <content>
+        <p>这就是最终效果。从空白简历到一份专业的Agent开发岗简历，我们只用了大约15分钟。6大模块全部填写完成，包含两段大厂实习和科研经历。通过智能长一页功能，所有内容无损压缩到一页，蓝调重点模板，紧凑密度，最后一键导出PDF。整个流程非常顺畅。</p>
+      </content>
+    </note>
+  </slide>
+  <slide id="pwp">
+    <style>
+      <fill id="fwp">
+        <fillColor color="rgba(22, 70, 184, 1)"/>
+      </fill>
+    </style>
+    <data>
+      <shape width="960" height="60" topLeftX="0" topLeftY="0" presetHandlers="0" type="rect" id="bPc">
+        <fill>
+          <fillColor color="rgba(23, 21, 18, 1)"/>
+        </fill>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="300" height="30" topLeftX="40" topLeftY="15" type="text" id="bPB">
+        <content textType="caption" fontSize="11" fontFamily="思源黑体" color="rgba(241, 226, 194, 1)" letterSpacing="2">
+          <p>05 / 立即开始</p>
+        </content>
+      </shape>
+      <shape width="170" height="30" topLeftX="750" topLeftY="15" type="text" id="bPz">
+        <content textType="caption" fontSize="11" fontFamily="思源黑体" color="rgba(241, 226, 194, 1)" letterSpacing="2" textAlign="right">
+          <p>PAI RESUME · 12</p>
+        </content>
+      </shape>
+      <shape width="500" height="40" topLeftX="60" topLeftY="100" type="text" id="bPw">
+        <content textType="caption" fontSize="16" fontFamily="思源黑体" color="rgba(255, 79, 135, 1)" bold="true" letterSpacing="4">
+          <p>GET STARTED NOW</p>
+        </content>
+      </shape>
+      <shape width="700" height="180" topLeftX="55" topLeftY="145" type="text" id="bPF">
+        <content textType="title" fontSize="72" fontFamily="思源黑体" color="rgba(241, 226, 194, 1)" bold="true" lineSpacing="multiple:1.15" letterSpacing="-2">
+          <p>你的下一份</p>
+          <p>好简历，</p>
+          <p>从<span color="rgba(255, 79, 135, 1)">派简历</span>开始。</p>
+        </content>
+      </shape>
+      <shape width="60" height="4" topLeftX="60" topLeftY="350" presetHandlers="0" type="rect" id="bPm">
+        <fill>
+          <fillColor color="rgba(255, 79, 135, 1)"/>
+        </fill>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="500" height="50" topLeftX="60" topLeftY="370" type="text" id="bPY">
+        <content fontSize="18" fontFamily="思源宋体" color="rgba(220, 210, 200, 1)" lineSpacing="multiple:1.6">
+          <p>扫码访问，立即开始制作你的专属简历。</p>
+        </content>
+      </shape>
+      <shape width="400" height="70" topLeftX="60" topLeftY="440" presetHandlers="0" type="rect" id="bPV">
+        <fill>
+          <fillColor color="rgba(241, 226, 194, 1)"/>
+        </fill>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="360" height="25" topLeftX="80" topLeftY="450" type="text" id="bPu">
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(22, 70, 184, 1)" bold="true">
+          <p>resume.paicoding.com</p>
+        </content>
+      </shape>
+      <shape width="360" height="25" topLeftX="80" topLeftY="478" type="text" id="bPX">
+        <content textType="caption" fontSize="12" fontFamily="思源黑体" color="rgba(100, 90, 80, 1)">
+          <p>AI 驱动的智能简历工具 · 免费使用</p>
+        </content>
+      </shape>
+      <shape width="70" height="70" topLeftX="500" topLeftY="440" presetHandlers="0" type="rect" id="bPZ">
+        <fill>
+          <fillColor color="rgba(255, 79, 135, 1)"/>
+        </fill>
+        <content fontSize="16" fontFamily="思源黑体" color="rgba(31, 35, 41, 1)"/>
+      </shape>
+      <shape width="70" height="40" topLeftX="500" topLeftY="455" type="text" id="bPK">
+        <content textType="headline" fontSize="28" fontFamily="思源黑体" color="rgba(255, 255, 255, 1)" bold="true" textAlign="center">
+          <p>AI</p>
+        </content>
+      </shape>
+      <shape width="320" height="25" topLeftX="590" topLeftY="450" type="text" id="bPW">
+        <content fontSize="14" fontFamily="思源黑体" color="rgba(241, 226, 194, 1)" bold="true">
+          <p>让 AI 和你一起写简历</p>
+        </content>
+      </shape>
+      <shape width="320" height="25" topLeftX="590" topLeftY="478" type="text" id="bPs">
+        <content textType="caption" fontSize="11" fontFamily="思源黑体" color="rgba(180, 190, 210, 1)">
+          <p>AI 评分 · 智能优化 · 一页排版 · 一键导出</p>
+        </content>
+      </shape>
+      <shape width="840" height="15" topLeftX="60" topLeftY="525" type="text" id="bPx">
+        <content textType="caption" fontSize="10" fontFamily="思源黑体" color="rgba(180, 190, 210, 1)" letterSpacing="2" textAlign="center">
+          <p>PAI RESUME · 让每个人都拥有一份好简历 · VOL.01 · 2026</p>
+        </content>
+      </shape>
+    </data>
+    <note id="bPO">
+      <content>
+        <p>最后，邀请大家立即开始使用派简历。访问resume.paicoding.com，免费注册，就能开始制作你的专属简历。AI评分帮你发现问题，智能优化帮你提升内容，12种模板和智能长一页帮你排版，最后一键导出PDF。从今天开始，让AI和你一起写一份让面试官心动的好简历。谢谢大家！</p>
+      </content>
+    </note>
+  </slide>
+</presentation>

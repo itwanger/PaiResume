@@ -1,10 +1,11 @@
-import type {
-  ResumePdfAccentPreset,
-  ResumePdfDensity,
-  ResumePdfHeadingStyle,
-  ResumePdfPageMode,
-  ResumePdfPreviewConfig,
-  ResumePdfTemplateId,
+import {
+  DEFAULT_RESUME_PDF_PREVIEW_CONFIG,
+  type ResumePdfAccentPreset,
+  type ResumePdfDensity,
+  type ResumePdfHeadingStyle,
+  type ResumePdfPageMode,
+  type ResumePdfPreviewConfig,
+  type ResumePdfTemplateId,
 } from './resumePdf'
 
 export const RESUME_STYLE_STORAGE_KEY_PREFIX = 'pai-resume.pdf-preview-config'
@@ -28,24 +29,24 @@ export interface ResumeStyleSource {
 export function normalizeResumeStyle(source?: ResumeStyleSource | null): ResumePdfPreviewConfig {
   const rawTemplateId = source?.templateId && templateIds.has(source.templateId as ResumePdfTemplateId)
     ? source.templateId as ResumePdfTemplateId
-    : 'default'
+    : DEFAULT_RESUME_PDF_PREVIEW_CONFIG.templateId
 
   return {
     pageMode: source?.pageMode && pageModes.has(source.pageMode as ResumePdfPageMode)
       ? source.pageMode as ResumePdfPageMode
-      : 'standard',
+      : DEFAULT_RESUME_PDF_PREVIEW_CONFIG.pageMode,
     templateId: rawTemplateId === 'compact' ? 'default' : rawTemplateId,
     density: source?.density && densities.has(source.density as ResumePdfDensity)
       ? source.density as ResumePdfDensity
       : rawTemplateId === 'compact'
         ? 'compact'
-        : 'normal',
+        : DEFAULT_RESUME_PDF_PREVIEW_CONFIG.density,
     accentPreset: source?.accentPreset && accentPresets.has(source.accentPreset as ResumePdfAccentPreset)
       ? source.accentPreset as ResumePdfAccentPreset
-      : 'auto',
+      : DEFAULT_RESUME_PDF_PREVIEW_CONFIG.accentPreset,
     headingStyle: source?.headingStyle && headingStyles.has(source.headingStyle as ResumePdfHeadingStyle)
       ? source.headingStyle as ResumePdfHeadingStyle
-      : 'auto',
+      : DEFAULT_RESUME_PDF_PREVIEW_CONFIG.headingStyle,
   }
 }
 

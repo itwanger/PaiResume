@@ -28,6 +28,7 @@ import {
   sortResumeModulesForDisplay,
 } from '../../utils/resumeDisplay'
 import {
+  DEFAULT_RESUME_PDF_PREVIEW_CONFIG,
   generateResumePdfBlob,
   type ResumePdfAccentPreset,
   type ResumePdfHeadingStyle,
@@ -208,7 +209,7 @@ export function PreviewPanel({
   hideHeader = false,
   activeModuleType,
   activeModuleId,
-  pageMode = 'standard',
+  pageMode = DEFAULT_RESUME_PDF_PREVIEW_CONFIG.pageMode,
   pdfConfig,
 }: PreviewPanelProps) {
   const shouldReduceMotion = useReducedMotion() ?? false

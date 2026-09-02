@@ -26,6 +26,10 @@ import java.util.stream.Collectors;
 @Service
 public class ResumeServiceImpl implements ResumeService {
 
+    private static final String DEFAULT_PAGE_MODE = "continuous";
+    private static final String DEFAULT_TEMPLATE_ID = "focus";
+    private static final String DEFAULT_PDF_DENSITY = "compact";
+
     private final ResumeMapper resumeMapper;
     private final ResumeModuleMapper resumeModuleMapper;
     private final ResumeMarketplaceService resumeMarketplaceService;
@@ -396,8 +400,9 @@ public class ResumeServiceImpl implements ResumeService {
         var resume = new Resume();
         resume.setUserId(userId);
         resume.setTitle(title);
-        resume.setTemplateId(dto.getTemplateId() != null ? dto.getTemplateId() : "default");
-        resume.setPdfDensity("normal");
+        resume.setPageMode(DEFAULT_PAGE_MODE);
+        resume.setTemplateId(dto.getTemplateId() != null ? dto.getTemplateId() : DEFAULT_TEMPLATE_ID);
+        resume.setPdfDensity(DEFAULT_PDF_DENSITY);
         resume.setAccentPreset("auto");
         resume.setHeadingStyle("auto");
         resume.setStatus(1);
@@ -481,9 +486,9 @@ public class ResumeServiceImpl implements ResumeService {
     }
 
     private void applyStyle(Resume resume, ResumeListVO vo) {
-        vo.setPageMode(defaultIfBlank(resume.getPageMode(), "standard"));
-        vo.setTemplateId(defaultIfBlank(resume.getTemplateId(), "default"));
-        vo.setDensity(defaultIfBlank(resume.getPdfDensity(), "normal"));
+        vo.setPageMode(defaultIfBlank(resume.getPageMode(), DEFAULT_PAGE_MODE));
+        vo.setTemplateId(defaultIfBlank(resume.getTemplateId(), DEFAULT_TEMPLATE_ID));
+        vo.setDensity(defaultIfBlank(resume.getPdfDensity(), DEFAULT_PDF_DENSITY));
         vo.setAccentPreset(defaultIfBlank(resume.getAccentPreset(), "auto"));
         vo.setHeadingStyle(defaultIfBlank(resume.getHeadingStyle(), "auto"));
     }

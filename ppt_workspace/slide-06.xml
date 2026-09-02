@@ -1,0 +1,67 @@
+<slide>
+  <style>
+    <fill>
+      <fillColor color="rgb(241, 226, 194)"/>
+    </fill>
+  </style>
+  <data>
+    <shape type="rect" topLeftX="0" topLeftY="0" width="960" height="60">
+      <fill>
+        <fillColor color="rgb(22, 70, 184)"/>
+      </fill>
+    </shape>
+    <shape type="text" topLeftX="40" topLeftY="15" width="300" height="30">
+      <content textType="caption" fontSize="11" color="rgb(241, 226, 194)" fontFamily="思源黑体" letterSpacing="2">
+        <p>03 / 实战演示</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="750" topLeftY="15" width="170" height="30">
+      <content textType="caption" fontSize="11" color="rgb(241, 226, 194)" fontFamily="思源黑体" textAlign="right" letterSpacing="2">
+        <p>PAI RESUME · 06</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="60" topLeftY="85" width="500" height="35">
+      <content textType="caption" fontSize="14" color="rgb(255, 79, 135)" fontFamily="思源黑体" bold="true" letterSpacing="3">
+        <p>LIVE DEMO / 27届 Agent 开发岗简历</p>
+      </content>
+    </shape>
+    <shape type="text" topLeftX="55" topLeftY="120" width="600" height="50">
+      <content textType="title" fontSize="34" color="rgb(23, 21, 18)" fontFamily="思源黑体" bold="true">
+        <p>第一步：基本信息 + 教育背景</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="60" topLeftY="178" width="50" height="4">
+      <fill>
+        <fillColor color="rgb(255, 79, 135)"/>
+      </fill>
+    </shape>
+    <img src="Zt2Sb17CdoAbnfxZRoEcJm3Lnfb" topLeftX="60" topLeftY="200" width="410" height="290">
+      <crop type="rect" presetHandlers="4"/>
+      <border color="rgb(23, 21, 18)" width="2"/>
+    </img>
+    <shape type="text" topLeftX="60" topLeftY="495" width="410" height="18">
+      <content textType="caption" fontSize="10" color="rgb(100, 90, 80)" fontFamily="思源黑体" textAlign="center">
+        <p>FIG.05 / 基本信息填写</p>
+      </content>
+    </shape>
+    <img src="LfuzbD0xNoxV4mxUd3AckqdFnec" topLeftX="490" topLeftY="200" width="410" height="290">
+      <crop type="rect" presetHandlers="4"/>
+      <border color="rgb(23, 21, 18)" width="2"/>
+    </img>
+    <shape type="text" topLeftX="490" topLeftY="495" width="410" height="18">
+      <content textType="caption" fontSize="10" color="rgb(100, 90, 80)" fontFamily="思源黑体" textAlign="center">
+        <p>FIG.06 / 教育背景填写</p>
+      </content>
+    </shape>
+    <shape type="rect" topLeftX="60" topLeftY="520" width="840" height="1">
+      <fill>
+        <fillColor color="rgb(200, 185, 160)"/>
+      </fill>
+    </shape>
+  </data>
+  <note>
+    <content textType="body" fontSize="14">
+      <p>现在进入实战演示环节。我们以一份27届Agent开发岗的简历为例，从头到尾演示完整流程。第一步是填写基本信息和教育背景。基本信息包括姓名、邮箱、求职意向、手机号等；教育背景支持211、双一流标签，GPA、专业排名、主修课程、英语成绩都能详细填写。</p>
+    </content>
+  </note>
+</slide>
