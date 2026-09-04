@@ -23,8 +23,9 @@ import { AwardForm } from '../components/modules/AwardForm'
 import { AwardItemSorter } from '../components/modules/AwardItemSorter'
 import { MembershipUpgradeModal } from '../components/membership/MembershipUpgradeModal'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
-import { flushResumeAutoSaves } from '../hooks/useAutoSave'
-import { SINGLETON_MODULES, type ModuleType } from '../types'
+import { CollapsibleItemHeader } from '../components/ui/CollapsibleItemHeader'
+import { flushResumeAutoSaves, readLocalModuleDraft } from '../hooks/useAutoSave'
+import { MODULE_LABELS, SINGLETON_MODULES, type ModuleType } from '../types'
 import { normalizeJobIntentionContent } from '../utils/moduleContent'
 import { getEducationTimelineIssues } from '../utils/educationTimeline'
 import { buildMembershipPath } from '../utils/navigation'
@@ -44,11 +45,26 @@ import {
 
 type EditorView = 'module' | 'analysis' | 'template-selection'
 const AI_OPTIMIZABLE_MODULE_TYPES = new Set<ModuleType>(['research'])
-const NON_REMOVABLE_MODULE_TYPES = new Set<ModuleType>(['basic_info', 'skill'])
 const PREVIEW_PANEL_COLLAPSED_STORAGE_KEY = 'pai-resume.preview-panel-collapsed'
 const COMPACT_PREVIEW_MEDIA_QUERY = '(max-width: 1279px)'
 const DESKTOP_MODULE_SIDEBAR_MEDIA_QUERY = '(min-width: 768px)'
 const DESKTOP_MODULE_SIDEBAR_WIDTH = '11rem'
+
+function getModuleItemTitle(moduleType: ModuleType, content: Record<string, unknown>, index: number): string {
+  const titleFields: Partial<Record<ModuleType, string[]>> = {
+    education: ['school', 'degree'],
+    internship: ['company', 'position'],
+    work_experience: ['company', 'position'],
+    paper: ['journalName', 'journalType'],
+    research: ['projectName'],
+    award: ['awardName'],
+  }
+  const title = (titleFields[moduleType] ?? [])
+    .map((field) => typeof content[field] === 'string' ? content[field].trim() : '')
+    .filter(Boolean)
+    .join(' · ')
+  return title || `第 ${index + 1} 条${MODULE_LABELS[moduleType]}`
+}
 
 function getStoredDesktopPreviewPreference(): boolean {
   if (typeof window === 'undefined') {
@@ -109,6 +125,10 @@ export default function EditorPage() {
   const [awardItemSorting, setAwardItemSorting] = useState(false)
   const [experienceItemSorting, setExperienceItemSorting] = useState(false)
   const [focusedExperienceModuleId, setFocusedExperienceModuleId] = useState<number | null>(null)
+  const [collapsedModuleIds, setCollapsedModuleIds] = useState<Set<number>>(new Set())
+  const [pendingModuleFocus, setPendingModuleFocus] = useState<{ id: number; moduleType: ModuleType } | null>(null)
+  const [addingInstance, setAddingInstance] = useState(false)
+  const addingInstanceRef = useRef(false)
   const previewToggleRef = useRef<HTMLButtonElement | null>(null)
   const mobilePreviewToggleRef = useRef<HTMLButtonElement | null>(null)
   const resumeReviewTriggerRef = useRef<HTMLButtonElement | null>(null)
@@ -545,13 +565,49 @@ export default function EditorPage() {
 
   const handleAddInstanceOfType = useCallback(
     async (moduleType: ModuleType) => {
-      const defaultContent = getDefaultContent(moduleType)
-      await addModule(resumeId, moduleType, defaultContent)
-      setEditorView('module')
-      updateEditorLocation('module', moduleType)
+      if (addingInstanceRef.current) return
+      addingInstanceRef.current = true
+      setAddingInstance(true)
+      setExportError('')
+      const existingIds = new Set(useResumeStore.getState().modules.map((module) => module.id))
+      try {
+        await addModule(resumeId, moduleType, getDefaultContent(moduleType))
+        if (useResumeStore.getState().currentResumeId !== resumeId) return
+        const sameTypeModules = useResumeStore.getState().modules.filter((module) => module.moduleType === moduleType)
+        const newModule = sameTypeModules.find((module) => !existingIds.has(module.id))
+        if (newModule) {
+          setCollapsedModuleIds((current) => {
+            const next = new Set(current)
+            sameTypeModules.forEach((module) => {
+              if (module.id === newModule.id) next.delete(module.id)
+              else next.add(module.id)
+            })
+            return next
+          })
+          setPendingModuleFocus({ id: newModule.id, moduleType })
+        }
+        setEditorView('module')
+        updateEditorLocation('module', moduleType)
+      } catch (error) {
+        setExportError(error instanceof Error ? error.message : '添加失败，请重试')
+      } finally {
+        addingInstanceRef.current = false
+        setAddingInstance(false)
+      }
     },
     [resumeId, addModule, updateEditorLocation]
   )
+
+  useEffect(() => {
+    if (pendingModuleFocus === null || activeModuleType !== pendingModuleFocus.moduleType || editorView !== 'module') return
+    const frame = window.requestAnimationFrame(() => {
+      const card = document.getElementById(`module-card-${pendingModuleFocus.id}`)
+      card?.querySelector<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>('input:not([disabled]), select:not([disabled]), textarea:not([disabled])')?.focus({ preventScroll: true })
+      card?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      setPendingModuleFocus(null)
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [activeModuleType, editorView, pendingModuleFocus])
 
   const closeMobileModuleMenu = useCallback(() => {
     setMobileModuleMenuOpen(false)
@@ -592,7 +648,6 @@ export default function EditorPage() {
   )
   const canAddAnotherInstance = activeModuleType ? !SINGLETON_MODULES.includes(activeModuleType) : false
   const canOptimizeActiveModule = activeModuleType ? AI_OPTIMIZABLE_MODULE_TYPES.has(activeModuleType) : false
-  const canDeleteActiveModule = activeModuleType ? !NON_REMOVABLE_MODULE_TYPES.has(activeModuleType) : false
   const isExperienceModule = activeModuleType === 'internship' || activeModuleType === 'work_experience'
   const itemSorting = educationItemSorting || awardItemSorting || experienceItemSorting
   const focusedExperienceModule = isExperienceModule && focusedExperienceModuleId !== null
@@ -775,6 +830,15 @@ export default function EditorPage() {
     }
   }, [navigate, resumeId])
 
+  const toggleModuleCollapsed = (moduleId: number) => {
+    setCollapsedModuleIds((current) => {
+      const next = new Set(current)
+      if (next.has(moduleId)) next.delete(moduleId)
+      else next.add(moduleId)
+      return next
+    })
+  }
+
   const renderModuleForm = (moduleId: number, content: Record<string, unknown>, itemIndex = 0) => {
     if (!activeModuleType) return null
     const jobIntentionModule = modules.find((module) => module.moduleType === 'job_intention')
@@ -805,11 +869,19 @@ export default function EditorPage() {
           onBackToCompanies={() => setFocusedExperienceModuleId(null)}
         />
       )
-      case 'project': return <ProjectForm {...props} />
+      case 'project': return (
+        <ProjectForm
+          {...props}
+          itemIndex={itemIndex}
+          collapsed={collapsedModuleIds.has(moduleId)}
+          onToggleCollapsed={() => toggleModuleCollapsed(moduleId)}
+          onDelete={() => openDeleteDialog([moduleId], 'project', `第 ${itemIndex + 1} 条`)}
+        />
+      )
       case 'skill': return <SkillForm {...props} />
       case 'paper': return <PaperForm {...props} />
       case 'research': return <ResearchForm {...props} />
-      case 'award': return <AwardForm {...props} showModuleToolbar={itemIndex === 0} />
+      case 'award': return <AwardForm {...props} />
       case 'job_intention': return null
     }
   }
@@ -1085,7 +1157,7 @@ export default function EditorPage() {
                 {activeModules.length > 0 && canAddAnotherInstance && (
                   <button
                     onClick={() => handleAddInstanceOfType(activeModuleType)}
-                    disabled={itemSorting}
+                    disabled={itemSorting || addingInstance}
                     className="text-sm text-primary-600 hover:text-primary-700"
                   >
                     + 添加
@@ -1122,86 +1194,52 @@ export default function EditorPage() {
                   {displayedActiveModules.map((mod, index) => (
                     <div
                       key={mod.id}
-                      className="editor-form-container rounded-xl border border-gray-200 bg-white p-4 sm:p-5"
+                      id={`module-card-${mod.id}`}
+                      className="editor-form-container scroll-mt-4 rounded-xl border border-gray-200 bg-white p-4 sm:p-5"
                     >
-                      {!focusedExperienceModule && activeModules.length > 1 && (
-                        <div className={activeModuleType === 'education' || activeModuleType === 'award'
-                          ? 'mb-2 flex items-center justify-end'
-                          : 'mb-3 flex items-center justify-between border-b border-gray-100 pb-3'}>
-                          {activeModuleType !== 'education' && activeModuleType !== 'award' ? (
-                            <span className="text-sm font-medium text-gray-500">
-                              第 {index + 1} 条
-                            </span>
-                          ) : null}
-                          <div className="flex gap-2">
-                            {canOptimizeActiveModule && (
-                              <button
-                                onClick={() => openAiOptimize(mod.id)}
-                                className="text-xs text-primary-600 hover:text-primary-700 flex items-center gap-1"
-                              >
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                                </svg>
-                                AI 优化{isVip ? '' : ' · VIP'}
-                              </button>
-                            )}
-                            <button
-                              type="button"
-                              onMouseDown={(event) => event.preventDefault()}
-                              onClick={() => openDeleteDialog([mod.id], activeModuleType, `第 ${index + 1} 条`)}
-                              className="text-xs text-gray-400 hover:text-red-500"
-                            >
-                              删除
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                      {!focusedExperienceModule && activeModules.length === 1 && (canOptimizeActiveModule || canDeleteActiveModule) && (
-                        <div className="mb-3 flex justify-end gap-2">
+                      {activeModuleType !== 'project' && !focusedExperienceModule && canAddAnotherInstance ? (
+                        <CollapsibleItemHeader
+                          title={getModuleItemTitle(activeModuleType, readLocalModuleDraft(resumeId, mod.id) ?? mod.content, index)}
+                          collapsed={collapsedModuleIds.has(mod.id)}
+                          controlsId={`module-fields-${mod.id}`}
+                          onToggle={() => toggleModuleCollapsed(mod.id)}
+                        >
                           {canOptimizeActiveModule && (
                             <button
                               onClick={() => openAiOptimize(mod.id)}
-                              className="text-xs text-primary-600 hover:text-primary-700 flex items-center gap-1"
+                              className="shrink-0 text-xs text-primary-600 hover:text-primary-700"
                             >
-                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                              </svg>
                               AI 优化{isVip ? '' : ' · VIP'}
                             </button>
                           )}
-                          {canDeleteActiveModule && (
-                            <button
-                              type="button"
-                              onMouseDown={(event) => event.preventDefault()}
-                              onClick={() => openDeleteDialog([mod.id], activeModuleType, '当前内容')}
-                              className="text-xs text-gray-400 hover:text-red-500"
-                            >
-                              删除
-                            </button>
-                          )}
-                        </div>
-                      )}
-                      {renderModuleForm(mod.id, mod.content, index)}
+                          <button
+                            type="button"
+                            onMouseDown={(event) => event.preventDefault()}
+                            onClick={() => openDeleteDialog([mod.id], activeModuleType, `第 ${index + 1} 条`)}
+                            className="shrink-0 text-xs text-gray-400 hover:text-red-500"
+                          >
+                            删除
+                          </button>
+                        </CollapsibleItemHeader>
+                      ) : null}
+                      <div id={`module-fields-${mod.id}`} hidden={activeModuleType !== 'project' && !focusedExperienceModule && collapsedModuleIds.has(mod.id)}>
+                        {renderModuleForm(mod.id, mod.content, index)}
+                      </div>
                     </div>
                   ))}
                   {!focusedExperienceModule
                     && !itemSorting
                     && canAddAnotherInstance
-                    && (activeModuleType === 'education' || activeModuleType === 'award' || isExperienceModule) ? (
+                    ? (
                       <button
                         type="button"
                         onClick={() => handleAddInstanceOfType(activeModuleType)}
+                        disabled={addingInstance}
                         className="flex w-full items-center justify-center gap-2 rounded-lg border border-primary-200 bg-primary-50/70 px-4 py-3 text-sm font-medium text-primary-700 transition hover:border-primary-300 hover:bg-primary-100 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
                       >
                         <span className="text-base leading-none" aria-hidden="true">+</span>
                         <span>
-                          {activeModuleType === 'education'
-                            ? '继续添加教育背景'
-                            : activeModuleType === 'award'
-                              ? '继续添加荣誉奖项'
-                            : activeModuleType === 'internship'
-                              ? '继续添加实习经历'
-                              : '继续添加工作经历'}
+                          继续添加{getModuleDisplayLabelFromModules(activeModuleType, modules)}
                         </span>
                       </button>
                     ) : null}

@@ -14,7 +14,7 @@ function resizeTextarea(element: HTMLTextAreaElement, minRows: number) {
   const minHeight = lineHeight * minRows + paddingTop + paddingBottom + borderTop + borderBottom
 
   element.style.height = 'auto'
-  element.style.height = `${Math.max(element.scrollHeight, minHeight)}px`
+  element.style.height = `${Math.max(element.scrollHeight + borderTop + borderBottom, minHeight)}px`
 }
 
 export function AutoResizeTextarea({
@@ -31,10 +31,26 @@ export function AutoResizeTextarea({
     : (minRows ?? 2)
 
   useLayoutEffect(() => {
-    if (textareaRef.current) {
+    if (textareaRef.current?.getClientRects().length) {
       resizeTextarea(textareaRef.current, effectiveMinRows)
     }
   }, [effectiveMinRows, value])
+
+  useLayoutEffect(() => {
+    const element = textareaRef.current
+    if (!element || typeof ResizeObserver === 'undefined') return
+    let previousWidth = -1
+    const observer = new ResizeObserver(() => {
+      const width = element.getBoundingClientRect().width
+      if (width === previousWidth) return
+      previousWidth = width
+      // Recalculate when a collapsed field becomes visible or its container changes width.
+      // Ignore height-only changes so resizing the textarea does not create an observer loop.
+      if (width > 0) resizeTextarea(element, effectiveMinRows)
+    })
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [effectiveMinRows])
 
   return (
     <textarea

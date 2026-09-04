@@ -12,6 +12,7 @@ import { MaterialActions } from '../materials/MaterialActions'
 import { ExperienceProjectSorter } from './ExperienceProjectSorter'
 import { ExperienceResponsibilitySorter } from './ExperienceResponsibilitySorter'
 import { ContinueAddButton, RepeatableListHeader } from '../ui/RepeatableListControls'
+import { CollapsibleItemHeader } from '../ui/CollapsibleItemHeader'
 
 interface Props {
   resumeId: number
@@ -63,6 +64,7 @@ export function ExperienceModuleForm({
   const [responsibilitySortingProjectId, setResponsibilitySortingProjectId] = useState<string | null>(null)
   const [deleteProjectId, setDeleteProjectId] = useState<string | null>(null)
   const [pendingProjectFocusId, setPendingProjectFocusId] = useState<string | null>(null)
+  const [collapsedProjectIds, setCollapsedProjectIds] = useState<Set<string>>(new Set())
   const [pendingResponsibilityFocus, setPendingResponsibilityFocus] = useState<{
     projectId: string
     responsibilityIndex: number
@@ -88,6 +90,8 @@ export function ExperienceModuleForm({
 
   const addProject = () => {
     const project = createProject()
+    setCollapsedProjectIds(new Set(content.projects.map((item) => item.id)))
+    setResponsibilitySortingProjectId(null)
     setPendingProjectFocusId(project.id)
     setContent((previous) => ({ ...previous, projects: [...previous.projects, project] }))
   }
@@ -288,6 +292,7 @@ export function ExperienceModuleForm({
           <div className="space-y-3">
             {content.projects.map((project, projectIndex) => {
               const projectIssues = timelineIssues.projects[project.id] ?? []
+              const collapsed = collapsedProjectIds.has(project.id)
               return (
                 <section
                   key={project.id}
@@ -295,12 +300,23 @@ export function ExperienceModuleForm({
                     ? 'py-4'
                     : 'border-t border-slate-100 py-4'}
                 >
-                {content.projects.length > 1 ? (
-                  <div className="mb-3 flex justify-end">
+                <CollapsibleItemHeader
+                  title={project.projectName.trim() || `第 ${projectIndex + 1} 个项目`}
+                  collapsed={collapsed}
+                  controlsId={`experience-project-fields-${moduleId}-${project.id}`}
+                  onToggle={() => setCollapsedProjectIds((current) => {
+                    const next = new Set(current)
+                    if (next.has(project.id)) next.delete(project.id)
+                    else next.add(project.id)
+                    return next
+                  })}
+                >
+                  {content.projects.length > 1 ? (
                     <button type="button" onClick={() => setDeleteProjectId(project.id)} className="text-xs text-slate-400 hover:text-red-600">删除项目</button>
-                  </div>
-                ) : null}
+                  ) : null}
+                </CollapsibleItemHeader>
 
+              <div id={`experience-project-fields-${moduleId}-${project.id}`} hidden={collapsed}>
               <div className="editor-responsive-grid">
                 <div>
                   <label className="mb-1 block text-sm font-medium text-gray-700">项目名称</label>
@@ -414,6 +430,7 @@ export function ExperienceModuleForm({
                 {responsibilitySortingProjectId !== project.id && project.responsibilities.length > 0 ? (
                   <ContinueAddButton label="职责" onClick={() => addResponsibility(projectIndex)} />
                 ) : null}
+              </div>
               </div>
                 </section>
               )
