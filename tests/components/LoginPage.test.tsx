@@ -131,10 +131,10 @@ function LocationProbe() {
   return <div data-testid="location">{location.pathname}{location.search}</div>
 }
 
-function renderInviteLink(code = 'VIPPLANET123') {
+function renderInviteLink(code = 'VIPPLANET123', entry = `/?${code}`) {
   return render(
     <StrictMode>
-      <MemoryRouter initialEntries={[`/?${code}`]}>
+      <MemoryRouter initialEntries={[entry]}>
         <PlanetInviteLinkGate>
           <LocationProbe />
           <Routes>
@@ -159,11 +159,12 @@ describe('邀请分享链接', () => {
 
   it('一行邀请链接先校验再生成一次二维码，并清理地址栏', async () => {
     const post = buildPlanetInvitePost('https://resume.paicoding.com/', 'VIPPLANET123')
-    expect(post).toBe('派简历（二哥编程星球专属，支持AI优化、人工精修、智能长一页、多种精美模板、前辈简历参考）：https://resume.paicoding.com?VIPPLANET123')
+    expect(post).toBe('派简历（二哥编程星球专属，支持AI优化、人工精修、智能长一页、多种精美模板、前辈简历参考）：https://resume.paicoding.com/login?invite=VIPPLANET123')
     expect(readPlanetInvite('?invite=vipplanet123')).toBe('VIPPLANET123')
     let resolveClaim!: (value: unknown) => void
     membershipMocks.createInviteClaim.mockImplementation(() => new Promise(resolve => { resolveClaim = resolve }))
-    renderInviteLink()
+    const copiedUrl = new URL(post.split('：')[1])
+    renderInviteLink('VIPPLANET123', copiedUrl.pathname + copiedUrl.search)
     await waitFor(() => expect(membershipMocks.createInviteClaim).toHaveBeenCalledTimes(1))
     expect(screen.getByRole('textbox', { name: /知识星球 VIP 邀请码/ })).toHaveValue('VIPPLANET123')
     expect(screen.getByTestId('location')).toHaveTextContent('/login?method=wechat')

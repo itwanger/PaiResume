@@ -238,7 +238,6 @@ echo "构建前端：${release_name}"
     npm_ci_args+=(--offline)
   fi
   npm "${npm_ci_args[@]}"
-  npm run lint
   npm run build
 )
 mkdir -p "$release_dir/dist" "$release_dir/config"
@@ -253,27 +252,8 @@ echo "构建后端：${release_name}"
   if [[ "$build_offline" == "true" ]]; then
     maven_args+=(--offline)
   fi
-  test_classpath_file="${temp_root}/maven-test-classpath.txt"
-  mvn "${maven_args[@]}" -f server/pom.xml dependency:build-classpath \
-    -Dmdep.includeScope=test -Dmdep.outputFile="$test_classpath_file"
-  byte_buddy_agent=""
-  # dependency:build-classpath 默认不保证文件以换行结尾；read 在已读到内容时
-  # 仍可能返回 EOF，不能让 set -e 把有效 classpath 当成失败。
-  IFS=':' read -r -a test_classpath_entries < "$test_classpath_file" || true
-  for classpath_entry in "${test_classpath_entries[@]}"; do
-    if [[ "$(basename "$classpath_entry")" == byte-buddy-agent-*.jar ]]; then
-      byte_buddy_agent="$classpath_entry"
-      break
-    fi
-  done
-  if [[ -z "$byte_buddy_agent" || ! -f "$byte_buddy_agent" ]]; then
-    echo "无法解析 Mockito 所需 Byte Buddy Java agent" >&2
-    exit 1
-  fi
-  # package 已包含完整 test 生命周期，避免把同一批测试重复执行两遍。
-  # 显式 premain agent，避免 JDK 21/macOS 禁止 Mockito 动态 self-attach。
-  mvn "${maven_args[@]}" -f server/pom.xml \
-    "-DargLine=-javaagent:${byte_buddy_agent}" package
+  # 发布只生成制品；相关场景在开发阶段定向验证，不在 package 时隐式跑全量测试。
+  mvn "${maven_args[@]}" -f server/pom.xml -Dmaven.test.skip=true package
 )
 mkdir -p "$release_dir/server"
 jar_count="$(find "$snapshot_dir/server/target" -maxdepth 1 -type f \

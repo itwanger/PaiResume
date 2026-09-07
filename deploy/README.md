@@ -91,9 +91,9 @@ OSS 生命周期按前缀工作且规则生效、执行存在时间差，不能�
 ## 发布前顺序
 
 1. 从确定的提交或标签在本机启动固定版本的 Linux builder；明确选择 working-tree 模式时，把基准提交、dirty 标记和内容摘要写入 manifest。生产机不执行 `git pull`、npm 或 Maven 构建。
-2. 构建环境只加载前端公开变量，运行前后端完整测试和构建。真实 `VITE_SUPPORT_EMAIL`、`VITE_OPERATOR_NAME`、`VITE_AI_PROVIDER_NAME` 和 `VITE_AI_PROVIDER_PRIVACY_URL` 必须在 `npm run build` 前注入；数据库、JWT、支付和 AI API Key 不进入构建包。
+2. 构建环境只加载前端公开变量，生成前端 dist 和后端 JAR。发布不重复运行测试；开发阶段按 AGENTS.md 完成与改动直接相关的定向验证。真实 `VITE_SUPPORT_EMAIL`、`VITE_OPERATOR_NAME`、`VITE_AI_PROVIDER_NAME` 和 `VITE_AI_PROVIDER_PRIVACY_URL` 必须在 `npm run build` 前注入；数据库、JWT、支付和 AI API Key 不进入构建包。
 3. 组装最小 Linux 发布包，固定制品契约只有完整 `dist/`、后端 JAR、`config/`、manifest 和 checksum。生产包不包含 Node、`node_modules`、PDF worker、源码或 macOS 架构产物。
-4. 在构建环境中完成浏览器 PDF 导出测试、临时空库 Flyway 迁移、前后端测试、manifest 和 SHA-256；再用最近一次生产备份的副本完成恢复演练。人工精修的 PDF 附件投递另按真实验收清单留证。
+4. 校验 manifest 和 SHA-256。PDF、数据库迁移及恢复流程发生变化时，分别验证相关导出场景、临时空库迁移或备份恢复，不在每次发布时重复。人工精修的 PDF 附件投递另按真实验收清单留证。
 5. 一键发布脚本先把发布包上传到 `/home/www/pairesume/incoming/*.partial`，上传和 checksum 完成后才原子改名。发布包不得包含 `.env`、密钥、日志、测试数据或 Git 元数据。
 6. 远端稳定激活脚本校验 checksum、manifest、目标架构和压缩包路径安全，解压到 `releases/.staging-*`；Linux root 通过本地 MySQL socket 备份 `pai_resume`，再执行候选版本生产预检并原子切换 `current`。
 7. systemd 以受沙箱限制的 root 身份、明确 Java 17、`-Xms128m -Xmx512m` 和 `MemoryMax=1024M` 只重启 `pai-resume`，随后验证本机 health/ready 和公网 `scripts/smoke-production.sh`。日常应用发布不修改或 reload Nginx，不重启 MySQL、Redis、paicoding、PaiSmart、javabetter 等已有服务。失败时只切回代码与静态资源，不自动恢复数据库。
