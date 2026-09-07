@@ -10,6 +10,9 @@ import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -87,6 +90,83 @@ class MailServiceImplTest {
         )) {
             assertFalse(lowercaseHtml.contains(unsafeMarkup), unsafeMarkup);
         }
+    }
+
+    @ParameterizedTest
+    @EnumSource(VerificationMailTemplate.Purpose.class)
+    void everyCodeMailKeepsCodeIsolatedInBothAlternatives(VerificationMailTemplate.Purpose purpose) throws Exception {
+        ReflectionTestUtils.setField(mailService, "verificationCodeTtlSeconds", 90);
+        switch (purpose) {
+            case REGISTER -> mailService.sendVerificationCode("recipient@example.com", "012345");
+            case BIND_EMAIL -> mailService.sendEmailBindingCode("recipient@example.com", "012345");
+            case REVIEW_CONTACT -> mailService.sendResumeReviewContactCode("recipient@example.com", "012345");
+            case RESET_PASSWORD -> mailService.sendPasswordResetCode("recipient@example.com", "012345");
+        }
+        verify(mailSender).send(same(mimeMessage));
+        mimeMessage.saveChanges();
+        assertEquals(purpose.subject, mimeMessage.getSubject());
+        assertEquals("recipient@example.com",
+                ((InternetAddress) mimeMessage.getRecipients(Message.RecipientType.TO)[0]).getAddress());
+        assertEquals("派简历", ((InternetAddress) mimeMessage.getFrom()[0]).getPersonal());
+        List<String> plainParts = new ArrayList<>();
+        List<String> htmlParts = new ArrayList<>();
+        collectTextParts(mimeMessage, plainParts, htmlParts);
+        assertEquals(1, plainParts.size());
+        assertEquals(1, htmlParts.size());
+        String plain = plainParts.get(0);
+        String html = htmlParts.get(0);
+        assertTrue(plain.contains("\n\n012345\n\n"));
+        assertTrue(html.contains(">012345</div>"));
+        assertEquals(1, countOccurrences(plain, "012345"));
+        assertEquals(1, countOccurrences(html, "012345"));
+        assertTrue(plain.contains("90 秒"));
+        assertTrue(html.contains("90 秒"));
+        assertTrue(plain.contains(purpose.description));
+        assertTrue(html.contains(purpose.description));
+        assertFalse(html.contains("{{"));
+        if (purpose == VerificationMailTemplate.Purpose.RESET_PASSWORD) {
+            assertTrue(plain.contains("已登录设备会全部退出"));
+            assertTrue(html.contains("已登录设备会全部退出"));
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"recipient@example.com", "applicant+review@example.com"})
+    void resumeReviewPreservesReplyTargetAndAttachmentAfterMimeSerialization(String contactEmail) throws Exception {
+        byte[] pdf = "%PDF-1.4 test attachment".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        mailService.sendResumeReview("recipient@example.com", "<review-RR123@example.com>",
+                "RR123", contactEmail, pdf, "简历.pdf");
+        verify(mailSender).send(same(mimeMessage));
+        java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+        mimeMessage.writeTo(bytes);
+        MimeMessage received = new MimeMessage(Session.getInstance(new Properties()),
+                new java.io.ByteArrayInputStream(bytes.toByteArray()));
+        assertEquals("sender@example.com", ((InternetAddress) received.getFrom()[0]).getAddress());
+        assertEquals(contactEmail, ((InternetAddress) received.getReplyTo()[0]).getAddress());
+        assertEquals("recipient@example.com",
+                ((InternetAddress) received.getRecipients(Message.RecipientType.TO)[0]).getAddress());
+        List<String> plainParts = new ArrayList<>();
+        List<String> htmlParts = new ArrayList<>();
+        collectTextParts(received, plainParts, htmlParts);
+        assertEquals(1, plainParts.size());
+        assertTrue(plainParts.get(0).contains("用户联系邮箱：" + contactEmail));
+        assertTrue(plainParts.get(0).contains("请求号：RR123"));
+        Part attachment = findAttachment(received);
+        assertNotNull(attachment);
+        assertTrue(attachment.isMimeType("application/pdf"));
+        assertEquals("简历.pdf", attachment.getFileName());
+        assertArrayEquals(pdf, attachment.getInputStream().readAllBytes());
+    }
+
+    private Part findAttachment(Part part) throws Exception {
+        if (Part.ATTACHMENT.equalsIgnoreCase(part.getDisposition())) return part;
+        if (part.getContent() instanceof Multipart multipart) {
+            for (int i = 0; i < multipart.getCount(); i++) {
+                Part found = findAttachment(multipart.getBodyPart(i));
+                if (found != null) return found;
+            }
+        }
+        return null;
     }
 
     @Test

@@ -55,3 +55,4 @@ chart_school_level.png
 resume_records.ndjson
 resume_records.manifest.json
 gen_charts.py
+/output

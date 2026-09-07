@@ -39,46 +39,27 @@ public class MailServiceImpl implements MailService {
 
     @Override
     public void sendVerificationCode(String email, String code) {
-        ensureMailConfigured();
-        VerificationMailTemplate.RenderedMail renderedMail = VerificationMailTemplate.render(
-                code,
-                verificationCodeTtlSeconds,
-                publicUrl
-        );
-
-        try {
-            MimeMessage message = javaMailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(
-                    message,
-                    MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED,
-                    StandardCharsets.UTF_8.name()
-            );
-            helper.setFrom(mailFrom, "派简历");
-            helper.setTo(email);
-            helper.setSubject(renderedMail.subject());
-            helper.setText(renderedMail.plainText(), renderedMail.htmlText());
-            javaMailSender.send(message);
-        } catch (Exception exception) {
-            handleDeliveryFailure(email, exception);
-        }
+        sendCodeMail(email, code, VerificationMailTemplate.Purpose.REGISTER);
     }
 
     @Override
     public void sendPasswordResetCode(String email, String code) {
-        ensureMailConfigured();
-        PasswordResetMailTemplate.RenderedMail renderedMail = PasswordResetMailTemplate.render(
-                code,
-                verificationCodeTtlSeconds,
-                publicUrl
-        );
+        sendCodeMail(email, code, VerificationMailTemplate.Purpose.RESET_PASSWORD);
+    }
 
+    @Override
+    public void sendEmailBindingCode(String email, String code) {
+        sendCodeMail(email, code, VerificationMailTemplate.Purpose.BIND_EMAIL);
+    }
+
+    private void sendCodeMail(String email, String code, VerificationMailTemplate.Purpose purpose) {
+        ensureMailConfigured();
+        VerificationMailTemplate.RenderedMail renderedMail = VerificationMailTemplate.render(
+                code, verificationCodeTtlSeconds, publicUrl, purpose);
         try {
             MimeMessage message = javaMailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(
-                    message,
-                    MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED,
-                    StandardCharsets.UTF_8.name()
-            );
+                    message, MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED, StandardCharsets.UTF_8.name());
             helper.setFrom(mailFrom, "派简历");
             helper.setTo(email);
             helper.setSubject(renderedMail.subject());
@@ -87,14 +68,6 @@ public class MailServiceImpl implements MailService {
         } catch (Exception exception) {
             handleDeliveryFailure(email, exception);
         }
-    }
-
-    @Override
-    public void sendEmailBindingCode(String email, String code) {
-        sendTextMail(email, "派简历绑定邮箱验证码",
-                "你正在绑定派简历登录邮箱，验证码为 " + code
-                        + "，" + Math.max(1, verificationCodeTtlSeconds / 60)
-                        + " 分钟内有效。如非本人操作请忽略。");
     }
 
     @Override
@@ -109,9 +82,7 @@ public class MailServiceImpl implements MailService {
 
     @Override
     public void sendResumeReviewContactCode(String email, String code) {
-        sendTextMail(email, "派简历人工精修联系邮箱验证码",
-                "你正在验证人工精修联系邮箱，验证码为 " + code
-                        + "，" + Math.max(1, verificationCodeTtlSeconds / 60) + " 分钟内有效。如非本人操作请忽略。");
+        sendCodeMail(email, code, VerificationMailTemplate.Purpose.REVIEW_CONTACT);
     }
 
     @Override
