@@ -5,7 +5,7 @@ import com.itwanger.pairesume.common.ResultCode;
 import com.itwanger.pairesume.dto.MembershipOrderDTO;
 import com.itwanger.pairesume.entity.MembershipPaymentOrder;
 import com.itwanger.pairesume.payment.MarketplacePaymentGateway;
-import com.itwanger.pairesume.payment.MarketplacePaymentProperties;
+import com.itwanger.pairesume.payment.PaymentAvailability;
 import com.itwanger.pairesume.payment.MembershipOrderStatus;
 import com.itwanger.pairesume.payment.PaymentPrepayRequest;
 import com.itwanger.pairesume.payment.PaymentPrepayResult;
@@ -35,7 +35,6 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
     private final MembershipOrderLocalService localService;
     private final MembershipOrderSettlementService settlementService;
     private final MarketplacePaymentGateway paymentGateway;
-    private final MarketplacePaymentProperties paymentProperties;
     private final QrCodeDataUrlGenerator qrCodeGenerator;
     private final AtomicLong reconciliationFailures = new AtomicLong();
     private final LocalDateTime observabilityStartedAt = LocalDateTime.now();
@@ -49,7 +48,7 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
             String couponCode,
             String clientIp
     ) {
-        if (!paymentProperties.isMembershipAcceptNewOrders()) {
+        if (!PaymentAvailability.isEnabled(paymentGateway)) {
             throw new BusinessException(ResultCode.PAYMENT_NOT_ENABLED);
         }
         MembershipPaymentOrder order;

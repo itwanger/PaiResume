@@ -4,7 +4,6 @@ import com.itwanger.pairesume.common.BusinessException;
 import com.itwanger.pairesume.common.ResultCode;
 import com.itwanger.pairesume.entity.MembershipPaymentOrder;
 import com.itwanger.pairesume.payment.MarketplacePaymentGateway;
-import com.itwanger.pairesume.payment.MarketplacePaymentProperties;
 import com.itwanger.pairesume.payment.MembershipOrderStatus;
 import com.itwanger.pairesume.payment.PaymentProviderState;
 import com.itwanger.pairesume.payment.ProviderPaymentResult;
@@ -33,7 +32,6 @@ class MembershipOrderServiceImplTest {
     @Mock private MembershipOrderLocalService localService;
     @Mock private MembershipOrderSettlementService settlementService;
     @Mock private MarketplacePaymentGateway paymentGateway;
-    @Mock private MarketplacePaymentProperties paymentProperties;
     @Mock private QrCodeDataUrlGenerator qrCodeGenerator;
 
     private MembershipOrderServiceImpl service;
@@ -41,7 +39,7 @@ class MembershipOrderServiceImplTest {
     @BeforeEach
     void setUp() {
         service = new MembershipOrderServiceImpl(
-                localService, settlementService, paymentGateway, paymentProperties, qrCodeGenerator);
+                localService, settlementService, paymentGateway, qrCodeGenerator);
     }
 
     @Test
@@ -141,7 +139,6 @@ class MembershipOrderServiceImplTest {
         MembershipPaymentOrder expired = order(MembershipOrderStatus.CREATED);
         MembershipPaymentOrder canceled = order(MembershipOrderStatus.CANCELED);
         canceled.setActiveOrderKey(null);
-        when(paymentProperties.isMembershipAcceptNewOrders()).thenReturn(true);
         when(paymentGateway.provider()).thenReturn("wechat");
         when(localService.findOrCreate(
                 7L, "member-key-123", "ANNUAL", null,
@@ -158,8 +155,8 @@ class MembershipOrderServiceImplTest {
     }
 
     @Test
-    void pausedMembershipPaymentsRejectNewOrderBeforeAnyOrderOrProviderWork() {
-        when(paymentProperties.isMembershipAcceptNewOrders()).thenReturn(false);
+    void disabledPaymentGatewayRejectNewOrderBeforeAnyOrderOrProviderWork() {
+        when(paymentGateway.provider()).thenReturn("disabled");
 
         BusinessException exception = assertThrows(BusinessException.class,
                 () -> service.createOrder(7L, "member-key-123", null, "127.0.0.1"));
@@ -168,7 +165,7 @@ class MembershipOrderServiceImplTest {
         verify(localService, never()).findOrCreate(
                 7L, "member-key-123", "ANNUAL", null,
                 "wechat", "WECHAT_NATIVE");
-        verify(paymentGateway, never()).provider();
+        verify(paymentGateway, never()).createNativeOrder(org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -179,7 +176,6 @@ class MembershipOrderServiceImplTest {
         service.handleVerifiedProviderNotification(providerPaid);
 
         verify(settlementService).settlePaid(pending.getOrderNo(), providerPaid);
-        verify(paymentProperties, never()).isMembershipAcceptNewOrders();
     }
 
     @Test

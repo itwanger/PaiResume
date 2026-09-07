@@ -4,54 +4,28 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class PaymentConfigurationValidatorTest {
 
     @Test
-    void acceptingNewOrdersDefaultsToFailClosed() {
-        assertFalse(new MarketplacePaymentProperties().isAcceptNewOrders());
-        assertFalse(new MarketplacePaymentProperties().isMembershipAcceptNewOrders());
-        assertFalse(new MarketplacePaymentProperties().isMarketplaceAcceptNewOrders());
-        assertEquals(7, new MarketplacePaymentProperties().getCreatorEarningHoldDays());
-    }
-
-    @Test
-    void legacyGlobalSwitchAlwaysFailsClosed() {
+    void unconfiguredPaymentDoesNotBlockApplicationStartup() {
         MarketplacePaymentProperties properties = new MarketplacePaymentProperties();
-        properties.setProvider("wechat-native");
-        properties.setAcceptNewOrders(true);
-
-        assertThrows(IllegalStateException.class, () -> validator(properties).validate());
-    }
-
-    @Test
-    void disabledProviderCannotAcceptIndependentNewOrders() {
-        MarketplacePaymentProperties properties = new MarketplacePaymentProperties();
-        properties.setProvider("disabled");
-        properties.setMembershipAcceptNewOrders(true);
-
-        assertThrows(IllegalStateException.class, () -> validator(properties).validate());
-    }
-
-    @Test
-    void configuredWechatProviderCanStayAliveWhileNewOrdersArePaused() {
-        MarketplacePaymentProperties properties = validWechatProperties();
-        properties.setMembershipAcceptNewOrders(false);
-        properties.setMarketplaceAcceptNewOrders(false);
-
+        assertEquals(7, properties.getCreatorEarningHoldDays());
         assertDoesNotThrow(() -> validator(properties).validate());
     }
 
     @Test
-    void membershipAndMarketplaceSwitchesCanBeEnabledIndependently() {
-        MarketplacePaymentProperties properties = validWechatProperties();
-        properties.setMembershipAcceptNewOrders(true);
-        properties.setMarketplaceAcceptNewOrders(false);
+    void configuredWechatNeedsNoModuleSwitches() {
+        assertDoesNotThrow(() -> validator(validWechatProperties()).validate());
+    }
 
-        assertDoesNotThrow(() -> validator(properties).validate());
+    @Test
+    void mockPaymentsRemainForbiddenInProduction() {
+        MarketplacePaymentProperties properties = new MarketplacePaymentProperties();
+        properties.setProvider("mock");
+        assertThrows(IllegalStateException.class, () -> validator(properties, "production").validate());
     }
 
     @Test

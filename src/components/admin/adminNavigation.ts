@@ -139,8 +139,8 @@ export const ADMIN_NAVIGATION: AdminNavigationGroup[] = [
       },
       {
         id: 'analysis-prompts',
-        label: '简历分析提示词',
-        shortLabel: '分析提示词',
+        label: 'AI 提示词',
+        shortLabel: 'AI 提示词',
       },
       {
         id: 'ai-provider',

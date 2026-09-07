@@ -27,7 +27,8 @@ import com.itwanger.pairesume.mapper.MarketplaceGovernanceAuditMapper;
 import com.itwanger.pairesume.mapper.ResumeMarketListingMapper;
 import com.itwanger.pairesume.mapper.ResumeMarketListingRevisionMapper;
 import com.itwanger.pairesume.mapper.ResumeModuleMapper;
-import com.itwanger.pairesume.payment.MarketplacePaymentProperties;
+import com.itwanger.pairesume.payment.MarketplacePaymentGateway;
+import com.itwanger.pairesume.payment.PaymentAvailability;
 import com.itwanger.pairesume.security.ResumePhotoSecurityPolicy;
 import com.itwanger.pairesume.service.ResumeMarketplaceService;
 import com.itwanger.pairesume.util.DateTimeUtils;
@@ -65,7 +66,7 @@ public class ResumeMarketplaceServiceImpl implements ResumeMarketplaceService {
     private final ResumeMapper resumeMapper;
     private final ResumeModuleMapper moduleMapper;
     private final ObjectMapper objectMapper;
-    private final MarketplacePaymentProperties paymentProperties;
+    private final MarketplacePaymentGateway paymentGateway;
     private final MarketplaceOrderLocalService marketplaceOrderLocalService;
     private final MarketplaceFeatureProperties marketplaceFeatureProperties;
     private final MarketplaceGovernanceAuditMapper governanceAuditMapper;
@@ -755,7 +756,7 @@ public class ResumeMarketplaceServiceImpl implements ResumeMarketplaceService {
         dto.setModerationStatus(listing.getModerationStatus());
         dto.setUpdatedAt(DateTimeUtils.format(revision.getCreatedAt()));
         dto.setPaymentEnabled(marketplaceFeatureProperties.isEnabled()
-                && paymentProperties.isMarketplaceAcceptNewOrders());
+                && PaymentAvailability.isEnabled(paymentGateway));
         return dto;
     }
 
@@ -826,7 +827,7 @@ public class ResumeMarketplaceServiceImpl implements ResumeMarketplaceService {
         dto.setPriceCents(revision.getPriceCentsSnapshot());
         dto.setRevisionId(revision.getId());
         dto.setPaymentEnabled(marketplaceFeatureProperties.isEnabled()
-                && paymentProperties.isMarketplaceAcceptNewOrders());
+                && PaymentAvailability.isEnabled(paymentGateway));
         return dto;
     }
 

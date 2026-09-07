@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { authApi } from '../api/auth'
 import { LogoMark } from '../components/branding/LogoMark'
 import {
@@ -14,6 +14,7 @@ import { getSafeInternalPath } from '../utils/navigation'
 export default function LegalConsentPage() {
   const aiProvider = useAiProviderDisclosure()
   const navigate = useNavigate()
+  const location = useLocation()
   const [searchParams] = useSearchParams()
   const refreshUser = useAuthStore((state) => state.refreshUser)
   const logout = useAuthStore((state) => state.logout)
@@ -32,7 +33,7 @@ export default function LegalConsentPage() {
     try {
       await authApi.acceptLegalConsent()
       await refreshUser()
-      navigate(returnTo, { replace: true })
+      navigate(returnTo, { replace: true, state: location.state })
     } catch (consentError: unknown) {
       setError(consentError instanceof Error ? consentError.message : '保存失败，请稍后再试')
     } finally {

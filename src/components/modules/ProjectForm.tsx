@@ -1,3 +1,4 @@
+import { fieldOptimizeInputId } from '../../hooks/useFieldOptimizeReturn'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { ProjectContent } from '../../types'
@@ -186,6 +187,7 @@ export function ProjectForm({ resumeId, moduleId, initialContent, itemIndex, col
             </button>
           </div>
           <AutoResizeTextarea
+            id={fieldOptimizeInputId(moduleId, 0, 'project_description')}
             value={content.description}
             onChange={(e) => update('description', e.target.value)}
             minRows={4}
@@ -241,6 +243,7 @@ export function ProjectForm({ resumeId, moduleId, initialContent, itemIndex, col
                 </div>
               </div>
               <AutoResizeTextarea
+                id={fieldOptimizeInputId(moduleId, 0, 'responsibility', index)}
                 value={item}
                 onChange={(e) => updateResponsibility(index, e.target.value)}
                 minRows={4}

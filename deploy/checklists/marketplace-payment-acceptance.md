@@ -27,4 +27,4 @@
 - [ ] 管理员已排定投稿、举报、申诉、退款、对账失败和作者结算的值班人、响应时限与升级渠道。
 - [ ] 真实客服邮箱可收发订单材料，隐私、服务、退款和 AI 第三方披露与当前页面完全一致。
 
-以上全部完成并留存证据后，才可设置 `MARKETPLACE_ENABLED=true` 与 `MARKETPLACE_PAYMENT_ACCEPT_NEW_ORDERS=true`。
+以上全部完成并留存证据后，可开放用户市场（`MARKETPLACE_ENABLED=true`）。市场支付直接使用后台统一微信支付配置，不设置额外收款开关。

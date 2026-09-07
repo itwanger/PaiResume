@@ -346,11 +346,6 @@ planet_core_acceptance_confirmed="${PAIRESUME_PLANET_CORE_ACCEPTANCE_CONFIRMED:-
 validate_boolean_override \
   "PAIRESUME_PLANET_CORE_ACCEPTANCE_CONFIRMED" "$planet_core_acceptance_confirmed"
 
-review_payment_confirmed="${PAIRESUME_REVIEW_PAYMENT_ACCEPTANCE_CONFIRMED:-false}"
-validate_boolean_override "PAIRESUME_REVIEW_PAYMENT_ACCEPTANCE_CONFIRMED" "$review_payment_confirmed"
-[[ "$review_payment_confirmed" == "true" ]] \
-  || die "人工精修常驻服务要求先完成真实支付、邮件和退款验收"
-
 operator_name="${PAIRESUME_OPERATOR_NAME:-沉默王二（个人开发者）}"
 validate_value "PAIRESUME_OPERATOR_NAME" "$operator_name"
 
@@ -431,7 +426,6 @@ write_env() {
 } >> "$temporary_env"
 
 write_env APP_ENV production
-write_env DEPLOY_STAGE free
 write_env APP_TIME_ZONE Asia/Shanghai
 write_env APP_PUBLIC_URL https://resume.paicoding.com
 write_env APP_CORS_ALLOWED_ORIGIN_PATTERNS https://resume.paicoding.com
@@ -528,16 +522,12 @@ write_env RESUME_PHOTO_UPLOAD_RATE_LIMIT_WINDOW_SECONDS 900
 write_env RESUME_PHOTO_UPLOAD_RATE_LIMIT_ACCOUNT_ATTEMPTS 20
 write_env RESUME_PHOTO_UPLOAD_RATE_LIMIT_IP_ATTEMPTS 200
 write_env RESUME_REVIEW_PAYMENT_ORDER_EXPIRE_MINUTES 30
-write_env RESUME_REVIEW_PAYMENT_ACCEPTANCE_CONFIRMED "$review_payment_confirmed"
 
 write_env AI_API_KEY "$deepseek_api_key"
 write_env AI_BASE_URL https://api.deepseek.com
 write_env AI_MODEL deepseek-v4-flash
 write_env AI_ANALYSIS_MODEL deepseek-v4-flash
 
-write_env PAYMENT_ACCEPT_NEW_ORDERS false
-write_env MEMBERSHIP_PAYMENT_ACCEPT_NEW_ORDERS false
-write_env MARKETPLACE_PAYMENT_ACCEPT_NEW_ORDERS false
 write_env MARKETPLACE_ENABLED false
 write_env PAYMENT_ORDER_EXPIRE_MINUTES 15
 write_env MEMBERSHIP_ORDER_EXPIRE_MINUTES 30
@@ -546,10 +536,7 @@ write_env MARKETPLACE_EARNING_HOLD_DAYS 7
 write_env MARKETPLACE_PAID_RECONCILIATION_INTERVAL_MINUTES 360
 write_env MARKETPLACE_PAID_DUE_RECONCILIATION_RETRY_MINUTES 5
 write_env PAYMENT_MOCK_AUTO_PAY false
-write_env MEMBERSHIP_PAYMENT_ACCEPTANCE_CONFIRMED false
-write_env MARKETPLACE_PAYMENT_ACCEPTANCE_CONFIRMED false
 write_env MARKETPLACE_GOVERNANCE_DUTY_CONFIRMED false
-write_env PAYMENT_ACCEPTANCE_ENVIRONMENT_CONFIRMED false
 
 chmod 0600 "$temporary_env"
 if [[ "${PAIRESUME_BOOTSTRAP_TEST_MODE:-false}" != "true" ]]; then

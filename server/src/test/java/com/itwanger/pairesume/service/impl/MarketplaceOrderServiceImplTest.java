@@ -137,7 +137,6 @@ class MarketplaceOrderServiceImplTest {
                 "app", "mch", "CNY", 1000, null);
         when(paymentGateway.provider()).thenReturn("wechat");
         when(marketplaceFeatureProperties.isEnabled()).thenReturn(true);
-        when(paymentProperties.isMarketplaceAcceptNewOrders()).thenReturn(true);
         when(localOrderService.findOrCreate(
                 "slug", 7L, false, "old-key-123", "wechat", "WECHAT_NATIVE", true))
                 .thenReturn(new MarketplaceOrderDecision(order, null));
@@ -156,19 +155,20 @@ class MarketplaceOrderServiceImplTest {
     }
 
     @Test
-    void pausedProviderRejectsNewOrderButRemainsAvailableForOtherPaymentWork() {
+    void disabledPaymentGatewayRejectsNewOrder() {
         when(marketplaceFeatureProperties.isEnabled()).thenReturn(true);
-        when(paymentProperties.isMarketplaceAcceptNewOrders()).thenReturn(false);
+        when(paymentGateway.provider()).thenReturn("disabled");
 
         BusinessException exception = assertThrows(BusinessException.class,
                 () -> service.createOrder("slug", 7L, false, "new-key-123", "127.0.0.1"));
 
         assertEquals(ResultCode.PAYMENT_NOT_ENABLED.getCode(), exception.getCode());
-        verifyNoInteractions(localOrderService, paymentGateway);
+        verifyNoInteractions(localOrderService);
+        verify(paymentGateway, never()).createNativeOrder(org.mockito.ArgumentMatchers.any());
     }
 
     @Test
-    void closedMarketplaceRejectsNewOrderBeforeReadingPaymentSwitch() {
+    void closedMarketplaceRejectsNewOrderBeforeReadingPaymentGateway() {
         when(marketplaceFeatureProperties.isEnabled()).thenReturn(false);
 
         BusinessException exception = assertThrows(BusinessException.class,
@@ -190,7 +190,6 @@ class MarketplaceOrderServiceImplTest {
         service.handleWechatNotification(notification);
 
         verify(settlementService).settlePaidNotification("PR-1", providerPaid);
-        verify(paymentProperties, never()).isMarketplaceAcceptNewOrders();
     }
 
     @Test
@@ -276,7 +275,6 @@ class MarketplaceOrderServiceImplTest {
 
         verify(paymentGateway).queryOrder("PR-1");
         verify(settlementService).settlePaidOrder("PR-1", providerPaid);
-        verify(paymentProperties, never()).isMarketplaceAcceptNewOrders();
         verify(localOrderService).releaseReconciliationLease(
                 org.mockito.ArgumentMatchers.eq(10L),
                 org.mockito.ArgumentMatchers.anyString());

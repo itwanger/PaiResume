@@ -37,6 +37,8 @@ public interface AiService {
 
     FieldOptimizePromptConfigDTO getFieldOptimizePromptConfig();
 
+    FieldOptimizePromptConfigDTO getFieldOptimizePromptConfig(String presetId);
+
     /**
      * 分析整份简历内容，返回结构化的 AI 评估结果
      */

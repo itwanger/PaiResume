@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { resumeApi, type AiFieldOptimizeRequest, type FieldOptimizePromptConfig, type ResumeModule } from '../api/resume'
-import { MarkdownPreview } from '../components/ui/MarkdownPreview'
-import { buildFieldOptimizePreset, type FieldOptimizePresetId } from '../data/fieldOptimizePresets'
+import { resumeApi, type AiFieldOptimizeRequest, type FieldOptimizeMethod, type ResumeModule } from '../api/resume'
+import { AiGenerationProgress } from '../components/ui/AiGenerationProgress'
 import { useResumeStore } from '../store/resumeStore'
 import { normalizeInternshipContent, normalizeProjectContent, normalizeSkillContent } from '../utils/moduleContent'
 
 type PageStatus = 'idle' | 'streaming' | 'completed' | 'error'
-type FieldType = 'project_description' | 'responsibility' | 'skill'
+const EXPERIENCE_RESPONSIBILITY_INDEX_STRIDE = 1000
 
 interface OptimizePageState {
   title: string
@@ -27,13 +26,6 @@ interface FieldContext {
   multiCandidate: boolean
   request: AiFieldOptimizeRequest
   moduleType: 'internship' | 'work_experience' | 'project' | 'skill'
-}
-
-const EMPTY_PROMPT_CONFIG: FieldOptimizePromptConfig = {
-  systemPrompt: '',
-  descriptionPrompt: '',
-  responsibilityPrompt: '',
-  skillPrompt: '',
 }
 
 function appendProcessLine(prevText: string, line: string) {
@@ -91,39 +83,6 @@ function parseCandidatesFromStreamedContent(content: string): string[] {
 function countDisplayCharacters(value: string) {
   return value.replace(/\s+/g, '').length
 }
-
-function promptStorageKey(moduleType: string, fieldType: FieldType) {
-  return `pai-resume.field-optimize-prompt.${moduleType}.${fieldType}`
-}
-
-function systemPromptStorageKey() {
-  return 'pai-resume.field-optimize-system-prompt'
-}
-
-function replaceTemplatePlaceholders(template: string, variables: Record<string, string>) {
-  return Object.entries(variables).reduce(
-    (result, [key, value]) => result.split(`{{${key}}}`).join(value || ''),
-    template || ''
-  )
-}
-
-function escapeRegExp(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
-function templatizeRenderedPrompt(renderedPrompt: string, variables: Record<string, string>) {
-  const entries = Object.entries(variables)
-    .map(([key, value]) => [key, value.trim()] as const)
-    .filter(([, value]) => value.length > 0)
-    .sort((a, b) => b[1].length - a[1].length)
-
-  return entries.reduce((result, [key, value]) => {
-    const pattern = new RegExp(escapeRegExp(value), 'g')
-    return result.replace(pattern, `{{${key}}}`)
-  }, renderedPrompt)
-}
-
-const EXPERIENCE_RESPONSIBILITY_INDEX_STRIDE = 1000
 
 function encodeExperienceResponsibilityIndex(projectIndex: number, responsibilityIndex: number) {
   return projectIndex * EXPERIENCE_RESPONSIBILITY_INDEX_STRIDE + responsibilityIndex
@@ -200,116 +159,6 @@ function deriveFieldContext(
   return null
 }
 
-function derivePromptVariables(
-  module: ResumeModule | undefined,
-  fieldContext: FieldContext | null,
-  fieldType: FieldType | null,
-  projectIndex: number,
-  responsibilityIndex: number | null,
-): Record<string, string> {
-  if (!module || !fieldContext || !fieldType) {
-    return {}
-  }
-
-  if (fieldType === 'skill') {
-    return { original: fieldContext.original }
-  }
-
-  if (fieldType === 'project_description') {
-    return {
-      original: fieldContext.original,
-    }
-  }
-
-  if (module.moduleType === 'internship' || module.moduleType === 'work_experience') {
-    const content = normalizeInternshipContent(module.content)
-    const project = content.projects[projectIndex]
-    if (!project) return {}
-    return {
-      company: content.company,
-      position: content.position,
-      projectName: project.projectName,
-      techStack: project.techStack,
-      projectDescription: project.projectDescription,
-      original: responsibilityIndex !== null ? (project.responsibilities[responsibilityIndex] || '') : fieldContext.original,
-    }
-  }
-
-  if (module.moduleType === 'project') {
-    const content = normalizeProjectContent(module.content)
-    return {
-      projectName: content.projectName,
-      role: content.role,
-      techStack: content.techStack,
-      description: content.description,
-      original: responsibilityIndex !== null ? (content.achievements[responsibilityIndex] || '') : fieldContext.original,
-    }
-  }
-
-  return {}
-}
-
-function buildDefaultPromptTemplate(
-  module: ResumeModule | undefined,
-  fieldType: FieldType | null,
-  promptConfig: FieldOptimizePromptConfig
-) {
-  if (!module || !fieldType) {
-    return ''
-  }
-
-  if (fieldType === 'skill') {
-    return promptConfig.skillPrompt || ''
-  }
-
-  if (fieldType === 'project_description') {
-    return promptConfig.descriptionPrompt
-  }
-
-  return promptConfig.responsibilityPrompt
-}
-
-function migrateStoredPromptTemplate(template: string, fieldContext: FieldContext | null, fieldType: FieldType | null) {
-  if (!template || !fieldContext || !fieldType || template.includes('{{')) {
-    return template
-  }
-
-  if (fieldType === 'project_description') {
-    return template.replace(
-      /(原始项目简介：\s*\n)([\s\S]*?)(\n\s*输出要求：)/,
-      `$1{{original}}$3`
-    )
-  }
-
-  if (fieldType === 'skill') {
-    return template.replace(
-      /(原始技能：\s*\n)([\s\S]*?)(\n\s*输出要求：)/,
-      `$1{{original}}$3`
-    )
-  }
-
-  if (fieldContext.moduleType === 'internship' || fieldContext.moduleType === 'work_experience') {
-    return template
-      .replace(/- 公司：.*$/m, '- 公司：{{company}}')
-      .replace(/- 岗位：.*$/m, '- 岗位：{{position}}')
-      .replace(/- 项目名：.*$/m, '- 项目名：{{projectName}}')
-      .replace(/- 技术栈：.*$/m, '- 技术栈：{{techStack}}')
-      .replace(/- 项目简介：.*$/m, '- 项目简介：{{projectDescription}}')
-      .replace(/(原始职责：\s*\n)([\s\S]*?)(\n\s*输出要求：)/, '$1{{original}}$3')
-  }
-
-  if (fieldContext.moduleType === 'project') {
-    return template
-      .replace(/- 项目名：.*$/m, '- 项目名：{{projectName}}')
-      .replace(/- 角色：.*$/m, '- 角色：{{role}}')
-      .replace(/- 技术栈：.*$/m, '- 技术栈：{{techStack}}')
-      .replace(/- 项目描述：.*$/m, '- 项目描述：{{description}}')
-      .replace(/(原始职责：\s*\n)([\s\S]*?)(\n\s*输出要求：)/, '$1{{original}}$3')
-  }
-
-  return template
-}
-
 function applyOptimizedText(
   module: ResumeModule,
   fieldType: string,
@@ -375,34 +224,13 @@ export default function FieldOptimizePage() {
     () => deriveFieldContext(module, fieldType, projectIndex, Number.isFinite(index) ? index : null),
     [module, fieldType, projectIndex, index]
   )
-  const promptVariables = useMemo(
-    () => derivePromptVariables(module, fieldContext, fieldType as FieldType | null, projectIndex, Number.isFinite(index) ? index : null),
-    [module, fieldContext, fieldType, projectIndex, index]
-  )
-  const [promptConfig, setPromptConfig] = useState<FieldOptimizePromptConfig>(EMPTY_PROMPT_CONFIG)
-  const defaultPromptTemplate = useMemo(
-    () => buildDefaultPromptTemplate(module, fieldType as FieldType | null, promptConfig),
-    [module, fieldType, promptConfig]
-  )
-  const defaultPrompt = useMemo(
-    () => replaceTemplatePlaceholders(defaultPromptTemplate, promptVariables),
-    [defaultPromptTemplate, promptVariables]
-  )
-
+  const [methods, setMethods] = useState<FieldOptimizeMethod[]>([])
+  const [methodsError, setMethodsError] = useState('')
   const streamAbortRef = useRef<AbortController | null>(null)
   const streamedContentRef = useRef('')
+  const [generationStage, setGenerationStage] = useState('正在分析原文…')
   const [saving, setSaving] = useState(false)
-  const [systemPromptDraft, setSystemPromptDraft] = useState('')
-  const [savedSystemPrompt, setSavedSystemPrompt] = useState('')
-  const [systemPromptNotice, setSystemPromptNotice] = useState('')
-  const effectiveSystemPrompt = useMemo(
-    () => systemPromptDraft.trim() || promptConfig.systemPrompt.trim(),
-    [systemPromptDraft, promptConfig.systemPrompt]
-  )
-  const [promptDraft, setPromptDraft] = useState('')
-  const [savedPrompt, setSavedPrompt] = useState('')
-  const [promptNotice, setPromptNotice] = useState('')
-  const [selectedPreset, setSelectedPreset] = useState<FieldOptimizePresetId | 'custom'>('standard')
+  const [selectedPreset, setSelectedPreset] = useState('standard')
   const [candidateDrafts, setCandidateDrafts] = useState<string[]>([])
   const [optimizedDraft, setOptimizedDraft] = useState('')
   const [state, setState] = useState<OptimizePageState>({
@@ -420,18 +248,18 @@ export default function FieldOptimizePage() {
 
   useEffect(() => {
     let mounted = true
-    void resumeApi.getFieldOptimizePromptConfig()
+    void resumeApi.getFieldOptimizeMethods()
       .then((response) => {
         if (!mounted) {
           return
         }
-        setPromptConfig(response.data.data)
+        setMethods(response.data.data)
       })
       .catch(() => {
         if (!mounted) {
           return
         }
-        setPromptConfig(EMPTY_PROMPT_CONFIG)
+        setMethodsError('优化方式加载失败，请刷新页面重试。')
       })
     return () => {
       mounted = false
@@ -464,33 +292,6 @@ export default function FieldOptimizePage() {
     setCandidateDrafts([])
     setOptimizedDraft('')
   }, [fieldContext])
-
-  useEffect(() => {
-    if (!fieldContext || !defaultPrompt) {
-      return
-    }
-    const storageKey = promptStorageKey(fieldContext.moduleType, fieldContext.request.fieldType)
-    const storedPrompt = window.localStorage.getItem(storageKey)?.trim()
-    const promptTemplate = migrateStoredPromptTemplate(storedPrompt || defaultPromptTemplate, fieldContext, fieldContext.request.fieldType)
-    const initialPrompt = replaceTemplatePlaceholders(promptTemplate, promptVariables)
-    setPromptDraft(initialPrompt)
-    setSavedPrompt(initialPrompt)
-    setPromptNotice(storedPrompt ? '已加载你上次保存的提示词。' : '')
-    if (storedPrompt) {
-      setSelectedPreset('custom')
-    }
-  }, [fieldContext, defaultPrompt, defaultPromptTemplate, promptVariables])
-
-  useEffect(() => {
-    const storedSystemPrompt = window.localStorage.getItem(systemPromptStorageKey())?.trim()
-    const initialSystemPrompt = storedSystemPrompt || promptConfig.systemPrompt
-    setSystemPromptDraft(initialSystemPrompt)
-    setSavedSystemPrompt(initialSystemPrompt)
-    setSystemPromptNotice(storedSystemPrompt ? '已加载你上次保存的系统提示词。' : '')
-    if (storedSystemPrompt) {
-      setSelectedPreset('custom')
-    }
-  }, [promptConfig.systemPrompt])
 
   useEffect(() => {
     if (!fieldContext || !resumeId || !numericModuleId) {
@@ -554,66 +355,19 @@ export default function FieldOptimizePage() {
 
   const handleBack = () => {
     streamAbortRef.current?.abort()
-    if (returnModuleType) {
-      navigate(`/editor/${resumeId}?moduleType=${returnModuleType}`)
-      return
-    }
-    navigate(`/editor/${resumeId}`)
-  }
-
-  const handleSavePrompt = () => {
-    if (!fieldContext) {
-      return
-    }
-    const nextPrompt = promptDraft.trim()
-    if (!nextPrompt) {
-      setPromptNotice('提示词不能为空。')
-      return
-    }
-    const storageKey = promptStorageKey(fieldContext.moduleType, fieldContext.request.fieldType)
-    const promptTemplate = templatizeRenderedPrompt(nextPrompt, promptVariables)
-    window.localStorage.setItem(storageKey, promptTemplate)
-    setSavedPrompt(nextPrompt)
-    setPromptNotice('提示词已保存。')
-  }
-
-  const handleSaveSystemPrompt = () => {
-    const nextSystemPrompt = effectiveSystemPrompt
-    if (!nextSystemPrompt) {
-      setSystemPromptNotice('系统提示词不能为空。')
-      return
-    }
-    setSystemPromptDraft(nextSystemPrompt)
-    window.localStorage.setItem(systemPromptStorageKey(), nextSystemPrompt)
-    setSavedSystemPrompt(nextSystemPrompt)
-    setSystemPromptNotice('系统提示词已保存。')
-  }
-
-  const handleResetSystemPrompt = () => {
-    setSystemPromptDraft(promptConfig.systemPrompt)
-    setSelectedPreset('custom')
-    setSystemPromptNotice('已恢复为默认系统提示词，点击保存后可覆盖本地配置。')
-  }
-
-  const handleResetPrompt = () => {
-    if (!fieldContext) {
-      return
-    }
-    setPromptDraft(defaultPrompt)
-    setSelectedPreset('custom')
-    setPromptNotice('已恢复为默认提示词，点击保存后可覆盖本地配置。')
-  }
-
-  const handleSelectPreset = (presetId: FieldOptimizePresetId) => {
-    const preset = buildFieldOptimizePreset(presetId, {
-      systemPrompt: promptConfig.systemPrompt,
-      userPrompt: defaultPrompt,
+    const params = new URLSearchParams()
+    const moduleType = module?.moduleType || returnModuleType
+    if (moduleType) params.set('moduleType', moduleType)
+    navigate(`/editor/${resumeId}?${params}`, {
+      state: {
+        fieldOptimizeReturn: {
+          moduleId: numericModuleId,
+          projectIndex,
+          fieldType,
+          index: Number.isSafeInteger(index) && index !== null && index >= 0 ? index : null,
+        },
+      },
     })
-    setSelectedPreset(presetId)
-    setSystemPromptDraft(preset.systemPrompt)
-    setPromptDraft(preset.userPrompt)
-    setSystemPromptNotice('')
-    setPromptNotice('')
   }
 
   const handleStartOptimize = async () => {
@@ -625,13 +379,10 @@ export default function FieldOptimizePage() {
       return
     }
 
-    const prompt = promptDraft.trim()
-    if (!prompt) {
-      setPromptNotice('请先填写提示词，再开始优化。')
-      return
-    }
+    if (!methods.some((method) => method.id === selectedPreset)) return
 
     streamAbortRef.current?.abort()
+    setGenerationStage('正在分析原文…')
     const abortController = new AbortController()
     streamAbortRef.current = abortController
 
@@ -649,7 +400,6 @@ export default function FieldOptimizePage() {
     streamedContentRef.current = ''
     setCandidateDrafts([])
     setOptimizedDraft('')
-    setPromptNotice(prompt === savedPrompt ? '正在按已保存提示词优化。' : '正在按当前提示词优化。')
 
     try {
       const result = await resumeApi.aiOptimizeFieldStream(
@@ -657,8 +407,7 @@ export default function FieldOptimizePage() {
         numericModuleId,
           {
             ...fieldContext.request,
-            prompt,
-            systemPrompt: effectiveSystemPrompt,
+            presetId: selectedPreset,
           },
         {
           signal: abortController.signal,
@@ -694,6 +443,7 @@ export default function FieldOptimizePage() {
             }
             if (event.event === 'content_delta') {
               const nextStreamedContent = typeof event.data.text === 'string' ? event.data.text : streamedContentRef.current
+              setGenerationStage('正在整理优化版本…')
               streamedContentRef.current = nextStreamedContent
               setState((prev) => ({
                 ...prev,
@@ -716,7 +466,7 @@ export default function FieldOptimizePage() {
         ? (() => {
             const candidates = normalizeCandidates(result.candidates)
             const streamedCandidates = parseCandidatesFromStreamedContent(streamedContentRef.current)
-            const resolvedCandidates = streamedCandidates.length > 0 ? streamedCandidates : candidates
+            const resolvedCandidates = candidates.length > 0 ? candidates : streamedCandidates
             return resolvedCandidates.length > 0 ? resolvedCandidates : (result.optimized ? [result.optimized] : [])
           })()
         : []
@@ -784,13 +534,13 @@ export default function FieldOptimizePage() {
   const backLabel = pageTitle ? `返回${pageTitle}编辑` : '返回编辑器'
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-primary-50/50 via-white to-slate-100">
-      <div className="mx-auto max-w-7xl px-6 py-8 xl:px-10">
+    <div className="min-h-screen bg-white">
+      <div className="mx-auto max-w-6xl px-5 py-7 sm:px-8 sm:py-10">
         <div className="mb-6">
           <button
             type="button"
             onClick={handleBack}
-            className="inline-flex items-center gap-2 rounded-full border border-primary-100 bg-white/90 px-4 py-2 text-sm text-slate-600 shadow-sm transition hover:border-primary-200 hover:text-primary-700"
+            className="inline-flex items-center gap-2 py-1 text-sm text-slate-500 transition hover:text-primary-700"
           >
             <span aria-hidden="true">←</span>
             {backLabel}
@@ -804,17 +554,15 @@ export default function FieldOptimizePage() {
         )}
 
         {!fieldContext && !loading ? (
-          <div className="rounded-3xl border border-slate-200 bg-white p-8 text-sm text-slate-500 shadow-sm">
+          <div className="py-12 text-sm text-slate-500">
             当前优化参数无效，无法定位到对应字段。
           </div>
         ) : (
           <div className="space-y-6">
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">简历内容优化</h1>
             <div className="flex flex-wrap items-center gap-2">
               <span className="mr-1 text-sm font-medium text-slate-700">优化方式</span>
-              {([
-                { id: 'standard', label: '标准优化' },
-                { id: 'asu', label: '阿酥式表达' },
-              ] as const).map((preset) => {
+              {methods.map((preset) => {
                 const isActive = selectedPreset === preset.id
                 return (
                   <button
@@ -822,154 +570,55 @@ export default function FieldOptimizePage() {
                     type="button"
                     aria-pressed={isActive}
                     disabled={isStreaming}
-                    onClick={() => handleSelectPreset(preset.id)}
-                    className={`rounded-full border px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                    onClick={() => setSelectedPreset(preset.id)}
+                    className={`rounded-lg px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
                       isActive
-                        ? 'border-primary-500 bg-primary-50 text-primary-700'
-                        : 'border-slate-200 bg-white text-slate-600 hover:border-primary-200 hover:text-primary-700'
+                        ? 'bg-primary-50 text-primary-700'
+                        : 'bg-transparent text-slate-500 hover:bg-slate-50 hover:text-primary-700'
                     }`}
                   >
-                    {preset.label}
+                    {preset.name}
                   </button>
                 )
               })}
             </div>
 
-            <div className="grid gap-6 xl:grid-cols-[0.95fr_1.25fr]">
-              <section className="min-w-0 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <div className="text-sm font-medium text-slate-800">系统提示词</div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={handleResetSystemPrompt}
-                      disabled={isStreaming}
-                      className="rounded-lg border border-primary-100 px-3 py-2 text-xs text-slate-600 transition hover:border-primary-200 hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      恢复默认
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleSaveSystemPrompt}
-                      disabled={isStreaming}
-                      className="shrink-0 rounded-lg border border-primary-100 px-3 py-2 text-xs text-slate-600 transition hover:border-primary-200 hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      保存
-                    </button>
-                  </div>
-                </div>
-                <textarea
-                  value={systemPromptDraft || promptConfig.systemPrompt}
-                  onChange={(event) => {
-                    setSystemPromptDraft(event.target.value)
-                    setSelectedPreset('custom')
-                    setSystemPromptNotice('')
-                  }}
-                  rows={7}
-                  className="w-full rounded-2xl border border-primary-100 bg-primary-50/30 px-4 py-3 text-sm leading-7 text-slate-700 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
-                  placeholder="系统提示词用于约束整体风格。"
-                />
-                <div className="mt-3 flex items-center justify-between gap-3 text-xs text-slate-500">
-                  <span>{systemPromptNotice || (effectiveSystemPrompt.trim() === savedSystemPrompt.trim() ? '\u00a0' : '当前系统提示词有未保存修改。')}</span>
-                  <span>{effectiveSystemPrompt.trim().length} 字</span>
-                </div>
-              </section>
+            {methodsError ? <p role="alert" className="text-sm text-red-600">{methodsError}</p> : (
+              <p className="text-sm leading-6 text-slate-600">{methods.find((method) => method.id === selectedPreset)?.description}</p>
+            )}
 
-              <section className="min-w-0 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <div className="text-sm font-medium text-slate-800">用户提示词</div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={handleResetPrompt}
-                      disabled={isStreaming || !fieldContext}
-                      className="rounded-lg border border-primary-100 px-3 py-2 text-xs text-slate-600 transition hover:border-primary-200 hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      恢复默认
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleSavePrompt}
-                      disabled={isStreaming || !fieldContext}
-                      className="rounded-lg border border-primary-100 px-3 py-2 text-xs text-slate-600 transition hover:border-primary-200 hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      保存
-                    </button>
-                  </div>
-                </div>
-                <textarea
-                  value={promptDraft}
-                  onChange={(event) => {
-                    setPromptDraft(event.target.value)
-                    setSelectedPreset('custom')
-                    setPromptNotice('')
-                  }}
-                  rows={7}
-                  className="w-full rounded-2xl border border-primary-100 bg-primary-50/30 px-4 py-3 text-sm leading-7 text-slate-700 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
-                  placeholder="请先调整提示词，再开始优化。"
-                />
-                <div className="mt-3 flex items-center justify-between gap-3 text-xs text-slate-500">
-                  <span>{promptNotice || (promptDraft.trim() === savedPrompt.trim() ? '\u00a0' : '当前提示词有未保存修改。')}</span>
-                  <span>{promptDraft.trim().length} 字</span>
-                </div>
-              </section>
+            <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-5">
+              <AiGenerationProgress key={state.status} status={state.status} reasoning={state.reasoning} stage={generationStage} />
+              <button
+                type="button"
+                onClick={() => void handleStartOptimize()}
+                disabled={isStreaming || !fieldContext || !methods.some((method) => method.id === selectedPreset)}
+                className="shrink-0 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isStreaming ? '优化中…' : state.status === 'idle' ? '开始优化' : '重新生成'}
+              </button>
             </div>
 
-            <div className="grid gap-6 xl:grid-cols-[0.95fr_1.25fr]">
-              <div className="min-w-0 space-y-6">
-                <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <div>
-                      <div className="text-sm font-medium text-slate-800">AI 生成过程</div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => void handleStartOptimize()}
-                      disabled={isStreaming || !fieldContext || !promptDraft.trim()}
-                      className="rounded-xl bg-primary-600 px-4 py-2 text-xs font-medium text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {state.status === 'idle' ? '开始优化' : '重新生成'}
-                    </button>
-                  </div>
-                  <div className="space-y-4">
-                    <div>
-                      <MarkdownPreview
-                        content={state.reasoning}
-                        emptyText={isStreaming ? '正在等待生成过程输出...' : '暂无生成过程'}
-                        className="min-h-[220px] border-primary-100 bg-gradient-to-br from-primary-50 via-white to-slate-50"
-                      />
-                    </div>
-                    <div>
-                      <div className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">流式结果</div>
-                      <MarkdownPreview
-                        content={state.streamedContent}
-                        emptyText={isStreaming ? '正在等待结果输出...' : '暂无流式结果'}
-                        className="min-h-[120px] border-primary-100 bg-white"
-                      />
-                    </div>
-                  </div>
-                </section>
-              </div>
-
-              <div className="min-w-0 space-y-6">
-                <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="grid items-start gap-8 pt-2 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:gap-12">
+                <section className="min-w-0 lg:sticky lg:top-8">
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <div className="text-sm font-medium text-slate-800">优化前</div>
                     <div className="text-xs text-slate-500">
                       {countDisplayCharacters(state.original)} 字
                     </div>
                   </div>
-                  <pre className="max-h-[28vh] overflow-auto whitespace-pre-wrap rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm leading-7 text-slate-700">
+                  <pre className="max-h-[60vh] overflow-auto whitespace-pre-wrap break-words font-sans text-sm leading-8 text-slate-600">
                     {state.original || (loading ? '正在加载字段内容...' : '当前字段暂无内容。')}
                   </pre>
                 </section>
 
+                <div className="min-w-0 border-t border-slate-200 pt-6 lg:border-l lg:border-t-0 lg:pl-10 lg:pt-0">
                 {fieldContext?.multiCandidate ? (
-                  <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                    <div className="mb-3 text-sm font-medium text-slate-800">优化后候选</div>
-                    <div className="space-y-4">
+                  <section className="min-w-0">
+                    <div className="mb-5 text-sm font-medium text-slate-800">优化版本</div>
+                    <div className="divide-y divide-slate-100">
                       {state.candidates && state.candidates.length > 0 ? state.candidates.map((candidate, candidateIndex) => (
-                        <div key={`${candidateIndex}-${candidate}`} className="rounded-2xl border border-primary-100 bg-gradient-to-br from-primary-50/70 via-white to-primary-50/40 p-4">
+                        <div key={`${candidateIndex}-${candidate}`} className="py-6 first:pt-0 last:pb-0">
                           <div className="mb-3 flex items-center justify-between gap-3">
                             <div className="flex items-center gap-3">
                               <div className="text-xs font-medium uppercase tracking-wide text-primary-700">版本 {candidateIndex + 1}</div>
@@ -981,27 +630,28 @@ export default function FieldOptimizePage() {
                               type="button"
                               onClick={() => void handleAdopt((candidateDrafts[candidateIndex] || candidate).trim())}
                               disabled={saving}
-                              className="rounded-xl bg-primary-600 px-4 py-2 text-xs font-medium text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
+                              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm font-medium text-primary-700 transition hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                               {saving ? '回填中...' : '采纳这个版本'}
                             </button>
                           </div>
                           <textarea
+                            aria-label={`版本 ${candidateIndex + 1}内容`}
                             value={candidateDrafts[candidateIndex] ?? candidate}
                             onChange={(event) => handleCandidateDraftChange(candidateIndex, event.target.value)}
                             rows={4}
-                            className="w-full resize-y rounded-2xl border border-primary-100 bg-white/90 px-4 py-3 text-sm leading-7 text-slate-700 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
+                            className="w-full resize-y rounded-lg border-0 bg-slate-50/70 px-4 py-3 text-sm leading-7 text-slate-800 outline-none transition hover:bg-slate-50 focus:ring-2 focus:ring-primary-200"
                           />
                         </div>
                       )) : (
-                        <div className="rounded-2xl border border-dashed border-primary-100 bg-primary-50/30 px-4 py-8 text-sm text-slate-500">
+                        <div className="py-8 text-sm text-slate-400">
                           {isStreaming ? '正在生成候选版本...' : '暂无候选版本'}
                         </div>
                       )}
                     </div>
                   </section>
                 ) : (
-                  <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <section className="min-w-0">
                     <div className="mb-3 flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
                         <div className="text-sm font-medium text-slate-800">优化后</div>
@@ -1013,7 +663,7 @@ export default function FieldOptimizePage() {
                         type="button"
                         onClick={() => optimizedDraft.trim() && void handleAdopt(optimizedDraft.trim())}
                         disabled={!optimizedDraft.trim() || saving}
-                        className="rounded-xl bg-primary-600 px-4 py-2 text-xs font-medium text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm font-medium text-primary-700 transition hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {saving ? '回填中...' : '采纳优化'}
                       </button>
@@ -1023,10 +673,10 @@ export default function FieldOptimizePage() {
                         value={optimizedDraft}
                         onChange={(event) => setOptimizedDraft(event.target.value)}
                         rows={8}
-                        className="min-h-[240px] w-full resize-y rounded-2xl border border-primary-100 bg-primary-50/40 p-4 text-sm leading-7 text-slate-700 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
+                        className="min-h-[200px] w-full resize-y rounded-lg border-0 bg-slate-50/70 p-4 text-sm leading-7 text-slate-800 outline-none transition focus:ring-2 focus:ring-primary-200"
                       />
                     ) : (
-                      <div className="min-h-[240px] overflow-auto whitespace-pre-wrap rounded-2xl border border-primary-100 bg-primary-50/40 p-4 text-sm leading-7 text-slate-700">
+                      <div className="py-8 text-sm text-slate-400">
                         {isStreaming ? '正在生成优化结果...' : '暂无优化结果'}
                       </div>
                     )}

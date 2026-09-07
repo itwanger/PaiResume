@@ -1,6 +1,6 @@
 package com.itwanger.pairesume.controller;
 
-import com.itwanger.pairesume.payment.MarketplacePaymentProperties;
+import com.itwanger.pairesume.payment.PaymentConfigurationValidator;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.http.HttpStatus;
@@ -25,7 +25,7 @@ public class HealthController {
     private final String aiApiKey;
     private final String aiBaseUrl;
     private final String aiModel;
-    private final MarketplacePaymentProperties paymentProperties;
+    private final PaymentConfigurationValidator paymentConfigurationValidator;
 
     public HealthController(
             JdbcTemplate jdbcTemplate,
@@ -36,7 +36,7 @@ public class HealthController {
             @Value("${ai.api-key:}") String aiApiKey,
             @Value("${ai.base-url:}") String aiBaseUrl,
             @Value("${ai.model:}") String aiModel,
-            MarketplacePaymentProperties paymentProperties
+            PaymentConfigurationValidator paymentConfigurationValidator
     ) {
         this.jdbcTemplate = jdbcTemplate;
         this.redisTemplate = redisTemplate;
@@ -46,7 +46,7 @@ public class HealthController {
         this.aiApiKey = aiApiKey;
         this.aiBaseUrl = aiBaseUrl;
         this.aiModel = aiModel;
-        this.paymentProperties = paymentProperties;
+        this.paymentConfigurationValidator = paymentConfigurationValidator;
     }
 
     @GetMapping("/health")
@@ -92,11 +92,12 @@ public class HealthController {
                 && StringUtils.hasText(aiModel);
         checks.put("aiConfiguration", aiConfigured ? "UP" : "DOWN");
 
-        boolean paymentSafe = !paymentProperties.isAcceptNewOrders()
-                && (!paymentProperties.isMembershipAcceptNewOrders()
-                    && !paymentProperties.isMarketplaceAcceptNewOrders()
-                    || !"disabled".equalsIgnoreCase(paymentProperties.getProvider()));
-        checks.put("paymentConfiguration", paymentSafe ? "UP" : "DOWN");
+        try {
+            paymentConfigurationValidator.validate();
+            checks.put("paymentConfiguration", "UP");
+        } catch (RuntimeException exception) {
+            checks.put("paymentConfiguration", "DOWN");
+        }
 
         var allReady = checks.values().stream().allMatch("UP"::equals);
         var body = new LinkedHashMap<String, Object>();

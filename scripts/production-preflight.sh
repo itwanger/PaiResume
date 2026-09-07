@@ -61,7 +61,7 @@ require_dist_value() {
   fi
 }
 
-for name in DEPLOY_STAGE APP_ENV APP_PUBLIC_URL APP_CORS_ALLOWED_ORIGIN_PATTERNS JWT_SECRET \
+for name in APP_ENV APP_PUBLIC_URL APP_CORS_ALLOWED_ORIGIN_PATTERNS JWT_SECRET \
   VERIFICATION_CODE_SECRET SERVER_ADDRESS SERVER_PORT \
   MYSQL_HOST MYSQL_PORT MYSQL_DATABASE MYSQL_USERNAME MYSQL_PASSWORD \
   FLYWAY_USERNAME FLYWAY_PASSWORD MYSQL_SHARED_ACCOUNT_CONFIRMED \
@@ -82,8 +82,7 @@ for name in DEPLOY_STAGE APP_ENV APP_PUBLIC_URL APP_CORS_ALLOWED_ORIGIN_PATTERNS
   RESUME_PHOTO_OSS_MAX_BYTES RESUME_PHOTO_OSS_MAX_DIMENSION RESUME_PHOTO_OSS_MAX_PIXELS \
   RESUME_PHOTO_UPLOAD_RATE_LIMIT_WINDOW_SECONDS \
   RESUME_PHOTO_UPLOAD_RATE_LIMIT_ACCOUNT_ATTEMPTS \
-  RESUME_PHOTO_UPLOAD_RATE_LIMIT_IP_ATTEMPTS \
-  RESUME_REVIEW_PAYMENT_ACCEPTANCE_CONFIRMED; do
+  RESUME_PHOTO_UPLOAD_RATE_LIMIT_IP_ATTEMPTS; do
   require_value "$name"
 done
 
@@ -94,7 +93,6 @@ for name in JWT_SECRET VERIFICATION_CODE_SECRET MYSQL_USERNAME MYSQL_PASSWORD \
   reject_placeholder "$name"
 done
 
-require_boolean RESUME_REVIEW_PAYMENT_ACCEPTANCE_CONFIRMED
 for name in RESUME_REVIEW_MESSAGE_ID_DOMAIN \
     RESUME_REVIEW_MAIL_OUTBOX_MAX_ATTEMPTS \
     RESUME_REVIEW_UPLOAD_RATE_LIMIT_WINDOW_SECONDS \
@@ -172,7 +170,6 @@ fi
 require_true PAICONGMING_WECHAT_LOGIN_ENABLED
 require_true PLANET_CORE_ACCEPTANCE_CONFIRMED
 require_true MYSQL_SHARED_ACCOUNT_CONFIRMED
-require_true RESUME_REVIEW_PAYMENT_ACCEPTANCE_CONFIRMED
 
 mysql_username="${MYSQL_USERNAME:-}"
 flyway_username="${FLYWAY_USERNAME:-}"
@@ -358,56 +355,12 @@ if [[ "$tomcat_max_connections" =~ ^[0-9]+$ \
   failures=$((failures + 1))
 fi
 
-deploy_stage="${DEPLOY_STAGE:-}"
-case "$deploy_stage" in
-  free)
-    require_false PAYMENT_ACCEPT_NEW_ORDERS
-    require_false MEMBERSHIP_PAYMENT_ACCEPT_NEW_ORDERS
-    require_false MARKETPLACE_PAYMENT_ACCEPT_NEW_ORDERS
-    require_false MARKETPLACE_ENABLED
-    ;;
-  membership-acceptance)
-    require_false PAYMENT_ACCEPT_NEW_ORDERS
-    require_boolean MEMBERSHIP_PAYMENT_ACCEPT_NEW_ORDERS
-    require_false MARKETPLACE_PAYMENT_ACCEPT_NEW_ORDERS
-    require_false MARKETPLACE_ENABLED
-    require_true PAYMENT_ACCEPTANCE_ENVIRONMENT_CONFIRMED
-    ;;
-  membership)
-    require_false PAYMENT_ACCEPT_NEW_ORDERS
-    require_boolean MEMBERSHIP_PAYMENT_ACCEPT_NEW_ORDERS
-    require_false MARKETPLACE_PAYMENT_ACCEPT_NEW_ORDERS
-    require_false MARKETPLACE_ENABLED
-    require_true MEMBERSHIP_PAYMENT_ACCEPTANCE_CONFIRMED
-    ;;
-  marketplace-acceptance)
-    require_false PAYMENT_ACCEPT_NEW_ORDERS
-    require_boolean MEMBERSHIP_PAYMENT_ACCEPT_NEW_ORDERS
-    require_boolean MARKETPLACE_PAYMENT_ACCEPT_NEW_ORDERS
-    require_true MARKETPLACE_ENABLED
-    require_true MEMBERSHIP_PAYMENT_ACCEPTANCE_CONFIRMED
-    require_true MARKETPLACE_GOVERNANCE_DUTY_CONFIRMED
-    require_true PAYMENT_ACCEPTANCE_ENVIRONMENT_CONFIRMED
-    ;;
-  marketplace)
-    require_false PAYMENT_ACCEPT_NEW_ORDERS
-    require_boolean MEMBERSHIP_PAYMENT_ACCEPT_NEW_ORDERS
-    require_boolean MARKETPLACE_PAYMENT_ACCEPT_NEW_ORDERS
-    require_boolean MARKETPLACE_ENABLED
-    require_true MEMBERSHIP_PAYMENT_ACCEPTANCE_CONFIRMED
-    require_true MARKETPLACE_PAYMENT_ACCEPTANCE_CONFIRMED
-    require_true MARKETPLACE_GOVERNANCE_DUTY_CONFIRMED
-    if [[ "${MARKETPLACE_PAYMENT_ACCEPT_NEW_ORDERS:-false}" == "true" \
-      && "${MARKETPLACE_ENABLED:-false}" != "true" ]]; then
-      echo "开启市场新订单时必须同时设置 MARKETPLACE_ENABLED=true" >&2
-      failures=$((failures + 1))
-    fi
-    ;;
-  *)
-    echo "DEPLOY_STAGE 必须显式设置为 free、membership-acceptance、membership、marketplace-acceptance 或 marketplace" >&2
-    failures=$((failures + 1))
-    ;;
-esac
+# Payment availability is controlled only by Admin WeChat Pay configuration.
+# Listing publication remains subject to marketplace governance.
+require_boolean MARKETPLACE_ENABLED
+if [[ "${MARKETPLACE_ENABLED:-false}" == "true" ]]; then
+  require_true MARKETPLACE_GOVERNANCE_DUTY_CONFIRMED
+fi
 
 if [[ "${FORWARD_HEADERS_STRATEGY:-}" != "native" ]]; then
   echo "FORWARD_HEADERS_STRATEGY 必须为 native" >&2
@@ -582,4 +535,4 @@ if [[ "$failures" -ne 0 ]]; then
   exit 1
 fi
 
-echo "生产环境变量与待发布产物预检通过；当前阶段：${deploy_stage}。"
+echo "生产环境变量与待发布产物预检通过。"

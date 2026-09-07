@@ -22,6 +22,16 @@ export interface PlatformConfig {
   resumeReviewRecipientEmail: string
 }
 
+export interface FieldOptimizePromptAdmin {
+  presetId: string
+  name: string
+  description: string
+  systemPrompt: string
+  descriptionPrompt: string
+  responsibilityPrompt: string
+  skillPrompt: string
+}
+
 export interface ResumeAnalysisPromptAdmin {
   scenarioCode: string
   displayName: string
@@ -510,6 +520,11 @@ export const adminApi = {
 
   updateWechatPayConfig: (payload: WechatPayConfigUpdatePayload) =>
     client.put<ApiEnvelope<WechatPayConfigView>>('/admin/wechat-pay', payload),
+
+  listFieldOptimizePrompts: () =>
+    client.get<ApiEnvelope<FieldOptimizePromptAdmin[]>>('/admin/field-optimize-prompts'),
+  updateFieldOptimizePrompt: (id: string, payload: FieldOptimizePromptAdmin) =>
+    client.put<ApiEnvelope<FieldOptimizePromptAdmin>>(`/admin/field-optimize-prompts/${encodeURIComponent(id)}`, payload),
 
   listResumeAnalysisPrompts: () =>
     client.get<ApiEnvelope<ResumeAnalysisPromptAdmin[]>>('/admin/resume-analysis-prompts'),

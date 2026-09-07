@@ -62,8 +62,7 @@ export interface ResumeImportPayload {
 export interface AiFieldOptimizeRequest {
   fieldType: 'project_description' | 'responsibility' | 'skill'
   index?: number
-  prompt?: string
-  systemPrompt?: string
+  presetId?: string
 }
 
 export interface AiFieldOptimizeResponse {
@@ -81,17 +80,14 @@ export interface AiFieldOptimizeRecord {
   optimized?: string
   candidates?: string[]
   error?: string
-  prompt?: string
-  systemPrompt?: string
   createdAt: string
   updatedAt: string
 }
 
-export interface FieldOptimizePromptConfig {
-  systemPrompt: string
-  descriptionPrompt: string
-  responsibilityPrompt: string
-  skillPrompt: string
+export interface FieldOptimizeMethod {
+  id: string
+  name: string
+  description: string
 }
 
 export type AiFieldOptimizeStreamEventName =
@@ -397,8 +393,8 @@ export const resumeApi = {
       )
     ),
 
-  getFieldOptimizePromptConfig: () =>
-    client.get<ApiEnvelope<FieldOptimizePromptConfig>>('/resumes/field-optimize-prompts'),
+  getFieldOptimizeMethods: () =>
+    client.get<ApiEnvelope<FieldOptimizeMethod[]>>('/resumes/field-optimize-methods'),
 
   getLatestFieldOptimizeRecord: (resumeId: number, moduleId: number, params: { fieldType: string; index?: number | null }) =>
     client.get<ApiEnvelope<AiFieldOptimizeRecord | null>>(

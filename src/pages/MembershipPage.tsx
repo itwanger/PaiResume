@@ -74,7 +74,6 @@ function chooseInitialPlan(plans: MembershipPlan[], requestedPlanCode: string | 
   return requested
     ?? plans.find((plan) => plan.recommended && isPlanAvailable(plan))
     ?? plans.find(isPlanAvailable)
-    ?? plans[0]
     ?? null
 }
 
@@ -112,6 +111,8 @@ export default function MembershipPage() {
   const quoteRequestRef = useRef(0)
   const completedOrderRef = useRef<string | null>(null)
   const redirectTimerRef = useRef<number | null>(null)
+
+  const availablePlans = useMemo(() => plans.filter(isPlanAvailable), [plans])
 
   const selectedPlan = useMemo(
     () => plans.find((plan) => plan.code === selectedPlanCode) ?? null,
@@ -152,7 +153,7 @@ export default function MembershipPage() {
       const nextPlans = response.data
       setPlans(nextPlans)
       setSelectedPlanCode((current) => {
-        if (nextPlans.some((plan) => plan.code === current)) {
+        if (nextPlans.some((plan) => plan.code === current && isPlanAvailable(plan))) {
           return current
         }
         return chooseInitialPlan(nextPlans, requestedPlanCode)?.code ?? ''
@@ -308,7 +309,7 @@ export default function MembershipPage() {
       setPaymentError('该会员方案暂未开放')
       return
     }
-    if (!quote || !quoteMatchesSelectedPlan) {
+    if (!quote || !quoteMatchesSelectedPlan || !quote.paymentEnabled) {
       setPaymentError('会员报价尚未准备好，请稍后重试')
       return
     }
@@ -537,277 +538,187 @@ export default function MembershipPage() {
     || paymentBlockedByReview
     || (!hasResumableOrder && (!canCreateOrder || quoteLoading))
 
+  const paymentPaused = Boolean(
+    !orderSnapshot && !quoteLoading && quoteMatchesSelectedPlan && quote && !quote.paymentEnabled,
+  )
+  const showCheckout = Boolean(selectedPlanAvailable || orderSnapshot)
+  const hasDiscount = (orderSnapshot?.discountAmountCents ?? quote?.discountAmount ?? 0) > 0
+
   return (
     <div className="min-h-screen bg-slate-50">
       <Header />
 
-      <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
-        <header className="max-w-2xl">
-          <h1 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
-            {isPermanentVip ? 'VIP 会员' : '选择会员方案'}
-          </h1>
-          {!isPermanentVip ? (
-            <p className="mt-3 text-sm leading-6 text-slate-600">全部方案享受相同 VIP 权益。</p>
+      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:py-12">
+        <header className="mb-7 flex flex-wrap items-end justify-between gap-4">
+          <h1 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">派简历 VIP</h1>
+          {isVip && user?.membershipExpiresAt ? (
+            <p className="text-sm text-emerald-700">
+              有效期至 {formatMembershipExpiry(user.membershipExpiresAt)}
+            </p>
           ) : null}
         </header>
 
         {isPermanentVip ? (
-          <section className="mt-8 max-w-xl border border-emerald-200 bg-white p-6 shadow-sm">
-            <div className="flex h-11 w-11 items-center justify-center bg-emerald-50 text-emerald-700">
-              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <h2 className="mt-5 text-xl font-semibold text-slate-950">终身 VIP 已开通</h2>
-            <Link
-              to={returnTo}
-              className="mt-6 inline-flex w-full items-center justify-center bg-primary-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-700"
-            >
+          <section className="max-w-xl rounded-2xl border border-emerald-200 bg-white p-8">
+            <h2 className="text-xl font-semibold text-slate-950">终身 VIP 已开通</h2>
+            <Link to={returnTo} className="mt-6 inline-flex items-center justify-center rounded-lg bg-primary-600 px-6 py-3 text-sm font-medium text-white hover:bg-primary-700">
               继续使用
             </Link>
           </section>
         ) : (
-          <>
-            {isVip && user?.membershipExpiresAt ? (
-              <div className="mt-7 border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-                当前 VIP 有效期至 {formatMembershipExpiry(user.membershipExpiresAt)}
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white lg:grid lg:grid-cols-[minmax(0,1fr)_400px]">
+            <section className="p-6 sm:p-8 lg:p-10" aria-labelledby="membership-benefits-title">
+              <div className="mb-8 flex items-center gap-3 text-primary-600">
+                <svg className="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m3 6 4 4 5-7 5 7 4-4-2 13H5L3 6Zm3 10h12" />
+                </svg>
+                <span className="text-sm font-semibold tracking-widest">会员专享</span>
               </div>
-            ) : null}
-
-            <section className="mt-8" aria-labelledby="membership-plans-title">
-              <div className="flex items-center justify-between gap-4">
-                <h2 id="membership-plans-title" className="text-xl font-semibold text-slate-950">会员方案</h2>
-                {hasResumableOrder ? (
-                  <span className="text-sm text-amber-700">当前订单已锁定方案</span>
-                ) : null}
-              </div>
-
-              {plansLoading ? (
-                <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="正在加载会员方案">
-                  {[0, 1, 2, 3].map((item) => (
-                    <div key={item} className="h-36 animate-pulse border border-slate-200 bg-white p-5">
-                      <div className="h-5 w-24 bg-slate-100" />
-                      <div className="mt-5 h-4 w-16 bg-slate-100" />
-                      <div className="mt-4 h-7 w-20 bg-slate-100" />
+              <h2 id="membership-benefits-title" className="text-2xl font-bold tracking-tight text-slate-950">让简历准备更进一步</h2>
+              <ul className="mt-5 divide-y divide-slate-100">
+                {[
+                  { title: 'AI 简历分析与优化', description: '发现简历中的问题，获得内容与表达建议。', path: 'm12 3 2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4L12 3Z' },
+                  { title: 'VIP 精选简历', description: '查看 VIP 简历内容，参考经历组织与项目表达。', path: 'M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v16l-4-2-4 2-4-2-4 2V5Zm4 2h8M8 11h8M8 15h4' },
+                  { title: '人工精修免费排队', description: '提交简历 PDF，由二哥逐份精修。', path: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm8-3 2 2 3-3' },
+                ].map((benefit) => (
+                  <li key={benefit.title} className="flex gap-4 py-6">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-600">
+                      <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d={benefit.path} /></svg>
+                    </span>
+                    <div>
+                      <h3 className="font-semibold text-slate-900">{benefit.title}</h3>
+                      <p className="mt-1.5 text-sm leading-6 text-slate-500">{benefit.description}</p>
                     </div>
-                  ))}
+                  </li>
+                ))}
+              </ul>
+            </section>
+
+            <aside className="border-t border-slate-200 p-6 sm:p-8 lg:border-l lg:border-t-0" aria-labelledby="membership-plans-title">
+              <div className="flex items-center justify-between gap-3">
+                <h2 id="membership-plans-title" className="text-lg font-semibold text-slate-950">
+                  {orderSnapshot ? '当前订单' : isVip ? '续费会员' : '开通会员'}
+                </h2>
+                {hasResumableOrder ? <span className="text-xs text-amber-700">待支付</span> : null}
+              </div>
+
+              {recoveringOrder ? (
+                <p className="mt-4 text-sm text-slate-500" role="status">正在检查未完成订单…</p>
+              ) : orderRecoveryError ? (
+                <div className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">
+                  <p>{orderRecoveryError}</p>
+                  <button type="button" onClick={() => void recoverExistingOrder()} className="mt-2 font-semibold underline underline-offset-4">重试</button>
                 </div>
+              ) : lockedRequest && !hasResumableOrder ? (
+                <p className="mt-4 text-sm text-amber-700">上次开通请求待确认，方案已锁定。</p>
+              ) : null}
+
+              {orderSnapshot && selectedSummary ? (
+                <div className="mt-5 border-b border-slate-100 pb-5">
+                  <p className="font-semibold text-slate-950">{selectedSummary.name}</p>
+                  <p className="mt-1 text-sm text-slate-500">{formatEntitlement(selectedSummary.membershipDays)}</p>
+                </div>
+              ) : plansLoading ? (
+                <div className="mt-5 h-24 animate-pulse rounded-xl bg-slate-100" aria-label="正在加载会员方案" />
               ) : plansError ? (
-                <div className="mt-4 border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-700" role="alert">
+                <div className="mt-5 rounded-lg bg-red-50 p-4 text-sm text-red-700" role="alert">
                   <p>{plansError}</p>
-                  <button
-                    type="button"
-                    onClick={() => void fetchPlans()}
-                    className="mt-3 border border-red-200 bg-white px-3 py-2 font-medium text-red-700 hover:bg-red-100"
-                  >
-                    重新加载
-                  </button>
+                  <button type="button" onClick={() => void fetchPlans()} className="mt-2 font-semibold underline underline-offset-4">重新加载</button>
                 </div>
-              ) : plans.length === 0 ? (
-                <div className="mt-4 border border-slate-200 bg-white px-5 py-8 text-center text-sm text-slate-500">
-                  暂无可选会员方案
-                </div>
+              ) : availablePlans.length === 0 ? (
+                <p className="py-8 text-sm text-slate-500">暂无可选会员方案</p>
               ) : (
-                <div
-                  className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
-                  role="radiogroup"
-                  aria-label="选择会员方案"
-                >
-                  {plans.map((plan) => {
-                    const available = isPlanAvailable(plan)
+                <div className="mt-5 grid gap-3" role="radiogroup" aria-label="选择会员方案">
+                  {availablePlans.map((plan) => {
                     const selected = plan.code === selectedPlanCode
-                    const locked = selectionLocked || (hasResumableOrder && !selected)
                     return (
                       <button
                         key={plan.code}
                         type="button"
                         role="radio"
                         aria-checked={selected}
-                        disabled={!available || locked}
+                        disabled={selectionLocked}
                         onClick={() => handlePlanSelect(plan)}
                         className={[
-                          'relative min-h-36 border bg-white p-5 text-left transition',
-                          selected
-                            ? 'border-primary-500 ring-2 ring-primary-100'
-                            : 'border-slate-200 hover:border-primary-300',
-                          !available || locked ? 'cursor-not-allowed opacity-60' : '',
+                          'flex items-center justify-between gap-4 rounded-xl border px-4 py-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed',
+                          selected ? 'border-primary-500 bg-primary-50/60' : 'border-slate-200 hover:border-primary-300',
                         ].join(' ')}
                       >
-                        <div className="flex items-start justify-between gap-3">
-                          <span className="font-semibold text-slate-950">{plan.name}</span>
-                          {plan.recommended ? (
-                            <span className="shrink-0 bg-primary-50 px-2 py-1 text-xs font-medium text-primary-700">
-                              推荐
-                            </span>
-                          ) : null}
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-slate-950">{plan.name}</span>
+                            {plan.recommended && availablePlans.length > 1 ? <span className="text-xs font-medium text-primary-600">推荐</span> : null}
+                          </div>
+                          <p className="mt-1 text-sm text-slate-500">{formatEntitlement(plan.membershipDays)}</p>
                         </div>
-                        <p className="mt-4 text-sm text-slate-500">
-                          {formatEntitlement(plan.membershipDays)}
-                        </p>
-                        <p className="mt-3 text-2xl font-bold tracking-tight text-slate-950">
-                          {available && plan.priceCents !== null ? formatCents(plan.priceCents) : '待开放'}
-                        </p>
+                        <span className="text-2xl font-bold tracking-tight text-slate-950">{formatCents(plan.priceCents!)}</span>
                       </button>
                     )
                   })}
                 </div>
               )}
-            </section>
 
-            <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_420px]">
-              <section className="border border-slate-200 bg-white p-6" aria-labelledby="membership-benefits-title">
-                <h2 id="membership-benefits-title" className="text-lg font-semibold text-slate-950">
-                  会员权益与增值服务
-                </h2>
-                <ul className="mt-5 grid gap-3 text-sm text-slate-700 sm:grid-cols-2">
-                  {['AI 简历分析与优化', 'VIP 内容查看', '人工精修免费排队'].map((benefit) => (
-                    <li key={benefit} className="flex items-center gap-2">
-                      <span className="text-emerald-600" aria-hidden="true">✓</span>
-                      {benefit}
-                    </li>
-                  ))}
-                </ul>
-              </section>
+              {showCheckout && !paymentPaused ? (
+                <>
+                  {couponEligible && !orderSnapshot ? (
+                    <details className="mt-5 text-sm">
+                      <summary className="cursor-pointer text-slate-600 hover:text-primary-600">使用优惠码</summary>
+                      <div className="mt-3 flex gap-2">
+                        <label htmlFor="membership-coupon" className="sr-only">优惠码</label>
+                        <input
+                          id="membership-coupon"
+                          value={couponCode}
+                          onChange={(event) => {
+                            const next = event.target.value.toUpperCase()
+                            setCouponCode(next)
+                            if (next.trim() !== appliedCouponCode) setAppliedCouponCode('')
+                          }}
+                          disabled={!selectedPlanAvailable || selectionLocked}
+                          placeholder="输入优惠码"
+                          className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2.5 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100 disabled:bg-slate-50"
+                        />
+                        <button type="button" onClick={handleApplyCoupon} disabled={quoteLoading || !selectedPlanAvailable || selectionLocked} className="rounded-lg border border-slate-300 px-3 py-2.5 font-medium text-slate-700 hover:border-primary-300 disabled:opacity-50">
+                          {quoteLoading ? '计算中' : '使用'}
+                        </button>
+                      </div>
+                    </details>
+                  ) : null}
 
-              <aside className="h-fit border border-slate-200 bg-white p-6 shadow-sm lg:sticky lg:top-24">
-                <h2 className="text-xl font-semibold text-slate-950">确认方案</h2>
-
-                {recoveringOrder ? (
-                  <div className="mt-4 border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                    正在检查未完成订单...
+                  <div className="mt-5 border-t border-slate-100 pt-5">
+                    {quoteLoading && !orderSnapshot ? (
+                      <p className="text-sm text-slate-500" role="status">正在获取报价…</p>
+                    ) : priceRows.length > 0 ? (
+                      <div className="space-y-3">
+                        {priceRows.filter((row) => row.strong || hasDiscount).map((row) => (
+                          <div key={row.label} className="flex items-center justify-between gap-3 text-sm">
+                            <span className="text-slate-500">{row.label}</span>
+                            <span className={row.strong ? 'text-2xl font-bold text-slate-950' : 'text-slate-700'}>{row.value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : <p className="text-sm text-slate-500">报价暂不可用</p>}
                   </div>
-                ) : orderRecoveryError ? (
-                  <div className="mt-4 border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
-                    <p>{orderRecoveryError}</p>
-                    <button
-                      type="button"
-                      onClick={() => void recoverExistingOrder()}
-                      className="mt-3 border border-red-200 bg-white px-3 py-2 font-medium hover:bg-red-100"
-                    >
-                      重试
-                    </button>
-                  </div>
-                ) : lockedRequest && !hasResumableOrder ? (
-                  <div className="mt-4 border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                    上次开通请求待确认，方案已锁定。
-                  </div>
-                ) : null}
+                  <button type="button" onClick={() => void handleCreateOrder()} disabled={checkoutDisabled} className="mt-5 w-full rounded-lg bg-primary-600 px-4 py-3 text-sm font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-slate-300">
+                    {creatingOrder ? '正在创建订单…' : paymentBlockedByReview ? '订单待人工处理，请联系客服' : hasResumableOrder ? '继续支付当前订单' : lockedRequest ? '重试开通' : '微信支付开通'}
+                  </button>
+                  {couponEligible && !hasResumableOrder && !selectionLocked ? (
+                    <Link to="/survey" className="mt-4 block text-center text-sm text-slate-500 hover:text-primary-600">填写问卷获取优惠码</Link>
+                  ) : null}
+                </>
+              ) : null}
 
-                {selectedSummary ? (
-                  <div className="mt-5 flex items-center justify-between gap-4 border-b border-slate-100 pb-5">
-                    <div>
-                      <p className="font-medium text-slate-950">{selectedSummary.name}</p>
-                      <p className="mt-1 text-sm text-slate-500">
-                        {formatEntitlement(selectedSummary.membershipDays)}
-                      </p>
-                    </div>
-                    {hasResumableOrder ? (
-                      <span className="bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">待支付</span>
-                    ) : null}
-                  </div>
-                ) : (
-                  <p className="mt-5 border-b border-slate-100 pb-5 text-sm text-slate-500">请选择会员方案</p>
-                )}
+              {paymentPaused ? (
+                <p className="mt-5 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800" role="status">支付暂不可用</p>
+              ) : null}
+              {quoteError ? <p className="mt-3 text-sm text-red-600" role="alert">{quoteError}</p> : null}
+              {paymentError && !paymentOpen ? <p className="mt-3 text-sm text-red-600" role="alert">{paymentError}</p> : null}
 
-                {couponEligible ? (
-                  <div className="mt-5">
-                    <label htmlFor="membership-coupon" className="mb-2 block text-sm font-medium text-slate-700">
-                      优惠码
-                    </label>
-                    <div className="flex gap-2">
-                      <input
-                        id="membership-coupon"
-                        value={couponCode}
-                        onChange={(event) => {
-                          const nextCouponCode = event.target.value.toUpperCase()
-                          setCouponCode(nextCouponCode)
-                          if (nextCouponCode.trim() !== appliedCouponCode) {
-                            setAppliedCouponCode('')
-                          }
-                        }}
-                        disabled={!selectedPlanAvailable || hasResumableOrder || selectionLocked}
-                        placeholder="没有可不填"
-                        className="min-w-0 flex-1 border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100 disabled:bg-slate-50 disabled:text-slate-400"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleApplyCoupon}
-                        disabled={quoteLoading || !selectedPlanAvailable || hasResumableOrder || selectionLocked}
-                        className="border border-slate-300 px-3 py-2.5 text-sm font-medium text-slate-700 hover:border-primary-300 hover:text-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {quoteLoading ? '计算中' : '使用'}
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
-
-                {quoteError ? (
-                  <p className="mt-3 text-sm text-red-600" role="alert">{quoteError}</p>
-                ) : null}
-
-                <div className="mt-6 min-h-28 border-y border-slate-100 py-5">
-                  {quoteLoading && !orderSnapshot ? (
-                    <div className="flex min-h-20 items-center justify-center text-sm text-slate-500">
-                      正在获取报价…
-                    </div>
-                  ) : priceRows.length > 0 ? (
-                    <div className="space-y-3">
-                      {priceRows.map((row) => (
-                        <div key={row.label} className="flex items-center justify-between text-sm">
-                          <span className="text-slate-500">{row.label}</span>
-                          <span className={row.strong ? 'text-xl font-semibold text-slate-950' : 'text-slate-700'}>
-                            {row.value}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="flex min-h-20 items-center justify-center text-sm text-slate-500">
-                      {selectedPlanAvailable ? '报价暂不可用' : '该方案待开放'}
-                    </div>
-                  )}
-                </div>
-
-                {!hasResumableOrder && quoteMatchesSelectedPlan && quote && !quote.paymentEnabled ? (
-                  <div className="mt-5 border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                    会员支付维护中
-                  </div>
-                ) : null}
-
-                <button
-                  type="button"
-                  onClick={() => void handleCreateOrder()}
-                  disabled={checkoutDisabled}
-                  className="mt-5 w-full bg-primary-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-                >
-                  {creatingOrder
-                    ? '正在创建订单...'
-                    : paymentBlockedByReview
-                      ? '订单待人工处理，请联系客服'
-                      : hasResumableOrder
-                        ? '继续支付当前订单'
-                        : lockedRequest
-                          ? '重试开通'
-                        : selectedPlanAvailable
-                          ? '微信支付开通'
-                          : '暂未开放'}
-                </button>
-
-                {paymentError && !paymentOpen ? (
-                  <p className="mt-3 text-sm text-red-600" role="alert">{paymentError}</p>
-                ) : null}
-
-                {couponEligible && !hasResumableOrder && !selectionLocked ? (
-                  <Link
-                    to="/survey"
-                    className="mt-3 inline-flex w-full items-center justify-center border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 hover:border-primary-200 hover:text-primary-700"
-                  >
-                    填写问卷获取优惠码
-                  </Link>
-                ) : null}
-              </aside>
-            </div>
-          </>
+              <div className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-slate-500">
+                <Link to="/customer-service" className="hover:text-primary-600">联系客服</Link>
+                <Link to="/refund-policy" className="hover:text-primary-600">退款规则</Link>
+              </div>
+            </aside>
+          </div>
         )}
       </main>
 

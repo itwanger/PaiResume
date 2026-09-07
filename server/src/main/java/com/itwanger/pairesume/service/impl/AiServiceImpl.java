@@ -52,6 +52,9 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 public class AiServiceImpl implements AiService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private FieldOptimizePromptService fieldOptimizePromptService;
+
     private static final double A4_HEIGHT = 841.89d;
     private static final Pattern ENGLISH_KEYWORD_PATTERN = Pattern.compile("[A-Za-z][A-Za-z0-9.+#/_-]{1,}");
     private static final Pattern HAN_TO_ENGLISH_PATTERN = Pattern.compile("([\\p{IsHan}])([A-Za-z][A-Za-z0-9.+#/_-]*)");
@@ -321,7 +324,14 @@ public class AiServiceImpl implements AiService {
 
     @Override
     public FieldOptimizePromptConfigDTO getFieldOptimizePromptConfig() {
-        return loadFieldOptimizePromptConfig();
+        return getFieldOptimizePromptConfig("standard");
+    }
+
+    @Override
+    public FieldOptimizePromptConfigDTO getFieldOptimizePromptConfig(String presetId) {
+        String id = FieldOptimizePresets.normalize(presetId);
+        var stored = fieldOptimizePromptService == null ? null : fieldOptimizePromptService.find(id);
+        return stored != null ? stored : FieldOptimizePresets.defaults(id, loadFieldOptimizePromptConfig());
     }
 
     @Override
@@ -531,7 +541,7 @@ public class AiServiceImpl implements AiService {
                         resolveFieldPrompt(
                                 request,
                                 renderPromptTemplate(
-                                        loadFieldOptimizePromptConfig().getDescriptionPrompt(),
+                                        getFieldOptimizePromptConfig(request == null ? null : request.getPresetId()).getDescriptionPrompt(),
                                         Map.of("original", projectDescription)
                                 )
                         ),
@@ -567,7 +577,7 @@ public class AiServiceImpl implements AiService {
                         resolveFieldPrompt(
                                 request,
                                 renderPromptTemplate(
-                                        loadFieldOptimizePromptConfig().getResponsibilityPrompt(),
+                                        getFieldOptimizePromptConfig(request == null ? null : request.getPresetId()).getResponsibilityPrompt(),
                                         Map.of(
                                                 "company", company,
                                                 "position", position,
@@ -604,7 +614,7 @@ public class AiServiceImpl implements AiService {
                         resolveFieldPrompt(
                                 request,
                                 renderPromptTemplate(
-                                        loadFieldOptimizePromptConfig().getDescriptionPrompt(),
+                                        getFieldOptimizePromptConfig(request == null ? null : request.getPresetId()).getDescriptionPrompt(),
                                         Map.of("original", description)
                                 )
                         ),
@@ -627,7 +637,7 @@ public class AiServiceImpl implements AiService {
                         resolveFieldPrompt(
                                 request,
                                 renderPromptTemplate(
-                                        loadFieldOptimizePromptConfig().getResponsibilityPrompt(),
+                                        getFieldOptimizePromptConfig(request == null ? null : request.getPresetId()).getResponsibilityPrompt(),
                                         Map.of(
                                                 "projectName", projectName,
                                                 "role", role,
@@ -676,7 +686,7 @@ public class AiServiceImpl implements AiService {
                 resolveFieldPrompt(
                         request,
                         renderPromptTemplate(
-                                loadFieldOptimizePromptConfig().getSkillPrompt(),
+                                getFieldOptimizePromptConfig(request == null ? null : request.getPresetId()).getSkillPrompt(),
                                 Map.of("original", originalText)
                         )
                 ),
@@ -685,17 +695,11 @@ public class AiServiceImpl implements AiService {
     }
 
     private String resolveFieldPrompt(AiFieldOptimizeRequestDTO request, String defaultPrompt) {
-        if (request != null && request.getPrompt() != null && !request.getPrompt().isBlank()) {
-            return request.getPrompt().trim();
-        }
         return defaultPrompt;
     }
 
     private String resolveFieldSystemPrompt(AiFieldOptimizeRequestDTO request) {
-        if (request != null && request.getSystemPrompt() != null && !request.getSystemPrompt().isBlank()) {
-            return request.getSystemPrompt().trim();
-        }
-        return loadFieldOptimizePromptConfig().getSystemPrompt();
+        return getFieldOptimizePromptConfig(request == null ? null : request.getPresetId()).getSystemPrompt();
     }
 
     private String resolveConfiguredFieldPrompt(String configuredPrompt, String fallbackPrompt) {

@@ -45,11 +45,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(controllers = {
         MembershipPaymentAdminController.class,
         AdminMarketplaceGovernanceController.class,
+        AdminFieldOptimizePromptController.class,
+        AiPromptController.class,
         AdminResumeAnalysisPromptController.class
 })
 @ContextConfiguration(classes = {
         MembershipPaymentAdminController.class,
         AdminMarketplaceGovernanceController.class,
+        AdminFieldOptimizePromptController.class,
+        AiPromptController.class,
         AdminResumeAnalysisPromptController.class,
         SecurityConfig.class,
         CorsConfig.class,
@@ -63,6 +67,33 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "jwt.refresh-token-expiration=604800000"
 })
 class AdminControllerSecurityTest {
+
+    @MockBean private com.itwanger.pairesume.service.AiService aiService;
+    @MockBean private com.itwanger.pairesume.service.MembershipService membershipService;
+    @MockBean private com.itwanger.pairesume.service.impl.FieldOptimizePromptService fieldPromptService;
+
+    @Test
+    void fieldPromptsAreAdminOnlyAndMethodsDoNotExposeTemplates() throws Exception {
+        mockMvc.perform(get("/admin/field-optimize-prompts").header("Authorization", bearer(regularUserAccessToken)))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(put("/admin/field-optimize-prompts/standard").header("Authorization", bearer(regularUserAccessToken))
+                .contentType("application/json").content("{}"))
+                .andExpect(status().isForbidden());
+        var config = new com.itwanger.pairesume.dto.FieldOptimizePromptConfigDTO();
+        config.setName("标准优化");
+        config.setDescription("突出重点");
+        config.setSystemPrompt("admin-only-system");
+        config.setResponsibilityPrompt("admin-only-template");
+        when(aiService.getFieldOptimizePromptConfig(anyString())).thenReturn(config);
+        mockMvc.perform(get("/resumes/field-optimize-methods").header("Authorization", bearer(regularUserAccessToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].name").value("标准优化"))
+                .andExpect(jsonPath("$.data[0].systemPrompt").doesNotExist())
+                .andExpect(jsonPath("$.data[0].responsibilityPrompt").doesNotExist());
+        mockMvc.perform(get("/admin/field-optimize-prompts").header("Authorization", bearer(adminAccessToken)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data[0].systemPrompt").value("admin-only-system"));
+        verifyNoInteractions(fieldPromptService);
+    }
 
     private static final long ADMIN_USER_ID = 41L;
     private static final long REGULAR_USER_ID = 42L;

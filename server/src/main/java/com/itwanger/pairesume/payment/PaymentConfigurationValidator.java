@@ -43,23 +43,6 @@ public class PaymentConfigurationValidator {
         if (!SUPPORTED_PROVIDERS.contains(provider)) {
             throw new IllegalStateException("PAYMENT_PROVIDER must be disabled, mock, or wechat-native");
         }
-        if (properties.isAcceptNewOrders()) {
-            throw new IllegalStateException(
-                    "PAYMENT_ACCEPT_NEW_ORDERS is deprecated and must remain false; use "
-                            + "MEMBERSHIP_PAYMENT_ACCEPT_NEW_ORDERS or "
-                            + "MARKETPLACE_PAYMENT_ACCEPT_NEW_ORDERS"
-            );
-        }
-        if ((properties.isMembershipAcceptNewOrders()
-                || properties.isMarketplaceAcceptNewOrders())
-                && !"mock".equals(provider)
-                && !adminWechatEnabled
-                && !testWechatEnabled) {
-            throw new IllegalStateException(
-                    "Enabling new membership or marketplace orders requires "
-                            + "mock payment in development or enabled WeChat Pay in Admin"
-            );
-        }
         if (resumeReviewProperties.getPaymentOrderExpireMinutes() != 30) {
             throw new IllegalStateException(
                     "RESUME_REVIEW_PAYMENT_ORDER_EXPIRE_MINUTES must be exactly 30"

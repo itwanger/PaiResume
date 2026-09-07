@@ -784,8 +784,7 @@ public class ResumeReviewServiceImpl implements ResumeReviewService {
 
     private String activeUserKey(Long userId) { return "RESUME_REVIEW:" + userId; }
     private boolean paymentProviderReady() {
-        String provider = paymentGateway.provider();
-        return "wechat".equals(provider) || "mock".equals(provider);
+        return PaymentAvailability.isEnabled(paymentGateway);
     }
     private boolean isActiveMember(User user) {
         return user != null && "ACTIVE".equals(user.getMembershipStatus())

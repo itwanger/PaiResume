@@ -249,9 +249,9 @@ export function AdminOverview({
             <div className="flex gap-3">
               <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-blue-500" />
               <div>
-                <div className="text-sm font-medium text-slate-800">收款开关独立控制</div>
+                <div className="text-sm font-medium text-slate-800">统一支付配置</div>
                 <p className="mt-1 text-xs leading-5 text-slate-500">
-                  后台业务价格不代表生产收款已开放，正式开关仍由部署环境与验收流程控制。
+                  会员、精选简历与人工精修加急统一使用后台微信支付配置。
                 </p>
               </div>
             </div>

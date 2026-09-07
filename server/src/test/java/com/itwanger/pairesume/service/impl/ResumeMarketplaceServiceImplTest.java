@@ -18,9 +18,11 @@ import com.itwanger.pairesume.mapper.MarketplaceGovernanceAuditMapper;
 import com.itwanger.pairesume.mapper.ResumeMarketListingMapper;
 import com.itwanger.pairesume.mapper.ResumeMarketListingRevisionMapper;
 import com.itwanger.pairesume.mapper.ResumeModuleMapper;
-import com.itwanger.pairesume.payment.MarketplacePaymentProperties;
+import com.itwanger.pairesume.payment.MarketplacePaymentGateway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -60,18 +62,17 @@ class ResumeMarketplaceServiceImplTest {
     @Mock private ValueOperations<String, String> valueOperations;
 
     private ResumeMarketplaceServiceImpl service;
-    private MarketplacePaymentProperties paymentProperties;
+    @Mock private MarketplacePaymentGateway paymentGateway;
 
     @BeforeEach
     void setUp() {
-        paymentProperties = new MarketplacePaymentProperties();
         service = new ResumeMarketplaceServiceImpl(
                 listingMapper,
                 revisionMapper,
                 resumeMapper,
                 moduleMapper,
                 new ObjectMapper(),
-                paymentProperties,
+                paymentGateway,
                 marketplaceOrderLocalService,
                 enabledMarketplace(),
                 governanceAuditMapper,
@@ -304,20 +305,21 @@ class ResumeMarketplaceServiceImplTest {
         assertEquals(ResultCode.MARKET_ACCESS_REQUIRED.getCode(), exception.getCode());
     }
 
-    @Test
-    void paidOfferReportsPaymentCapabilityWithoutGrantingContent() {
+    @ParameterizedTest
+    @CsvSource({"wechat,true", "mock,true", "disabled,false", "unknown,false", ",false"})
+    void paidOfferReportsPaymentCapabilityWithoutGrantingContent(String provider, boolean enabled) {
         ResumeMarketListing listing = paidListing("PUBLISHED", "APPROVED", 41L);
         ResumeMarketListingRevision currentRevision = revision(41L, listing.getId(), "当前版本");
         when(listingMapper.selectOne(any(Wrapper.class))).thenReturn(listing);
         when(listingMapper.selectActiveEntitlementRevisionId(10L, 8L)).thenReturn(null);
         when(revisionMapper.selectById(41L)).thenReturn(currentRevision);
-        paymentProperties.setMarketplaceAcceptNewOrders(true);
+        when(paymentGateway.provider()).thenReturn(provider);
 
         var access = service.getAccess("paid-resume", 8L, false);
 
         assertEquals("PAYMENT_REQUIRED", access.getAccessStatus());
         assertFalse(access.isCanView());
-        assertTrue(access.isPaymentEnabled());
+        assertEquals(enabled, access.isPaymentEnabled());
         assertEquals(500, access.getPriceCents());
     }
 
@@ -479,7 +481,7 @@ class ResumeMarketplaceServiceImplTest {
                 resumeMapper,
                 moduleMapper,
                 new ObjectMapper(),
-                paymentProperties,
+                paymentGateway,
                 marketplaceOrderLocalService,
                 disabled,
                 governanceAuditMapper,

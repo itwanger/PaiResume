@@ -1,0 +1,12 @@
+CREATE TABLE field_optimize_prompt_config (
+    preset_id VARCHAR(32) NOT NULL PRIMARY KEY,
+    name VARCHAR(40) NOT NULL,
+    description VARCHAR(200) NOT NULL,
+    system_prompt MEDIUMTEXT NOT NULL,
+    description_prompt MEDIUMTEXT NOT NULL,
+    responsibility_prompt MEDIUMTEXT NOT NULL,
+    skill_prompt MEDIUMTEXT NOT NULL,
+    updated_by BIGINT NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

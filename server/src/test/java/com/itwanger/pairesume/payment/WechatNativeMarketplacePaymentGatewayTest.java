@@ -43,8 +43,8 @@ class WechatNativeMarketplacePaymentGatewayTest {
                 new MarketplacePaymentProperties(), mock(ResourceLoader.class), configService);
         when(configService.isEnabled()).thenReturn(false, true);
 
-        assertEquals("disabled", gateway.provider());
-        assertEquals("wechat", gateway.provider());
+        org.junit.jupiter.api.Assertions.assertFalse(PaymentAvailability.isEnabled(gateway));
+        org.junit.jupiter.api.Assertions.assertTrue(PaymentAvailability.isEnabled(gateway));
     }
 
     @Test

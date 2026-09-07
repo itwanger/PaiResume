@@ -13,6 +13,7 @@ import com.itwanger.pairesume.mapper.ResumeViewOrderMapper;
 import com.itwanger.pairesume.mapper.UserMapper;
 import com.itwanger.pairesume.payment.MarketplaceOrderStatus;
 import com.itwanger.pairesume.payment.MarketplacePaymentGateway;
+import com.itwanger.pairesume.payment.PaymentAvailability;
 import com.itwanger.pairesume.payment.MarketplacePaymentProperties;
 import com.itwanger.pairesume.payment.PaymentNotificationRequest;
 import com.itwanger.pairesume.payment.PaymentPrepayRequest;
@@ -57,7 +58,7 @@ public class MarketplaceOrderServiceImpl implements MarketplaceOrderService {
     public MarketplaceOrderDTO createOrder(String listingSlug, Long buyerUserId, boolean admin,
                                            String idempotencyKey, String clientIp) {
         if (!marketplaceFeatureProperties.isEnabled()
-                || !paymentProperties.isMarketplaceAcceptNewOrders()) {
+                || !PaymentAvailability.isEnabled(paymentGateway)) {
             throw new BusinessException(ResultCode.PAYMENT_NOT_ENABLED);
         }
         MarketplaceOrderDecision decision = findOrCreateDecision(
@@ -257,7 +258,7 @@ public class MarketplaceOrderServiceImpl implements MarketplaceOrderService {
     private MarketplaceOrderDecision findOrCreateDecision(String listingSlug, Long buyerUserId,
                                                            boolean admin, String idempotencyKey) {
         boolean paymentEnabled = marketplaceFeatureProperties.isEnabled()
-                && paymentProperties.isMarketplaceAcceptNewOrders();
+                && PaymentAvailability.isEnabled(paymentGateway);
         try {
             return localOrderService.findOrCreate(
                     listingSlug,

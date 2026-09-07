@@ -1,3 +1,4 @@
+import { AiGenerationProgress } from '../ui/AiGenerationProgress'
 import { MarkdownPreview } from '../ui/MarkdownPreview'
 
 function countDisplayCharacters(value: string) {
@@ -22,7 +23,6 @@ export function AiOptimizeStreamModal({
   title,
   original,
   reasoning,
-  streamedContent,
   optimized,
   candidates = [],
   status,
@@ -73,36 +73,20 @@ export function AiOptimizeStreamModal({
                 <div className="text-sm font-medium text-gray-700">优化前</div>
                 <div className="text-xs text-gray-500">{countDisplayCharacters(original)} 字</div>
               </div>
-              <pre className="max-h-[28vh] overflow-auto whitespace-pre-wrap rounded-xl bg-gray-50 p-4 text-sm leading-6 text-gray-700">
+              <pre className="max-h-[28vh] overflow-auto whitespace-pre-wrap break-words font-sans text-sm leading-7 text-gray-600">
                 {original}
               </pre>
             </div>
-            <div>
-              <div className="mb-2 text-sm font-medium text-gray-700">AI 生成过程</div>
-              <MarkdownPreview
-                content={reasoning}
-                emptyText={isStreaming ? '正在等待生成过程输出...' : '本次未返回过程信息。'}
-                className="max-h-[34vh] border-slate-200 bg-slate-50"
-              />
-            </div>
+            <AiGenerationProgress key={status} status={status} reasoning={reasoning} />
           </div>
 
           <div className="min-w-0 space-y-4">
-            <div>
-              <div className="mb-2 text-sm font-medium text-gray-700">最终结果流</div>
-              <MarkdownPreview
-                content={streamedContent}
-                emptyText={isStreaming ? '正在等待最终结果...' : '本次未返回最终结果。'}
-                className="max-h-[22vh] border-emerald-100 bg-emerald-50"
-              />
-            </div>
-
             {multiCandidate ? (
               <div>
                 <div className="mb-2 text-sm font-medium text-gray-700">优化后候选</div>
                 <div className="max-h-[32vh] space-y-3 overflow-auto">
-                  {candidates.length > 0 ? candidates.map((candidate, index) => (
-                    <div key={`${index}-${candidate}`} className="rounded-xl bg-green-50 p-4">
+                  {status === 'completed' && candidates.length > 0 ? candidates.map((candidate, index) => (
+                    <div key={`${index}-${candidate}`} className="border-b border-slate-100 py-4 last:border-0">
                       <div className="mb-2 flex items-center justify-between gap-3">
                         <div className="flex items-center gap-3">
                           <div className="text-xs font-medium uppercase tracking-wide text-green-700">版本 {index + 1}</div>
@@ -119,11 +103,11 @@ export function AiOptimizeStreamModal({
                       <MarkdownPreview
                         content={candidate}
                         emptyText="当前候选为空。"
-                        className="border-green-100 bg-white/80"
+                        className="rounded-none border-0 bg-transparent p-0"
                       />
                     </div>
                   )) : (
-                    <div className="rounded-xl border border-dashed border-gray-200 px-4 py-6 text-sm text-gray-500">
+                    <div className="py-6 text-sm text-gray-500">
                       {isStreaming ? 'AI 还在生成候选版本。' : '当前没有可采纳的候选版本。'}
                     </div>
                   )}
@@ -136,9 +120,9 @@ export function AiOptimizeStreamModal({
                   <div className="text-xs text-gray-500">{countDisplayCharacters(optimized || '')} 字</div>
                 </div>
                 <MarkdownPreview
-                  content={optimized || ''}
+                  content={status === 'completed' ? optimized || '' : ''}
                   emptyText={isStreaming ? 'AI 还在生成优化结果。' : '当前没有可采纳的优化结果。'}
-                  className="max-h-[32vh] border-green-100 bg-green-50"
+                  className="max-h-[32vh] rounded-none border-0 bg-transparent p-0"
                 />
               </div>
             )}

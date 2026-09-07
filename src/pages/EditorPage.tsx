@@ -1,3 +1,4 @@
+import { useFieldOptimizeReturn } from '../hooks/useFieldOptimizeReturn'
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
@@ -660,6 +661,11 @@ export default function EditorPage() {
       setFocusedExperienceModuleId(null)
     }
   }, [focusedExperienceModule, focusedExperienceModuleId])
+
+  useFieldOptimizeReturn({
+    resumeId, modules, modulesLoaded, activeModuleType,
+    focusedExperienceModuleId, setFocusedExperienceModuleId, setCollapsedModuleIds,
+  })
 
   const handleReorderActiveModuleItems = useCallback(async (moduleIds: number[]) => {
     if (!activeModuleType) return

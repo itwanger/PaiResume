@@ -99,7 +99,7 @@ class MembershipServiceListUsersTest {
         }
         membershipService = new MembershipServiceImpl(
                 null, sqlSession.getMapper(UserMapper.class),
-                sqlSession.getMapper(UserAuthIdentityMapper.class), null, null, null, null);
+                sqlSession.getMapper(UserAuthIdentityMapper.class), null, null, null);
     }
 
     @AfterEach

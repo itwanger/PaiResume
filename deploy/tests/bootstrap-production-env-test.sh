@@ -43,7 +43,6 @@ printf '%s\n' \
   > "$source_env"
 chmod 0600 "$source_env"
 
-export PAIRESUME_REVIEW_PAYMENT_ACCEPTANCE_CONFIRMED=true
 export PAIRESUME_PLANET_CORE_ACCEPTANCE_CONFIRMED=true
 
 source_checksum_before="$(shasum -a 256 "$source_env" | awk '{print $1}')"
@@ -62,7 +61,7 @@ first_output="$(
   PAIRESUME_BOOTSTRAP_SOURCE_ENV="$source_env" \
   PAIRESUME_BOOTSTRAP_TARGET_ENV="$target_env" \
     "$script" 2>&1
-)"
+)" || { printf '%s\n' "$first_output" >&2; exit 1; }
 
 for secret in \
   "$db_password" \
@@ -138,7 +137,6 @@ fi
 
 for expected in \
   "APP_ENV='production'" \
-  "DEPLOY_STAGE='free'" \
   "SERVER_ADDRESS='127.0.0.1'" \
   "SERVER_PORT='8084'" \
   "SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE='5'" \
@@ -172,15 +170,11 @@ for expected in \
   "PAICONGMING_WECHAT_SCENE_PREFIX='pr_'" \
   "PLANET_CORE_ACCEPTANCE_CONFIRMED='true'" \
   "AI_MODEL='deepseek-v4-flash'" \
-  "PAYMENT_ACCEPT_NEW_ORDERS='false'" \
-  "MEMBERSHIP_PAYMENT_ACCEPT_NEW_ORDERS='false'" \
-  "MARKETPLACE_PAYMENT_ACCEPT_NEW_ORDERS='false'" \
   "MARKETPLACE_ENABLED='false'" \
   "RESUME_REVIEW_MAIL_OUTBOX_MAX_ATTEMPTS='10'" \
   "RESUME_REVIEW_UPLOAD_RATE_LIMIT_WINDOW_SECONDS='900'" \
   "RESUME_REVIEW_UPLOAD_RATE_LIMIT_ACCOUNT_ATTEMPTS='20'" \
   "RESUME_REVIEW_UPLOAD_RATE_LIMIT_IP_ATTEMPTS='200'" \
-  "RESUME_REVIEW_PAYMENT_ACCEPTANCE_CONFIRMED='true'" \
   "RESUME_PHOTO_OSS_STAGING_PREFIX='pairesume/resume-photo/staging/'" \
   "RESUME_PHOTO_OSS_OBJECT_PREFIX='pairesume/resume-photo/objects/'"; do
   grep -Fqx -- "$expected" "$target_env" \
@@ -195,6 +189,11 @@ grep -Eq "^AI_PROVIDER_MASTER_KEY='[A-Za-z0-9+/]{43}='$" "$target_env" \
     printf '目标环境文件缺少有效的后台配置加密主密钥\n' >&2
     exit 1
   }
+
+if grep -Eq '^(DEPLOY_STAGE|.*PAYMENT_ACCEPT_NEW_ORDERS|.*PAYMENT_ACCEPTANCE_CONFIRMED|PAYMENT_ACCEPTANCE_ENVIRONMENT_CONFIRMED)=' "$target_env"; then
+  printf '生产环境不应再生成模块支付开关或支付阶段配置\n' >&2
+  exit 1
+fi
 
 preflight_script="${repo_root}/scripts/production-preflight.sh"
 preflight_release="${test_root}/release"

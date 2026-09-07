@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { useAuthStore } from './store/authStore'
 import HomePage from './pages/HomePage'
 import { RouteSeo } from './components/seo/RouteSeo'
+import { PlanetInviteLinkGate } from './components/auth/PlanetInviteLinkGate'
 import { AUTHENTICATED_HOME_PATH } from './config/site'
 import {
   buildEmailLoginPath,
@@ -67,7 +68,7 @@ function LegalConsentGate({ children }: { children: React.ReactNode }) {
     return <AuthenticationLoading />
   }
   if (isAuthenticated && user?.legalConsentRequired) {
-    return <Navigate to={buildLegalConsentPath(location)} replace />
+    return <Navigate to={buildLegalConsentPath(location)} state={location.state} replace />
   }
   return <>{children}</>
 }
@@ -94,7 +95,7 @@ function GuestRoute({ children }: { children: React.ReactNode }) {
   if (!initialized) {
     return <AuthenticationLoading />
   }
-  if (isAuthenticated) {
+  if (isAuthenticated && !(location.pathname === '/login' && location.state?.planetInviteCode)) {
     const returnTo = getSafeInternalPath(
       new URLSearchParams(location.search).get('redirect'),
       AUTHENTICATED_HOME_PATH,
@@ -147,6 +148,7 @@ function App() {
 
   return (
     <BrowserRouter>
+      <PlanetInviteLinkGate>
       <RouteSeo />
       <LegalConsentGate>
         <Suspense fallback={<AuthenticationLoading />}>
@@ -271,6 +273,7 @@ function App() {
           </Routes>
         </Suspense>
       </LegalConsentGate>
+      </PlanetInviteLinkGate>
     </BrowserRouter>
   )
 }

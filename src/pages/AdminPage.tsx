@@ -1,3 +1,4 @@
+import { buildPlanetInvitePost } from '../utils/planetInvite'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
@@ -68,6 +69,7 @@ import { MarketplaceGovernancePanel } from '../components/admin/MarketplaceGover
 import { ResumeReviewAdminPanel } from '../components/admin/ResumeReviewAdminPanel'
 import { AdminShowcasePanel } from '../components/admin/AdminShowcasePanel'
 import { AdminContentLibraryPanel } from '../components/admin/AdminContentLibraryPanel'
+import { FieldOptimizePromptAdminPanel } from '../components/admin/FieldOptimizePromptAdminPanel'
 import { ResumeAnalysisPromptAdminPanel } from '../components/admin/ResumeAnalysisPromptAdminPanel'
 import { AiProviderAdminPanel } from '../components/admin/AiProviderAdminPanel'
 import { WechatPayAdminPanel } from '../components/admin/WechatPayAdminPanel'
@@ -1195,34 +1197,7 @@ function AdminPageContent() {
   const buildPlanetPost = (invite: VipInviteAdmin) => {
     const configuredPublicUrl = (import.meta.env.VITE_APP_PUBLIC_URL as string | undefined)?.trim()
     const publicOrigin = (configuredPublicUrl || window.location.origin).replace(/\/+$/, '')
-    const remaining = Math.max(0, invite.maxRedemptions - invite.redeemedCount)
-    return [
-      `【二哥编程星球专属｜派简历 ${invite.membershipDays} 天 VIP】`,
-      '',
-      `派简历网站：${publicOrigin}`,
-      `扫码登录：${publicOrigin}/login?method=wechat`,
-      `VIP 邀请码：${invite.code}`,
-      '',
-      '使用方法：',
-      '1. 打开扫码登录页，输入邀请码；',
-      '2. 使用派聪明扫码，注册或登录后自动开通 VIP。',
-      '',
-      `兑换成功后，从兑换成功的时间开始获得完整 ${invite.membershipDays} 天 VIP。`,
-      '普通用户可以编辑、保存、导入和导出简历，也可以查看公开的优质简历。',
-      'VIP 用户可使用 AI 优化与分析、解锁需要 VIP 权益的优质简历，并免费排队申请人工精修。',
-      '',
-      `兑换截止：${invite.expiresAt ?? '以后台状态为准'}`,
-      `剩余名额：${remaining}/${invite.maxRedemptions}，先到先得。`,
-      '',
-      '请注意：',
-      '- 这是“VIP 邀请码”，不是支付优惠码，兑换时不需要付款；',
-      '- 每个账号只能领取一次，不能叠加，也不能用新的邀请码重复续期；',
-      `- 兑换截止时间只限制何时领取，不会缩短已经领取的 ${invite.membershipDays} 天权益；`,
-      '- VIP 到期后不会自动续期，如需继续使用，可重新购买或由管理员在后台延期；',
-      '- 邀请码仅限本知识星球成员本人使用，请勿截图、转发或发布到公开渠道；如发现泄露，邀请码可能立即作废，异常领取的 VIP 权益也可能被撤销。',
-      '',
-      '若遇到兑换问题，请在星球内联系我，并提供派简历用户编号，方便核查。',
-    ].join('\n')
+    return buildPlanetInvitePost(publicOrigin, invite.code)
   }
 
   const handleInvalidateInvite = async (invite: VipInviteAdmin) => {
@@ -1897,7 +1872,10 @@ function AdminPageContent() {
               <AdminContentLibraryPanel />
             ) : null}
             {activeView === 'analysis-prompts' ? (
-              <ResumeAnalysisPromptAdminPanel />
+              <>
+                <FieldOptimizePromptAdminPanel />
+                <ResumeAnalysisPromptAdminPanel />
+              </>
             ) : null}
             {activeView === 'ai-provider' ? (
               <AiProviderAdminPanel />

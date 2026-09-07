@@ -18,7 +18,7 @@ import com.itwanger.pairesume.service.MembershipAuditService;
 import com.itwanger.pairesume.service.MembershipPlanService;
 import com.itwanger.pairesume.payment.MembershipPlanCode;
 import com.itwanger.pairesume.payment.MarketplacePaymentGateway;
-import com.itwanger.pairesume.payment.MarketplacePaymentProperties;
+import com.itwanger.pairesume.payment.PaymentAvailability;
 import com.itwanger.pairesume.util.DateTimeUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,7 +48,6 @@ public class MembershipServiceImpl implements MembershipService {
     private final UserAuthIdentityMapper userAuthIdentityMapper;
     private final MembershipAuditService membershipAuditService;
     private final MembershipPlanService membershipPlanService;
-    private final MarketplacePaymentProperties paymentProperties;
     private final MarketplacePaymentGateway paymentGateway;
     @Autowired(required = false)
     private ResumePhotoService resumePhotoService;
@@ -71,8 +70,7 @@ public class MembershipServiceImpl implements MembershipService {
         quote.setPriceCents(plan.getPriceCents());
         quote.setEnabled(Boolean.TRUE.equals(plan.getEnabled()));
         quote.setRecommended(Boolean.TRUE.equals(plan.getRecommended()));
-        quote.setPaymentEnabled(paymentProperties.isMembershipAcceptNewOrders()
-                && !"disabled".equals(paymentGateway.provider()));
+        quote.setPaymentEnabled(PaymentAvailability.isEnabled(paymentGateway));
         return quote;
     }
 

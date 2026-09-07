@@ -5,11 +5,12 @@ import com.itwanger.pairesume.entity.MembershipPlan;
 import com.itwanger.pairesume.entity.User;
 import com.itwanger.pairesume.mapper.UserMapper;
 import com.itwanger.pairesume.payment.MarketplacePaymentGateway;
-import com.itwanger.pairesume.payment.MarketplacePaymentProperties;
 import com.itwanger.pairesume.service.CouponService;
 import com.itwanger.pairesume.service.MembershipAuditService;
 import com.itwanger.pairesume.service.MembershipPlanService;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -29,11 +30,11 @@ class MembershipServiceQuoteTest {
     @Mock private UserMapper userMapper;
     @Mock private MembershipAuditService auditService;
     @Mock private MembershipPlanService membershipPlanService;
-    @Mock private MarketplacePaymentProperties paymentProperties;
     @Mock private MarketplacePaymentGateway paymentGateway;
 
-    @Test
-    void quoteBindsCouponValidationToCurrentUsersEmail() {
+    @ParameterizedTest
+    @CsvSource({"wechat,true", "mock,true", "disabled,false", "unknown,false", ",false"})
+    void quoteBindsCouponValidationToCurrentUsersEmail(String provider, boolean enabled) {
         User user = new User();
         user.setId(7L);
         user.setEmail("buyer@example.com");
@@ -51,15 +52,14 @@ class MembershipServiceQuoteTest {
         when(membershipPlanService.requirePurchasable("ANNUAL")).thenReturn(plan);
         when(couponService.quoteForUser(
                 "PAIMINE123", "buyer@example.com", 6600)).thenReturn(quoted);
-        when(paymentProperties.isMembershipAcceptNewOrders()).thenReturn(true);
-        when(paymentGateway.provider()).thenReturn("wechat");
+        when(paymentGateway.provider()).thenReturn(provider);
         MembershipServiceImpl service = new MembershipServiceImpl(
                 couponService, userMapper, null, auditService, membershipPlanService,
-                paymentProperties, paymentGateway);
+                paymentGateway);
 
         CouponQuoteDTO result = service.quote(7L, "ANNUAL", "PAIMINE123");
 
-        assertTrue(result.isPaymentEnabled());
+        assertEquals(enabled, result.isPaymentEnabled());
         assertEquals("ANNUAL", result.getPlanCode());
         assertEquals("年卡", result.getPlanName());
         assertEquals("FIXED_DAYS", result.getEntitlementType());
@@ -85,7 +85,7 @@ class MembershipServiceQuoteTest {
         when(membershipPlanService.requirePurchasable("MONTHLY")).thenReturn(plan);
         MembershipServiceImpl service = new MembershipServiceImpl(
                 couponService, userMapper, null, auditService, membershipPlanService,
-                paymentProperties, paymentGateway);
+                paymentGateway);
 
         var exception = assertThrows(
                 com.itwanger.pairesume.common.BusinessException.class,

@@ -1,33 +1,30 @@
 package com.itwanger.pairesume.controller;
 
 import com.itwanger.pairesume.common.Result;
-import com.itwanger.pairesume.dto.FieldOptimizePromptConfigDTO;
 import com.itwanger.pairesume.service.AiService;
 import com.itwanger.pairesume.service.MembershipService;
 import com.itwanger.pairesume.util.SecurityUtils;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import java.util.List;
 
-@Tag(name = "AI 提示词配置接口")
 @RestController
-@RequestMapping("/resumes/field-optimize-prompts")
+@RequestMapping("/resumes/field-optimize-methods")
+@RequiredArgsConstructor
 public class AiPromptController {
-
     private final AiService aiService;
     private final MembershipService membershipService;
 
-    public AiPromptController(AiService aiService, MembershipService membershipService) {
-        this.aiService = aiService;
-        this.membershipService = membershipService;
-    }
+    public record MethodView(String id, String name, String description) {}
 
-    @Operation(summary = "获取字段优化默认提示词配置")
     @GetMapping
-    public Result<FieldOptimizePromptConfigDTO> getFieldOptimizePromptConfig() {
+    public Result<List<MethodView>> methods() {
         membershipService.requireAiAccess(SecurityUtils.getCurrentUserId());
-        return Result.success(aiService.getFieldOptimizePromptConfig());
+        return Result.success(List.of("standard", "asu").stream().map(id -> {
+            var config = aiService.getFieldOptimizePromptConfig(id);
+            return new MethodView(id, config.getName(), config.getDescription());
+        }).toList());
     }
 }

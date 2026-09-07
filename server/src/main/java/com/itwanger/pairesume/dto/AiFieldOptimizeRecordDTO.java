@@ -15,8 +15,6 @@ public class AiFieldOptimizeRecordDTO {
     private String optimized;
     private List<String> candidates;
     private String error;
-    private String prompt;
-    private String systemPrompt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

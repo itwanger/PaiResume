@@ -1,3 +1,4 @@
+import { fieldOptimizeInputId } from '../../hooks/useFieldOptimizeReturn'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { SkillContent } from '../../types'
@@ -159,6 +160,7 @@ export function SkillForm({ resumeId, moduleId, initialContent }: Props) {
                 </button>
               </div>
               <AutoResizeTextarea
+                id={fieldOptimizeInputId(moduleId, 0, 'skill', index)}
                 value={item}
                 onChange={(event) => updateItem(index, event.target.value)}
                 minRows={3}

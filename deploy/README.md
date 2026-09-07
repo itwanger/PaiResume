@@ -12,15 +12,15 @@
 
 只查看状态使用 `./launch.sh status`。只有明确要发布当前未提交工作树时才使用 `./launch.sh deploy --working-tree`；首个生产版本没有 `previous`，第二次成功发布后才可使用 `./launch.sh rollback` 一键切回上一版本。
 
-## 三阶段开关
+## 统一支付配置
 
-1. 知识星球邀请灰度：`DEPLOY_STAGE=free`，会员与用户市场新订单仍可关闭；派聪明扫码注册/登录必须启用，知识星球会员通过 `/vip/claim` 领取 VIP。扫码注册、VIP 开通、编辑保存、排版导出和 AI 分析必须完成 `checklists/planet-core-acceptance.md` 并设置 `PLANET_CORE_ACCEPTANCE_CONFIRMED=true`。人工精修、会员购买和用户市场分别按各自清单验收。
-2. 会员支付：先在隔离的预发布域名和测试账号中使用 `DEPLOY_STAGE=membership-acceptance`、`PAYMENT_ACCEPTANCE_ENVIRONMENT_CONFIRMED=true`，并在 Admin 填写、启用真实微信商户配置后执行 `checklists/wechat-payment-acceptance.md`。人工精修的会员免费排队、邮件投递和可选加急还需单独执行 `checklists/resume-review-acceptance.md`；开放加急前才要求设置 `RESUME_REVIEW_PAYMENT_ACCEPTANCE_CONFIRMED=true`。会员阶段仍由 `DEPLOY_STAGE=membership`、`MEMBERSHIP_PAYMENT_ACCEPTANCE_CONFIRMED=true` 控制。用户市场保持关闭。
-3. 用户付费简历市场：再用 `DEPLOY_STAGE=marketplace-acceptance` 在隔离环境完成 `checklists/marketplace-payment-acceptance.md`。正式获批后使用 `DEPLOY_STAGE=marketplace`、两个支付验收确认位与 `MARKETPLACE_GOVERNANCE_DUTY_CONFIRMED=true`；市场功能和两个新订单开关均允许在维护时关闭，Admin 微信支付配置保持启用以处理历史回调与对账。
+所有购买共用 Admin → 微信支付配置。商户配置完整并启用后，会员、官方精选简历、人工精修加急，以及已开放用户市场中的付费简历均可下单；没有模块级支付开关，也无需通过部署阶段开启收款。后台禁用微信支付会影响全部支付业务，操作前应检查未完成订单。
 
-旧变量 `PAYMENT_ACCEPT_NEW_ORDERS` 必须始终为 `false`，不能用它同时打开两类订单。
+会员方案的价格和上架状态仍由 `membership_plan` 管理；未启用或未设置有效价格的方案不在购买页展示。用户市场的 `MARKETPLACE_ENABLED` 控制投稿和商品展示，开放前需完成内容治理准备；它不影响会员、官方精选简历和人工精修加急。
 
-人工精修的真实单价保存在后台平台配置中，数据库默认值为 `0`。发布脚本不会猜测价格；价格未配置、支付 Provider 不是真实微信或独立开关未开时，包括首份在内的任何请求都必须拒绝下单。
+`PAYMENT_PROVIDER` 只用于本地选择模拟网关，生产禁止 `mock`；生产支付状态来自后台保存的微信配置。旧的 `*_PAYMENT_ACCEPT_NEW_ORDERS`、`PAYMENT_ACCEPT_NEW_ORDERS`、支付验收确认环境变量和 `DEPLOY_STAGE` 已移除，现存环境文件中的这些旧值不再生效，可在下次维护时删除。
+
+扫码注册、VIP 开通、编辑保存、排版导出和 AI 分析仍按 `checklists/planet-core-acceptance.md` 验证。真实支付、退款、精修邮件和用户市场分别使用对应验收清单记录实际结果；清单是验收证据，不再作为模块支付开关。
 
 人工精修不设置业务开关，导航、排版导出入口与公开脱敏队列始终存在。生产环境必须配置真实微信支付、SMTP 授权和私密收件箱。人工精修 PDF 不使用 OSS，提交时经后端内存校验后作为邮件附件直接投递。
 
@@ -32,7 +32,6 @@
 
 2026-08-25 只读生产核查确认登录页已经能够生成真实“派聪明”临时二维码，`/vip/claim` 也能展示邀请码输入入口；旧的 404 结论已经过期。下一次标准发布必须从 paicoding 环境读取真实桥接密钥和服务号 AppID，并保持 `PAICONGMING_WECHAT_LOGIN_ENABLED=true`。在使用新微信身份完成扫码回调、注册落库、邀请码核销和后续核心功能验收前，仍不能宣称完整流程已经可用。
 
-`DEPLOY_STAGE` 表示“已经完成验收的最高业务阶段”，不是“此刻是否接新订单”。进入会员或市场阶段后，即使临时停单也不要退回 `free` 或关闭支付 Provider，否则会影响历史订单回调与对账。
 
 ## 轻量账号与进程身份
 

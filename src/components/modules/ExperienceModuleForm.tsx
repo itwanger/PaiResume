@@ -1,3 +1,4 @@
+import { fieldOptimizeInputId } from '../../hooks/useFieldOptimizeReturn'
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { ExperienceProjectContent, InternshipContent, ModuleType } from '../../types'
@@ -369,7 +370,7 @@ export function ExperienceModuleForm({
                     {optimizingField === `project-${projectIndex}-description` ? '跳转中...' : 'AI 优化'}
                   </button>
                 </div>
-                <AutoResizeTextarea value={project.projectDescription} onChange={(event) => updateProjectField(projectIndex, 'projectDescription', event.target.value)} minRows={3}
+                <AutoResizeTextarea id={fieldOptimizeInputId(moduleId, projectIndex, 'project_description')} value={project.projectDescription} onChange={(event) => updateProjectField(projectIndex, 'projectDescription', event.target.value)} minRows={3}
                   placeholder={summaryPlaceholder}
                   className="w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm leading-6 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500" />
                 {optimizeError && optimizeErrorField === `project-${projectIndex}-description` ? (
@@ -405,7 +406,7 @@ export function ExperienceModuleForm({
                         </button>
                         <button type="button" onClick={() => removeResponsibility(projectIndex, responsibilityIndex)} className="text-xs text-slate-400 hover:text-red-600">删除</button>
                       </div>
-                      <AutoResizeTextarea value={item} onChange={(event) => updateResponsibility(projectIndex, responsibilityIndex, event.target.value)} minRows={3}
+                      <AutoResizeTextarea id={fieldOptimizeInputId(moduleId, projectIndex, 'responsibility', responsibilityIndex)} value={item} onChange={(event) => updateResponsibility(projectIndex, responsibilityIndex, event.target.value)} minRows={3}
                         aria-label={`核心职责 ${responsibilityIndex + 1}`}
                         autoFocus={pendingResponsibilityFocus?.projectId === project.id && pendingResponsibilityFocus.responsibilityIndex === responsibilityIndex}
                         onFocus={(event) => {

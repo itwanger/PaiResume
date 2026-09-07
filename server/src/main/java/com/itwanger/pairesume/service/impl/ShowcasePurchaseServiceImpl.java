@@ -9,6 +9,7 @@ import com.itwanger.pairesume.entity.ShowcasePurchaseOrder;
 import com.itwanger.pairesume.mapper.ResumeShowcaseMapper;
 import com.itwanger.pairesume.mapper.ShowcasePurchaseOrderMapper;
 import com.itwanger.pairesume.payment.MarketplacePaymentGateway;
+import com.itwanger.pairesume.payment.PaymentAvailability;
 import com.itwanger.pairesume.payment.MarketplacePaymentProperties;
 import com.itwanger.pairesume.payment.PaymentPrepayRequest;
 import com.itwanger.pairesume.payment.PaymentPrepayResult;
@@ -204,7 +205,7 @@ public class ShowcasePurchaseServiceImpl implements ShowcasePurchaseService {
 
     @Override
     public boolean isPaymentEnabled() {
-        return !"disabled".equals(paymentGateway.provider());
+        return PaymentAvailability.isEnabled(paymentGateway);
     }
 
     @Override

@@ -287,8 +287,6 @@ public class AiController {
         record.setOriginalText(snapshot == null ? null : snapshot.original);
         record.setReasoningMarkdown(snapshot == null ? null : snapshot.reasoning);
         record.setStreamedContent(snapshot == null ? null : snapshot.streamedContent);
-        record.setPrompt(request == null ? null : request.getPrompt());
-        record.setSystemPrompt(request == null ? null : request.getSystemPrompt());
         return record;
     }
 
