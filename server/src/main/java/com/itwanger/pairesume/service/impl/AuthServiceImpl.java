@@ -322,7 +322,7 @@ public class AuthServiceImpl implements AuthService {
             if (resumePhotoService == null) {
                 throw new BusinessException(ResultCode.RESUME_PHOTO_UPLOAD_INVALID);
             }
-            resumePhotoService.access(userId, dto.getAvatarPhotoId());
+            resumePhotoService.accountAvatarUrl(userId, dto.getAvatarPhotoId());
             user.setAvatar(resumePhotoService.storedReference(dto.getAvatarPhotoId()));
         } else if (dto.isRemoveAvatar()) {
             user.setAvatar("");
@@ -995,7 +995,7 @@ public class AuthServiceImpl implements AuthService {
             avatarPhotoId = resumePhotoService.storedPhotoId(user.getAvatar());
             if (avatarPhotoId != null) {
                 try {
-                    avatarUrl = resumePhotoService.access(user.getId(), avatarPhotoId).accessUrl();
+                    avatarUrl = resumePhotoService.accountAvatarUrl(user.getId(), avatarPhotoId);
                 } catch (RuntimeException exception) {
                     log.warn("Unable to resolve account avatar for userId={}", user.getId());
                     avatarUrl = "";

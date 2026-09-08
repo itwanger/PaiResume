@@ -1,16 +1,18 @@
+import { AutoResizeTextarea } from '../ui/AutoResizeTextarea'
 import type { PaperContent } from '../../types'
 import { useModuleContentState } from '../../hooks/useModuleContentState'
 import { normalizePaperContent } from '../../utils/moduleContent'
-import { ModuleSaveBar } from './ModuleSaveBar'
+import { ExperienceFormHeader, type ExperienceItemControls } from './ExperienceFormHeader'
 import { MaterialActions } from '../materials/MaterialActions'
+import './EducationForm.css'
 
-interface Props {
+interface Props extends ExperienceItemControls {
   resumeId: number
   moduleId: number
   initialContent: Record<string, unknown>
 }
 
-export function PaperForm({ resumeId, moduleId, initialContent }: Props) {
+export function PaperForm({ resumeId, moduleId, initialContent, itemIndex, collapsed, onToggleCollapsed, onDelete }: Props) {
   const [content, setContent, { saveNow, saveState, errorMessage, hasUnsavedChanges }] = useModuleContentState<PaperContent>({
     resumeId,
     moduleId,
@@ -24,21 +26,16 @@ export function PaperForm({ resumeId, moduleId, initialContent }: Props) {
 
   return (
     <div className="space-y-4">
-      <ModuleSaveBar
-        saveState={saveState}
-        errorMessage={errorMessage}
-        hasUnsavedChanges={hasUnsavedChanges}
-        onSave={saveNow}
-      >
-        <MaterialActions
-          resumeId={resumeId}
-          moduleType="paper"
-          content={content}
-          onApply={setContent}
-          embedded
-        />
-      </ModuleSaveBar>
-
+      <ExperienceFormHeader className="education-item-header"
+        title={content.journalName.trim() || `第 ${itemIndex + 1} 条论文期刊`}
+        collapsed={collapsed} controlsId={`paper-fields-${moduleId}`}
+        onToggle={onToggleCollapsed} onDelete={onDelete}
+        save={{ saveState, errorMessage, hasUnsavedChanges, onSave: saveNow }}
+        tools={!collapsed ? (
+          <MaterialActions resumeId={resumeId} moduleType="paper" content={content}
+            onApply={setContent} embedded compact />
+        ) : null} />
+      <div id={`paper-fields-${moduleId}`} hidden={collapsed} className="space-y-4">
       <div className="editor-responsive-grid">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">期刊类型</label>
@@ -67,9 +64,9 @@ export function PaperForm({ resumeId, moduleId, initialContent }: Props) {
       </div>
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">论文描述</label>
-        <textarea value={content.content} onChange={(e) => update('content', e.target.value)}
-          rows={4} placeholder="简述论文主题和贡献"
+        <AutoResizeTextarea value={content.content} onChange={(e) => update('content', e.target.value)} placeholder="简述论文主题和贡献"
           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none text-sm resize-none" />
+      </div>
       </div>
     </div>
   )

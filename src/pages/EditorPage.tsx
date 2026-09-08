@@ -45,7 +45,6 @@ import {
 } from '../utils/resumeStyle'
 
 type EditorView = 'module' | 'analysis' | 'template-selection'
-const AI_OPTIMIZABLE_MODULE_TYPES = new Set<ModuleType>(['research'])
 const PREVIEW_PANEL_COLLAPSED_STORAGE_KEY = 'pai-resume.preview-panel-collapsed'
 const COMPACT_PREVIEW_MEDIA_QUERY = '(max-width: 1279px)'
 const DESKTOP_MODULE_SIDEBAR_MEDIA_QUERY = '(min-width: 768px)'
@@ -508,14 +507,6 @@ export default function EditorPage() {
     updateEditorLocation('analysis')
   }, [isVip, openAnalysisMembershipPage, updateEditorLocation])
 
-  const openAiOptimize = useCallback((moduleId: number) => {
-    if (!isVip) {
-      setMembershipModalOpen(true)
-      return
-    }
-    setAiModuleId(moduleId)
-  }, [isVip])
-
   const openTemplateSelectionView = useCallback(() => {
     setAiModuleId(null)
     setEditorView('template-selection')
@@ -648,7 +639,6 @@ export default function EditorPage() {
     [educationTimelineIssues],
   )
   const canAddAnotherInstance = activeModuleType ? !SINGLETON_MODULES.includes(activeModuleType) : false
-  const canOptimizeActiveModule = activeModuleType ? AI_OPTIMIZABLE_MODULE_TYPES.has(activeModuleType) : false
   const isExperienceModule = activeModuleType === 'internship' || activeModuleType === 'work_experience'
   const itemSorting = educationItemSorting || awardItemSorting || experienceItemSorting
   const focusedExperienceModule = isExperienceModule && focusedExperienceModuleId !== null
@@ -856,12 +846,19 @@ export default function EditorPage() {
         }
       : content
     const props = { resumeId, moduleId, initialContent: mergedBasicInfoContent }
+    const itemControls = {
+      itemIndex,
+      collapsed: collapsedModuleIds.has(moduleId),
+      onToggleCollapsed: () => toggleModuleCollapsed(moduleId),
+      onDelete: () => openDeleteDialog([moduleId], activeModuleType, `第 ${itemIndex + 1} 条`),
+    }
     switch (activeModuleType) {
       case 'basic_info': return <BasicInfoForm {...props} />
-      case 'education': return <EducationForm {...props} timelineMessages={educationIssuesByModuleId.get(moduleId)} />
+      case 'education': return <EducationForm {...props} {...itemControls} timelineMessages={educationIssuesByModuleId.get(moduleId)} />
       case 'internship': return (
         <InternshipForm
           {...props}
+          {...itemControls}
           viewMode={focusedExperienceModuleId === moduleId ? 'projects' : 'company'}
           onOpenProjects={() => setFocusedExperienceModuleId(moduleId)}
           onBackToCompanies={() => setFocusedExperienceModuleId(null)}
@@ -870,6 +867,7 @@ export default function EditorPage() {
       case 'work_experience': return (
         <WorkExperienceForm
           {...props}
+          {...itemControls}
           viewMode={focusedExperienceModuleId === moduleId ? 'projects' : 'company'}
           onOpenProjects={() => setFocusedExperienceModuleId(moduleId)}
           onBackToCompanies={() => setFocusedExperienceModuleId(null)}
@@ -885,9 +883,9 @@ export default function EditorPage() {
         />
       )
       case 'skill': return <SkillForm {...props} />
-      case 'paper': return <PaperForm {...props} />
-      case 'research': return <ResearchForm {...props} />
-      case 'award': return <AwardForm {...props} />
+      case 'paper': return <PaperForm {...props} {...itemControls} />
+      case 'research': return <ResearchForm {...props} {...itemControls} />
+      case 'award': return <AwardForm {...props} {...itemControls} />
       case 'job_intention': return null
     }
   }
@@ -1131,7 +1129,7 @@ export default function EditorPage() {
                 </div>
               )}
 
-              {!focusedExperienceModule ? (
+              {!focusedExperienceModule && activeModuleType !== 'project' && activeModuleType !== 'research' && activeModuleType !== 'paper' && (!(isExperienceModule || activeModuleType === 'education' || activeModuleType === 'award') || activeModules.length > 1) ? (
               <div className="mb-4 flex items-center justify-between gap-3">
                 {activeModuleType === 'education' && activeModules.length > 1 ? (
                   <button
@@ -1142,25 +1140,49 @@ export default function EditorPage() {
                     {educationItemSorting ? '完成排序' : '调整教育背景顺序'}
                   </button>
                 ) : activeModuleType === 'award' && activeModules.length > 1 ? (
-                  <button
-                    type="button"
-                    onClick={() => setAwardItemSorting((current) => !current)}
-                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:border-primary-200 hover:text-primary-700"
-                  >
-                    {awardItemSorting ? '完成排序' : '调整荣誉奖项顺序'}
-                  </button>
+                  <div className="flex w-full items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-sm font-semibold text-slate-800">荣誉奖项{awardItemSorting ? '排序' : ''}</h2>
+                      <span className="text-xs text-slate-400">{activeModules.length} 条</span>
+                    </div>
+                    <button type="button" onClick={() => setAwardItemSorting((current) => !current)}
+                      aria-pressed={awardItemSorting}
+                      className={`inline-flex items-center gap-1.5 rounded border px-3 py-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${awardItemSorting
+                        ? 'border-primary-600 bg-primary-600 text-white hover:bg-primary-700'
+                        : 'border-gray-200 bg-white text-slate-600 hover:border-primary-200 hover:text-primary-700'}`}>
+                      <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+                        {awardItemSorting ? <path d="m4 10 4 4 8-8" strokeLinecap="round" strokeLinejoin="round" />
+                          : <path d="M6 3v14m-3-3 3 3 3-3M14 17V3m-3 3 3-3 3 3" strokeLinecap="round" strokeLinejoin="round" />}
+                      </svg>
+                      {awardItemSorting ? '完成排序' : '调整顺序'}
+                    </button>
+                  </div>
                 ) : isExperienceModule && activeModules.length > 1 ? (
-                  <button
-                    type="button"
-                    onClick={() => setExperienceItemSorting((current) => !current)}
-                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:border-primary-200 hover:text-primary-700"
-                  >
-                    {experienceItemSorting
-                      ? '完成排序'
-                      : `调整${activeModuleType === 'internship' ? '实习经历' : '工作经历'}顺序`}
-                  </button>
+                  <div className="flex w-full items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-sm font-semibold text-slate-800">
+                        {activeModuleType === 'internship' ? '实习经历' : '工作经历'}{experienceItemSorting ? '排序' : ''}
+                      </h2>
+                      <span className="text-xs tabular-nums text-slate-400">{activeModules.length} 条</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setExperienceItemSorting((current) => !current)}
+                      aria-pressed={experienceItemSorting}
+                      className={`inline-flex items-center gap-1.5 rounded border px-3 py-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${experienceItemSorting
+                        ? 'border-primary-600 bg-primary-600 text-white hover:bg-primary-700'
+                        : 'border-gray-200 bg-white text-slate-600 hover:border-primary-200 hover:text-primary-700'}`}
+                    >
+                      <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+                        {experienceItemSorting
+                          ? <path d="m4 10 4 4 8-8" strokeLinecap="round" strokeLinejoin="round" />
+                          : <path d="M6 3v14m-3-3 3 3 3-3M14 17V3m-3 3 3-3 3 3" strokeLinecap="round" strokeLinejoin="round" />}
+                      </svg>
+                      {experienceItemSorting ? '完成排序' : '调整顺序'}
+                    </button>
+                  </div>
                 ) : <span />}
-                {activeModules.length > 0 && canAddAnotherInstance && (
+                {activeModules.length > 0 && canAddAnotherInstance && !isExperienceModule && !['education', 'paper', 'award'].includes(activeModuleType) && (
                   <button
                     onClick={() => handleAddInstanceOfType(activeModuleType)}
                     disabled={itemSorting || addingInstance}
@@ -1201,23 +1223,17 @@ export default function EditorPage() {
                     <div
                       key={mod.id}
                       id={`module-card-${mod.id}`}
-                      className="editor-form-container scroll-mt-4 rounded-xl border border-gray-200 bg-white p-4 sm:p-5"
+                      className={`editor-form-container scroll-mt-4 ${focusedExperienceModule
+                        ? ''
+                        : 'rounded-xl border border-gray-200 bg-white p-4 sm:p-5'}`}
                     >
-                      {activeModuleType !== 'project' && !focusedExperienceModule && canAddAnotherInstance ? (
+                      {!['project', 'internship', 'work_experience', 'research', 'education', 'paper', 'award'].includes(activeModuleType) && !focusedExperienceModule && canAddAnotherInstance ? (
                         <CollapsibleItemHeader
                           title={getModuleItemTitle(activeModuleType, readLocalModuleDraft(resumeId, mod.id) ?? mod.content, index)}
                           collapsed={collapsedModuleIds.has(mod.id)}
                           controlsId={`module-fields-${mod.id}`}
                           onToggle={() => toggleModuleCollapsed(mod.id)}
                         >
-                          {canOptimizeActiveModule && (
-                            <button
-                              onClick={() => openAiOptimize(mod.id)}
-                              className="shrink-0 text-xs text-primary-600 hover:text-primary-700"
-                            >
-                              AI 优化{isVip ? '' : ' · VIP'}
-                            </button>
-                          )}
                           <button
                             type="button"
                             onMouseDown={(event) => event.preventDefault()}
@@ -1228,7 +1244,7 @@ export default function EditorPage() {
                           </button>
                         </CollapsibleItemHeader>
                       ) : null}
-                      <div id={`module-fields-${mod.id}`} hidden={activeModuleType !== 'project' && !focusedExperienceModule && collapsedModuleIds.has(mod.id)}>
+                      <div id={`module-fields-${mod.id}`} hidden={!['project', 'internship', 'work_experience', 'research', 'education', 'paper', 'award'].includes(activeModuleType) && !focusedExperienceModule && collapsedModuleIds.has(mod.id)}>
                         {renderModuleForm(mod.id, mod.content, index)}
                       </div>
                     </div>
@@ -1241,9 +1257,29 @@ export default function EditorPage() {
                         type="button"
                         onClick={() => handleAddInstanceOfType(activeModuleType)}
                         disabled={addingInstance}
-                        className="flex w-full items-center justify-center gap-2 rounded-lg border border-primary-200 bg-primary-50/70 px-4 py-3 text-sm font-medium text-primary-700 transition hover:border-primary-300 hover:bg-primary-100 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+                        className={`group flex w-full items-center justify-center gap-2 rounded-lg border px-4 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
+                          ['internship', 'work_experience', 'project', 'paper', 'award'].includes(activeModuleType)
+                            ? 'border-dashed border-gray-200 bg-gray-50/30 py-4 text-gray-400 hover:border-primary-200 hover:bg-primary-50/40 hover:text-primary-600'
+                            : 'border-primary-200 bg-primary-50/70 py-3 text-primary-700 hover:border-primary-300 hover:bg-primary-100'
+                        }`}
                       >
-                        <span className="text-base leading-none" aria-hidden="true">+</span>
+                        <svg className="h-5 w-5 shrink-0 transition-transform duration-150 group-hover:scale-110 motion-reduce:transition-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+                          {['internship', 'work_experience'].includes(activeModuleType) ? (
+                            <>
+                              <path d="M8 6V4h8v2M13 20H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v5M3 11l9 4 9-4M12 12v3" strokeLinecap="round" strokeLinejoin="round" />
+                              <path d="M19 16v6m-3-3h6" strokeLinecap="round" />
+                            </>
+                          ) : activeModuleType === 'project' ? (
+                            <>
+                              <path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" strokeLinejoin="round" />
+                              <path d="M12 11v6m-3-3h6" strokeLinecap="round" />
+                            </>
+                          ) : activeModuleType === 'paper' ? (
+                            <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h7M14 3v6h6l-6-6ZM20 9v4M8 13h5m-5 4h3m8-1v6m-3-3h6" strokeLinecap="round" strokeLinejoin="round" />
+                          ) : activeModuleType === 'award' ? (
+                            <path d="M8 3h8v5a4 4 0 0 1-8 0V3Zm0 2H4v2a4 4 0 0 0 4 4m8-6h4v2a4 4 0 0 1-4 4m-4 1v7m-4 2h6m5-6v6m-3-3h6" strokeLinecap="round" strokeLinejoin="round" />
+                          ) : <path d="M12 4v16M4 12h16" strokeLinecap="round" />}
+                        </svg>
                         <span>
                           继续添加{getModuleDisplayLabelFromModules(activeModuleType, modules)}
                         </span>

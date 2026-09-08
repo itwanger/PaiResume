@@ -117,6 +117,47 @@ class ResumePhotoServiceTest {
                 .startsWith("pairesume/resume-photo/objects/"));
     }
 
+    @Test
+    void accountAvatarPublishesSeparateObjectWithoutChangingPrivateOriginal() {
+        ResumePhoto photo = readyPhoto(9L, 7L);
+        photo.setObjectKey("pairesume/resume-photo/objects/2026/09/08/uuid.jpg");
+        when(photoMapper.selectById(9L)).thenReturn(photo);
+        when(objectStorage.publishAvatar(photo.getObjectKey(), "pairesume/account-avatar/2026/09/08/uuid.jpg"))
+                .thenReturn("https://cdn.example.com/pairesume/account-avatar/2026/09/08/uuid.jpg");
+        assertEquals("https://cdn.example.com/pairesume/account-avatar/2026/09/08/uuid.jpg",
+                service.accountAvatarUrl(7L, 9L));
+        verify(objectStorage, never()).createAccessUrl(anyString(), any());
+        assertEquals("pairesume/resume-photo/objects/2026/09/08/uuid.jpg", photo.getObjectKey());
+    }
+
+    @Test
+    void privateContentRemainsReadableAfterUploadTicketExpiresButRejectsOtherUsers() {
+        ResumePhoto photo = readyPhoto(9L, 7L);
+        photo.setObjectKey("pairesume/resume-photo/objects/image.jpg");
+        photo.setSizeBytes(3L);
+        photo.setContentType("image/jpeg");
+        photo.setExpiresAt(java.time.LocalDateTime.now().minusYears(1));
+        when(photoMapper.selectById(9L)).thenReturn(photo);
+        when(objectStorage.readPhoto(photo.getObjectKey(), 3L)).thenReturn(new byte[]{1, 2, 3});
+        assertArrayEquals(new byte[]{1, 2, 3}, service.readContent(7L, 9L).bytes());
+        assertThrows(BusinessException.class, () -> service.readContent(8L, 9L));
+        assertThrows(BusinessException.class, () -> service.accountAvatarUrl(8L, 9L));
+        verify(objectStorage, times(1)).readPhoto(anyString(), anyLong());
+        verify(objectStorage, never()).publishAvatar(anyString(), anyString());
+    }
+
+    @Test
+    void accountDeletionAlsoRemovesPublicAvatarCopy() {
+        ResumePhoto photo = readyPhoto(9L, 7L);
+        photo.setObjectKey("pairesume/resume-photo/objects/uuid.jpg");
+        photo.setStagingObjectKey("pairesume/resume-photo/staging/uuid.jpg");
+        when(photoMapper.selectList(any())).thenReturn(java.util.List.of(photo));
+        service.deleteAllForUser(7L);
+        verify(objectStorage).deleteObject("pairesume/account-avatar/uuid.jpg");
+        verify(objectStorage).deleteObject(photo.getObjectKey());
+        verify(objectStorage).deleteObject(photo.getStagingObjectKey());
+    }
+
     private ResumePhoto readyPhoto(Long id, Long userId) {
         ResumePhoto photo = new ResumePhoto();
         photo.setId(id);

@@ -1,4 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
+import { resolvePrivateModulePhotos } from './privateResumePhoto'
 import {
   Document,
   Font,
@@ -2260,8 +2261,8 @@ function ResumePdfDocument({
                       {content.projectCycle ? <Text>{content.projectCycle}</Text> : null}
                     </>
                   )}
-                  {content.background ? <Text style={styles.paragraph}>背景：{content.background}</Text> : null}
-                  {content.workContent ? <Text style={styles.paragraph}>工作：{content.workContent}</Text> : null}
+                  {content.background ? <Text style={styles.paragraph}>科研背景：{content.background}</Text> : null}
+                  {content.workContent ? <Text style={styles.paragraph}>科研内容：{content.workContent}</Text> : null}
                   {content.achievements ? <Text style={styles.paragraph}>成果：{content.achievements}</Text> : null}
                   </>
                 )
@@ -2438,6 +2439,7 @@ async function renderResumePdfAsset(
 }
 
 export async function generateResumePdfPreviewAsset(modules: ResumeModule[], options?: ResumePdfOptions) {
+  modules = await resolvePrivateModulePhotos(modules)
   const pageMode = options?.pageMode ?? DEFAULT_RESUME_PDF_PREVIEW_CONFIG.pageMode
   if (pageMode === 'continuous') {
     const estimatedHeight = estimateContinuousPageHeight(modules)

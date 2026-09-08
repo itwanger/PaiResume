@@ -1,3 +1,4 @@
+import { AiOptimizeTextarea } from '../ui/AiOptimizeTextarea'
 import { fieldOptimizeInputId } from '../../hooks/useFieldOptimizeReturn'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -6,11 +7,9 @@ import { useModuleContentState } from '../../hooks/useModuleContentState'
 import { normalizeProjectContent } from '../../utils/moduleContent'
 import { AutoResizeTextarea } from '../ui/AutoResizeTextarea'
 import { ModuleSaveBar } from './ModuleSaveBar'
-import { MaterialActions } from '../materials/MaterialActions'
 import { MonthInput } from '../ui/MonthInput'
-import { ContinueAddButton, RepeatableListHeader } from '../ui/RepeatableListControls'
-import { CollapsibleItemHeader } from '../ui/CollapsibleItemHeader'
 import { TextItemSorter } from '../ui/TextItemSorter'
+import { CollapsibleItemHeader } from '../ui/CollapsibleItemHeader'
 
 interface Props {
   resumeId: number
@@ -21,6 +20,9 @@ interface Props {
   onToggleCollapsed: () => void
   onDelete: () => void
 }
+
+import { LABEL, INPUT, TEXTAREA } from '../ui/experienceFormStyles'
+import { ResponsibilityAddButton } from '../ui/ResponsibilityAddButton'
 
 export function ProjectForm({ resumeId, moduleId, initialContent, itemIndex, collapsed, onToggleCollapsed, onDelete }: Props) {
   const navigate = useNavigate()
@@ -94,122 +96,139 @@ export function ProjectForm({ resumeId, moduleId, initialContent, itemIndex, col
         collapsed={collapsed}
         controlsId={`project-fields-${moduleId}`}
         onToggle={onToggleCollapsed}
+        outlinedActions
+        titleAfter={(
+          <ModuleSaveBar
+            compact
+            saveState={saveState}
+            errorMessage={errorMessage}
+            hasUnsavedChanges={hasUnsavedChanges}
+            onSave={saveNow}
+          />
+        )}
       >
-        <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={onDelete} className="shrink-0 text-xs text-gray-400 hover:text-red-500">
+        <button
+          type="button"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={onDelete}
+          className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+        >
           删除
         </button>
       </CollapsibleItemHeader>
-      {/* Keep drafts and in-flight autosaves mounted while the fields are collapsed. */}
-      <div id={`project-fields-${moduleId}`} hidden={collapsed} className="space-y-4">
-        <ModuleSaveBar
-          saveState={saveState}
-          errorMessage={errorMessage}
-          hasUnsavedChanges={hasUnsavedChanges}
-          onSave={saveNow}
-        >
-          <MaterialActions
-            resumeId={resumeId}
-            moduleType="project"
-            content={content}
-            onApply={setContent}
-            embedded
-          />
-        </ModuleSaveBar>
+
+      <div id={`project-fields-${moduleId}`} hidden={collapsed} className="pt-1">
 
         {optimizeError && optimizeErrorField === null && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="mb-6 rounded border border-red-200 bg-red-50/80 px-4 py-3 text-sm text-red-700">
             {optimizeError}
           </div>
         )}
 
-        <div className="editor-responsive-grid">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">项目名称</label>
+        {/* ═══════════════ 基本信息 ═══════════════ */}
+        <div className="mb-8">
+          <div className="mb-5">
+            <label className={LABEL}>项目名称</label>
             <input
               type="text"
               value={content.projectName}
               onChange={(e) => update('projectName', e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
+              className={`${INPUT} font-medium`}
             />
           </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">担任角色</label>
-            <input
-              type="text"
-              value={content.role}
-              onChange={(e) => update('role', e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">开始时间</label>
-            <MonthInput
-              value={content.startDate}
-              onChange={(value) => update('startDate', value)}
-              ariaLabel="项目开始时间"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">结束时间</label>
-            <MonthInput
-              value={content.endDate}
-              onChange={(value) => update('endDate', value)}
-              ariaLabel="项目结束时间"
-              allowPresent
-            />
+
+          <div className="editor-responsive-grid">
+            <div>
+              <label className={LABEL}>担任角色</label>
+              <input
+                type="text"
+                value={content.role}
+                onChange={(e) => update('role', e.target.value)}
+                className={INPUT}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className={LABEL}>开始时间</label>
+                <MonthInput
+                  value={content.startDate}
+                  onChange={(value) => update('startDate', value)}
+                  ariaLabel="项目开始时间"
+                />
+              </div>
+              <div>
+                <label className={LABEL}>结束时间</label>
+                <MonthInput
+                  value={content.endDate}
+                  onChange={(value) => update('endDate', value)}
+                  ariaLabel="项目结束时间"
+                  allowPresent
+                />
+              </div>
+            </div>
           </div>
         </div>
 
-        <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">技术栈</label>
+        {/* ═══════════════ 技术栈 ═══════════════ */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-2">
+            <label className={LABEL}>技术栈</label>
+            <span className="text-[11px] text-gray-300">逗号或换行分隔</span>
+          </div>
           <AutoResizeTextarea
             value={content.techStack}
             onChange={(e) => update('techStack', e.target.value)}
-            minRows={2}
-            placeholder="React, TypeScript, Node.js..."
-            className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm leading-6 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
+            placeholder="React, TypeScript, Node.js, PostgreSQL, Docker…"
+            className={TEXTAREA}
           />
         </div>
 
-        <div>
-          <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
-            <label className="block text-sm font-medium text-gray-700">项目描述</label>
-            <button
-              type="button"
-              onClick={() => void openOptimizePage('description')}
-              disabled={optimizingField !== null || !content.description.trim()}
-              className="inline-flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-              {optimizingField === 'description' ? '跳转中...' : 'AI 优化'}
-            </button>
-          </div>
-          <AutoResizeTextarea
+        {/* ═══════════════ 项目描述 ═══════════════ */}
+        <div className="mb-8">
+          <label className={LABEL}>项目描述</label>
+          <AiOptimizeTextarea
+            onOptimize={() => void openOptimizePage('description')}
+            optimizing={optimizingField === 'description'}
+            optimizeDisabled={optimizingField !== null || !content.description.trim()}
+            aria-label="项目描述"
             id={fieldOptimizeInputId(moduleId, 0, 'project_description')}
             value={content.description}
             onChange={(e) => update('description', e.target.value)}
-            minRows={4}
-            className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm leading-6 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
+            placeholder="简要描述项目背景、目标以及你在其中的定位…"
+            className={TEXTAREA}
           />
           {optimizeError && optimizeErrorField === 'description' && (
-            <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            <div className="mt-2 rounded border border-red-200 bg-red-50/80 px-3 py-2 text-xs text-red-700">
               {optimizeError}
             </div>
           )}
         </div>
-
+        {/* ═══════════════ 核心职责 ═══════════════ */}
         <div>
-          <RepeatableListHeader
-            label="核心职责"
-            itemCount={content.achievements.length}
-            sorting={responsibilitySorting}
-            addLabel="添加职责"
-            sortLabel="调整职责顺序"
-            onAdd={addResponsibility}
-            onToggleSorting={() => setResponsibilitySorting((current) => !current)}
-          />
+          {/* 列表头部 */}
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <label className={LABEL}>核心职责</label>
+              {content.achievements.length > 0 && (
+                <span className="inline-flex h-5 items-center rounded-full bg-gray-100 px-2 text-[11px] font-semibold text-gray-400">
+                  {content.achievements.length}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {content.achievements.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setResponsibilitySorting((current) => !current)}
+                  className="rounded border border-gray-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-gray-500 hover:border-gray-300 hover:text-gray-700 transition-all duration-150"
+                >
+                  {responsibilitySorting ? '完成排序' : '调整顺序'}
+                </button>
+              )}
+
+            </div>
+          </div>
+
           {responsibilitySorting ? (
             <TextItemSorter
               items={content.achievements}
@@ -217,63 +236,64 @@ export function ProjectForm({ resumeId, moduleId, initialContent, itemIndex, col
               ariaLabel="核心职责排序"
               onReorder={reorderResponsibility}
             />
-          ) : content.achievements.map((item, index) => (
-            <div key={index} className={index === 0 ? '' : 'mt-3'}>
-              <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
-                <div />
-                <div className="flex flex-wrap items-center justify-end gap-3">
-                  <button
-                    type="button"
-                    onClick={() => void openOptimizePage('achievement', index)}
-                    disabled={optimizingField !== null || !item.trim()}
-                    className="inline-flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                    </svg>
-                    {optimizingField === `achievement-${index}` ? '跳转中...' : `AI 优化职责 ${index + 1}`}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => removeResponsibility(index)}
-                    className="text-xs text-gray-300 hover:text-red-500"
-                  >
-                    删除
-                  </button>
+          ) : content.achievements.length === 0 ? (
+            <ResponsibilityAddButton empty onClick={addResponsibility} />
+          ) : (
+            <div className="space-y-1">
+              {content.achievements.map((item, index) => (
+                <div key={index} className="group relative">
+                  <div className="flex items-start gap-3">
+                    {/* 编号 */}
+                    <div className="flex h-9 w-5 shrink-0 items-start justify-center pt-2">
+                      <span className="text-[11px] font-bold text-gray-200 group-hover:text-gray-300 transition-colors duration-150">
+                        {String(index + 1).padStart(2, '0')}
+                      </span>
+                    </div>
+
+                    {/* 输入区 — 相对定位，承载内部工具条 */}
+                    <div className="min-w-0 flex-1 relative">
+                      <AiOptimizeTextarea
+                        onOptimize={() => void openOptimizePage('achievement', index)}
+                        optimizing={optimizingField === `achievement-${index}`}
+                        optimizeDisabled={optimizingField !== null || !item.trim()}
+                        onDelete={() => removeResponsibility(index)}
+                        deleteLabel={`删除职责 ${index + 1}`}
+                        id={fieldOptimizeInputId(moduleId, 0, 'responsibility', index)}
+                        value={item}
+                        onChange={(e) => updateResponsibility(index, e.target.value)}
+                        placeholder={`职责 ${index + 1}：用 STAR 法则描述具体做了什么、用了什么方法、取得了什么结果…`}
+                        aria-label={`核心职责 ${index + 1}`}
+                        autoFocus={pendingResponsibilityFocus === index}
+                        onFocus={(event) => {
+                          if (pendingResponsibilityFocus === index) {
+                            event.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                            setPendingResponsibilityFocus(null)
+                          }
+                        }}
+                        onKeyDown={(event) => {
+                          if ((event.metaKey || event.ctrlKey) && event.key === 'Enter' && index === content.achievements.length - 1) {
+                            event.preventDefault()
+                            addResponsibility()
+                          }
+                        }}
+                        className={TEXTAREA}
+                      />
+                      {optimizeError && optimizeErrorField === `achievement-${index}` && (
+                        <div className="mt-2 rounded border border-red-200 bg-red-50/80 px-3 py-2 text-xs text-red-700">
+                          {optimizeError}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
+              ))}
+
+              {/* 与职责输入框对齐，留出编号和间距 */}
+              <div className="pl-8 pt-3">
+                <ResponsibilityAddButton onClick={addResponsibility} />
               </div>
-              <AutoResizeTextarea
-                id={fieldOptimizeInputId(moduleId, 0, 'responsibility', index)}
-                value={item}
-                onChange={(e) => updateResponsibility(index, e.target.value)}
-                minRows={4}
-                placeholder={`职责 ${index + 1}`}
-                aria-label={`核心职责 ${index + 1}`}
-                autoFocus={pendingResponsibilityFocus === index}
-                onFocus={(event) => {
-                  if (pendingResponsibilityFocus === index) {
-                    event.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                    setPendingResponsibilityFocus(null)
-                  }
-                }}
-                onKeyDown={(event) => {
-                  if ((event.metaKey || event.ctrlKey) && event.key === 'Enter' && index === content.achievements.length - 1) {
-                    event.preventDefault()
-                    addResponsibility()
-                  }
-                }}
-                className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm leading-6 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
-              />
-              {optimizeError && optimizeErrorField === `achievement-${index}` && (
-                <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-                  {optimizeError}
-                </div>
-              )}
             </div>
-          ))}
-          {!responsibilitySorting && content.achievements.length > 0 ? (
-            <ContinueAddButton label="职责" onClick={addResponsibility} />
-          ) : null}
+          )}
         </div>
       </div>
     </>

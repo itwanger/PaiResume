@@ -148,6 +148,11 @@ export function normalizeEducationContent(content: Record<string, unknown>): Edu
   }
 }
 
+export function hasExperienceProjectContent(project: ExperienceProjectContent): boolean {
+  return [project.projectName, project.role, project.startDate, project.endDate, project.techStack, project.projectDescription,
+    ...project.responsibilities].some((value) => value.trim().length > 0)
+}
+
 export function normalizeInternshipContent(content: Record<string, unknown>): InternshipContent {
   const record = asRecord(content)
   const legacyContent = parseLegacyInternshipContent(toStringValue(record.responsibilities))
@@ -190,10 +195,6 @@ export function normalizeInternshipContent(content: Record<string, unknown>): In
     // When it is present alongside an existing projects array (for example after
     // applying an old history material), do not retain unrelated child projects.
     projects = [migratedProject]
-  }
-
-  if (projects.length === 0) {
-    projects = [normalizeProject({}, 0)]
   }
 
   return {

@@ -11,7 +11,12 @@ public interface ResumePhotoObjectStorage {
                               String contentType, long expectedSizeBytes, String expectedSha256,
                               int expectedWidth, int expectedHeight);
 
+    byte[] readPhoto(String objectKey, long expectedSizeBytes);
+
     String createAccessUrl(String objectKey, LocalDateTime expiresAt);
+
+    /** Publish an independent account avatar; the original resume photo stays private. */
+    String publishAvatar(String objectKey, String avatarObjectKey);
 
     void deleteObject(String objectKey);
 

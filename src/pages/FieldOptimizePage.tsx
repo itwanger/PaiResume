@@ -2,13 +2,22 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { resumeApi, type AiFieldOptimizeRequest, type FieldOptimizeMethod, type ResumeModule } from '../api/resume'
 import { AiGenerationProgress } from '../components/ui/AiGenerationProgress'
+import { OptimizeCandidateCard } from '../components/modules/OptimizeCandidateCard'
+import { Header } from '../components/layout/Header'
 import { useResumeStore } from '../store/resumeStore'
-import { normalizeInternshipContent, normalizeProjectContent, normalizeSkillContent } from '../utils/moduleContent'
+import { readLocalModuleDraft, useAutoSave } from '../hooks/useAutoSave'
+import { normalizeInternshipContent, normalizeProjectContent, normalizeResearchContent, normalizeSkillContent } from '../utils/moduleContent'
+import { countDisplayCharacters } from '../utils/displayTextCount'
+import { candidateFilters, readCandidateTags, type CandidateTag } from '../utils/optimizeCandidateTags'
+import { isResearchOptimizeField, researchOptimizeFields } from '../utils/researchOptimizeFields'
+import './FieldOptimizePage.css'
 
 type PageStatus = 'idle' | 'streaming' | 'completed' | 'error'
 const EXPERIENCE_RESPONSIBILITY_INDEX_STRIDE = 1000
 
 interface OptimizePageState {
+  candidateTags?: CandidateTag[][]
+  elapsedMs?: number
   title: string
   original: string
   streamedContent: string
@@ -25,22 +34,7 @@ interface FieldContext {
   original: string
   multiCandidate: boolean
   request: AiFieldOptimizeRequest
-  moduleType: 'internship' | 'work_experience' | 'project' | 'skill'
-}
-
-function appendProcessLine(prevText: string, line: string) {
-  const nextLine = line.trim()
-  if (!nextLine) {
-    return prevText
-  }
-  if (!prevText.trim()) {
-    return nextLine
-  }
-  const rows = prevText.split('\n')
-  if (rows[rows.length - 1] === nextLine) {
-    return prevText
-  }
-  return `${prevText}\n${nextLine}`
+  moduleType: 'internship' | 'work_experience' | 'project' | 'skill' | 'research'
 }
 
 function normalizeCandidates(value: unknown): string[] {
@@ -78,10 +72,6 @@ function parseCandidatesFromStreamedContent(content: string): string[] {
   } catch {
     return []
   }
-}
-
-function countDisplayCharacters(value: string) {
-  return value.replace(/\s+/g, '').length
 }
 
 function encodeExperienceResponsibilityIndex(projectIndex: number, responsibilityIndex: number) {
@@ -145,6 +135,17 @@ function deriveFieldContext(
     }
   }
 
+  if (module.moduleType === 'research' && isResearchOptimizeField(fieldType)) {
+    const { key, title } = researchOptimizeFields[fieldType]
+    return {
+      title,
+      original: normalizeResearchContent(module.content)[key].trim(),
+      multiCandidate: true,
+      request: { fieldType },
+      moduleType: 'research',
+    }
+  }
+
   if (module.moduleType === 'skill' && fieldType === 'skill' && responsibilityIndex !== null) {
     const items = normalizeSkillContent(module.content).categories.flatMap((category) => category.items)
     return {
@@ -193,6 +194,10 @@ function applyOptimizedText(
     }
   }
 
+  if (module.moduleType === 'research' && isResearchOptimizeField(fieldType)) {
+    return { ...module.content, [researchOptimizeFields[fieldType].key]: optimizedText }
+  }
+
   if (module.moduleType === 'skill' && fieldType === 'skill' && responsibilityIndex !== null) {
     const content = normalizeSkillContent(module.content)
     const items = content.categories.flatMap((category) => category.items)
@@ -218,7 +223,8 @@ export default function FieldOptimizePage() {
   const parsedProjectIndex = Number(searchParams.get('projectIndex') || 0)
   const projectIndex = Number.isSafeInteger(parsedProjectIndex) && parsedProjectIndex >= 0 ? parsedProjectIndex : 0
 
-  const { modules, loading, currentResumeId, fetchModules, updateModuleContent } = useResumeStore()
+  const { modules, loading, currentResumeId, fetchModules } = useResumeStore()
+  const { saveNow: saveAdoptedContent } = useAutoSave(resumeId, numericModuleId)
   const module = modules.find((item) => item.id === numericModuleId)
   const fieldContext = useMemo(
     () => deriveFieldContext(module, fieldType, projectIndex, Number.isFinite(index) ? index : null),
@@ -230,6 +236,7 @@ export default function FieldOptimizePage() {
   const streamedContentRef = useRef('')
   const [generationStage, setGenerationStage] = useState('正在分析原文…')
   const [saving, setSaving] = useState(false)
+  const [candidateFilter, setCandidateFilter] = useState<CandidateTag | 'all'>('all')
   const [selectedPreset, setSelectedPreset] = useState('standard')
   const [candidateDrafts, setCandidateDrafts] = useState<string[]>([])
   const [optimizedDraft, setOptimizedDraft] = useState('')
@@ -338,6 +345,7 @@ export default function FieldOptimizePage() {
             error: latestRecord.error || undefined,
             optimized: fieldContext.multiCandidate ? undefined : nextOptimized,
             candidates: nextCandidates,
+            candidateTags: readCandidateTags(latestRecord.candidateTags, nextCandidates.length),
             multiCandidate: fieldContext.multiCandidate,
           }
         })
@@ -382,8 +390,10 @@ export default function FieldOptimizePage() {
     if (!methods.some((method) => method.id === selectedPreset)) return
 
     streamAbortRef.current?.abort()
+    setCandidateFilter('all')
     setGenerationStage('正在分析原文…')
     const abortController = new AbortController()
+    const startedAt = performance.now()
     streamAbortRef.current = abortController
 
     setState({
@@ -413,28 +423,22 @@ export default function FieldOptimizePage() {
           signal: abortController.signal,
           onEvent: (event) => {
             if (event.event === 'connected') {
-              setState((prev) => ({ ...prev, reasoning: appendProcessLine(prev.reasoning, '已连接 AI 服务，开始生成。') }))
+              setGenerationStage('正在分析原文…')
               return
             }
             if (event.event === 'meta') {
               setState((prev) => ({
                 ...prev,
                 original: typeof event.data.original === 'string' && event.data.original.trim() ? event.data.original : prev.original,
-                reasoning: appendProcessLine(prev.reasoning, '已读取当前字段原文。'),
               }))
               return
             }
             if (event.event === 'status') {
-              setState((prev) => ({
-                ...prev,
-                reasoning: appendProcessLine(
-                  prev.reasoning,
-                  typeof event.data.message === 'string' ? event.data.message : 'AI 正在处理中。'
-                ),
-              }))
+              // Transport status is not model reasoning.
               return
             }
             if (event.event === 'reasoning_delta') {
+              setGenerationStage('正在思考…')
               setState((prev) => ({
                 ...prev,
                 reasoning: typeof event.data.text === 'string' ? event.data.text : prev.reasoning,
@@ -482,8 +486,10 @@ export default function FieldOptimizePage() {
           : result.optimized),
         reasoning: prev.reasoning,
         status: 'completed',
+        elapsedMs: performance.now() - startedAt,
         optimized: fieldContext.multiCandidate ? undefined : nextOptimized,
         candidates: nextCandidates,
+        candidateTags: readCandidateTags(result.candidateTags, nextCandidates.length),
       }))
     } catch (error: unknown) {
       if (abortController.signal.aborted) {
@@ -512,14 +518,17 @@ export default function FieldOptimizePage() {
     }
     setSaving(true)
     try {
+      // Merge into the latest recoverable draft, then commit through the same
+      // save lifecycle as the editor so it cannot restore an older draft on return.
+      const localDraft = readLocalModuleDraft(resumeId, numericModuleId)
       const nextContent = applyOptimizedText(
-        module,
+        localDraft ? { ...module, content: localDraft } : module,
         fieldType,
         optimizedText,
         projectIndex,
         Number.isFinite(index) ? index : null,
       )
-      await updateModuleContent(resumeId, numericModuleId, nextContent)
+      await saveAdoptedContent(nextContent)
       handleBack()
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : '回填优化结果失败，请稍后重试'
@@ -531,162 +540,81 @@ export default function FieldOptimizePage() {
 
   const pageTitle = fieldContext?.title || '字段 AI 优化'
   const isStreaming = state.status === 'streaming'
+  const candidateTags = useMemo(() => readCandidateTags(state.candidateTags, state.candidates?.length ?? 0), [state.candidateTags, state.candidates])
+  const hasVisibleCandidates = candidateTags.some(tags => candidateFilter === 'all' || tags.includes(candidateFilter))
   const backLabel = pageTitle ? `返回${pageTitle}编辑` : '返回编辑器'
 
   return (
-    <div className="min-h-screen bg-white">
-      <div className="mx-auto max-w-6xl px-5 py-7 sm:px-8 sm:py-10">
-        <div className="mb-6">
-          <button
-            type="button"
-            onClick={handleBack}
-            className="inline-flex items-center gap-2 py-1 text-sm text-slate-500 transition hover:text-primary-700"
-          >
-            <span aria-hidden="true">←</span>
-            {backLabel}
+    <div className="field-optimize-page min-h-screen bg-slate-50">
+      <Header enableResumeDrop />
+      <main className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8">
+        <div className="mb-6 flex flex-wrap items-center gap-3 text-sm">
+          <button type="button" onClick={handleBack} className="inline-flex items-center gap-2 py-1 text-slate-500 hover:text-primary-700">
+            <span aria-hidden="true">←</span>{backLabel}
           </button>
+          <span aria-hidden="true" className="text-slate-300">/</span>
+          <h1 className="font-semibold text-slate-900">{pageTitle} · AI 优化</h1>
         </div>
-
-        {state.error && (
-          <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {state.error}
-          </div>
-        )}
-
+        {state.error ? <div role="alert" className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{state.error}</div> : null}
         {!fieldContext && !loading ? (
-          <div className="py-12 text-sm text-slate-500">
-            当前优化参数无效，无法定位到对应字段。
-          </div>
+          <div className="py-12 text-sm text-slate-500">当前优化参数无效，无法定位到对应字段。</div>
         ) : (
-          <div className="space-y-6">
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">简历内容优化</h1>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="mr-1 text-sm font-medium text-slate-700">优化方式</span>
-              {methods.map((preset) => {
-                const isActive = selectedPreset === preset.id
-                return (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    aria-pressed={isActive}
-                    disabled={isStreaming}
-                    onClick={() => setSelectedPreset(preset.id)}
-                    className={`rounded-lg px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
-                      isActive
-                        ? 'bg-primary-50 text-primary-700'
-                        : 'bg-transparent text-slate-500 hover:bg-slate-50 hover:text-primary-700'
-                    }`}
-                  >
-                    {preset.name}
-                  </button>
-                )
-              })}
-            </div>
-
-            {methodsError ? <p role="alert" className="text-sm text-red-600">{methodsError}</p> : (
-              <p className="text-sm leading-6 text-slate-600">{methods.find((method) => method.id === selectedPreset)?.description}</p>
-            )}
-
-            <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-5">
-              <AiGenerationProgress key={state.status} status={state.status} reasoning={state.reasoning} stage={generationStage} />
-              <button
-                type="button"
-                onClick={() => void handleStartOptimize()}
-                disabled={isStreaming || !fieldContext || !methods.some((method) => method.id === selectedPreset)}
-                className="shrink-0 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {isStreaming ? '优化中…' : state.status === 'idle' ? '开始优化' : '重新生成'}
-              </button>
-            </div>
-
-            <div className="grid items-start gap-8 pt-2 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:gap-12">
-                <section className="min-w-0 lg:sticky lg:top-8">
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <div className="text-sm font-medium text-slate-800">优化前</div>
-                    <div className="text-xs text-slate-500">
-                      {countDisplayCharacters(state.original)} 字
-                    </div>
-                  </div>
-                  <pre className="max-h-[60vh] overflow-auto whitespace-pre-wrap break-words font-sans text-sm leading-8 text-slate-600">
-                    {state.original || (loading ? '正在加载字段内容...' : '当前字段暂无内容。')}
-                  </pre>
-                </section>
-
-                <div className="min-w-0 border-t border-slate-200 pt-6 lg:border-l lg:border-t-0 lg:pl-10 lg:pt-0">
-                {fieldContext?.multiCandidate ? (
-                  <section className="min-w-0">
-                    <div className="mb-5 text-sm font-medium text-slate-800">优化版本</div>
-                    <div className="divide-y divide-slate-100">
-                      {state.candidates && state.candidates.length > 0 ? state.candidates.map((candidate, candidateIndex) => (
-                        <div key={`${candidateIndex}-${candidate}`} className="py-6 first:pt-0 last:pb-0">
-                          <div className="mb-3 flex items-center justify-between gap-3">
-                            <div className="flex items-center gap-3">
-                              <div className="text-xs font-medium uppercase tracking-wide text-primary-700">版本 {candidateIndex + 1}</div>
-                              <div className="text-xs text-slate-500">
-                                {countDisplayCharacters(candidateDrafts[candidateIndex] ?? candidate)} 字
-                              </div>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => void handleAdopt((candidateDrafts[candidateIndex] || candidate).trim())}
-                              disabled={saving}
-                              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm font-medium text-primary-700 transition hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              {saving ? '回填中...' : '采纳这个版本'}
-                            </button>
-                          </div>
-                          <textarea
-                            aria-label={`版本 ${candidateIndex + 1}内容`}
-                            value={candidateDrafts[candidateIndex] ?? candidate}
-                            onChange={(event) => handleCandidateDraftChange(candidateIndex, event.target.value)}
-                            rows={4}
-                            className="w-full resize-y rounded-lg border-0 bg-slate-50/70 px-4 py-3 text-sm leading-7 text-slate-800 outline-none transition hover:bg-slate-50 focus:ring-2 focus:ring-primary-200"
-                          />
-                        </div>
-                      )) : (
-                        <div className="py-8 text-sm text-slate-400">
-                          {isStreaming ? '正在生成候选版本...' : '暂无候选版本'}
-                        </div>
-                      )}
-                    </div>
-                  </section>
-                ) : (
-                  <section className="min-w-0">
-                    <div className="mb-3 flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        <div className="text-sm font-medium text-slate-800">优化后</div>
-                        <div className="text-xs text-slate-500">
-                          {countDisplayCharacters(optimizedDraft)} 字
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => optimizedDraft.trim() && void handleAdopt(optimizedDraft.trim())}
-                        disabled={!optimizedDraft.trim() || saving}
-                        className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm font-medium text-primary-700 transition hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {saving ? '回填中...' : '采纳优化'}
+          <div className="grid items-start gap-6 lg:grid-cols-[minmax(340px,0.95fr)_minmax(0,2fr)]">
+            <aside className="min-w-0 space-y-5">
+              <section className="fo-panel rounded-xl border border-slate-200 bg-white p-5">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <h2 className="border-l-4 border-primary-500 pl-3 font-semibold text-slate-900">优化前</h2>
+                  <span className="rounded-full bg-primary-50 px-2.5 py-1 text-xs tabular-nums text-primary-700">{countDisplayCharacters(state.original)} 字</span>
+                </div>
+                <p className="fo-original max-h-72 overflow-auto whitespace-pre-wrap break-words text-sm leading-8 text-slate-700">
+                  {state.original || (loading ? '正在加载字段内容…' : '当前字段暂无内容。')}
+                </p>
+              </section>
+              <section className="fo-panel rounded-xl border border-slate-200 bg-white p-5">
+                <h2 className="fo-label mb-4 text-sm font-medium text-slate-700">优化方式</h2>
+                <div className="fo-methods grid grid-cols-2 gap-2" role="group" aria-label="优化方式">
+                  {methods.map((preset) => (
+                    <button key={preset.id} type="button" aria-pressed={selectedPreset === preset.id} disabled={isStreaming} onClick={() => setSelectedPreset(preset.id)}
+                      className={`cursor-pointer rounded-lg border px-2 py-2.5 text-sm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-500 disabled:cursor-not-allowed disabled:opacity-50 ${selectedPreset === preset.id ? 'border-primary-600 bg-primary-600 text-white' : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-primary-300 hover:bg-primary-50'}`}>
+                      {preset.name}{preset.id === 'asu' ? <span aria-hidden="true" className="fo-beta">BETA</span> : null}
+                    </button>
+                  ))}
+                </div>
+                {methodsError ? <p role="alert" className="mt-3 text-sm text-red-600">{methodsError}</p> : <p className="fo-description mt-4 text-sm leading-7 text-slate-500">{methods.find((method) => method.id === selectedPreset)?.description}</p>}
+                <div className="mt-6"><h2 className="fo-label mb-3 text-sm font-medium">操作</h2>
+                  <AiGenerationProgress layout="sidebar" key={state.status} status={state.status} reasoning={state.reasoning} stage={generationStage} elapsedMs={state.elapsedMs}
+                    action={
+                      <button type="button" onClick={() => void handleStartOptimize()} disabled={isStreaming || !fieldContext || !methods.some((method) => method.id === selectedPreset)}
+                        className="fo-generate inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50">
+                        <svg aria-hidden="true" className={`h-4 w-4 ${isStreaming ? 'animate-spin' : ''}`} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M16 7a6 6 0 0 0-10-2L3 8m0-5v5h5M4 13a6 6 0 0 0 10 2l3-3m0 5v-5h-5" /></svg>
+                        {isStreaming ? '优化中…' : state.status === 'idle' ? '开始优化' : '重新生成'}
                       </button>
-                    </div>
-                    {state.optimized ? (
-                      <textarea
-                        value={optimizedDraft}
-                        onChange={(event) => setOptimizedDraft(event.target.value)}
-                        rows={8}
-                        className="min-h-[200px] w-full resize-y rounded-lg border-0 bg-slate-50/70 p-4 text-sm leading-7 text-slate-800 outline-none transition focus:ring-2 focus:ring-primary-200"
-                      />
-                    ) : (
-                      <div className="py-8 text-sm text-slate-400">
-                        {isStreaming ? '正在生成优化结果...' : '暂无优化结果'}
-                      </div>
-                    )}
-                  </section>
-                )}
+                    }
+                  />
+                </div>
+              </section>
+            </aside>
+            <section className="min-w-0" aria-label="优化版本">
+              <div className="fo-panel fo-results-heading mb-5 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white px-5 py-4">
+                <h2 className="border-l-4 border-emerald-500 pl-3 font-semibold text-slate-900">优化版本</h2>
+                <div role="group" aria-label="筛选优化版本" className="fo-filters flex flex-wrap gap-1 rounded-lg bg-slate-100 p-1">
+                  {candidateFilters.map(filter => <button key={filter.id} type="button" aria-pressed={candidateFilter === filter.id} onClick={() => setCandidateFilter(filter.id)}>{filter.label}</button>)}
+                </div>
               </div>
-            </div>
+              {fieldContext?.multiCandidate ? (
+                state.candidates && state.candidates.length > 0 ? <div className="fo-candidates grid items-stretch gap-4 md:grid-cols-3">
+                  {state.candidates.map((candidate, candidateIndex) => <div key={`${candidateIndex}-${candidate}`} hidden={candidateFilter !== 'all' && !candidateTags[candidateIndex]?.includes(candidateFilter)} className="min-w-0 [&>article]:h-full">
+                    <OptimizeCandidateCard tags={candidateTags[candidateIndex]} label={`版本 ${candidateIndex + 1}`} value={candidateDrafts[candidateIndex] ?? candidate} saving={saving} onChange={(value) => handleCandidateDraftChange(candidateIndex, value)} onAdopt={(value) => void handleAdopt(value)} />
+                  </div>)}
+                  {!hasVisibleCandidates ? <p role="status" className="col-span-full py-12 text-center text-sm text-slate-500">暂无符合此分类的版本</p> : null}
+                </div> : <div role="status" className="flex min-h-80 items-center justify-center rounded-xl border border-dashed border-slate-200 px-6 text-sm text-slate-400">{isStreaming ? '正在生成候选版本…' : '暂无候选版本'}</div>
+              ) : state.optimized ? (
+                <OptimizeCandidateCard key={state.optimized} label="优化后" value={optimizedDraft} saving={saving} onChange={setOptimizedDraft} onAdopt={(value) => void handleAdopt(value)} />
+              ) : <div role="status" className="flex min-h-80 items-center justify-center rounded-xl border border-dashed border-slate-200 px-6 text-sm text-slate-400">{isStreaming ? '正在生成优化结果…' : '暂无优化结果'}</div>}
+            </section>
           </div>
         )}
-      </div>
+      </main>
     </div>
   )
 }

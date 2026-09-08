@@ -1,0 +1,29 @@
+.basic-optional-layout {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.basic-optional-photo {
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr);
+  align-items: start;
+  gap: 1rem;
+}
+
+@container (min-width: 760px) {
+  .basic-optional-layout {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    gap: 2rem;
+  }
+
+  .basic-optional-details {
+    padding-left: 2rem;
+    border-left: 1px solid #f3f4f6;
+  }
+}
+
+@container (max-width: 340px) {
+  .basic-optional-photo {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

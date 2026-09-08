@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>可选信息 · 展开态重设计预览</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Helvetica Neue", "Microsoft YaHei", sans-serif;
+    background: #f5f6f8;
+    color: #1f2329;
+    padding: 40px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page { max-width: 880px; margin: 0 auto; }
+
+  /* ========== 可选信息区块 ========== */
+  .section {
+    background: #fff;
+    border: 1px solid #e8eaee;
+    border-radius: 12px;
+    padding: 20px 24px 24px;
+  }
+
+  /* 区块头：标题 + 已填计数 + 收起 */
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid #f0f1f4;
+  }
+  .section-title { font-size: 16px; font-weight: 600; }
+  .filled-count { font-size: 12px; color: #9a9fa8; }
+  .collapse {
+    margin-left: auto;
+    font-size: 13px;
+    color: #8a8f99;
+    cursor: pointer;
+    user-select: none;
+  }
+  .collapse:hover { color: #3d6fe0; }
+
+  /* 分组：用留白 + 小号分组标签分层，不套卡片 */
+  .group { padding-top: 22px; }
+  .group-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: #9a9fa8;
+    letter-spacing: 0.04em;
+    margin-bottom: 14px;
+  }
+
+  /* ===== 照片组：预览在左，控件在右，同一行 ===== */
+  .photo-row { display: flex; gap: 24px; align-items: flex-start; }
+  .photo-preview {
+    width: 96px;
+    height: 128px;
+    flex: none;
+    border: 1px dashed #d3d7de;
+    border-radius: 8px;
+    background: #fafbfc;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: #b4b9c2;
+    font-size: 12px;
+  }
+  .photo-preview svg { width: 26px; height: 26px; }
+  .photo-controls { flex: 1; display: flex; flex-direction: column; gap: 14px; }
+
+  /* 行内字段：标签定宽左对齐 */
+  .field-row { display: flex; align-items: center; gap: 12px; }
+  .field-row > label {
+    width: 60px;
+    flex: none;
+    font-size: 13px;
+    color: #5c616b;
+  }
+
+  .btn-upload {
+    flex: none;
+    height: 34px;
+    padding: 0 16px;
+    border: 1px solid #3d6fe0;
+    border-radius: 8px;
+    background: #fff;
+    color: #3d6fe0;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .btn-upload:hover { background: #f2f6ff; }
+  .limit-hint { font-size: 12px; color: #9a9fa8; }
+
+  input[type="text"], input[type="url"] {
+    flex: 1;
+    height: 38px;
+    padding: 0 12px;
+    border: 1px solid #dfe2e8;
+    border-radius: 8px;
+    font-size: 14px;
+    color: #1f2329;
+    outline: none;
+    transition: border-color .15s;
+    background: #fff;
+  }
+  input:focus { border-color: #3d6fe0; }
+  input::placeholder { color: #b4b9c2; }
+
+  /* 分段控件 */
+  .segmented {
+    display: inline-flex;
+    border: 1px solid #dfe2e8;
+    border-radius: 8px;
+    overflow: hidden;
+    flex: none;
+  }
+  .segmented span {
+    padding: 7px 16px;
+    font-size: 13px;
+    color: #5c616b;
+    cursor: pointer;
+  }
+  .segmented span.active {
+    background: #eef3ff;
+    color: #3d6fe0;
+    font-weight: 500;
+  }
+
+  /* ===== 两列网格 ===== */
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px 24px;
+  }
+  .field label {
+    display: block;
+    font-size: 13px;
+    color: #5c616b;
+    margin-bottom: 8px;
+  }
+  .field input { width: 100%; }
+
+  /* ===== 其他组：城市 + 党员同一行 ===== */
+  .misc-row { display: flex; align-items: flex-end; gap: 24px; }
+  .misc-row .field { width: 260px; }
+  .checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 38px;
+    font-size: 14px;
+    color: #1f2329;
+    cursor: pointer;
+  }
+  .checkbox input { width: 16px; height: 16px; accent-color: #3d6fe0; }
+
+  /* ========== 设计说明 ========== */
+  .notes {
+    margin-top: 32px;
+    background: #fff;
+    border: 1px solid #e8eaee;
+    border-radius: 12px;
+    padding: 20px 24px;
+  }
+  .notes h2 { font-size: 15px; font-weight: 600; margin-bottom: 12px; }
+  .notes li {
+    font-size: 13px;
+    color: #5c616b;
+    line-height: 1.9;
+    margin-left: 18px;
+  }
+  .notes b { color: #1f2329; font-weight: 500; }
+  .notes .tag {
+    display: inline-block;
+    font-size: 11px;
+    color: #3d6fe0;
+    background: #eef3ff;
+    border-radius: 4px;
+    padding: 0 6px;
+    margin-right: 6px;
+    vertical-align: 1px;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ================= 展开态 ================= -->
+  <div class="section">
+    <div class="section-head">
+      <span class="section-title">可选信息</span>
+      <span class="filled-count">已填 2 项</span>
+      <span class="collapse">收起</span>
+    </div>
+
+    <!-- 照片 -->
+    <div class="group">
+      <div class="group-label">照片</div>
+      <div class="photo-row">
+        <div class="photo-preview">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <circle cx="8.5" cy="8.5" r="1.5"/>
+            <path d="M21 15l-5-5L5 21"/>
+          </svg>
+          照片预览
+        </div>
+        <div class="photo-controls">
+          <div class="field-row">
+            <label>上传</label>
+            <button class="btn-upload">选择文件</button>
+            <span class="limit-hint">PNG / JPG，不超过 3MB</span>
+          </div>
+          <div class="field-row">
+            <label>图片链接</label>
+            <input type="url" placeholder="https://example.com/photo.jpg">
+          </div>
+          <div class="field-row">
+            <label>边框</label>
+            <div class="segmented">
+              <span class="active">无边框</span>
+              <span>有边框</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 链接 -->
+    <div class="group">
+      <div class="group-label">链接</div>
+      <div class="grid-2">
+        <div class="field">
+          <label>GitHub</label>
+          <input type="text" placeholder="https://github.com/username">
+        </div>
+        <div class="field">
+          <label>博客</label>
+          <input type="text" placeholder="https://yourblog.com">
+        </div>
+        <div class="field">
+          <label>LeetCode</label>
+          <input type="text" placeholder="https://leetcode.cn/u/username">
+        </div>
+      </div>
+    </div>
+
+    <!-- 其他 -->
+    <div class="group">
+      <div class="group-label">其他</div>
+      <div class="misc-row">
+        <div class="field">
+          <label>意向城市</label>
+          <input type="text" value="上海">
+        </div>
+        <label class="checkbox">
+          <input type="checkbox"> 党员
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 设计说明 ================= -->
+  <div class="notes">
+    <h2>设计说明</h2>
+    <ul>
+      <li><span class="tag">分组</span>展开内容按 <b>照片 / 链接 / 其他</b> 三组组织，用小号灰色分组标签 + 留白分层，不再出现任何嵌套卡片或多余边框，符合"单层容器"约定。</li>
+      <li><span class="tag">照片</span>预览图固定 96×128 放左侧，上传按钮、图片链接、边框开关在右侧纵向排列——消除了现在"预览孤岛悬在最右边"的割裂感，视线从左到右一次读完。</li>
+      <li><span class="tag">标签</span>照片组内使用 <b>定宽行内标签</b>（上传 / 图片链接 / 边框），比堆叠标签省约 40% 纵向空间；链接与其他组保持堆叠标签，与上方必填区一致。</li>
+      <li><span class="tag">提示</span>"支持 PNG/JPG、不超过 3MB"属于输入限制，保留，但压缩成按钮旁的一行小字，删掉"也可以使用图片链接"这类可由界面自身表达的说明。</li>
+      <li><span class="tag">状态</span>区块头增加"已填 N 项"计数，收起后也能让用户知道自己填过多少可选信息，是有决策价值的状态信息。</li>
+      <li><span class="tag">其他</span>意向城市（定宽 260px）与"党员"勾选放在同一行，避免一个孤零零的复选框独占一行。</li>
+    </ul>
+  </div>
+
+</div>
+</body>
+</html>

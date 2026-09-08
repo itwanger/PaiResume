@@ -116,6 +116,28 @@ public class ResumePhotoService {
         return toDto(photo);
     }
 
+    public PhotoContent readContent(Long userId, Long photoId) {
+        ResumePhoto photo = requireReadyOwned(userId, photoId);
+        return new PhotoContent(photo.getContentType(),
+                objectStorage.readPhoto(photo.getObjectKey(), photo.getSizeBytes()));
+    }
+
+    public record PhotoContent(String contentType, byte[] bytes) {}
+
+    public String accountAvatarUrl(Long userId, Long photoId) {
+        ResumePhoto photo = requireReadyOwned(userId, photoId);
+        return objectStorage.publishAvatar(photo.getObjectKey(), avatarObjectKey(photo));
+    }
+
+    private String avatarObjectKey(ResumePhoto photo) {
+        // Sibling directory: private resume photos are never served through the public CDN.
+        String key = photo.getObjectKey();
+        int marker = key.indexOf("/resume-photo/objects/");
+        if (marker < 0) throw invalidPhoto();
+        return key.substring(0, marker) + "/account-avatar/"
+                + key.substring(marker + "/resume-photo/objects/".length());
+    }
+
     public String storedReference(Long photoId) {
         if (photoId == null || photoId <= 0) throw invalidPhoto();
         return STORED_PHOTO_PREFIX + photoId;
@@ -182,6 +204,7 @@ public class ResumePhotoService {
                 .eq(ResumePhoto::getUserId, userId));
         if (photos.isEmpty()) return;
         for (ResumePhoto photo : photos) {
+            if (photo.getObjectKey() != null) objectStorage.deleteObject(avatarObjectKey(photo));
             objectStorage.deleteObject(photo.getObjectKey());
             objectStorage.deleteObject(photo.getStagingObjectKey());
         }

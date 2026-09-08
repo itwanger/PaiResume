@@ -252,7 +252,7 @@ public class MembershipServiceImpl implements MembershipService {
         Long photoId = resumePhotoService.storedPhotoId(user.getAvatar());
         if (photoId == null) return user.getAvatar();
         try {
-            return resumePhotoService.access(user.getId(), photoId).accessUrl();
+            return resumePhotoService.accountAvatarUrl(user.getId(), photoId);
         } catch (RuntimeException ignored) {
             return null;
         }

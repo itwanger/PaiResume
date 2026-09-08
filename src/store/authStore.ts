@@ -1,3 +1,4 @@
+import { clearPrivatePhotoCache } from '../utils/privateResumePhoto'
 import { create } from 'zustand'
 import { authApi, type TokenData } from '../api/auth'
 import { clearAccessToken, setAccessToken } from '../api/tokenStore'
@@ -54,6 +55,7 @@ function clearUserScopedBrowserData() {
 }
 
 function clearClientSessionData() {
+  clearPrivatePhotoCache()
   clearAccessToken()
   clearLegacyTokenStorage()
   if (typeof window !== 'undefined') {
@@ -75,6 +77,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   login: async (email, password) => {
     const { data: res } = await authApi.login({ email, password })
     const tokenData = res.data
+    clearPrivatePhotoCache()
     setAccessToken(tokenData.accessToken)
     set({ user: tokenData.userInfo, isAuthenticated: true, initialized: true })
   },
@@ -85,6 +88,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       privacyAccepted: true,
     })
     const tokenData = res.data
+    clearPrivatePhotoCache()
     setAccessToken(tokenData.accessToken)
     set({ user: tokenData.userInfo, isAuthenticated: true, initialized: true })
   },
@@ -99,6 +103,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       inviteCode,
     })
     const tokenData = res.data
+    clearPrivatePhotoCache()
     setAccessToken(tokenData.accessToken)
     set({ user: tokenData.userInfo, isAuthenticated: true, initialized: true })
   },
@@ -136,6 +141,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ restoring: true })
       try {
         const { data: res } = await authApi.refresh()
+        clearPrivatePhotoCache()
         setAccessToken(res.data.accessToken)
         set({
           user: res.data.userInfo,

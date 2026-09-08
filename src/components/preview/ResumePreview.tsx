@@ -1,5 +1,5 @@
 import type { Resume } from '../../types'
-import { normalizePhotoSource } from '../../utils/resumePhoto'
+import { useResumePhotoSource } from '../../hooks/useResumePhotoSource'
 
 interface ResumePreviewProps {
   resume: Resume
@@ -7,7 +7,7 @@ interface ResumePreviewProps {
 
 export function ResumePreview({ resume }: ResumePreviewProps) {
   const { basicInfo, educations, skills, experiences } = resume
-  const photoSource = normalizePhotoSource(basicInfo.photo)
+  const { source: photoSource } = useResumePhotoSource(basicInfo.privacyMasked ? null : basicInfo.photoId, basicInfo.photo)
   const photoFrameClassName = basicInfo.photoBorder
     ? 'border border-primary-500'
     : 'bg-slate-50'

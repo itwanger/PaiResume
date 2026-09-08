@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 public class ResumePhotoOssProperties {
     private String endpoint;
     private String bucket;
+    private String avatarCdnBaseUrl;
     private String accessKeyId;
     private String accessKeySecret;
     private String stagingPrefix = "pairesume/resume-photo/staging/";

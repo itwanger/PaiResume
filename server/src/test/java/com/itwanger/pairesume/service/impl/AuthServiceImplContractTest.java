@@ -7,7 +7,6 @@ import com.itwanger.pairesume.dto.PasswordResetConfirmDTO;
 import com.itwanger.pairesume.dto.AccountDeletionDTO;
 import com.itwanger.pairesume.dto.AccountProfileUpdateDTO;
 import com.itwanger.pairesume.dto.LegalConsentDTO;
-import com.itwanger.pairesume.dto.ResumePhotoDTO;
 import com.itwanger.pairesume.dto.VipInviteRedemptionDTO;
 import com.itwanger.pairesume.entity.User;
 import com.itwanger.pairesume.entity.UserAuthIdentity;
@@ -84,10 +83,8 @@ class AuthServiceImplContractTest {
         when(userMapper.selectByIdForUpdate(7L)).thenReturn(user);
         when(resumePhotoService.storedReference(42L)).thenReturn("resume-photo:42");
         when(resumePhotoService.storedPhotoId("resume-photo:42")).thenReturn(42L);
-        when(resumePhotoService.access(7L, 42L)).thenReturn(new ResumePhotoDTO(
-                42L, "RP42", "image/jpeg", 1024, 256, 256,
-                "https://example.com/avatar.jpg", "2026-08-26 12:00:00"
-        ));
+        when(resumePhotoService.accountAvatarUrl(7L, 42L))
+                .thenReturn("https://example.com/avatar.jpg");
         AccountProfileUpdateDTO dto = new AccountProfileUpdateDTO();
         dto.setNickname("  二哥星球成员  ");
         dto.setAvatarPhotoId(42L);
@@ -100,7 +97,8 @@ class AuthServiceImplContractTest {
         assertEquals(42L, result.getAvatarPhotoId());
         assertEquals("https://example.com/avatar.jpg", result.getAvatar());
         verify(userMapper).updateById(user);
-        verify(resumePhotoService, times(2)).access(7L, 42L);
+        verify(resumePhotoService, times(2)).accountAvatarUrl(7L, 42L);
+        verify(resumePhotoService, never()).access(anyLong(), anyLong());
     }
 
     @Test

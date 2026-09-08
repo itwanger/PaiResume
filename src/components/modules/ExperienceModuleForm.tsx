@@ -1,21 +1,22 @@
+import { AiOptimizeTextarea } from '../ui/AiOptimizeTextarea'
 import { fieldOptimizeInputId } from '../../hooks/useFieldOptimizeReturn'
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { ExperienceProjectContent, InternshipContent, ModuleType } from '../../types'
 import { useModuleContentState } from '../../hooks/useModuleContentState'
-import { normalizeInternshipContent } from '../../utils/moduleContent'
+import { hasExperienceProjectContent, normalizeInternshipContent } from '../../utils/moduleContent'
 import { getExperienceTimelineIssues, reorderExperienceProjects } from '../../utils/experienceTimeline'
 import { AutoResizeTextarea } from '../ui/AutoResizeTextarea'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { MonthInput } from '../ui/MonthInput'
-import { ModuleSaveBar } from './ModuleSaveBar'
-import { MaterialActions } from '../materials/MaterialActions'
+import { ExperienceFormHeader, type ExperienceItemControls } from './ExperienceFormHeader'
+import { LABEL, INPUT, TEXTAREA } from '../ui/experienceFormStyles'
+import { ResponsibilityAddButton } from '../ui/ResponsibilityAddButton'
 import { ExperienceProjectSorter } from './ExperienceProjectSorter'
 import { ExperienceResponsibilitySorter } from './ExperienceResponsibilitySorter'
-import { ContinueAddButton, RepeatableListHeader } from '../ui/RepeatableListControls'
-import { CollapsibleItemHeader } from '../ui/CollapsibleItemHeader'
+import { RepeatableListHeader } from '../ui/RepeatableListControls'
 
-interface Props {
+interface Props extends ExperienceItemControls {
   resumeId: number
   moduleId: number
   initialContent: Record<string, unknown>
@@ -47,6 +48,7 @@ export function ExperienceModuleForm({
   moduleType,
   moduleLabel,
   summaryPlaceholder,
+  itemIndex, collapsed: companyCollapsed, onToggleCollapsed, onDelete,
   viewMode = 'company',
   onOpenProjects,
   onBackToCompanies,
@@ -70,6 +72,7 @@ export function ExperienceModuleForm({
     projectId: string
     responsibilityIndex: number
   } | null>(null)
+  const filledProjectCount = content.projects.filter(hasExperienceProjectContent).length
   const timelineIssues = useMemo(() => getExperienceTimelineIssues(content), [content])
 
   const updateCompany = (field: 'company' | 'position' | 'startDate' | 'endDate', value: string) => {
@@ -98,7 +101,12 @@ export function ExperienceModuleForm({
   }
 
   const openProjectEditor = () => {
-    if (content.projects.length === 0) addProject()
+    if (content.projects.length === 0) {
+      addProject()
+    } else if (filledProjectCount === 0) {
+      setCollapsedProjectIds(new Set())
+      setPendingProjectFocusId(content.projects[0].id)
+    }
     onOpenProjects?.()
   }
 
@@ -187,33 +195,31 @@ export function ExperienceModuleForm({
     <div className="space-y-3">
       {viewMode === 'company' ? (
         <>
-          <ModuleSaveBar saveState={saveState} errorMessage={errorMessage} hasUnsavedChanges={hasUnsavedChanges} onSave={saveNow}>
-            <MaterialActions
-              resumeId={resumeId}
-              moduleType={moduleType}
-              content={content}
-              onApply={(nextContent) => setContent(normalizeInternshipContent(nextContent as unknown as Record<string, unknown>))}
-              embedded
-            />
-          </ModuleSaveBar>
+          <ExperienceFormHeader
+            title={content.company.trim() || `第 ${itemIndex + 1} 条${moduleLabel}`}
+            collapsed={companyCollapsed} controlsId={`company-fields-${moduleId}`}
+            onToggle={onToggleCollapsed} onDelete={onDelete}
+            save={{ saveState, errorMessage, hasUnsavedChanges, onSave: saveNow }} />
+          <div id={`company-fields-${moduleId}`} hidden={companyCollapsed} className="space-y-4">
+
 
           <div className="editor-responsive-grid">
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">公司</label>
+              <label className={LABEL}>公司</label>
               <input type="text" value={content.company} onChange={(event) => updateCompany('company', event.target.value)}
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500" />
+                className={INPUT} />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">职位</label>
+              <label className={LABEL}>职位</label>
               <input type="text" value={content.position} onChange={(event) => updateCompany('position', event.target.value)}
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500" />
+                className={INPUT} />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">开始时间</label>
+              <label className={LABEL}>开始时间</label>
               <MonthInput value={content.startDate} onChange={(value) => updateCompany('startDate', value)} ariaLabel={`${moduleLabel}开始时间`} />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">结束时间</label>
+              <label className={LABEL}>结束时间</label>
               <MonthInput value={content.endDate} onChange={(value) => updateCompany('endDate', value)} ariaLabel={`${moduleLabel}结束时间`} allowPresent />
             </div>
           </div>
@@ -227,17 +233,24 @@ export function ExperienceModuleForm({
           <button
             type="button"
             onClick={openProjectEditor}
-            className="flex w-full items-center justify-center gap-2 rounded-lg border border-primary-200 bg-primary-50/70 px-4 py-3 text-sm font-medium text-primary-700 transition hover:border-primary-300 hover:bg-primary-100 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+            className="group flex w-full items-center justify-center gap-2 rounded border border-primary-200 bg-primary-50/70 px-4 py-3 text-sm font-medium text-primary-700 transition-colors duration-200 hover:border-primary-300 hover:bg-primary-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
           >
-            <span>{content.projects.length > 0 ? `管理项目（${content.projects.length}）` : '添加项目'}</span>
-            <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" aria-hidden="true">
-              <path d="m7 5 5 5-5 5" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+            <svg className="h-5 w-5 shrink-0 transition-transform duration-150 group-hover:scale-110 motion-reduce:transition-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+              <path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" strokeLinejoin="round" />
+              {filledProjectCount === 0 && <path d="M12 11v6m-3-3h6" strokeLinecap="round" />}
             </svg>
+            <span>{filledProjectCount > 0 ? `管理项目（${filledProjectCount}）` : '添加项目'}</span>
+            {filledProjectCount > 0 && (
+              <svg className="h-4 w-4 shrink-0 transition-transform duration-150 group-hover:translate-x-0.5 motion-reduce:transition-none" viewBox="0 0 20 20" fill="none" stroke="currentColor" aria-hidden="true">
+                <path d="m7 5 5 5-5 5" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+              </svg>
+            )}
           </button>
+          </div>
         </>
       ) : (
         <>
-          <div className="flex flex-wrap items-center justify-between gap-3 px-1">
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
             <button
               type="button"
               onClick={() => {
@@ -245,42 +258,28 @@ export function ExperienceModuleForm({
                 setResponsibilitySortingProjectId(null)
                 onBackToCompanies?.()
               }}
-              className="text-sm font-medium text-primary-600 hover:text-primary-700"
+              className="group inline-flex min-w-0 items-center gap-2 rounded py-2 text-left text-sm font-medium text-primary-600 transition-colors hover:text-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
             >
-              ← 返回{moduleLabel}
+              <svg className="h-4 w-4 shrink-0 transition-transform duration-150 group-hover:-translate-x-0.5 motion-reduce:transition-none" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                <path d="m8 4-6 6 6 6M2 10h16" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <span className="break-words">返回{content.company.trim() || moduleLabel}</span>
             </button>
-            <p className="min-w-0 truncate text-sm font-medium text-slate-600">
-              {[content.company, content.position].filter(Boolean).join(' · ') || '当前公司'}
-            </p>
+            {content.projects.length > 1 && (
+              <button type="button" onClick={() => { setResponsibilitySortingProjectId(null); setProjectSorting((current) => !current) }}
+                aria-pressed={projectSorting}
+                className={`ml-auto inline-flex shrink-0 items-center gap-1.5 rounded border px-3 py-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${projectSorting
+                  ? 'border-primary-600 bg-primary-600 text-white hover:bg-primary-700'
+                  : 'border-gray-200 bg-white text-slate-600 hover:border-primary-200 hover:text-primary-700'}`}>
+                <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+                  {projectSorting
+                    ? <path d="m4 10 4 4 8-8" strokeLinecap="round" strokeLinejoin="round" />
+                    : <path d="M6 3v14m-3-3 3 3 3-3M14 17V3m-3 3 3-3 3 3" strokeLinecap="round" strokeLinejoin="round" />}
+                </svg>
+                {projectSorting ? '完成排序' : '调整项目顺序'}
+              </button>
+            )}
           </div>
-
-          <ModuleSaveBar saveState={saveState} errorMessage={errorMessage} hasUnsavedChanges={hasUnsavedChanges} onSave={saveNow}>
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                {content.projects.length > 1 ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setResponsibilitySortingProjectId(null)
-                      setProjectSorting((current) => !current)
-                    }}
-                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                  >
-                    {projectSorting ? '完成项目排序' : '调整项目顺序'}
-                  </button>
-                ) : null}
-                {!projectSorting ? (
-                  <button
-                    type="button"
-                    onClick={addProject}
-                    className="rounded-lg border border-primary-200 bg-white px-3 py-2 text-xs font-medium text-primary-700 hover:bg-primary-50"
-                  >
-                    添加项目
-                  </button>
-                ) : null}
-              </div>
-            </div>
-          </ModuleSaveBar>
 
           <section>
         {projectSorting ? (
@@ -290,20 +289,20 @@ export function ExperienceModuleForm({
             onReorder={reorderProject}
           />
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {content.projects.map((project, projectIndex) => {
               const projectIssues = timelineIssues.projects[project.id] ?? []
               const collapsed = collapsedProjectIds.has(project.id)
               return (
                 <section
                   key={project.id}
-                  className={projectIndex === 0
-                    ? 'py-4'
-                    : 'border-t border-slate-100 py-4'}
+                  className="rounded border border-gray-200 bg-white p-4 sm:p-5"
                 >
-                <CollapsibleItemHeader
+                <ExperienceFormHeader
                   title={project.projectName.trim() || `第 ${projectIndex + 1} 个项目`}
                   collapsed={collapsed}
+                  save={{ saveState, errorMessage, hasUnsavedChanges, onSave: saveNow }}
+                  onDelete={content.projects.length > 1 ? () => setDeleteProjectId(project.id) : undefined}
                   controlsId={`experience-project-fields-${moduleId}-${project.id}`}
                   onToggle={() => setCollapsedProjectIds((current) => {
                     const next = new Set(current)
@@ -311,16 +310,12 @@ export function ExperienceModuleForm({
                     else next.add(project.id)
                     return next
                   })}
-                >
-                  {content.projects.length > 1 ? (
-                    <button type="button" onClick={() => setDeleteProjectId(project.id)} className="text-xs text-slate-400 hover:text-red-600">删除项目</button>
-                  ) : null}
-                </CollapsibleItemHeader>
+                />
 
               <div id={`experience-project-fields-${moduleId}-${project.id}`} hidden={collapsed}>
               <div className="editor-responsive-grid">
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">项目名称</label>
+                  <label className={LABEL}>项目名称</label>
                   <input type="text" value={project.projectName} onChange={(event) => updateProjectField(projectIndex, 'projectName', event.target.value)}
                     aria-label={`项目 ${projectIndex + 1} 名称`}
                     autoFocus={pendingProjectFocusId === project.id}
@@ -330,19 +325,19 @@ export function ExperienceModuleForm({
                         setPendingProjectFocusId(null)
                       }
                     }}
-                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500" />
+                    className={INPUT} />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">项目角色</label>
+                  <label className={LABEL}>项目角色</label>
                   <input type="text" value={project.role} onChange={(event) => updateProjectField(projectIndex, 'role', event.target.value)}
-                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500" />
+                    className={INPUT} />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">项目开始时间</label>
+                  <label className={LABEL}>项目开始时间</label>
                   <MonthInput value={project.startDate} onChange={(value) => updateProjectField(projectIndex, 'startDate', value)} ariaLabel={`项目${projectIndex + 1}开始时间`} />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">项目结束时间</label>
+                  <label className={LABEL}>项目结束时间</label>
                   <MonthInput value={project.endDate} onChange={(value) => updateProjectField(projectIndex, 'endDate', value)} ariaLabel={`项目${projectIndex + 1}结束时间`} allowPresent />
                 </div>
               </div>
@@ -354,25 +349,22 @@ export function ExperienceModuleForm({
               ) : null}
 
               <div className="mt-3">
-                <label className="mb-1 block text-sm font-medium text-gray-700">技术栈</label>
-                <AutoResizeTextarea value={project.techStack} onChange={(event) => updateProjectField(projectIndex, 'techStack', event.target.value)} minRows={2}
+                <label className={LABEL}>技术栈</label>
+                <AutoResizeTextarea value={project.techStack} onChange={(event) => updateProjectField(projectIndex, 'techStack', event.target.value)}
                   placeholder="Java, Spring Boot, MySQL..."
-                  className="w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm leading-6 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500" />
+                  className={TEXTAREA} />
               </div>
 
               <div className="mt-3">
-                <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
-                  <label className="block text-sm font-medium text-gray-700">项目简介</label>
-                  <button type="button" onClick={() => void openOptimizePage(projectIndex, 'projectDescription')}
-                    disabled={optimizingField !== null || !project.projectDescription.trim()}
-                    className="inline-flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700 disabled:cursor-not-allowed disabled:opacity-50">
-                    <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                    {optimizingField === `project-${projectIndex}-description` ? '跳转中...' : 'AI 优化'}
-                  </button>
-                </div>
-                <AutoResizeTextarea id={fieldOptimizeInputId(moduleId, projectIndex, 'project_description')} value={project.projectDescription} onChange={(event) => updateProjectField(projectIndex, 'projectDescription', event.target.value)} minRows={3}
+                <label className={LABEL}>项目简介</label>
+                <AiOptimizeTextarea
+                  onOptimize={() => void openOptimizePage(projectIndex, 'projectDescription')}
+                  optimizing={optimizingField === `project-${projectIndex}-description`}
+                  optimizeDisabled={optimizingField !== null || !project.projectDescription.trim()}
+                  aria-label="项目简介"
+                  id={fieldOptimizeInputId(moduleId, projectIndex, 'project_description')} value={project.projectDescription} onChange={(event) => updateProjectField(projectIndex, 'projectDescription', event.target.value)}
                   placeholder={summaryPlaceholder}
-                  className="w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm leading-6 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500" />
+                  className={TEXTAREA} />
                 {optimizeError && optimizeErrorField === `project-${projectIndex}-description` ? (
                   <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{optimizeError}</div>
                 ) : null}
@@ -383,6 +375,7 @@ export function ExperienceModuleForm({
                   label="核心职责"
                   itemCount={project.responsibilities.length}
                   sorting={responsibilitySortingProjectId === project.id}
+                  showAdd={false}
                   addLabel="添加职责"
                   sortLabel="调整职责顺序"
                   onAdd={() => addResponsibility(projectIndex)}
@@ -393,20 +386,21 @@ export function ExperienceModuleForm({
                     responsibilities={project.responsibilities}
                     onReorder={(sourceIndex, targetIndex) => reorderResponsibility(projectIndex, sourceIndex, targetIndex)}
                   />
+                ) : project.responsibilities.length === 0 ? (
+                  <ResponsibilityAddButton empty onClick={() => addResponsibility(projectIndex)} />
                 ) : project.responsibilities.map((item, responsibilityIndex) => {
                   const fieldKey = `project-${projectIndex}-responsibility-${responsibilityIndex}`
                   return (
-                    <div key={responsibilityIndex} className={responsibilityIndex === 0 ? '' : 'mt-2'}>
-                      <div className="mb-2 flex items-center justify-end gap-3">
-                        <button type="button" onClick={() => void openOptimizePage(projectIndex, 'responsibility', responsibilityIndex)}
-                          disabled={optimizingField !== null || !item.trim()}
-                          className="inline-flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700 disabled:cursor-not-allowed disabled:opacity-50">
-                          <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                          {optimizingField === fieldKey ? '跳转中...' : 'AI 优化'}
-                        </button>
-                        <button type="button" onClick={() => removeResponsibility(projectIndex, responsibilityIndex)} className="text-xs text-slate-400 hover:text-red-600">删除</button>
-                      </div>
-                      <AutoResizeTextarea id={fieldOptimizeInputId(moduleId, projectIndex, 'responsibility', responsibilityIndex)} value={item} onChange={(event) => updateResponsibility(projectIndex, responsibilityIndex, event.target.value)} minRows={3}
+                    <div key={responsibilityIndex} className="mt-2 flex items-start gap-3">
+                      <span className="w-5 shrink-0 pt-2 text-center text-[11px] font-bold text-gray-300">{String(responsibilityIndex + 1).padStart(2, '0')}</span>
+                      <div className="min-w-0 flex-1">
+                      <AiOptimizeTextarea
+                        onOptimize={() => void openOptimizePage(projectIndex, 'responsibility', responsibilityIndex)}
+                        optimizing={optimizingField === fieldKey}
+                        optimizeDisabled={optimizingField !== null || !item.trim()}
+                        onDelete={() => removeResponsibility(projectIndex, responsibilityIndex)}
+                        deleteLabel={`删除职责 ${responsibilityIndex + 1}`}
+                        id={fieldOptimizeInputId(moduleId, projectIndex, 'responsibility', responsibilityIndex)} value={item} onChange={(event) => updateResponsibility(projectIndex, responsibilityIndex, event.target.value)}
                         aria-label={`核心职责 ${responsibilityIndex + 1}`}
                         autoFocus={pendingResponsibilityFocus?.projectId === project.id && pendingResponsibilityFocus.responsibilityIndex === responsibilityIndex}
                         onFocus={(event) => {
@@ -421,30 +415,34 @@ export function ExperienceModuleForm({
                             addResponsibility(projectIndex)
                           }
                         }}
-                        className="w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm leading-6 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500" />
+                        className={TEXTAREA} />
                       {optimizeError && optimizeErrorField === fieldKey ? (
                         <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{optimizeError}</div>
                       ) : null}
+                      </div>
                     </div>
                   )
                 })}
                 {responsibilitySortingProjectId !== project.id && project.responsibilities.length > 0 ? (
-                  <ContinueAddButton label="职责" onClick={() => addResponsibility(projectIndex)} />
+                  <div className="pl-8 pt-3"><ResponsibilityAddButton onClick={() => addResponsibility(projectIndex)} /></div>
                 ) : null}
               </div>
               </div>
                 </section>
               )
             })}
-            {content.projects.length > 0 ? (
-              <div className="pt-3">
+            {!projectSorting ? (
+              <div>
                 <button
                   type="button"
                   onClick={addProject}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-primary-200 bg-primary-50/70 px-4 py-3 text-sm font-medium text-primary-700 transition hover:border-primary-300 hover:bg-primary-100 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+                  className="group flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 bg-transparent px-4 py-4 text-sm font-medium text-slate-500 transition-colors duration-200 hover:border-primary-300 hover:bg-white hover:text-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
                 >
-                  <span className="text-base leading-none" aria-hidden="true">+</span>
-                  <span>继续添加项目</span>
+                  <svg className="h-5 w-5 shrink-0 transition-transform duration-150 group-hover:scale-110 motion-reduce:transition-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+                    <path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" strokeLinejoin="round" />
+                    <path d="M12 11v6m-3-3h6" strokeLinecap="round" />
+                  </svg>
+                  <span>{content.projects.length ? '继续添加项目' : '添加第一个项目'}</span>
                 </button>
               </div>
             ) : null}

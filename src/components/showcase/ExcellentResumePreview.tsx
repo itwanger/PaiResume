@@ -488,9 +488,9 @@ function ModuleGroup({
                   ) : null}
                 </div>
                 <div className="mt-1.5 space-y-1 text-slate-700">
-                  <LabeledCopy label="项目背景" value={content.background} />
-                  <LabeledCopy label="工作内容" value={content.workContent} />
-                  <LabeledCopy label="项目成果" value={content.achievements} />
+                  <LabeledCopy label="科研背景" value={content.background} />
+                  <LabeledCopy label="科研内容" value={content.workContent} />
+                  <LabeledCopy label="研究成果" value={content.achievements} />
                 </div>
               </div>
             ))}

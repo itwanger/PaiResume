@@ -1,4 +1,5 @@
 interface RepeatableListHeaderProps {
+  showAdd?: boolean
   label: string
   itemCount: number
   sorting: boolean
@@ -9,6 +10,7 @@ interface RepeatableListHeaderProps {
 }
 
 export function RepeatableListHeader({
+  showAdd = true,
   label,
   itemCount,
   sorting,
@@ -30,7 +32,7 @@ export function RepeatableListHeader({
             {sorting ? '完成排序' : sortLabel}
           </button>
         ) : null}
-        {!sorting ? (
+        {showAdd && !sorting ? (
           <button type="button" onClick={onAdd} className="text-sm text-primary-600 hover:text-primary-700">
             + {addLabel}
           </button>

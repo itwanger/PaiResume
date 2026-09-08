@@ -14,6 +14,7 @@ public class AiFieldOptimizeRecordDTO {
     private String streamedContent;
     private String optimized;
     private List<String> candidates;
+    private List<List<String>> candidateTags;
     private String error;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

@@ -139,6 +139,21 @@ public class AliyunOssResumePhotoObjectStorage implements ResumePhotoObjectStora
     }
 
     @Override
+    public byte[] readPhoto(String objectKey, long expectedSizeBytes) {
+        var active = activeConfig();
+        OSS oss = client(active);
+        try {
+            return readExact(oss, active.bucket(), objectKey, expectedSizeBytes);
+        } catch (BusinessException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            throw storageFailure("read private photo", exception);
+        } finally {
+            closeClient(oss);
+        }
+    }
+
+    @Override
     public String createAccessUrl(String objectKey, LocalDateTime expiresAt) {
         var active = activeConfig();
         OSS oss = client(active);
@@ -149,6 +164,44 @@ public class AliyunOssResumePhotoObjectStorage implements ResumePhotoObjectStora
             return oss.generatePresignedUrl(request).toExternalForm();
         } catch (OSSException | ClientException exception) {
             throw storageFailure("create photo access URL", exception);
+        } finally {
+            closeClient(oss);
+        }
+    }
+
+    @Override
+    public String publishAvatar(String objectKey, String avatarObjectKey) {
+        var active = activeConfig();
+        String base = properties.getAvatarCdnBaseUrl();
+        if (!StringUtils.hasText(base)) {
+            base = "https://" + active.bucket() + "." + java.net.URI.create(active.endpoint()).getHost();
+        }
+        java.net.URI uri = java.net.URI.create(base);
+        if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null
+                || uri.getRawQuery() != null || uri.getRawFragment() != null || uri.getUserInfo() != null) {
+            throw new IllegalStateException("Account avatar CDN base URL must be an HTTPS URL");
+        }
+        OSS oss = client(active);
+        try {
+            // The UUID key is immutable. Existing account avatars are copied on first read,
+            // without changing the ACL of the private original or needing a re-upload.
+            if (!oss.doesObjectExist(active.bucket(), avatarObjectKey)) {
+                ObjectMetadata source = oss.getObjectMetadata(active.bucket(), objectKey);
+                ObjectMetadata metadata = new ObjectMetadata();
+                metadata.setContentType(source.getContentType());
+                metadata.setContentDisposition("inline");
+                metadata.setCacheControl("public, max-age=86400");
+                metadata.setServerSideEncryption("AES256");
+                metadata.setObjectAcl(CannedAccessControlList.PublicRead);
+                CopyObjectRequest copy = new CopyObjectRequest(active.bucket(), objectKey,
+                        active.bucket(), avatarObjectKey);
+                copy.setMatchingETagConstraints(List.of(source.getETag()));
+                copy.setNewObjectMetadata(metadata);
+                oss.copyObject(copy);
+            }
+            return base.replaceAll("/+$", "") + "/" + avatarObjectKey;
+        } catch (OSSException | ClientException exception) {
+            throw storageFailure("publish account avatar", exception);
         } finally {
             closeClient(oss);
         }

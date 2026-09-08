@@ -1,9 +1,6 @@
 import { AiGenerationProgress } from '../ui/AiGenerationProgress'
 import { MarkdownPreview } from '../ui/MarkdownPreview'
-
-function countDisplayCharacters(value: string) {
-  return value.replace(/\s+/g, '').length
-}
+import { countDisplayCharacters } from '../../utils/displayTextCount'
 
 interface Props {
   title: string

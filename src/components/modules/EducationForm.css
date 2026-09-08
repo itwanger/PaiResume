@@ -1,0 +1,10 @@
+.education-item-header > div:first-child {
+  min-width: 220px;
+}
+
+@container (max-width: 740px) {
+  .education-item-header > div:first-child {
+    flex-basis: 100%;
+    min-width: 0;
+  }
+}

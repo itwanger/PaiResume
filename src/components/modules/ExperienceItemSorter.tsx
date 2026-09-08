@@ -45,10 +45,10 @@ export function ExperienceItemSorter({ modules, moduleLabel, onReorder }: Props)
   }
 
   return (
-    <div className="space-y-3" aria-label={`${moduleLabel}排序`}>
+    <div className="space-y-2" aria-busy={pending} aria-label={`${moduleLabel}排序`}>
       {modules.map((module, index) => {
         const content = normalizeInternshipContent(module.content)
-        const title = [content.company, content.position].filter(Boolean).join(' · ') || moduleLabel
+        const title = content.company.trim() || `第 ${index + 1} 条${moduleLabel}`
         const dateRange = formatDateRange(content.startDate, content.endDate)
         const projectNames = content.projects
           .map((project) => project.projectName.trim())
@@ -68,11 +68,11 @@ export function ExperienceItemSorter({ modules, moduleLabel, onReorder }: Props)
               event.preventDefault()
               if (draggedId !== null) void reorder(draggedId, module.id)
             }}
-            className={`flex items-center gap-3 rounded-xl bg-slate-50 px-4 py-4 transition ${
+            className={`flex items-center gap-3 rounded border px-3 py-3 transition-colors duration-150 ${
               dragOverId === module.id && draggedId !== module.id
-                ? 'bg-primary-50 ring-2 ring-primary-200'
-                : 'hover:bg-slate-100/80'
-            } ${draggedId === module.id ? 'opacity-45' : ''}`}
+                ? 'border-primary-400 bg-primary-50 ring-1 ring-primary-200'
+                : 'border-gray-200 bg-white hover:border-primary-200'
+            } ${draggedId === module.id ? 'opacity-50' : ''}`}
           >
             <button
               type="button"
@@ -97,7 +97,7 @@ export function ExperienceItemSorter({ modules, moduleLabel, onReorder }: Props)
                   void reorder(module.id, modules[index + 1].id)
                 }
               }}
-              className="flex h-9 w-8 shrink-0 cursor-grab items-center justify-center rounded-lg text-slate-400 hover:bg-white hover:text-primary-600 active:cursor-grabbing disabled:cursor-wait"
+              className="flex h-9 w-8 shrink-0 cursor-grab items-center justify-center rounded-lg text-slate-400 hover:bg-primary-50 hover:text-primary-600 active:cursor-grabbing disabled:cursor-wait focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
               aria-label={`拖动${title}调整顺序，或使用上下方向键`}
               title="拖动排序"
             >
@@ -108,24 +108,24 @@ export function ExperienceItemSorter({ modules, moduleLabel, onReorder }: Props)
               </svg>
             </button>
 
+            <span className="w-5 shrink-0 text-center text-xs tabular-nums text-slate-400" aria-hidden="true">
+              {String(index + 1).padStart(2, '0')}
+            </span>
             <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                <p className="min-w-0 truncate text-sm font-semibold text-slate-900">{title}</p>
-                {dateRange ? <p className="shrink-0 text-xs text-slate-500">{dateRange}</p> : null}
-              </div>
-              {projectSummary ? (
-                <p className="mt-1 truncate text-xs text-slate-500">{projectSummary}</p>
-              ) : null}
+              <p className="truncate text-sm font-semibold text-slate-800">{title}</p>
+              {(content.position || dateRange || content.projects.length > 0) && (
+                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                  {content.position && <span>{content.position}</span>}
+                  {dateRange && <span>{dateRange}</span>}
+                  {content.projects.length > 0 && <span>{content.projects.length} 个项目</span>}
+                </div>
+              )}
+              {projectSummary ? <p className="mt-1 truncate text-xs text-slate-400">{projectSummary}</p> : null}
             </div>
-
-            {content.projects.length > 0 ? (
-              <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-xs text-slate-500">
-                {content.projects.length} 个项目
-              </span>
-            ) : null}
           </div>
         )
       })}
+      {pending && <p className="text-xs text-primary-600" role="status">正在保存顺序…</p>}
       {error ? <p className="text-sm text-red-600" role="alert">{error}</p> : null}
     </div>
   )

@@ -11,8 +11,37 @@ import java.net.URL;
 import java.time.LocalDateTime;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
+import org.mockito.ArgumentCaptor;
+import com.aliyun.oss.model.*;
 
 class AliyunOssResumePhotoObjectStorageTest {
+    @Test
+    void avatarUsesStableCdnUrlAndCopiesOnlyOnceToPublicDirectory() {
+        OSS oss = mock(OSS.class);
+        ResumePhotoOssProperties properties = new ResumePhotoOssProperties();
+        properties.setBucket("private-bucket");
+        properties.setAvatarCdnBaseUrl("https://cdn.example.com/");
+        var storage = new AliyunOssResumePhotoObjectStorage(properties, oss);
+        String original = "pairesume/resume-photo/objects/id.jpg";
+        String avatar = "pairesume/account-avatar/id.jpg";
+        when(oss.doesObjectExist("private-bucket", avatar)).thenReturn(false, true);
+        ObjectMetadata metadata = new ObjectMetadata();
+        metadata.setContentType("image/jpeg");
+        metadata.setHeader("ETag", "original-etag");
+        when(oss.getObjectMetadata("private-bucket", original)).thenReturn(metadata);
+        String first = storage.publishAvatar(original, avatar);
+        assertEquals("https://cdn.example.com/" + avatar, first);
+        assertEquals(first, storage.publishAvatar(original, avatar));
+        ArgumentCaptor<CopyObjectRequest> copied = ArgumentCaptor.forClass(CopyObjectRequest.class);
+        verify(oss, times(1)).copyObject(copied.capture());
+        assertEquals(original, copied.getValue().getSourceKey());
+        assertEquals(avatar, copied.getValue().getDestinationKey());
+        assertEquals("public-read", copied.getValue().getNewObjectMetadata().getRawMetadata().get("x-oss-object-acl"));
+        assertEquals("public, max-age=86400", copied.getValue().getNewObjectMetadata().getCacheControl());
+        verify(oss, never()).generatePresignedUrl(any(GeneratePresignedUrlRequest.class));
+    }
+
     @Test
     void postPolicyPinsPrivateImageTypeExactSizeHashAndObjectKey() throws Exception {
         PolicyConditions[] captured = new PolicyConditions[1];

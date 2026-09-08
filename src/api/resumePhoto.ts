@@ -54,6 +54,8 @@ export const resumePhotoApi = {
     client.post<ApiEnvelope<ResumePhotoAsset>>(
       `/resume-photos/uploads/${encodeURIComponent(photoNo)}/complete`, {},
     ),
+  content: (photoId: number) =>
+    client.get<Blob>(`/resume-photos/${photoId}/content`, { responseType: 'blob' }),
   access: (photoId: number) =>
     client.get<ApiEnvelope<ResumePhotoAsset>>(`/resume-photos/${photoId}/access`),
 }

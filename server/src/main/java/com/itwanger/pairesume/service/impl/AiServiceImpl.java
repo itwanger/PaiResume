@@ -331,7 +331,9 @@ public class AiServiceImpl implements AiService {
     public FieldOptimizePromptConfigDTO getFieldOptimizePromptConfig(String presetId) {
         String id = FieldOptimizePresets.normalize(presetId);
         var stored = fieldOptimizePromptService == null ? null : fieldOptimizePromptService.find(id);
-        return stored != null ? stored : FieldOptimizePresets.defaults(id, loadFieldOptimizePromptConfig());
+        var config = stored != null ? stored : FieldOptimizePresets.defaults(id, loadFieldOptimizePromptConfig());
+        config.setSystemPrompt(FieldOptimizeCandidateMetadata.withInstructions(config.getSystemPrompt()));
+        return config;
     }
 
     @Override
@@ -389,6 +391,7 @@ public class AiServiceImpl implements AiService {
 
                     log.info("[AI Optimize][Service] upstream retry response received: moduleType={}, fieldType={}, responseLength={}",
                             plan.moduleType(), plan.fieldType(), retryResponse.length());
+                    response = retryResponse;
                     candidates = normalizeResumeCandidates(parseTextCandidatesResponse(retryResponse));
                     log.info("[AI Optimize][Service] parsed retry candidates: moduleType={}, count={}",
                             plan.moduleType(), candidates.size());
@@ -401,7 +404,8 @@ public class AiServiceImpl implements AiService {
                 return Map.of(
                         "original", plan.originalText(),
                         "optimized", candidates.get(0),
-                        "candidates", candidates
+                        "candidates", candidates,
+                        "candidateTags", FieldOptimizeCandidateMetadata.tags(response, candidates)
                 );
             }
 
@@ -477,7 +481,8 @@ public class AiServiceImpl implements AiService {
                 return Map.of(
                         "original", plan.originalText(),
                         "optimized", candidates.get(0),
-                        "candidates", candidates
+                        "candidates", candidates,
+                        "candidateTags", FieldOptimizeCandidateMetadata.tags(streamResult.content(), candidates)
                 );
             }
 
@@ -512,6 +517,7 @@ public class AiServiceImpl implements AiService {
             case "internship", "work_experience" -> buildExperienceFieldOptimizePlan(moduleType, content, request);
             case "project" -> buildProjectFieldOptimizePlan(content, request);
             case "skill" -> buildSkillFieldOptimizePlan(content, request);
+            case "research" -> buildResearchFieldOptimizePlan(content, request);
             default -> throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "当前模块暂不支持字段级 AI 优化");
         };
     }
@@ -652,6 +658,35 @@ public class AiServiceImpl implements AiService {
             }
             default -> throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "不支持的字段级优化类型");
         };
+    }
+
+    private FieldOptimizePlan buildResearchFieldOptimizePlan(Map<String, Object> content, AiFieldOptimizeRequestDTO request) {
+        var key = switch (request.getFieldType()) {
+            case "research_background" -> "background";
+            case "research_work_content" -> "workContent";
+            case "research_achievements" -> "achievements";
+            default -> throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "不支持的科研字段优化类型");
+        };
+        var title = switch (key) {
+            case "background" -> "科研背景";
+            case "workContent" -> "科研内容";
+            default -> "研究成果";
+        };
+        var original = getStringValue(content.get(key));
+        if (original.isBlank()) {
+            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), title + "为空，暂时无法优化");
+        }
+        var config = getFieldOptimizePromptConfig(request.getPresetId());
+        var template = "background".equals(key) ? config.getDescriptionPrompt() : config.getResponsibilityPrompt();
+        var prompt = renderPromptTemplate(template, Map.of(
+                "original", original,
+                "projectName", getStringValue(content.get("projectName")),
+                "projectDescription", getStringValue(content.get("background")),
+                "description", getStringValue(content.get("background")),
+                "company", "", "position", "", "role", "", "techStack", ""
+        ));
+        return new FieldOptimizePlan("research", request.getFieldType(), original,
+                "当前优化对象是科研经历中的「" + title + "」，仅输出该字段的优化版本。\n" + prompt, true);
     }
 
     private FieldOptimizePlan buildSkillFieldOptimizePlan(Map<String, Object> content, AiFieldOptimizeRequestDTO request) {

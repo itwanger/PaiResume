@@ -1,0 +1,100 @@
+/* Subtle rounding and feedback scoped to the field optimization workspace. */
+.field-optimize-page { background: #f7f9fc; }
+.field-optimize-page .fo-panel,
+.field-optimize-page .fo-card { border: 1px solid #dfe7f1; border-radius: 8px !important; box-shadow: none; padding: 20px; }
+.field-optimize-page .fo-card {
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+.field-optimize-page .fo-card:focus-within {
+  border-color: #b8c8df;
+  box-shadow: 0 8px 20px -10px #33415530;
+}
+@media (hover: hover) and (pointer: fine) {
+  .field-optimize-page .fo-card:hover {
+    transform: translateY(-3px);
+    border-color: #b8c8df;
+    box-shadow: 0 10px 24px -10px #33415538;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .field-optimize-page .fo-card { transition: none; }
+  .field-optimize-page .fo-card:hover { transform: none; }
+}
+.field-optimize-page h2,
+.field-optimize-page .fo-card h3 { font-size: 16px; font-weight: 600; line-height: 1.5; }
+.field-optimize-page .fo-label { color: #94a3b8; font-size: 13px; font-weight: 600; }
+.field-optimize-page .fo-original {
+  position: relative; border: 1px solid #dfe7f1; border-top: 4px solid #3980ff;
+  border-radius: 6px; background: linear-gradient(110deg, #f7f9fc, #f0f5fa);
+  padding: 12px 14px; color: #526175; font-size: 14px; font-weight: 400; line-height: 1.75;
+}
+.field-optimize-page .fo-methods { background: #f7f9fc; padding: 4px; gap: 4px; border-radius: 6px; }
+.field-optimize-page .fo-methods button {
+  position: relative; border: 0; border-radius: 6px !important; background: transparent;
+  color: #94a3b8; font-size: 14px; padding: 10px 4px; min-height: 42px;
+}
+.field-optimize-page .fo-methods button[aria-pressed="true"] { background: white; color: #182235; box-shadow: 0 2px 5px #0f172a08; }
+.field-optimize-page .fo-methods button:hover { color: #2563eb; }
+.field-optimize-page .fo-beta { position: absolute; right: 2px; top: 1px; border-radius: 4px; background: #f59e0b; color: white; font-size: 10px; line-height: 14px; padding: 0 3px; }
+.field-optimize-page .fo-description { border-radius: 6px; background: #f7f9fc; padding: 10px 12px; color: #8291a5; font-size: 13px; line-height: 1.65; }
+.field-optimize-page .fo-progress-actions { flex-wrap: nowrap; gap: 10px; }
+.field-optimize-page .fo-generate { flex: 1; width: auto; padding: 10px 12px; min-height: 42px; border-radius: 6px !important; background: #2563eb; font-size: 14px; box-shadow: 0 2px 3px #2563eb20; }
+.field-optimize-page .fo-generate:hover { background: #1d4ed8; }
+.field-optimize-page .fo-thinking-button { justify-content: center; flex-shrink: 0; min-height: 42px; border: 1px solid #dfe7f1; border-radius: 6px !important; background: white; color: #526175; padding: 10px 12px; font-size: 14px; }
+.field-optimize-page .fo-thinking-button[aria-expanded="true"] { border-color: #a5b4fc; color: #4f46e5; background: #eef2ff; }
+.field-optimize-page .fo-thinking-content { border: 1px solid #c7d2fe; border-radius: 6px; background: linear-gradient(120deg,#eef2ff,#e6ebff); margin-top: 18px; padding: 18px; }
+.field-optimize-page .fo-thinking-content > div { padding: 0; border: 0; margin: 0; font-size: 14px; line-height: 1.75; }
+.field-optimize-page .fo-thinking-content h3 { color: #4f46e5; }
+.field-optimize-page .fo-results-heading { padding: 14px 20px; min-height: 64px; }
+.field-optimize-page .fo-filters { background: #f7f9fc; border-radius: 6px !important; }
+.field-optimize-page .fo-filters button { padding: 8px 10px; border-radius: 6px; font-size: 13px; font-weight: 600; color: #94a3b8; }
+.field-optimize-page .fo-filters button[aria-pressed="true"] { background: white; color: #182235; box-shadow: 0 2px 5px #0f172a08; }
+.field-optimize-page .fo-filters button:hover { color: #2563eb; }
+.field-optimize-page .fo-card-heading { margin-bottom: 12px; }
+.field-optimize-page .fo-card-heading > span { color: #94a3b8; font-weight: 600; background: #f7f9fc; }
+.field-optimize-page .fo-tags { display: flex; flex-wrap: wrap; gap: 6px; min-height: 26px; margin-bottom: 16px; }
+.field-optimize-page .fo-tags:empty { display: none; }
+.field-optimize-page .fo-tag { border-radius: 5px; padding: 3px 8px; font-size: 12px; font-weight: 600; }
+.field-optimize-page .fo-tag-concise { background: #dcfce7; color: #15803d; }
+.field-optimize-page .fo-tag-technical { background: #dbeafe; color: #2563eb; }
+.field-optimize-page .fo-tag-quantified { background: #f3e8ff; color: #9333ea; }
+.field-optimize-page .fo-card > p,
+.field-optimize-page .fo-card > textarea { min-height: 144px; font-size: 14px; line-height: 1.75; color: #526175; margin-bottom: 20px; }
+.field-optimize-page .fo-card-footer { flex-wrap: nowrap; gap: 8px; padding-top: 16px; }
+.field-optimize-page .fo-card-footer button { height: 42px; border-radius: 6px !important; color: #94a3b8; background: #f7f9fc; border-color: #dfe7f1; }
+.field-optimize-page .fo-card-footer .fo-adopt { background: white; color: #2563eb; border: 2px solid #397aff; font-size: 14px; font-weight: 600; }
+.field-optimize-page .fo-card-footer .fo-adopt:hover { background: #eff6ff; }
+.field-optimize-page .fo-thinking-button,
+.field-optimize-page .fo-card-footer button {
+  transition: transform 160ms ease, background-color 160ms ease, border-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+.field-optimize-page .fo-card-footer button[aria-pressed="true"] {
+  background: #eff6ff; border-color: #93b4ee; color: #2563eb;
+}
+@media (hover: hover) and (pointer: fine) {
+  .field-optimize-page .fo-thinking-button:not(:disabled):hover,
+  .field-optimize-page .fo-card-footer button:not(:disabled):hover {
+    transform: translateY(-2px);
+    background: #eff6ff; border-color: #93b4ee; color: #2563eb;
+    box-shadow: 0 4px 10px -4px #2563eb40;
+  }
+}
+.field-optimize-page .fo-thinking-button:not(:disabled):active,
+.field-optimize-page .fo-card-footer button:not(:disabled):active {
+  transform: translateY(0) scale(0.98);
+  box-shadow: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .field-optimize-page .fo-thinking-button,
+  .field-optimize-page .fo-card-footer button { transition: none; }
+  .field-optimize-page .fo-thinking-button:not(:disabled):is(:hover, :active),
+  .field-optimize-page .fo-card-footer button:not(:disabled):is(:hover, :active) { transform: none; }
+}
+@media (max-width: 1279px) and (min-width: 768px) {
+  .field-optimize-page .fo-candidates { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 480px) {
+  .field-optimize-page .fo-panel, .field-optimize-page .fo-card { padding: 18px; }
+  .field-optimize-page .fo-filters { width: 100%; justify-content: space-between; }
+  .field-optimize-page .fo-filters button { font-size: 12px; padding: 8px; }
+}

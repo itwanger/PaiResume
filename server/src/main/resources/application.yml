@@ -91,6 +91,7 @@ app:
       staging-prefix: ${RESUME_PHOTO_OSS_STAGING_PREFIX:pairesume/resume-photo/staging/}
       object-prefix: ${RESUME_PHOTO_OSS_OBJECT_PREFIX:pairesume/resume-photo/objects/}
       upload-url-ttl-minutes: ${RESUME_PHOTO_OSS_UPLOAD_URL_TTL_MINUTES:10}
+      avatar-cdn-base-url: ${ACCOUNT_AVATAR_CDN_BASE_URL:}
       access-url-ttl-minutes: ${RESUME_PHOTO_OSS_ACCESS_URL_TTL_MINUTES:60}
       max-photo-bytes: ${RESUME_PHOTO_OSS_MAX_BYTES:3145728}
       max-image-dimension: ${RESUME_PHOTO_OSS_MAX_DIMENSION:4096}

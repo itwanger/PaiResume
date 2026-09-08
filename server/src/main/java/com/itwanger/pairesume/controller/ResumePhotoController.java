@@ -9,6 +9,9 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.http.CacheControl;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 
 @RestController
 @RequestMapping("/resume-photos")
@@ -30,6 +33,16 @@ public class ResumePhotoController {
         Long userId = SecurityUtils.getCurrentUserId();
         rateLimitService.acquireAttempt("complete", userId, request.getRemoteAddr());
         return Result.success(photoService.complete(userId, photoNo));
+    }
+
+    @GetMapping("/{photoId}/content")
+    public ResponseEntity<byte[]> content(@PathVariable Long photoId) {
+        var photo = photoService.readContent(SecurityUtils.getCurrentUserId(), photoId);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(photo.contentType()))
+                .cacheControl(CacheControl.noStore())
+                .header("X-Content-Type-Options", "nosniff")
+                .body(photo.bytes());
     }
 
     @GetMapping("/{photoId}/access")

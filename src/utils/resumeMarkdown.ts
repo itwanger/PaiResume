@@ -297,9 +297,9 @@ function buildResearchSection(modules: ResumeModule[]): string | null {
     ])) return []
 
     const details = [
-      labeledLine('- 项目周期', content.projectCycle),
-      labeledLine('- 项目背景', content.background),
-      labeledLine('- 工作内容', content.workContent),
+      labeledLine('- 科研周期', content.projectCycle),
+      labeledLine('- 科研背景', content.background),
+      labeledLine('- 科研内容', content.workContent),
       labeledLine('- 研究成果', content.achievements),
     ].filter((line): line is string => Boolean(line))
     return [[`### ${compactLine(content.projectName) || '科研经历'}`, ...details].join('\n')]

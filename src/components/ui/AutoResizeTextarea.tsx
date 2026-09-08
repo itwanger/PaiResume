@@ -28,7 +28,7 @@ export function AutoResizeTextarea({
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const effectiveMinRows = typeof rows === 'number' && rows > 0
     ? rows
-    : (minRows ?? 2)
+    : (minRows ?? 1)
 
   useLayoutEffect(() => {
     if (textareaRef.current?.getClientRects().length) {

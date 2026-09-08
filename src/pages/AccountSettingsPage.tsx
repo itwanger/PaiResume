@@ -1,3 +1,4 @@
+import { loadPrivatePhoto } from '../utils/privateResumePhoto'
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { authApi, type WechatChallengeCreateData } from '../api/auth'
 import { resumePhotoApi } from '../api/resumePhoto'
@@ -74,7 +75,7 @@ export default function AccountSettingsPage() {
         authorizeResponse.data.photoNo,
       )
       const asset = completeResponse.data
-      setAvatarPreview(asset.accessUrl)
+      setAvatarPreview(await loadPrivatePhoto(asset.id))
       setAvatarPhotoId(asset.id)
       setRemoveAvatar(false)
     } catch (avatarError: unknown) {

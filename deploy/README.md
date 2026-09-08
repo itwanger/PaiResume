@@ -48,7 +48,7 @@
 
 1. Bucket ACL 设为 `private`，开启阻止公共访问，不绑定公开读 CDN 或公共读 Bucket Policy。
 2. staging 与冻结对象前缀保持互不相同且互不包含，生产默认分别为 `pairesume/resume-review/staging/` 和 `pairesume/resume-review/objects/`。前缀必须是以 `/` 结尾的相对值，只能包含字母、数字、`/`、`_`、`-`，不能包含空白、反斜杠或 `//`；不得把其他项目对象放进这两个前缀。
-3. 生产 CORS 只允许来源 `https://resume.paicoding.com`。私有照片使用 `POST`、`GET`、`HEAD`，其中读取必须携带服务端签发的短期 OSS URL。
+3. 生产 CORS 只允许来源 `https://resume.paicoding.com`。私有照片使用 `POST`、`GET`、`HEAD`，私有照片由已登录用户通过鉴权接口读取，前端在当前会话内复用图片内容；兼容接口仍可签发短期 OSS URL。
 4. 照片 staging 和固化对象使用独立前缀与生命周期规则。
 5. 应用凭据使用独立 RAM 用户或角色，不授予 `AliyunOSSFullAccess`、`oss:*`、`ListObjects`、`oss:DeleteObject`、Bucket ACL/CORS/生命周期修改权限。`CopyObject` 在同一 Bucket 内需要源对象 `oss:GetObject` 和目标对象 `oss:PutObject`；staging 与冻结对象均由 Bucket 生命周期规则删除，不需要给应用删除权限，因此最小对象策略可按实际 Bucket 和两个前缀填写：
 
@@ -75,6 +75,8 @@
 7. 人工精修 PDF 通过同源后端 `multipart/form-data` 接收，单文件上限 10 MiB；服务端在内存中复核文件名、大小、MIME、文件头和 SHA-256 后直接发邮件。
 
 简历照片额外使用 `pairesume/resume-photo/staging/` 与 `pairesume/resume-photo/objects/`。浏览器和服务端均校验 PNG/JPEG、3 MiB 上限、SHA-256、文件头、单边 4096 像素及总像素 1600 万；数据库只保存 `resume_photo.id`。照片对象不设置自动到期生命周期，账号注销时由应用删除，因此应用 RAM 只需额外获得照片两个前缀的 `oss:GetObject`、`oss:PutObject` 和 `oss:DeleteObject`，不能获得其他前缀删除权限。照片 staging 仍必须配置最迟 1 天清理。
+
+账号头像使用独立的 `pairesume/account-avatar/` 公开副本；保存头像或读取历史账号头像时按需创建，原 `resume-photo/objects/` 对象仍保持私有。设置 `ACCOUNT_AVATAR_CDN_BASE_URL=https://cdn.paicoding.com`，并确认该域名回源到 Admin 配置的同一 Bucket；未设置时回退到 OSS 固定公开地址。不得为此开放整个 Bucket 或把私有简历照片目录纳入公开 CDN。头像目录需额外授予 `oss:GetObject`、`oss:PutObject`、`oss:PutObjectAcl`、`oss:DeleteObject`，账号注销时删除公开副本；不设置照片/头像自动删除生命周期。CDN 不启用 URL 到期鉴权，公开副本缓存一天。部署时只用测试头像核对 CDN 返回图片、URL 无签名参数，以及另一个账号无法读取私有照片。
 
 OSS 生命周期按前缀工作且规则生效、执行存在时间差，不能把 30 分钟 `READY` 票据失效等同于对象已经删除。相关配置原理可核对阿里云官方的 [CORS 配置说明](https://help.aliyun.com/zh/oss/user-guide/configure-cross-origin-resource-sharing)、[生命周期说明](https://help.aliyun.com/zh/oss/user-guide/overview-54)、[RAM 最小权限示例](https://help.aliyun.com/zh/oss/user-guide/ram-policy/) 和 [CopyObject 权限表](https://help.aliyun.com/zh/oss/developer-reference/copyobject)。
 

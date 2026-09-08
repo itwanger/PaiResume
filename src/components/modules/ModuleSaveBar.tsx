@@ -17,9 +17,10 @@ interface Props {
   hasUnsavedChanges: boolean
   onSave: () => Promise<void>
   children?: ReactNode
+  compact?: boolean
 }
 
-export function ModuleSaveBar({ saveState, errorMessage, hasUnsavedChanges, onSave, children }: Props) {
+export function ModuleSaveBar({ saveState, errorMessage, hasUnsavedChanges, onSave, children, compact = false }: Props) {
   const [feedback, setFeedback] = useState<ModuleFeedback | null>(null)
   const clearFeedback = useCallback(() => setFeedback(null), [])
   const showFeedback = useCallback((message: string, tone: ModuleFeedbackTone = 'success') => {
@@ -57,10 +58,10 @@ export function ModuleSaveBar({ saveState, errorMessage, hasUnsavedChanges, onSa
 
   return (
     <ModuleSaveFeedbackContext.Provider value={feedbackContext}>
-      <div className="editor-save-bar border-b border-slate-100 pb-3">
+      <div className={compact ? 'editor-save-bar min-w-0' : 'editor-save-bar border-b border-slate-100 pb-3'}>
         <div className="flex flex-wrap items-start gap-3">
-          <div className={`flex min-h-8 shrink-0 items-center gap-2 rounded-lg px-2.5 py-1.5 ${toneClass}`}>
-            <p className={`min-w-0 text-sm ${textClass}`} role={activeFeedback ? 'status' : undefined}>{message}</p>
+          <div className={`flex items-center gap-2 ${compact ? 'rounded px-2 py-1' : 'min-h-8 shrink-0 rounded-lg px-2.5 py-1.5'} ${toneClass}`}>
+            <p className={`min-w-0 ${compact ? 'text-xs' : 'text-sm'} ${textClass}`} role={activeFeedback ? 'status' : undefined}>{message}</p>
             {showRetry ? (
               <Button
                 type="button"

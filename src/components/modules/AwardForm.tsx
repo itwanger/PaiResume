@@ -1,18 +1,18 @@
 import type { AwardContent } from '../../types'
 import { useModuleContentState } from '../../hooks/useModuleContentState'
 import { normalizeAwardContent } from '../../utils/moduleContent'
-import { ModuleSaveBar } from './ModuleSaveBar'
+import { ExperienceFormHeader, type ExperienceItemControls } from './ExperienceFormHeader'
 import { MaterialActions } from '../materials/MaterialActions'
+import './EducationForm.css'
 import { YearInput } from '../ui/YearInput'
 
-interface Props {
+interface Props extends ExperienceItemControls {
   resumeId: number
   moduleId: number
   initialContent: Record<string, unknown>
-  showModuleToolbar?: boolean
 }
 
-export function AwardForm({ resumeId, moduleId, initialContent, showModuleToolbar = true }: Props) {
+export function AwardForm({ resumeId, moduleId, initialContent, itemIndex, collapsed, onToggleCollapsed, onDelete }: Props) {
   const [content, setContent, { saveNow, saveState, errorMessage, hasUnsavedChanges }] = useModuleContentState<AwardContent>({
     resumeId,
     moduleId,
@@ -22,25 +22,16 @@ export function AwardForm({ resumeId, moduleId, initialContent, showModuleToolba
 
   return (
     <div className="space-y-4">
-      {showModuleToolbar ? (
-        <ModuleSaveBar
-          saveState={saveState}
-          errorMessage={errorMessage}
-          hasUnsavedChanges={hasUnsavedChanges}
-          onSave={saveNow}
-        >
-          <MaterialActions
-            resumeId={resumeId}
-            moduleType="award"
-            content={content}
-            onApply={(nextContent) => setContent(normalizeAwardContent({ ...nextContent }))}
-            embedded
-          />
-        </ModuleSaveBar>
-      ) : errorMessage ? (
-        <p className="text-sm text-red-600" role="alert">{errorMessage}</p>
-      ) : null}
-
+      <ExperienceFormHeader className="education-item-header"
+        title={content.awardName.trim() || `第 ${itemIndex + 1} 条荣誉奖项`}
+        collapsed={collapsed} controlsId={`award-fields-${moduleId}`}
+        onToggle={onToggleCollapsed} onDelete={onDelete}
+        save={{ saveState, errorMessage, hasUnsavedChanges, onSave: saveNow }}
+        tools={!collapsed ? (
+          <MaterialActions resumeId={resumeId} moduleType="award" content={content}
+            onApply={(nextContent) => setContent(normalizeAwardContent({ ...nextContent }))} embedded compact />
+        ) : null} />
+      <div id={`award-fields-${moduleId}`} hidden={collapsed} className="space-y-4">
       <div className="editor-award-grid">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">奖项名称</label>
@@ -57,6 +48,7 @@ export function AwardForm({ resumeId, moduleId, initialContent, showModuleToolba
             ariaLabel="获奖年份"
           />
         </div>
+      </div>
       </div>
     </div>
   )

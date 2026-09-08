@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { flushResumeAutoSaves } from '../../hooks/useAutoSave'
 import {
   contentLibraryApi,
-  type OfficialResumeMaterial,
   type ResumeHistoryMaterial,
 } from '../../api/contentLibrary'
 import { MODULE_LABELS, type ModuleType } from '../../types'
 import { applyMaterialFields, getMaterialPreview, hasMeaningfulMaterialValue } from '../../utils/materialLibrary'
 import { useModuleSaveFeedback } from '../modules/moduleSaveFeedback'
-import { SegmentedControl } from '../ui/SegmentedControl'
 
 interface Props<T extends object> {
   resumeId: number
@@ -15,9 +15,8 @@ interface Props<T extends object> {
   content: T
   onApply: (content: T) => void
   embedded?: boolean
+  compact?: boolean
 }
-
-type PickerTab = 'history' | 'official'
 
 export function MaterialActions<T extends object>({
   resumeId,
@@ -25,12 +24,13 @@ export function MaterialActions<T extends object>({
   content,
   onApply,
   embedded = false,
+  compact = false,
 }: Props<T>) {
   const [open, setOpen] = useState(false)
-  const [tab, setTab] = useState<PickerTab>('history')
+  const navigate = useNavigate()
+  const [openingResumes, setOpeningResumes] = useState(false)
   const [history, setHistory] = useState<ResumeHistoryMaterial[]>([])
   const [historyChecked, setHistoryChecked] = useState(false)
-  const [official, setOfficial] = useState<OfficialResumeMaterial[]>([])
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
@@ -68,24 +68,18 @@ export function MaterialActions<T extends object>({
     saveBarFeedback?.showFeedback(nextError, 'error')
   }
 
-  const load = async (nextTab: PickerTab) => {
-    setTab(nextTab)
+  const load = async () => {
     setOpen(true)
     setLoading(true)
     setError('')
     try {
-      if (nextTab === 'history') {
-        if (!historyChecked) {
-          const response = await contentLibraryApi.listHistoryMaterials({
-            moduleType,
-            excludeResumeId: resumeId,
-          })
-          setHistory(response.data.data)
-          setHistoryChecked(true)
-        }
-      } else {
-        const response = await contentLibraryApi.listOfficialMaterials({ moduleType })
-        setOfficial(response.data.data)
+      if (!historyChecked) {
+        const response = await contentLibraryApi.listHistoryMaterials({
+          moduleType,
+          excludeResumeId: resumeId,
+        })
+        setHistory(response.data.data)
+        setHistoryChecked(true)
       }
     } catch (requestError: unknown) {
       setError(requestError instanceof Error ? requestError.message : '加载资料失败')
@@ -94,26 +88,36 @@ export function MaterialActions<T extends object>({
     }
   }
 
-  const apply = async (material: ResumeHistoryMaterial | OfficialResumeMaterial) => {
+  const apply = (material: ResumeHistoryMaterial) => {
     setError('')
     try {
-      const source = 'key' in material
-        ? material.content
-        : (await contentLibraryApi.useOfficialMaterial(material.id)).data.data.content
+      const source = material.content
       setUndoContent(content)
       onApply(applyMaterialFields(content, source))
       setOpen(false)
-      showMessage(`已从${tab === 'history' ? '历史资料' : '官方参考'}填入当前${MODULE_LABELS[moduleType]}`)
+      showMessage(`已从历史资料填入当前${MODULE_LABELS[moduleType]}`)
     } catch (requestError: unknown) {
       showError(requestError instanceof Error ? requestError.message : '套用资料失败')
     }
   }
 
-  const items = tab === 'history' ? history : official
+  const openExcellentResumes = async () => {
+    setOpeningResumes(true)
+    try {
+      await flushResumeAutoSaves(resumeId)
+      navigate('/excellent-resumes')
+    } catch (requestError: unknown) {
+      showError(requestError instanceof Error ? requestError.message : '保存失败，请重试')
+    } finally {
+      setOpeningResumes(false)
+    }
+  }
+
+  const items = history
 
   return (
     <>
-      <div className={embedded ? 'min-w-0 flex-1' : 'rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3'}>
+      <div className={compact ? 'min-w-0' : embedded ? 'min-w-0 flex-1' : 'rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3'}>
         <div className="flex flex-wrap items-center justify-end gap-3">
           <div className="flex flex-wrap gap-2">
             {undoContent ? (
@@ -127,12 +131,18 @@ export function MaterialActions<T extends object>({
                 className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600"
               >撤销填入</button>
             ) : null}
-            <button type="button" onClick={() => void load('history')} className="rounded-lg border border-primary-200 bg-white px-3 py-2 text-xs font-medium text-primary-700 hover:bg-primary-50">
+            <button type="button" onClick={() => void load()} className={compact ? 'inline-flex items-center justify-center gap-1.5 rounded bg-primary-50/70 px-3 py-2 text-xs font-medium text-primary-700 transition-colors hover:bg-primary-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500' : 'inline-flex items-center justify-center gap-1.5 rounded-lg border border-primary-200 bg-white px-3 py-2 text-xs font-medium text-primary-700 hover:bg-primary-50'}>
+              <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+                <path d="M3 10a9 9 0 1 1 2 8M3 4v6h6M12 7v5l3 2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
               从历史资料填入{history.length ? `（${history.length}）` : ''}
             </button>
             {moduleType !== 'basic_info' ? (
-              <button type="button" onClick={() => void load('official')} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-white">
-                参考官方示例
+              <button type="button" onClick={() => void openExcellentResumes()} disabled={openingResumes} className={compact ? 'inline-flex items-center justify-center gap-1.5 rounded bg-gray-50 px-3 py-2 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:opacity-50' : 'inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50'}>
+                <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+                  <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6Zm0 0v6h6M8 13h8m-8 4h5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                参考优质简历
               </button>
             ) : null}
           </div>
@@ -148,32 +158,17 @@ export function MaterialActions<T extends object>({
               <h2 className="font-semibold text-slate-950">选择{MODULE_LABELS[moduleType]}</h2>
               <button type="button" onClick={() => setOpen(false)} className="rounded-lg px-3 py-2 text-sm text-slate-500 hover:bg-slate-100">关闭</button>
             </div>
-            <div className="border-b border-slate-100 px-5 py-3">
-              <SegmentedControl
-                ariaLabel="资料来源"
-                value={tab}
-                options={moduleType === 'basic_info'
-                  ? [{ value: 'history', label: '历史资料' }]
-                  : [
-                      { value: 'history', label: '历史资料' },
-                      { value: 'official', label: '官方参考' },
-                    ]}
-                onChange={(nextTab) => void load(nextTab)}
-                size="md"
-              />
-            </div>
             <div className="max-h-[55vh] space-y-3 overflow-y-auto p-5">
               {loading ? <p className="py-8 text-center text-sm text-slate-500">加载中…</p> : null}
               {!loading && !items.length ? <p className="py-8 text-center text-sm text-slate-500">暂无可用资料</p> : null}
               {!loading && items.map((material) => (
-                <article key={`${tab}-${'key' in material ? material.key : material.id}`} className="rounded-xl border border-slate-200 p-4">
+                <article key={material.key} className="rounded-xl border border-slate-200 p-4">
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
                       <h3 className="font-medium text-slate-900">{material.title}</h3>
-                      {'sourceResumeTitle' in material && material.sourceResumeTitle ? (
+                      {material.sourceResumeTitle ? (
                         <p className="mt-1 text-xs text-slate-400">来自简历：{material.sourceResumeTitle}</p>
                       ) : null}
-                      {'targetRole' in material && material.targetRole ? <p className="mt-1 text-xs text-primary-700">{material.targetRole}{material.careerStage ? ` · ${material.careerStage}` : ''}</p> : null}
                       <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-600">{getMaterialPreview(material.content) || '结构化资料'}</p>
                     </div>
                     <button type="button" onClick={() => void apply(material)} className="shrink-0 rounded-lg bg-primary-600 px-3 py-2 text-xs font-medium text-white hover:bg-primary-700">

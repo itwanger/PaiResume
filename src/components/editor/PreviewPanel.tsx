@@ -1,3 +1,4 @@
+import { useResumePhotoSource } from '../../hooks/useResumePhotoSource'
 import { useEffect, useRef, useState } from 'react'
 import * as PDFJS from 'pdfjs-dist'
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
@@ -16,7 +17,6 @@ import {
 } from '../../utils/moduleContent'
 import { parseInlineMarkdownSegments } from '../../utils/inlineMarkdown'
 import { getEducationDetailItems } from '../../utils/educationDetails'
-import { normalizePhotoSource } from '../../utils/resumePhoto'
 import { normalizeInlineText } from '../../utils/resumeText'
 import { formatAwardDisplayText } from '../../utils/yearInput'
 import { resolveCompactInternshipHeader } from '../../utils/experienceDisplay'
@@ -562,6 +562,10 @@ function ModulePreviewSection({
   compactDensity: boolean
   shouldReduceMotion: boolean
 }) {
+  const privatePhoto = useResumePhotoSource(
+    module.moduleType === 'basic_info' && !module.content.privacyMasked ? Number(module.content.photoId) || null : null,
+    module.content.photo as string | undefined,
+  )
   const label = getModuleDisplayLabel(module.moduleType as ModuleType, basicInfoContent)
   const surfaceTone = getModuleSurfaceTone(module.moduleType, index)
   const useFlatExperienceLayout = module.moduleType === 'internship' || module.moduleType === 'work_experience'
@@ -608,7 +612,7 @@ function ModulePreviewSection({
     switch (module.moduleType) {
       case 'basic_info': {
         const content = normalizeBasicInfoContent(module.content)
-        const photoSource = normalizePhotoSource(content.photo)
+        const photoSource = privatePhoto.source
         const photoFrameClassName = content.photoBorder
           ? 'border border-primary-500'
           : 'bg-slate-50'
@@ -888,8 +892,8 @@ function ModulePreviewSection({
           <div className="mb-4">
             <p className="font-semibold">{content.projectName || '科研项目'}</p>
             {content.projectCycle && <p className="text-sm text-gray-400">周期: {content.projectCycle}</p>}
-            {content.background && <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">背景: {content.background}</p>}
-            {content.workContent && <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">工作: {content.workContent}</p>}
+            {content.background && <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">科研背景: {content.background}</p>}
+            {content.workContent && <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">科研内容: {content.workContent}</p>}
             {content.achievements && <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">成果: {content.achievements}</p>}
           </div>
         )

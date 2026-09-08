@@ -5,6 +5,7 @@ interface MonthInputProps {
   value: string
   onChange: (value: string) => void
   ariaLabel: string
+  required?: boolean
   allowPresent?: boolean
 }
 
@@ -16,7 +17,7 @@ function isCompleteTypedValue(value: string, allowPresent: boolean): boolean {
     || /^\d{4}\s*年\s*\d{1,2}\s*月$/.test(trimmed)
 }
 
-export function MonthInput({ value, onChange, ariaLabel, allowPresent = false }: MonthInputProps) {
+export function MonthInput({ value, onChange, ariaLabel, required = false, allowPresent = false }: MonthInputProps) {
   const pickerRef = useRef<HTMLInputElement>(null)
   const [draft, setDraft] = useState(() => formatMonthInput(value))
   const [invalid, setInvalid] = useState(false)
@@ -74,6 +75,7 @@ export function MonthInput({ value, onChange, ariaLabel, allowPresent = false }:
             type="text"
             inputMode="numeric"
             aria-label={ariaLabel}
+            required={required}
             aria-invalid={invalid}
             value={draft}
             placeholder="YYYY-MM"

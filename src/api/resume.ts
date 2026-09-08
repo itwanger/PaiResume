@@ -60,7 +60,7 @@ export interface ResumeImportPayload {
 }
 
 export interface AiFieldOptimizeRequest {
-  fieldType: 'project_description' | 'responsibility' | 'skill'
+  fieldType: 'project_description' | 'responsibility' | 'skill' | 'research_background' | 'research_work_content' | 'research_achievements'
   index?: number
   presetId?: string
 }
@@ -68,6 +68,7 @@ export interface AiFieldOptimizeRequest {
 export interface AiFieldOptimizeResponse {
   original: string
   optimized: string
+  candidateTags?: string[][]
   candidates?: string[]
 }
 
@@ -78,6 +79,7 @@ export interface AiFieldOptimizeRecord {
   reasoning: string
   streamedContent: string
   optimized?: string
+  candidateTags?: string[][]
   candidates?: string[]
   error?: string
   createdAt: string

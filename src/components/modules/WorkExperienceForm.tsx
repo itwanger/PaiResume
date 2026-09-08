@@ -1,6 +1,8 @@
 import { ExperienceModuleForm } from './ExperienceModuleForm'
 
-interface Props {
+import type { ExperienceItemControls } from './ExperienceFormHeader'
+
+interface Props extends ExperienceItemControls {
   resumeId: number
   moduleId: number
   initialContent: Record<string, unknown>
@@ -9,9 +11,10 @@ interface Props {
   onBackToCompanies?: () => void
 }
 
-export function WorkExperienceForm({ resumeId, moduleId, initialContent, viewMode, onOpenProjects, onBackToCompanies }: Props) {
+export function WorkExperienceForm({ resumeId, moduleId, initialContent, viewMode, onOpenProjects, onBackToCompanies, ...itemControls }: Props) {
   return (
     <ExperienceModuleForm
+      {...itemControls}
       resumeId={resumeId}
       moduleId={moduleId}
       initialContent={initialContent}

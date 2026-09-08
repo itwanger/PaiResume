@@ -54,6 +54,7 @@ public class AiOptimizeRecordServiceImpl implements AiOptimizeRecordService {
         dto.setStreamedContent(record.getStreamedContent());
         dto.setOptimized(record.getOptimizedText());
         dto.setCandidates(record.getCandidates());
+        dto.setCandidateTags(FieldOptimizeCandidateMetadata.tags(record.getStreamedContent(), record.getCandidates()));
         dto.setError(record.getErrorMessage());
         dto.setCreatedAt(record.getCreatedAt());
         dto.setUpdatedAt(record.getUpdatedAt());

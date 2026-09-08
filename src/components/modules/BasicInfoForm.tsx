@@ -1,3 +1,4 @@
+import { useResumePhotoSource } from '../../hooks/useResumePhotoSource'
 import { useEffect, useRef, useState } from 'react'
 import type { BasicInfoContent } from '../../types'
 import { useModuleContentState } from '../../hooks/useModuleContentState'
@@ -13,7 +14,8 @@ import { ModuleSaveBar } from './ModuleSaveBar'
 import { MaterialActions } from '../materials/MaterialActions'
 import { getBasicInfoFieldError, type BasicInfoValidationKind } from '../../utils/basicInfoValidation'
 import { resumePhotoApi } from '../../api/resumePhoto'
-import { SegmentedControl } from '../ui/SegmentedControl'
+import { OptionalInfoSection } from '../ui/OptionalInfoSection'
+import './BasicInfoForm.css'
 
 interface Props {
   resumeId: number
@@ -28,7 +30,7 @@ export function BasicInfoForm({ resumeId, moduleId, initialContent }: Props) {
     initialContent,
     normalize: normalizeBasicInfoContent,
   })
-  const [showOptionalFields, setShowOptionalFields] = useState(() => hasOptionalBasicInfoContent(normalizeBasicInfoContent(initialContent)))
+  const [showOptionalFields, setShowOptionalFields] = useState(false)
   const [photoError, setPhotoError] = useState('')
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState('')
   const [photoUploading, setPhotoUploading] = useState(false)
@@ -38,8 +40,9 @@ export function BasicInfoForm({ resumeId, moduleId, initialContent }: Props) {
     setContent((prev) => ({ ...prev, [field]: value }))
   }
 
-  const hasOptionalFields = hasOptionalBasicInfoContent(content)
-  const normalizedPhotoSource = normalizePhotoSource(photoPreviewUrl || content.photo)
+  const optionalFieldCount = [Boolean(content.photoId || content.photo), Boolean(content.targetCity.trim()), Boolean(content.leetcode.trim()), content.isPartyMember].filter(Boolean).length
+  const privatePhoto = useResumePhotoSource(content.photoId, content.photo)
+  const normalizedPhotoSource = normalizePhotoSource(photoPreviewUrl || privatePhoto.source)
   const photoUrlValue = content.photoId || isLegacyEmbeddedPhoto(content.photo) ? '' : content.photo
 
   useEffect(() => () => {
@@ -161,176 +164,81 @@ export function BasicInfoForm({ resumeId, moduleId, initialContent }: Props) {
         <Field label="GitHub" value={content.github} onChange={(v) => update('github', v)} />
         <Field label="博客" value={content.blog} onChange={(v) => update('blog', v)} />
       </div>
-      {!showOptionalFields ? (
-        <button
-          type="button"
-          onClick={() => setShowOptionalFields(true)}
-          className="text-sm text-primary-600 hover:text-primary-700"
-        >
-          + 添加可选信息
-        </button>
-      ) : (
-        <div className="space-y-4 border-t border-gray-100 pt-4">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="text-sm font-medium text-gray-700">可选信息</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowOptionalFields(false)}
-              className="text-sm text-gray-400 hover:text-gray-600"
-            >
-              {hasOptionalFields ? '收起' : '取消'}
-            </button>
-          </div>
-
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_148px] lg:items-start">
-            <div className="space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-medium text-gray-700">照片</p>
-                  <p className="mt-1 text-xs text-gray-500">
-                    支持上传 PNG/JPG（不超过 {BASIC_INFO_PHOTO_MAX_SIZE_MB}MB），也可以使用图片链接。
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/png,image/jpeg"
-                    onChange={handlePhotoFileChange}
-                    className="hidden"
-                  />
-                  <button
-                    type="button"
-                    disabled={photoUploading}
-                    onClick={() => fileInputRef.current?.click()}
-                    className="rounded-lg border border-primary-200 bg-primary-50 px-3 py-1.5 text-xs font-medium text-primary-700 transition hover:border-primary-300 hover:bg-primary-100 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {photoUploading ? '上传并校验中…' : '选择文件'}
-                  </button>
-                  {normalizedPhotoSource && (
-                    <button
-                      type="button"
-                      onClick={clearPhoto}
-                      className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-500 transition hover:border-red-200 hover:text-red-600"
-                    >
-                      移除
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <label htmlFor="basic-info-photo-url" className="mb-1 block text-sm font-medium text-gray-700">
-                  图片链接
-                </label>
-                <input
-                  id="basic-info-photo-url"
-                  type="url"
-                  inputMode="url"
-                  value={photoUrlValue}
-                  onChange={(event) => handlePhotoUrlChange(event.target.value)}
-                  onBlur={normalizePhotoUrlInput}
-                  placeholder="https://example.com/photo.jpg"
-                  aria-invalid={Boolean(photoError)}
-                  className={`w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:ring-2 ${
-                    photoError
-                      ? 'border-red-300 focus:border-red-500 focus:ring-red-100'
-                      : 'border-gray-300 focus:border-primary-500 focus:ring-primary-500'
-                  }`}
-                />
-              </div>
-
-              <div>
-                <span className="mb-1 block text-sm font-medium text-gray-700">照片边框</span>
-                <SegmentedControl
-                  ariaLabel="照片边框"
-                  value={content.photoBorder}
-                  options={[
-                    { label: '无边框', value: false, disabled: !normalizedPhotoSource },
-                    { label: '有边框', value: true, disabled: !normalizedPhotoSource },
-                  ]}
-                  onChange={(value) => update('photoBorder', value)}
-                />
-              </div>
-
-              {photoError ? (
-                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-                  {photoError}
-                </div>
-              ) : null}
-            </div>
-
-            <div className="flex items-start justify-center lg:justify-end lg:pl-4">
-              <div className={`aspect-[3/4] w-28 overflow-hidden bg-gradient-to-b from-slate-50 to-slate-100 shadow-sm ${
-                normalizedPhotoSource
-                  ? (content.photoBorder ? 'border border-primary-500' : '')
-                  : 'border border-dashed border-gray-200'
-              }`}>
+      <OptionalInfoSection id={`basic-optional-${moduleId}`} open={showOptionalFields}
+        onToggle={() => setShowOptionalFields((current) => !current)} filledCount={optionalFieldCount}>
+          <div className="basic-optional-layout px-4 pb-5 pt-3">
+            <div className="basic-optional-photo">
+              <div className={`aspect-[3/4] w-20 overflow-hidden rounded bg-gray-50 ${normalizedPhotoSource ? (content.photoBorder ? 'border border-primary-500' : '') : 'border border-dashed border-gray-200'}`}>
                 {normalizedPhotoSource ? (
-                  <img
-                    src={normalizedPhotoSource}
-                    alt="证件照预览"
-                    className="h-full w-full object-cover"
-                  />
+                  <img src={normalizedPhotoSource} alt="证件照预览" className="h-full w-full object-cover" />
                 ) : (
-                  <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-slate-400">
-                    <svg className="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.6} d="M9 7h6m-6 0a2 2 0 00-2 2v6m2-8a2 2 0 012-2m4 2a2 2 0 00-2-2m2 2v6m0 0a2 2 0 01-2 2m2-2H9m0 0a2 2 0 01-2-2m2 2v-2m3-5a2 2 0 100 4 2 2 0 000-4zm-5 9l2.5-2.5a1.5 1.5 0 012.121 0L15 17" />
+                  <div className="flex h-full flex-col items-center justify-center gap-2 text-gray-400">
+                    <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <rect x="3" y="3" width="18" height="18" rx="2" strokeWidth="1.5" />
+                      <circle cx="9" cy="9" r="2" strokeWidth="1.5" />
+                      <path d="m3 17 5-5 4 4 4-5 5 6" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" />
                     </svg>
-                    <span className="text-xs font-medium">照片预览</span>
+                    <span className="text-xs">证件照</span>
                   </div>
                 )}
               </div>
+              <div className="min-w-0 space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <input ref={fileInputRef} type="file" accept="image/png,image/jpeg" onChange={handlePhotoFileChange} className="hidden" aria-label="上传证件照" />
+                  <button type="button" disabled={photoUploading} onClick={() => fileInputRef.current?.click()}
+                    className="rounded border border-primary-200 bg-primary-50 px-3 py-2 text-xs font-medium text-primary-700 transition-colors hover:bg-primary-100 disabled:cursor-not-allowed disabled:opacity-50">
+                    {photoUploading ? '上传并校验中…' : normalizedPhotoSource ? '更换照片' : '上传照片'}
+                  </button>
+                  {normalizedPhotoSource && <button type="button" onClick={clearPhoto}
+                    className="rounded border border-gray-200 px-3 py-2 text-xs text-gray-500 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600">移除</button>}
+                  <span className="text-xs text-gray-400">PNG/JPG · ≤ {BASIC_INFO_PHOTO_MAX_SIZE_MB}MB</span>
+                </div>
+                <div>
+                  <label htmlFor={`basic-info-photo-url-${moduleId}`} className="mb-1.5 block text-xs font-medium text-gray-500">图片链接</label>
+                  <input id={`basic-info-photo-url-${moduleId}`} type="url" inputMode="url" value={photoUrlValue}
+                    onChange={(event) => handlePhotoUrlChange(event.target.value)} onBlur={normalizePhotoUrlInput}
+                    placeholder="https://" aria-invalid={Boolean(photoError)}
+                    className={`w-full rounded border bg-white px-3 py-2 text-sm outline-none transition-colors focus:ring-2 ${photoError ? 'border-red-300 focus:border-red-500 focus:ring-red-100' : 'border-gray-200 hover:border-gray-300 focus:border-primary-400 focus:ring-primary-100'}`} />
+                </div>
+                <label className={`inline-flex items-center gap-2 text-xs ${normalizedPhotoSource ? 'text-gray-600' : 'text-gray-400'}`}>
+                  <input type="checkbox" checked={content.photoBorder} disabled={!normalizedPhotoSource} onChange={(event) => update('photoBorder', event.target.checked)} className="h-3.5 w-3.5 rounded border-gray-300 accent-primary-600" />
+                  照片边框
+                </label>
+                {privatePhoto.error && <button type="button" onClick={privatePhoto.retry} className="block text-xs text-red-600">照片加载失败，重试</button>}
+                {photoError && <p className="text-xs text-red-600" role="alert">{photoError}</p>}
+              </div>
+            </div>
+            <div className="basic-optional-details space-y-4">
+              <Field compact label="意向城市" value={content.targetCity} onChange={(value) => update('targetCity', value)} />
+              <Field compact label="LeetCode" value={content.leetcode} onChange={(value) => update('leetcode', value)} />
+              <label className="inline-flex items-center gap-2 text-xs text-gray-600">
+                <input type="checkbox" checked={content.isPartyMember} onChange={(event) => update('isPartyMember', event.target.checked)} className="h-3.5 w-3.5 rounded border-gray-300 accent-primary-600" />
+                党员
+              </label>
             </div>
           </div>
-
-          <div className="editor-responsive-grid">
-            <Field label="意向城市" value={content.targetCity} onChange={(v) => update('targetCity', v)} />
-            <Field label="LeetCode" value={content.leetcode} onChange={(v) => update('leetcode', v)} />
-          </div>
-
-          <label className="flex items-center gap-2 text-sm text-gray-700">
-            <input
-              type="checkbox"
-              checked={content.isPartyMember}
-              onChange={(e) => update('isPartyMember', e.target.checked)}
-              className="rounded border-gray-300"
-            />
-            党员
-          </label>
-        </div>
-      )}
+      </OptionalInfoSection>
     </div>
   )
 }
 
-function hasOptionalBasicInfoContent(content: BasicInfoContent) {
-  return Boolean(
-    content.photo
-    || content.targetCity
-    || content.leetcode
-    || content.isPartyMember
-  )
-}
-
-function Field({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+function Field({ label, value, onChange, compact = false }: { label: string; value: string; onChange: (v: string) => void; compact?: boolean }) {
   const validationKind: BasicInfoValidationKind | null = label === '邮箱' ? 'email' : label === '手机号' ? 'phone' : label === 'GitHub' || label === '博客' ? 'url' : null
   const inputType = validationKind === 'email' ? 'email' : validationKind === 'phone' ? 'tel' : validationKind === 'url' ? 'url' : 'text'
   const autoComplete = label === '姓名' ? 'name' : label === '邮箱' ? 'email' : label === '手机号' ? 'tel' : 'off'
   const validationError = validationKind ? getBasicInfoFieldError(validationKind, value) : ''
   return (
     <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+      <label htmlFor={`basic-field-${label}`} className={compact ? "mb-1.5 block text-xs font-medium text-gray-500" : "block text-sm font-medium text-gray-700 mb-1"}>{label}</label>
       <input
+        id={`basic-field-${label}`}
         type={inputType}
         autoComplete={autoComplete}
         inputMode={label === '手机号' ? 'tel' : undefined}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         aria-invalid={Boolean(validationError)}
-        className={`w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 ${validationError ? 'border-red-300 focus:border-red-500 focus:ring-red-100' : 'border-gray-300 focus:border-primary-500 focus:ring-primary-500'}`}
+        className={`w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 ${validationError ? 'border-red-300 focus:border-red-500 focus:ring-red-100' : compact ? 'border-gray-200 hover:border-gray-300 focus:border-primary-400 focus:ring-primary-100' : 'border-gray-300 focus:border-primary-500 focus:ring-primary-500'}`}
       />
       {validationError ? <p className="mt-1 text-xs text-red-600" role="alert">{validationError}</p> : null}
     </div>

@@ -4,10 +4,11 @@ import { useNavigate } from 'react-router-dom'
 import type { SkillContent } from '../../types'
 import { useModuleContentState } from '../../hooks/useModuleContentState'
 import { normalizeSkillContent } from '../../utils/moduleContent'
-import { AutoResizeTextarea } from '../ui/AutoResizeTextarea'
+import { AiOptimizeTextarea } from '../ui/AiOptimizeTextarea'
 import { ModuleSaveBar } from './ModuleSaveBar'
 import { MaterialActions } from '../materials/MaterialActions'
-import { ContinueAddButton, RepeatableListHeader } from '../ui/RepeatableListControls'
+import { RepeatableListHeader } from '../ui/RepeatableListControls'
+import { ResponsibilityAddButton } from '../ui/ResponsibilityAddButton'
 import { TextItemSorter } from '../ui/TextItemSorter'
 
 interface Props {
@@ -123,6 +124,7 @@ export function SkillForm({ resumeId, moduleId, initialContent }: Props) {
           label="专业技能"
           itemCount={skillItems.length}
           sorting={sorting}
+          showAdd={false}
           addLabel="添加技能"
           sortLabel="调整技能顺序"
           onAdd={addItem}
@@ -139,31 +141,15 @@ export function SkillForm({ resumeId, moduleId, initialContent }: Props) {
         ) : (
           skillItems.map((item, index) => (
             <div key={index} className={index === 0 ? '' : 'mt-3'}>
-              <div className="mb-2 flex items-center justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => void openOptimizePage(index)}
-                  disabled={optimizingSkillIndex !== null || !item.trim()}
-                  className="inline-flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                  {optimizingSkillIndex === index ? '跳转中...' : 'AI 优化'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => removeItem(index)}
-                  className="text-xs text-slate-400 hover:text-red-600"
-                >
-                  删除
-                </button>
-              </div>
-              <AutoResizeTextarea
+              <AiOptimizeTextarea
+                onOptimize={() => void openOptimizePage(index)}
+                optimizing={optimizingSkillIndex === index}
+                optimizeDisabled={optimizingSkillIndex !== null || !item.trim()}
+                onDelete={() => removeItem(index)}
+                deleteLabel={`删除技能 ${index + 1}`}
                 id={fieldOptimizeInputId(moduleId, 0, 'skill', index)}
                 value={item}
                 onChange={(event) => updateItem(index, event.target.value)}
-                minRows={3}
                 placeholder={`技能 ${index + 1}`}
                 aria-label={`专业技能 ${index + 1}`}
                 autoFocus={pendingSkillFocus === index}
@@ -185,7 +171,12 @@ export function SkillForm({ resumeId, moduleId, initialContent }: Props) {
           ))
         )}
 
-        {!sorting && skillItems.length > 0 ? <ContinueAddButton label="技能" onClick={addItem} /> : null}
+        {!sorting && (
+          <div className={skillItems.length > 0 ? 'pt-3' : ''}>
+            <ResponsibilityAddButton icon="skill" empty={skillItems.length === 0} onClick={addItem}
+              emptyLabel="添加第一条专业技能" continueLabel="继续添加技能" emptyHint={null} />
+          </div>
+        )}
       </div>
     </div>
   )

@@ -43,7 +43,17 @@ class FieldOptimizePromptServiceTest {
         var plan = ReflectionTestUtils.invokeMethod(ai, "prepareFieldOptimizePlan", "work_experience",
                 Map.of("company", "示例公司", "responsibilities", java.util.List.of("原始职责")), request);
         assertEquals("后台模板 原始职责 / 示例公司", ReflectionTestUtils.getField(plan, "prompt"));
-        assertEquals("后台管理的系统提示词", ReflectionTestUtils.invokeMethod(ai, "resolveFieldSystemPrompt", request));
+        String actualSystemPrompt = ReflectionTestUtils.invokeMethod(ai, "resolveFieldSystemPrompt", request);
+        assertTrue(actualSystemPrompt.startsWith("后台管理的系统提示词"));
+        assertTrue(actualSystemPrompt.contains("candidateTags"));
+        assertTrue(actualSystemPrompt.contains("量化方式遵循后台配置的字段提示词"));
+        assertFalse(actualSystemPrompt.contains("不得返回 quantified 标签"));
+        String legacy = "后台自定义要求\n" + FieldOptimizeCandidateMetadata.MARKER
+                + "\n不得为了量化版补造数字、算法、技术栈或成果。原文没有数字依据时用定性成果，且不得返回 quantified 标签。";
+        assertFalse(FieldOptimizeCandidateMetadata.withInstructions(legacy).contains("不得返回 quantified 标签"));
+        assertTrue(FieldOptimizeCandidateMetadata.withInstructions(legacy).startsWith("后台自定义要求"));
+        assertEquals(actualSystemPrompt, ai.getFieldOptimizePromptConfig("asu").getSystemPrompt());
+        assertEquals(actualSystemPrompt, FieldOptimizeCandidateMetadata.withInstructions(actualSystemPrompt));
         asu.setSkillPrompt("丢失原文占位符");
         assertThrows(BusinessException.class, () -> store.save("asu", asu, 41L));
         assertThrows(BusinessException.class, () -> ai.getFieldOptimizePromptConfig("custom"));
