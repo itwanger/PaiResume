@@ -83,10 +83,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   completeWechatLogin: async (challengeId, pollToken) => {
-    const { data: res } = await authApi.exchangeWechatChallenge(challengeId, pollToken, {
-      termsAccepted: true,
-      privacyAccepted: true,
-    })
+    const { data: res } = await authApi.exchangeWechatChallenge(challengeId, pollToken)
     const tokenData = res.data
     clearPrivatePhotoCache()
     setAccessToken(tokenData.accessToken)

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { authApi, type WechatChallengeCreateData } from '../api/auth'
 import { membershipApi } from '../api/membership'
-import { LegalConsentNotice } from '../components/auth/LegalConsentNotice'
 import { LogoMark } from '../components/branding/LogoMark'
 import { getDevelopmentLoginCredentials } from '../config/developmentLogin'
 import { AUTHENTICATED_HOME_PATH } from '../config/site'
@@ -562,7 +561,6 @@ export default function LoginPage() {
                 </div>
 
               )}
-              {!signedInInvite && <LegalConsentNotice className="mt-3" />}
 
 
               <div className="mt-5 border-t border-gray-100 pt-4 text-center">

@@ -112,9 +112,8 @@ export function Header({ enableResumeDrop = false }: HeaderProps) {
   const importDialogReturnFocusRef = useRef<HTMLElement | null>(null)
   const dragDepthRef = useRef(0)
   const readyAuthenticated = initialized && isAuthenticated
-  const legalConsentAccepted = !user?.legalConsentRequired
-  const resumeImportAvailable = readyAuthenticated && legalConsentAccepted
-  const resumeDropEnabled = readyAuthenticated && legalConsentAccepted && enableResumeDrop
+  const resumeImportAvailable = readyAuthenticated
+  const resumeDropEnabled = readyAuthenticated && enableResumeDrop
   const isVipUser = user?.membershipStatus === 'ACTIVE'
   const navbarIdentity = user ? getAccountDisplayName(user) : ''
   const navbarAccountLabel = navbarIdentity

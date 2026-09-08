@@ -5,5 +5,5 @@ export const researchOptimizeFields = {
 } as const
 
 export function isResearchOptimizeField(fieldType: string): fieldType is keyof typeof researchOptimizeFields {
-  return Object.hasOwn(researchOptimizeFields, fieldType)
+  return Object.prototype.hasOwnProperty.call(researchOptimizeFields, fieldType)
 }

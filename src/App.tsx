@@ -39,42 +39,8 @@ function AuthenticationLoading() {
   return <div className="min-h-screen flex items-center justify-center text-sm text-gray-500">加载中...</div>
 }
 
-function buildLegalConsentPath(location: ReturnType<typeof useLocation>) {
-  const returnTo = `${location.pathname}${location.search}${location.hash}`
-  return `/legal-consent?redirect=${encodeURIComponent(returnTo)}`
-}
-
-const LEGAL_CONSENT_EXEMPT_PATHS = new Set([
-  '/legal-consent',
-  '/settings/account',
-  '/privacy',
-  '/terms',
-  '/refund-policy',
-  '/customer-service',
-])
-
-function isLegalConsentExemptPath(pathname: string) {
-  return LEGAL_CONSENT_EXEMPT_PATHS.has(pathname)
-}
-
-function LegalConsentGate({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, initialized, user } = useAuthStore()
-  const location = useLocation()
-
-  if (isLegalConsentExemptPath(location.pathname)) {
-    return <>{children}</>
-  }
-  if (!initialized) {
-    return <AuthenticationLoading />
-  }
-  if (isAuthenticated && user?.legalConsentRequired) {
-    return <Navigate to={buildLegalConsentPath(location)} state={location.state} replace />
-  }
-  return <>{children}</>
-}
-
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, initialized, user } = useAuthStore()
+  const { isAuthenticated, initialized } = useAuthStore()
   const location = useLocation()
   if (!initialized) {
     return <AuthenticationLoading />
@@ -82,9 +48,6 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   if (!isAuthenticated) {
     const returnTo = `${location.pathname}${location.search}${location.hash}`
     return <Navigate to={buildLoginPath(returnTo)} replace />
-  }
-  if (user?.legalConsentRequired && !isLegalConsentExemptPath(location.pathname)) {
-    return <Navigate to={buildLegalConsentPath(location)} replace />
   }
   return <>{children}</>
 }
@@ -116,9 +79,6 @@ function VipRoute({ children }: { children: React.ReactNode }) {
   if (!isAuthenticated) {
     return <Navigate to={buildLoginPath(returnTo)} replace />
   }
-  if (user?.legalConsentRequired) {
-    return <Navigate to={buildLegalConsentPath(location)} replace />
-  }
   if (user?.membershipStatus !== 'ACTIVE') {
     return <Navigate to={buildMembershipPath(returnTo)} replace />
   }
@@ -127,14 +87,10 @@ function VipRoute({ children }: { children: React.ReactNode }) {
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, initialized, user } = useAuthStore()
-  const location = useLocation()
   if (!initialized) {
     return <AuthenticationLoading />
   }
   if (!isAuthenticated) return <Navigate to={buildEmailLoginPath('/admin')} replace />
-  if (user?.legalConsentRequired) {
-    return <Navigate to={buildLegalConsentPath(location)} replace />
-  }
   if (!user?.admin) return <Navigate to={AUTHENTICATED_HOME_PATH} replace />
   return <>{children}</>
 }
@@ -150,7 +106,7 @@ function App() {
     <BrowserRouter>
       <PlanetInviteLinkGate>
       <RouteSeo />
-      <LegalConsentGate>
+
         <Suspense fallback={<AuthenticationLoading />}>
           <Routes>
         <Route path="/" element={<HomePage />} />
@@ -272,7 +228,7 @@ function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
-      </LegalConsentGate>
+
       </PlanetInviteLinkGate>
     </BrowserRouter>
   )

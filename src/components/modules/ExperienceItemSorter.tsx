@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import type { ResumeModule } from '../../api/resume'
-import { normalizeInternshipContent } from '../../utils/moduleContent'
+import { normalizeInternshipContent, normalizeProjectContent } from '../../utils/moduleContent'
 import { formatMonthInput } from '../../utils/monthInput'
 
 interface Props {
   modules: ResumeModule[]
   moduleLabel: string
+  projectMode?: boolean
   onReorder: (moduleIds: number[]) => Promise<void>
 }
 
@@ -16,7 +17,7 @@ function formatDateRange(startDate: string, endDate: string) {
   return start || end
 }
 
-export function ExperienceItemSorter({ modules, moduleLabel, onReorder }: Props) {
+export function ExperienceItemSorter({ modules, moduleLabel, onReorder, projectMode = false }: Props) {
   const [draggedId, setDraggedId] = useState<number | null>(null)
   const [dragOverId, setDragOverId] = useState<number | null>(null)
   const [pending, setPending] = useState(false)
@@ -48,12 +49,15 @@ export function ExperienceItemSorter({ modules, moduleLabel, onReorder }: Props)
     <div className="space-y-2" aria-busy={pending} aria-label={`${moduleLabel}排序`}>
       {modules.map((module, index) => {
         const content = normalizeInternshipContent(module.content)
-        const title = content.company.trim() || `第 ${index + 1} 条${moduleLabel}`
-        const dateRange = formatDateRange(content.startDate, content.endDate)
+        const project = projectMode ? normalizeProjectContent(module.content) : null
+        const title = (project ? project.projectName : content.company).trim() || `第 ${index + 1} 条${moduleLabel}`
+        const position = project ? project.role : content.position
+        const projectCount = project ? 0 : content.projects.length
+        const dateRange = formatDateRange(project?.startDate ?? content.startDate, project?.endDate ?? content.endDate)
         const projectNames = content.projects
           .map((project) => project.projectName.trim())
           .filter(Boolean)
-        const projectSummary = projectNames.join('、')
+        const projectSummary = project ? project.techStack : projectNames.join('、')
 
         return (
           <div
@@ -113,11 +117,11 @@ export function ExperienceItemSorter({ modules, moduleLabel, onReorder }: Props)
             </span>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-slate-800">{title}</p>
-              {(content.position || dateRange || content.projects.length > 0) && (
+              {(position || dateRange || projectCount > 0) && (
                 <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
-                  {content.position && <span>{content.position}</span>}
+                  {position && <span>{position}</span>}
                   {dateRange && <span>{dateRange}</span>}
-                  {content.projects.length > 0 && <span>{content.projects.length} 个项目</span>}
+                  {projectCount > 0 && <span>{projectCount} 个项目</span>}
                 </div>
               )}
               {projectSummary ? <p className="mt-1 truncate text-xs text-slate-400">{projectSummary}</p> : null}

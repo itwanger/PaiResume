@@ -51,6 +51,8 @@ lerna-debug.log*
 !/tests/components/FieldOptimizePage.test.tsx
 !/tests/components/FieldOptimizeReturn.test.tsx
 !/tests/components/LoginPage.test.tsx
+!/tests/components/InternalAccessRoutes.test.tsx
+!/tests/components/ExperienceItemSorter.test.tsx
 
 # Playwright E2E
 /test-results/

@@ -175,19 +175,25 @@ class VipInviteClaimServiceImplTest {
     }
 
     @Test
-    void loginBindingWaitsForCurrentLegalConsent() {
+    void loginBindingRedeemsWithoutCurrentLegalConsent() {
         VipInviteClaim claim = awaitingClaim();
         claim.setChallengeIdHash(sha256ForTest("B".repeat(43)));
         when(claimMapper.selectByIdForUpdate(91L)).thenReturn(claim);
         User user = activeUser(false);
         when(userMapper.selectById(7L)).thenReturn(user);
 
+        when(userMapper.selectByIdForUpdate(7L)).thenReturn(user);
+        when(vipInviteService.redeemClaim(7L, 55L)).thenReturn(new VipInviteRedemptionDTO(
+                "ACTIVE", "2026-07-23 10:00:00", "2026-08-22 10:00:00", "VIP_INVITE"));
+        when(redemptionMapper.selectOne(any(Wrapper.class))).thenReturn(redemption());
+
         service.bindAndCompleteAfterLogin(91L, "B".repeat(43), 7L);
 
         assertEquals(7L, claim.getUserId());
-        assertEquals(VipInviteClaimServiceImpl.PENDING_CONSENT, claim.getClaimStatus());
+        assertEquals(VipInviteClaimServiceImpl.REDEEMED, claim.getClaimStatus());
         assertNotNull(claim.getBoundAt());
-        verify(claimMapper).updateById(claim);
+        verify(vipInviteService).redeemClaim(7L, 55L);
+        assertNull(user.getTermsAcceptedAt());
     }
 
     @Test

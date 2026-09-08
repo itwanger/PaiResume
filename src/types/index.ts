@@ -172,6 +172,8 @@ export interface BasicInfo {
   website: string
   location: string
   photo?: string
+  photoId?: number | null
+  privacyMasked?: boolean
   photoBorder?: boolean
   summary: string
 }

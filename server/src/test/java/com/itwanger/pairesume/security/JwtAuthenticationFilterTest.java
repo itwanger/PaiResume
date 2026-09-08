@@ -78,7 +78,7 @@ class JwtAuthenticationFilterTest {
     }
 
     @Test
-    void legalConsentRequiredBlocksProtectedApiBeforeAuthentication() throws Exception {
+    void missingLegalConsentStillAuthenticatesValidAccount() throws Exception {
         when(redisTemplate.hasKey(anyString())).thenReturn(false);
         when(userMapper.selectById(7L)).thenReturn(activeUser(false));
         String accessToken = tokenProvider.generateAccessToken(7L, "user@example.com", "USER", "session-1");
@@ -86,9 +86,8 @@ class JwtAuthenticationFilterTest {
 
         filter.doFilter(bearerRequest(accessToken, "/resumes"), response, new MockFilterChain());
 
-        assertEquals(403, response.getStatus());
-        assertTrue(response.getContentAsString().contains("\"code\":1123"));
-        assertNull(SecurityContextHolder.getContext().getAuthentication());
+        assertEquals(200, response.getStatus());
+        assertNotNull(SecurityContextHolder.getContext().getAuthentication());
     }
 
     @Test

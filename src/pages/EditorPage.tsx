@@ -640,6 +640,7 @@ export default function EditorPage() {
   )
   const canAddAnotherInstance = activeModuleType ? !SINGLETON_MODULES.includes(activeModuleType) : false
   const isExperienceModule = activeModuleType === 'internship' || activeModuleType === 'work_experience'
+  const supportsExperienceSorting = isExperienceModule || activeModuleType === 'project'
   const itemSorting = educationItemSorting || awardItemSorting || experienceItemSorting
   const focusedExperienceModule = isExperienceModule && focusedExperienceModuleId !== null
     ? activeModules.find((module) => module.id === focusedExperienceModuleId) ?? null
@@ -1129,7 +1130,7 @@ export default function EditorPage() {
                 </div>
               )}
 
-              {!focusedExperienceModule && activeModuleType !== 'project' && activeModuleType !== 'research' && activeModuleType !== 'paper' && (!(isExperienceModule || activeModuleType === 'education' || activeModuleType === 'award') || activeModules.length > 1) ? (
+              {!focusedExperienceModule && activeModuleType !== 'research' && activeModuleType !== 'paper' && (!(supportsExperienceSorting || activeModuleType === 'education' || activeModuleType === 'award') || activeModules.length > 1) ? (
               <div className="mb-4 flex items-center justify-between gap-3">
                 {activeModuleType === 'education' && activeModules.length > 1 ? (
                   <button
@@ -1157,11 +1158,11 @@ export default function EditorPage() {
                       {awardItemSorting ? '完成排序' : '调整顺序'}
                     </button>
                   </div>
-                ) : isExperienceModule && activeModules.length > 1 ? (
+                ) : supportsExperienceSorting && activeModules.length > 1 ? (
                   <div className="flex w-full items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
                       <h2 className="text-sm font-semibold text-slate-800">
-                        {activeModuleType === 'internship' ? '实习经历' : '工作经历'}{experienceItemSorting ? '排序' : ''}
+                        {getModuleDisplayLabelFromModules(activeModuleType, modules)}{experienceItemSorting ? '排序' : ''}
                       </h2>
                       <span className="text-xs tabular-nums text-slate-400">{activeModules.length} 条</span>
                     </div>
@@ -1182,7 +1183,7 @@ export default function EditorPage() {
                     </button>
                   </div>
                 ) : <span />}
-                {activeModules.length > 0 && canAddAnotherInstance && !isExperienceModule && !['education', 'paper', 'award'].includes(activeModuleType) && (
+                {activeModules.length > 0 && canAddAnotherInstance && !isExperienceModule && !['education', 'paper', 'award', 'project'].includes(activeModuleType) && (
                   <button
                     onClick={() => handleAddInstanceOfType(activeModuleType)}
                     disabled={itemSorting || addingInstance}
@@ -1211,10 +1212,11 @@ export default function EditorPage() {
                   modules={activeModules}
                   onReorder={handleReorderActiveModuleItems}
                 />
-              ) : activeModules.length > 0 && isExperienceModule && experienceItemSorting ? (
+              ) : activeModules.length > 0 && supportsExperienceSorting && experienceItemSorting ? (
                 <ExperienceItemSorter
                   modules={activeModules}
-                  moduleLabel={activeModuleType === 'internship' ? '实习经历' : '工作经历'}
+                  moduleLabel={getModuleDisplayLabelFromModules(activeModuleType, modules)}
+                  projectMode={activeModuleType === 'project'}
                   onReorder={handleReorderActiveModuleItems}
                 />
               ) : activeModules.length > 0 ? (

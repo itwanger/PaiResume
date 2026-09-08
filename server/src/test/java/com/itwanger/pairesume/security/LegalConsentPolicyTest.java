@@ -6,15 +6,15 @@ import org.junit.jupiter.api.Test;
 import java.time.LocalDateTime;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 class LegalConsentPolicyTest {
 
     @Test
-    void previousPolicyVersionRequiresRenewedConsent() {
+    void previousPolicyVersionDoesNotBlockInternalAccess() {
         User user = acceptedUser("2026-07-23");
 
-        assertTrue(LegalConsentPolicy.isRequired(user));
+        assertFalse(LegalConsentPolicy.isRequired(user));
     }
 
     @Test
@@ -22,6 +22,15 @@ class LegalConsentPolicyTest {
         User user = acceptedUser(LegalConsentPolicy.CURRENT_VERSION);
 
         assertFalse(LegalConsentPolicy.isRequired(user));
+    }
+
+    @Test
+    void missingConsentDoesNotBlockOrCreateAcceptanceRecords() {
+        User user = new User();
+        assertFalse(LegalConsentPolicy.isRequired(user));
+        assertNull(user.getTermsAcceptedAt());
+        assertNull(user.getPrivacyAcceptedAt());
+        assertNull(user.getAiProcessingDisclosureVersion());
     }
 
     private User acceptedUser(String version) {

@@ -81,9 +81,9 @@ describe('LoginPage', () => {
     await waitFor(() => expect(apiMocks.createWechatChallenge).toHaveBeenCalledTimes(1))
     expect(await screen.findByRole('img', { name: '派聪明服务号登录二维码' })).toBeInTheDocument()
     expect(screen.queryByRole('checkbox', { name: /服务条款和隐私政策/ })).not.toBeInTheDocument()
-    expect(screen.getByText('《服务条款》')).toHaveAttribute('href', '/terms')
-    expect(screen.getByText('《隐私政策》')).toHaveAttribute('href', '/privacy')
-    expect(screen.getByText(/扫码登录即代表你已阅读并同意/)).toBeInTheDocument()
+    expect(screen.queryByText('《服务条款》')).not.toBeInTheDocument()
+    expect(screen.queryByText('《隐私政策》')).not.toBeInTheDocument()
+    expect(screen.queryByText(/扫码登录即代表你已阅读并同意/)).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: '我有知识星球 VIP 邀请码' })).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: '管理员邮箱登录' })).toHaveAttribute(
       'href',

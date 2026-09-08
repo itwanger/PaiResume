@@ -33,7 +33,6 @@ export class ApiError extends Error {
 }
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
-const LEGAL_CONSENT_REQUIRED_CODE = 1123
 
 const client = axios.create({
   baseURL: API_BASE_URL,
@@ -134,20 +133,6 @@ function shouldRefreshToken(error: unknown) {
   return status === 401 || payload?.code === 401
 }
 
-function redirectToLegalConsentIfRequired(error: unknown) {
-  if (!axios.isAxiosError(error) || typeof window === 'undefined') {
-    return false
-  }
-  const payload = error.response?.data as { code?: number } | undefined
-  if (payload?.code !== LEGAL_CONSENT_REQUIRED_CODE || window.location.pathname === '/legal-consent') {
-    return false
-  }
-
-  const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`
-  window.location.assign(`/legal-consent?redirect=${encodeURIComponent(returnTo)}`)
-  return true
-}
-
 export async function refreshSessionRequest<T>() {
   const execute = () => axios.post<ApiEnvelope<T>>(
     `${API_BASE_URL}/auth/refresh`,
@@ -175,10 +160,6 @@ client.interceptors.response.use(
   },
   async (error) => {
     const originalRequest = error.config as RetryableRequestConfig | undefined
-
-    if (redirectToLegalConsentIfRequired(error)) {
-      return Promise.reject(toApiError(error))
-    }
 
     if (shouldRefreshToken(error) && originalRequest) {
       if (isRefreshing) {

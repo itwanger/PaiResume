@@ -15,7 +15,6 @@ import { useAuthStore } from '../store/authStore'
 const CLAIM_STORAGE_KEY = 'pai-resume:vip-invite-claim'
 const QR_POLL_INTERVAL_MS = 1_500
 const MAX_INVITE_CODE_LENGTH = 64
-const LEGAL_CONSENT_REQUIRED_CODE = 1123
 const VIP_INVITE_CLAIM_INVALID_CODE = 7020
 const VIP_INVITE_CLAIM_NOT_BOUND_CODE = 7021
 const VIP_INVITE_CLAIM_FORBIDDEN_CODE = 7022
@@ -231,10 +230,6 @@ export default function VipInviteClaimPage() {
       return
     }
 
-    if (user.legalConsentRequired) {
-      return
-    }
-
     if (user.membershipStatus === 'ACTIVE') {
       clearStoredClaim()
       setClaim(null)
@@ -285,10 +280,6 @@ export default function VipInviteClaimPage() {
         }
         completionRequestRef.current = null
         const errorCode = getApiErrorCode(completionError)
-        if (errorCode === LEGAL_CONSENT_REQUIRED_CODE) {
-          setCompletionPhase('idle')
-          return
-        }
         if (errorCode === VIP_INVITE_CLAIM_NOT_BOUND_CODE) {
           clearStoredClaim()
           setClaim(null)

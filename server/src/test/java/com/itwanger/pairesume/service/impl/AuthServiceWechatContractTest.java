@@ -68,7 +68,7 @@ class AuthServiceWechatContractTest {
     @Mock private ValueOperations<String, String> valueOperations;
 
     @Test
-    void qrOnlyRegistrationStoresNoFakeEmailOrPasswordAndRequiresLegalConsent() {
+    void qrOnlyRegistrationDoesNotRequireOrFabricateLegalConsent() {
         AuthServiceImpl service = service();
         AtomicReference<UserAuthIdentity> insertedIdentity = new AtomicReference<>();
         when(identityMapper.selectOne(any())).thenAnswer(invocation -> insertedIdentity.get());
@@ -102,7 +102,9 @@ class AuthServiceWechatContractTest {
         assertFalse(token.getUserInfo().isEmailLoginEnabled());
         assertTrue(token.getUserInfo().isPaicongmingLinked());
         assertTrue(token.getUserInfo().isPaicongmingSubscribed());
-        assertTrue(token.getUserInfo().isLegalConsentRequired());
+        assertFalse(token.getUserInfo().isLegalConsentRequired());
+        assertNull(userCaptor.getValue().getTermsAcceptedAt());
+        assertNull(userCaptor.getValue().getPrivacyAcceptedAt());
         verify(passwordEncoder, never()).encode(anyString());
     }
 
