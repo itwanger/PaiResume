@@ -39,7 +39,6 @@ Both frontend and backend read a single `.env` at the repo root (copy from `.env
 - `JWT_SECRET` — **must** be overridden when `APP_ENV != development`, otherwise the backend refuses to boot
 - `AI_API_KEY`, `AI_BASE_URL`, `AI_MODEL`, `AI_ANALYSIS_MODEL` — main AI integration (backend-side)
 - `APP_ENV=development` auto-provisions a dev account via `DEV_ACCOUNT_EMAIL` / `DEV_ACCOUNT_PASSWORD` (defaults `test@example.com` / `Test123456`)
-- `FIELD_OPTIMIZE_PROMPTS_FILE` — path to the field-optimize prompt YAML, defaults to `config/field-optimize-prompts.yml`
 
 Database changes run through Flyway. Existing V1-V5 SQL migrations are retained, while `schema.sql` is consumed by `V6__ReconcilePaiResumeSchema` to bring legacy installations to the current structure; later schema changes must use a new versioned migration rather than editing V6.
 
@@ -101,7 +100,7 @@ Resumes are rows in the `resumes` table; each resume has an ordered collection o
 
 ### Field-optimize prompts
 
-The default prompts shown on the field-optimize page live in `config/field-optimize-prompts.yml` (multi-line YAML). Both backend (per-request reload) and frontend (served from backend) consume the same file, so editing it changes prompts in both places. After edits, backend picks up the new file on the next request, but the frontend field-optimize page must be re-entered to refresh its copy.
+Field optimization reads only `field_optimize_prompt_config`, edited in Admin. Flyway seeds missing initial configurations without overwriting saved edits; there is no runtime YAML or Java prompt fallback.
 
 ## Conventions worth following
 

@@ -70,7 +70,7 @@ for name in APP_ENV APP_PUBLIC_URL APP_CORS_ALLOWED_ORIGIN_PATTERNS JWT_SECRET \
   MAIL_HOST MAIL_PORT MAIL_USERNAME MAIL_SSL_ENABLE \
   MAIL_PASSWORD MAIL_FROM AI_API_KEY AI_BASE_URL AI_MODEL AI_ANALYSIS_MODEL VITE_SUPPORT_EMAIL \
   VITE_OPERATOR_NAME VITE_AI_PROVIDER_NAME VITE_AI_PROVIDER_PRIVACY_URL \
-  FORWARD_HEADERS_STRATEGY RELEASE_ROOT FIELD_OPTIMIZE_PROMPTS_FILE \
+  FORWARD_HEADERS_STRATEGY RELEASE_ROOT \
   SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE \
   SERVER_TOMCAT_THREADS_MAX SERVER_TOMCAT_THREADS_MIN_SPARE \
   SERVER_TOMCAT_MAX_CONNECTIONS SERVER_TOMCAT_ACCEPT_COUNT \
@@ -376,7 +376,6 @@ elif [[ ! -d "$release_root" ]]; then
 else
   if [[ ! -f "$release_root/dist/index.html" \
     || ! -f "$release_root/server/pai-resume-server.jar" \
-    || ! -f "$release_root/config/field-optimize-prompts.yml" \
     || ! -f "$release_root/manifest/SHA256SUMS" \
     || ! -f "$release_root/manifest/release-name" \
     || ! -f "$release_root/manifest/base-commit" \

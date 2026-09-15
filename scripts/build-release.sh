@@ -92,7 +92,7 @@ case "$target_platform" in
     ;;
 esac
 
-for command_name in git java mvn node npm od tar unzip; do
+for command_name in git java mvn node npm od tar unzip python3 mysql; do
   if ! command -v "$command_name" >/dev/null 2>&1; then
     echo "本地缺少命令：${command_name}" >&2
     exit 1
@@ -229,6 +229,15 @@ untracked_count="$(wc -l < "$untracked_file" | tr -d '[:space:]')"
 
 echo "使用本机构建架构中立制品：Node ${node_version} / npm ${npm_version} / JDK ${java_major}"
 echo "构建前端：${release_name}"
+mkdir -p "$release_dir/config" "$release_dir/tools"
+python3 "$snapshot_dir/scripts/ai-prompt-snapshot.py" export \
+  "$release_dir/config/admin-ai-prompts.json" --env-file "$source_dir/.env"
+cp "$snapshot_dir/scripts/ai-prompt-snapshot.py" "$release_dir/tools/ai-prompt-snapshot.py"
+mkdir -p "$release_dir/control"
+for control in activate-release.sh rollback-release.sh production-preflight.sh switch-release.sh; do
+  cp "$snapshot_dir/scripts/$control" "$release_dir/control/$control"
+done
+
 (
   cd "$snapshot_dir"
   export VITE_APP_PUBLIC_URL="$vite_public_url"
@@ -240,10 +249,8 @@ echo "构建前端：${release_name}"
   npm "${npm_ci_args[@]}"
   npm run build
 )
-mkdir -p "$release_dir/dist" "$release_dir/config"
+mkdir -p "$release_dir/dist"
 cp -R "$snapshot_dir/dist/." "$release_dir/dist/"
-cp "$snapshot_dir/config/field-optimize-prompts.yml" \
-  "$release_dir/config/field-optimize-prompts.yml"
 
 echo "构建后端：${release_name}"
 (

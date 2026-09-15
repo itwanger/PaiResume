@@ -23,7 +23,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import org.springframework.web.reactive.function.client.WebClient;
-import org.yaml.snakeyaml.Yaml;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -32,8 +31,6 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -111,9 +108,6 @@ public class AiServiceImpl implements AiService {
     @Value("${ai.timeout}")
     private int timeout;
 
-    @Value("${app.prompts.field-optimize.config-file:config/field-optimize-prompts.yml}")
-    private String fieldOptimizePromptConfigFile;
-
     private static final String SYSTEM_PROMPT = """
             你是一位顶级的技术招聘官和简历优化专家，尤其擅长指导计算机领域的应届生和实习生。你的任务是优化下方提供的简历模块 JSON 内容，使其在求职（开发、测试、运维等岗位）时更具竞争力。
 
@@ -132,135 +126,6 @@ public class AiServiceImpl implements AiService {
             %s
             ---
             """;
-    private static final String DEFAULT_FIELD_OPTIMIZE_SYSTEM_PROMPT = "你是一位严格、克制、结果导向的中文技术简历优化专家。";
-    private static final String DEFAULT_FIELD_OPTIMIZE_CONFIG_PATH = "config/field-optimize-prompts.yml";
-    private static final String INTERNSHIP_PROJECT_DESCRIPTION_PROMPT = """
-            你是一位技术简历专家，请只优化“项目简介”这一段原文，不要参考或扩写其他字段。
-
-            优化要求：
-            1. 突出“这是一个什么系统/平台、用到了哪些关键的技术栈、解决什么问题、核心价值是什么”。
-            2. 可以适当增加一些数据、业务规模。
-            3. 输出 3 个版本，分别偏保守、偏标准、偏有张力，但都必须适合直接放进简历。
-
-            原始项目简介：
-            {{original}}
-
-            输出要求：
-            - 只返回 JSON
-            - JSON 结构必须是 {"candidates":["完整版本A","完整版本B","完整版本C"]}
-            - candidates 中的每一项都必须是完整可用的简历文案，严禁返回“版本1”“版本2”这类占位词
-            """;
-    private static final String INTERNSHIP_RESPONSIBILITY_PROMPT = """
-            你是一位技术简历专家，请只优化“工作经历 / 实习经历”中的一条核心职责。
-
-            优化要求：
-            1. 用了什么技术栈，解决了什么问题，实现了什么业务或能力。
-            2. 如果原文中存在量化数据或效果，必须保留；如果没有，可适当增加，但不过分，合情合理，如果牵强，可以不要量化数据。
-            3. 输出 3 个版本，分别偏保守、偏标准、偏有张力，但都必须适合直接放进简历。
-            4. 保持语言专业、克制、结果导向。
-            5. 严禁编造事实。
-
-            提炼和润色方向：
-            - 版本1（偏保守）：尽量贴近原文，只做结构优化和表达提纯。
-            - 版本2（偏标准）：更完整地写清技术栈、问题、能力，适合作为默认投递版本。
-            - 版本3（偏有张力）：在不编造事实的前提下，更强调技术价值、架构价值或业务支撑价值。
-
-            当前上下文：
-            - 公司：{{company}}
-            - 岗位：{{position}}
-            - 项目名：{{projectName}}
-            - 技术栈：{{techStack}}
-            - 项目简介：{{projectDescription}}
-
-            原始职责：
-            {{original}}
-
-            输出要求：
-            - 只返回 JSON
-            - JSON 结构必须是 {"candidates":["完整版本A","完整版本B","完整版本C"]}
-            - 如果你开启了思考并会在思考区展示分析过程，那么你必须在思考的最后额外输出一行固定格式：
-              最终结果：{"candidates":["完整版本A","完整版本B","完整版本C"]}
-            - 不要讨论输出格式，不要讨论 Markdown、代码块、系统提示词是否冲突
-            - candidates 中的每一项都必须是完整可用的简历文案，严禁返回“版本1”“版本2”这类占位词
-            """;
-    private static final String SKILL_ITEM_PROMPT = """
-            你是一位技术简历专家，请只优化“一条专业技能”。
-
-            优化要求：
-            1. 保留原文中的技术事实、熟练程度和能力边界，不新增原文没有出现的技术栈或项目成果。
-            2. 优先写清“掌握或熟悉什么技术、理解什么机制、能够解决什么问题”，避免只有关键词堆砌。
-            3. 输出 3 个版本，分别偏保守、偏标准、偏精炼，每个版本都是一条可直接放进简历的完整技能描述。
-            4. 语言专业、克制、信息密度高，不写自我评价和空泛形容词。
-
-            原始技能：
-            {{original}}
-
-            输出要求：
-            - 只返回 JSON
-            - JSON 结构必须是 {"candidates":["完整版本A","完整版本B","完整版本C"]}
-            - candidates 中的每一项都必须是完整可用的简历文案，严禁返回“版本1”“版本2”这类占位词
-            """;
-    private static final String PROJECT_DESCRIPTION_PROMPT = """
-            你是一位技术简历专家，请只优化“项目描述”这一段原文，不要参考或扩写其他字段。
-
-            优化要求：
-            1. 突出“这是一个什么系统/平台、用到了哪些关键的技术栈、解决什么问题、核心价值是什么”。
-            2. 可以适当增加一些数据、业务规模。
-            3. 输出 3 个版本，分别偏保守、偏标准、偏有张力，但都必须适合直接放进简历。
-
-            原始项目描述：
-            {{original}}
-
-            输出要求：
-            - 只返回 JSON
-            - JSON 结构必须是 {"candidates":["完整版本A","完整版本B","完整版本C"]}
-            - candidates 中的每一项都必须是完整可用的简历文案，严禁返回“版本1”“版本2”这类占位词
-            """;
-    private static final String PROJECT_DESCRIPTION_RETRY_PROMPT = """
-            基于下面这段项目简介，直接输出 3 个可放进简历的候选版本。
-
-            要求：
-            1. 只围绕原文改写，不补充任何额外背景。
-            2. 每个版本 1-2 句话，至少 20 个字。
-            3. 不要写“版本1”“方向1”这类占位词。
-            4. 只返回 JSON，格式必须是 {"candidates":["完整版本A","完整版本B","完整版本C"]}。
-
-            原始项目简介：
-            %s
-            """;
-    private static final String PROJECT_RESPONSIBILITY_PROMPT = """
-            你是一位技术简历专家，请只优化“项目经历”中的一条核心职责。
-
-            优化要求：
-            1. 用了什么技术栈，解决了什么问题，实现了什么业务或能力。
-            2. 如果原文中存在量化数据或效果，必须保留；如果没有，可适当增加，但不过分，合情合理，如果牵强，可以不要量化数据。
-            3. 输出 3 个版本，分别偏保守、偏标准、偏有张力，但都必须适合直接放进简历。
-            4. 保持语言专业、克制、结果导向。
-            5. 严禁编造事实。
-
-            提炼和润色方向：
-            - 版本1（偏保守）：尽量贴近原文，只做结构优化和表达提纯。
-            - 版本2（偏标准）：更完整地写清技术栈、问题、能力，适合作为默认投递版本。
-            - 版本3（偏有张力）：在不编造事实的前提下，更强调技术价值、架构价值或业务支撑价值。
-
-            当前上下文：
-            - 项目名：{{projectName}}
-            - 角色：{{role}}
-            - 技术栈：{{techStack}}
-            - 项目描述：{{description}}
-
-            原始职责：
-            {{original}}
-
-            输出要求：
-            - 只返回 JSON
-            - JSON 结构必须是 {"candidates":["完整版本A","完整版本B","完整版本C"]}
-            - 如果你开启了思考并会在思考区展示分析过程，那么你必须在思考的最后额外输出一行固定格式：
-              最终结果：{"candidates":["完整版本A","完整版本B","完整版本C"]}
-            - 不要讨论输出格式，不要讨论 Markdown、代码块、系统提示词是否冲突
-            - candidates 中的每一项都必须是完整可用的简历文案，严禁返回“版本1”“版本2”这类占位词
-            """;
-
     public AiServiceImpl(ObjectMapper objectMapper, AiProviderConfigService aiProviderConfigService) {
         this.objectMapper = objectMapper;
         this.aiProviderConfigService = aiProviderConfigService;
@@ -330,9 +195,10 @@ public class AiServiceImpl implements AiService {
     @Override
     public FieldOptimizePromptConfigDTO getFieldOptimizePromptConfig(String presetId) {
         String id = FieldOptimizePresets.normalize(presetId);
-        var stored = fieldOptimizePromptService == null ? null : fieldOptimizePromptService.find(id);
-        var config = stored != null ? stored : FieldOptimizePresets.defaults(id, loadFieldOptimizePromptConfig());
-        config.setSystemPrompt(FieldOptimizeCandidateMetadata.withInstructions(config.getSystemPrompt()));
+        var config = fieldOptimizePromptService.find(id);
+        if (config == null) {
+            throw new BusinessException(ResultCode.AI_NOT_CONFIGURED.getCode(), "字段优化提示词未配置，请在 Admin 中配置后重试");
+        }
         return config;
     }
 
@@ -372,33 +238,13 @@ public class AiServiceImpl implements AiService {
                 var candidates = normalizeResumeCandidates(parseTextCandidatesResponse(response));
                 log.info("[AI Optimize][Service] parsed field optimize candidates: moduleType={}, fieldType={}, count={}",
                         plan.moduleType(), plan.fieldType(), candidates.size());
-                if ("project_description".equals(plan.fieldType()) && !areTextCandidatesUsable(candidates)) {
-                    log.warn("[AI Optimize][Service] unusable project description candidates detected, retrying: moduleType={}, count={}",
-                            plan.moduleType(), candidates.size());
-                    var retryResponse = invokeChatCompletion(
-                            activeConfig().generalModel(),
-                            systemPrompt,
-                            PROJECT_DESCRIPTION_RETRY_PROMPT.formatted(plan.originalText()),
-                            0.35,
-                            1000,
-                            true,
-                            false
-                    );
-
-                    if (retryResponse == null) {
-                        throw new BusinessException(ResultCode.AI_SERVICE_BUSY);
-                    }
-
-                    log.info("[AI Optimize][Service] upstream retry response received: moduleType={}, fieldType={}, responseLength={}",
-                            plan.moduleType(), plan.fieldType(), retryResponse.length());
-                    response = retryResponse;
-                    candidates = normalizeResumeCandidates(parseTextCandidatesResponse(retryResponse));
-                    log.info("[AI Optimize][Service] parsed retry candidates: moduleType={}, count={}",
-                            plan.moduleType(), candidates.size());
+                if (!FieldOptimizeCandidateMetadata.hasCompleteTags(response, candidates)) {
+                    response = finalizeCandidateOutput(targetModel, systemPrompt, plan.prompt(), response);
+                    candidates = normalizeResumeCandidates(parseCandidatePayloadOrEmpty(response));
                 }
-
-                if (!areTextCandidatesUsable(candidates)) {
-                    throw new BusinessException(ResultCode.AI_RESPONSE_INVALID.getCode(), "AI 返回了占位候选结果，请重试");
+                if (!areTextCandidatesUsable(candidates)
+                        || !FieldOptimizeCandidateMetadata.hasCompleteTags(response, candidates)) {
+                    throw new BusinessException(ResultCode.AI_RESPONSE_INVALID.getCode(), "AI 未返回完整的优化方向，请重新生成");
                 }
 
                 return Map.of(
@@ -464,15 +310,19 @@ public class AiServiceImpl implements AiService {
             );
 
             if (plan.candidateOutput()) {
-                var candidates = normalizeResumeCandidates(extractCandidatesFromStreamResult(streamResult));
-                if (candidates.isEmpty() && "length".equals(streamResult.finishReason())) {
-                    emitStreamEvent(eventConsumer, "status", Map.of("message", "首次输出被截断，正在补全最终候选，这一步可能需要几秒。"));
-                    candidates = normalizeResumeCandidates(finalizeCandidateOutput(targetModel, systemPrompt, plan.prompt(), streamResult.content()));
-                    if (candidates.isEmpty()) {
-                        emitStreamEvent(eventConsumer, "status", Map.of("message", "首次补全未拿到可用结果，正在重试一次。"));
-                        candidates = normalizeResumeCandidates(finalizeCandidateOutput(targetModel, systemPrompt, plan.prompt(), streamResult.content()));
-                    }
+                String finalContent = streamResult.content();
+                var candidates = normalizeResumeCandidates(parseCandidatePayloadOrEmpty(finalContent));
+                if (!areTextCandidatesUsable(candidates)
+                        || !FieldOptimizeCandidateMetadata.hasCompleteTags(finalContent, candidates)) {
+                    emitStreamEvent(eventConsumer, "status", Map.of("message", "正在补全候选版本与分类。"));
+                    finalContent = finalizeCandidateOutput(targetModel, systemPrompt, plan.prompt(), finalContent);
+                    candidates = normalizeResumeCandidates(parseCandidatePayloadOrEmpty(finalContent));
                 }
+                if (!FieldOptimizeCandidateMetadata.hasCompleteTags(finalContent, candidates)) {
+                    throw new BusinessException(ResultCode.AI_RESPONSE_INVALID.getCode(), "AI 未返回完整的优化方向，请重新生成");
+                }
+                // Publish the final payload too: history must store the repaired output, not a partial stream.
+                emitStreamEvent(eventConsumer, "content_delta", Map.of("delta", "", "text", finalContent));
                 log.info("[AI Optimize][Service] stream field optimize candidates ready: moduleType={}, fieldType={}, count={}",
                         plan.moduleType(), plan.fieldType(), candidates.size());
                 if (!areTextCandidatesUsable(candidates)) {
@@ -482,7 +332,7 @@ public class AiServiceImpl implements AiService {
                         "original", plan.originalText(),
                         "optimized", candidates.get(0),
                         "candidates", candidates,
-                        "candidateTags", FieldOptimizeCandidateMetadata.tags(streamResult.content(), candidates)
+                        "candidateTags", FieldOptimizeCandidateMetadata.tags(finalContent, candidates)
                 );
             }
 
@@ -735,102 +585,6 @@ public class AiServiceImpl implements AiService {
 
     private String resolveFieldSystemPrompt(AiFieldOptimizeRequestDTO request) {
         return getFieldOptimizePromptConfig(request == null ? null : request.getPresetId()).getSystemPrompt();
-    }
-
-    private String resolveConfiguredFieldPrompt(String configuredPrompt, String fallbackPrompt) {
-        if (configuredPrompt == null || configuredPrompt.isBlank()) {
-            return fallbackPrompt;
-        }
-        return configuredPrompt.trim().replace("\\n", "\n");
-    }
-
-    private FieldOptimizePromptConfigDTO loadFieldOptimizePromptConfig() {
-        var fallback = buildFallbackFieldOptimizePromptConfig();
-        var configPath = resolveFieldOptimizePromptConfigPath();
-        if (configPath == null) {
-            return fallback;
-        }
-
-        try {
-            var yamlText = Files.readString(configPath, StandardCharsets.UTF_8);
-            if (yamlText.isBlank()) {
-                return fallback;
-            }
-            var yaml = new Yaml();
-            var parsed = yaml.load(yamlText);
-            if (!(parsed instanceof Map<?, ?> rawMap)) {
-                return fallback;
-            }
-
-            var config = new FieldOptimizePromptConfigDTO();
-            config.setSystemPrompt(resolveConfiguredFieldPrompt(readYamlString(rawMap, "systemPrompt"), DEFAULT_FIELD_OPTIMIZE_SYSTEM_PROMPT));
-            config.setDescriptionPrompt(resolveConfiguredFieldPrompt(
-                    firstNonBlank(
-                            readYamlString(rawMap, "descriptionPrompt"),
-                            readYamlString(rawMap, "internshipDescriptionPrompt"),
-                            readYamlString(rawMap, "projectDescriptionPrompt")
-                    ),
-                    INTERNSHIP_PROJECT_DESCRIPTION_PROMPT
-            ));
-            config.setResponsibilityPrompt(resolveConfiguredFieldPrompt(
-                    firstNonBlank(
-                            readYamlString(rawMap, "responsibilityPrompt"),
-                            readYamlString(rawMap, "internshipResponsibilityPrompt"),
-                            readYamlString(rawMap, "projectResponsibilityPrompt")
-                    ),
-                    INTERNSHIP_RESPONSIBILITY_PROMPT
-            ));
-            config.setSkillPrompt(resolveConfiguredFieldPrompt(
-                    readYamlString(rawMap, "skillPrompt"),
-                    SKILL_ITEM_PROMPT
-            ));
-            return config;
-        } catch (Exception e) {
-            log.warn("Failed to load field optimize prompt config from {}: errorType={}",
-                    configPath, e.getClass().getSimpleName());
-            return fallback;
-        }
-    }
-
-    private FieldOptimizePromptConfigDTO buildFallbackFieldOptimizePromptConfig() {
-        var config = new FieldOptimizePromptConfigDTO();
-        config.setSystemPrompt(DEFAULT_FIELD_OPTIMIZE_SYSTEM_PROMPT);
-        config.setDescriptionPrompt(INTERNSHIP_PROJECT_DESCRIPTION_PROMPT);
-        config.setResponsibilityPrompt(INTERNSHIP_RESPONSIBILITY_PROMPT);
-        config.setSkillPrompt(SKILL_ITEM_PROMPT);
-        return config;
-    }
-
-    private Path resolveFieldOptimizePromptConfigPath() {
-        var candidates = List.of(
-                Path.of(fieldOptimizePromptConfigFile),
-                Path.of(DEFAULT_FIELD_OPTIMIZE_CONFIG_PATH),
-                Path.of("../" + DEFAULT_FIELD_OPTIMIZE_CONFIG_PATH)
-        );
-        for (var candidate : candidates) {
-            try {
-                var normalized = candidate.toAbsolutePath().normalize();
-                if (Files.exists(normalized) && Files.isRegularFile(normalized)) {
-                    return normalized;
-                }
-            } catch (Exception ignored) {
-            }
-        }
-        return null;
-    }
-
-    private String readYamlString(Map<?, ?> rawMap, String key) {
-        var value = rawMap.get(key);
-        return value == null ? "" : String.valueOf(value);
-    }
-
-    private String firstNonBlank(String... values) {
-        for (var value : values) {
-            if (value != null && !value.isBlank()) {
-                return value;
-            }
-        }
-        return "";
     }
 
     private String renderPromptTemplate(String template, Map<String, String> variables) {
@@ -2448,12 +2202,12 @@ public class AiServiceImpl implements AiService {
         return false;
     }
 
-    private List<String> finalizeCandidateOutput(String targetModel, String systemPrompt, String originalPrompt, String partialContent) {
+    private String finalizeCandidateOutput(String targetModel, String systemPrompt, String originalPrompt, String partialContent) {
         var finalizePrompt = """
-                你上一条回答在输出最终候选 JSON 时被截断了。
+                你上一条回答没有返回完整的候选正文与分类，可能被截断或遗漏了标签。
                 现在不要重复分析，不要解释，不要输出 Markdown 代码块，也不要输出思考过程。
                 请基于同样要求，直接返回最终完整 JSON：
-                {"candidates":["完整版本A","完整版本B","完整版本C"]}
+                {"candidates":["简洁正文","技术正文","量化或成果正文"],"candidateTags":[["concise"],["technical"],["quantified"]]}
 
                 原始任务如下：
                 """ + originalPrompt;
@@ -2477,11 +2231,12 @@ public class AiServiceImpl implements AiService {
                 true
         );
 
-        if (response == null) {
-            return List.of();
+        if (response == null) return "";
+        try {
+            return extractAssistantContent(objectMapper.readTree(response), false).trim();
+        } catch (Exception e) {
+            throw new BusinessException(ResultCode.AI_RESPONSE_INVALID);
         }
-
-        return parseTextCandidatesResponse(response);
     }
 
     private void logReasoningProgress(StreamLogState state, String delta, StringBuilder reasoningBuilder) {

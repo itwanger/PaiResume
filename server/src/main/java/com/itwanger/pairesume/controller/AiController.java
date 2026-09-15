@@ -250,6 +250,15 @@ public class AiController {
         record.setStreamedContent(firstNonBlank(record.getStreamedContent(), asString(result.get("optimized"))));
         record.setOptimizedText(asString(result.get("optimized")));
         record.setCandidates(extractCandidates(result.get("candidates")));
+        if (!record.getCandidates().isEmpty()) {
+            try {
+                record.setStreamedContent(objectMapper.writeValueAsString(Map.of(
+                        "candidates", record.getCandidates(),
+                        "candidateTags", result.getOrDefault("candidateTags", List.of()))));
+            } catch (java.io.IOException e) {
+                throw new IllegalStateException("Cannot persist completed candidate metadata", e);
+            }
+        }
         record.setErrorMessage(null);
         return record;
     }

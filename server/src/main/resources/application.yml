@@ -42,9 +42,6 @@ app:
     password: ${DEV_ADMIN_PASSWORD:Admin123456}
   cors:
     allowed-origin-patterns: ${APP_CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:5173,http://127.0.0.1:5173,http://localhost:5175,http://127.0.0.1:5175,http://localhost:4173,http://127.0.0.1:4173,http://localhost:63342,http://127.0.0.1:63342,http://[::1]:5173,http://[::1]:5175,http://[::1]:4173}
-  prompts:
-    field-optimize:
-      config-file: ${FIELD_OPTIMIZE_PROMPTS_FILE:config/field-optimize-prompts.yml}
   mail:
     from: ${MAIL_FROM:${MAIL_USERNAME:}}
   verification-code:

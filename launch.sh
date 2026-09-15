@@ -178,6 +178,37 @@ run_build() {
   "${repo_root}/scripts/build-release.sh" "${build_args[@]}"
 }
 
+install_release_controls() {
+  remote_root_command "bash -s -- '${remote_archive}' '${remote_checksum}' '${deploy_root}' '${RELEASE_NAME}'" <<'REMOTE'
+set -euo pipefail
+archive="$1"; checksum="$2"; root="$3"; version="$4"
+cd "$(dirname "$archive")"
+sha256sum --check "$(basename "$checksum")"
+exec 8>"$root/deploy.lock"
+flock -n 8 || { echo '已有发布或回滚正在执行'; exit 1; }
+work="$(mktemp -d "$root/incoming/controls.XXXXXX")"
+trap 'rm -rf "$work"' EXIT
+# Extract fixed, checksum-covered paths only; do not execute code from an unverified archive.
+for name in activate-release.sh rollback-release.sh production-preflight.sh switch-release.sh; do
+  tar -xzOf "$archive" "./control/$name" > "$work/$name"
+  bash -n "$work/$name"
+done
+tar -xzOf "$archive" ./manifest/SHA256SUMS > "$work/SHA256SUMS"
+for name in activate-release.sh rollback-release.sh production-preflight.sh switch-release.sh; do
+  expected="$(awk -v file="./control/$name" '$2 == file {print $1}' "$work/SHA256SUMS")"
+  actual="$(sha256sum "$work/$name" | cut -d ' ' -f 1)"
+  [[ -n "$expected" && "$actual" == "$expected" ]] || { echo '发布控制脚本校验失败'; exit 1; }
+done
+backup="$root/bin/previous-controls/$version"
+mkdir -p "$backup"
+for name in activate-release.sh rollback-release.sh production-preflight.sh switch-release.sh; do
+  cp -p "$root/bin/$name" "$backup/$name"
+  install -m 0755 "$work/$name" "$root/bin/$name.next"
+  mv -f "$root/bin/$name.next" "$root/bin/$name"
+done
+REMOTE
+}
+
 run_remote_predeploy_check() {
   echo "执行生产主机只读发布前置检查"
   remote_root_command "'${deploy_root}/bin/activate-release.sh' --precheck"
@@ -283,6 +314,7 @@ case "$command_name" in
       && mv -- '${remote_archive}.partial' '${remote_archive}' \
       && mv -- '${remote_checksum}.partial' '${remote_checksum}'"
 
+    install_release_controls
     remote_root_command \
       "'${deploy_root}/bin/activate-release.sh' '${remote_archive}' '${remote_checksum}'"
     echo "一键发布完成：${RELEASE_NAME}"

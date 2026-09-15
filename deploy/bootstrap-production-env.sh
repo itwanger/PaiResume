@@ -430,7 +430,6 @@ write_env APP_TIME_ZONE Asia/Shanghai
 write_env APP_PUBLIC_URL https://resume.paicoding.com
 write_env APP_CORS_ALLOWED_ORIGIN_PATTERNS https://resume.paicoding.com
 write_env RELEASE_ROOT /home/www/pairesume/current
-write_env FIELD_OPTIMIZE_PROMPTS_FILE /home/www/pairesume/current/config/field-optimize-prompts.yml
 write_env SERVER_ADDRESS "$production_server_address"
 write_env SERVER_PORT "$production_server_port"
 write_env SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE 5

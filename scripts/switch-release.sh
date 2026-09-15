@@ -17,7 +17,6 @@ preflight_script="${PREFLIGHT_SCRIPT:-${script_dir}/production-preflight.sh}"
 if [[ ! -d "$target" \
   || ! -f "$target/dist/index.html" \
   || ! -f "$target/server/pai-resume-server.jar" \
-  || ! -f "$target/config/field-optimize-prompts.yml" \
   || ! -f "$target/manifest/SHA256SUMS" \
   || ! -f "$target/manifest/release-name" \
   || ! -f "$target/manifest/java-class-major" \

@@ -339,7 +339,8 @@ tar --extract --gzip --file "$archive_real" \
 for required_file in \
   "$staging_dir/dist/index.html" \
   "$staging_dir/server/pai-resume-server.jar" \
-  "$staging_dir/config/field-optimize-prompts.yml" \
+  "$staging_dir/config/admin-ai-prompts.json" \
+  "$staging_dir/tools/ai-prompt-snapshot.py" \
   "$staging_dir/manifest/SHA256SUMS" \
   "$staging_dir/manifest/release-name" \
   "$staging_dir/manifest/target-uname"; do
@@ -395,6 +396,20 @@ MYSQL_CONFIG_FILE="$backup_mysql_config" \
 BACKUP_DIR="$backup_dir" \
   "${backup_command[@]}"
 
+# Backup only Admin prompts separately so a failed release can restore them atomically.
+command -v python3 >/dev/null || fail "生产主机缺少 python3，不能同步 Admin 提示词"
+prompt_backup="${backup_dir}/admin-prompts-before-${release_name}.json"
+prompt_sync() {
+  MYSQL_USERNAME="$backup_mysql_user" MYSQL_DATABASE=pai_resume \
+  MYSQL_SOCKET="$backup_mysql_socket" MYSQL_CONFIG_FILE="$backup_mysql_config" MYSQL_PASSWORD= \
+    python3 "$1" "${@:2}"
+}
+systemctl stop "$service_name"
+if ! prompt_sync "$staging_dir/tools/ai-prompt-snapshot.py" export "$prompt_backup" --allow-empty-field; then
+  systemctl start "$service_name"
+  fail "无法备份线上提示词，已取消发布"
+fi
+
 mv -- "$staging_dir" "$final_dir"
 trap - EXIT
 
@@ -440,6 +455,8 @@ wait_until_ready() {
 restore_old_release() {
   echo "候选版本未通过，开始恢复上一版本" >&2
   systemctl stop "$service_name" || true
+  prompt_sync "$final_dir/tools/ai-prompt-snapshot.py" apply "$prompt_backup" --allow-empty-field \
+    || fail "恢复线上提示词失败，已停止应用，请检查 ${prompt_backup}"
   if [[ -n "$old_target" ]]; then
     old_name="$(basename "$old_target")"
     switch_to_release "$old_name"
@@ -461,6 +478,12 @@ restore_old_release() {
   echo "代码和静态资源已恢复；数据库迁移不会自动回退" >&2
 }
 
+# Keep users from editing production prompts between synchronization and activation.
+systemctl stop "$service_name"
+if ! prompt_sync "$final_dir/tools/ai-prompt-snapshot.py" apply "$final_dir/config/admin-ai-prompts.json"; then
+  restore_old_release
+  exit 1
+fi
 switch_to_release "$release_name"
 systemctl reset-failed "$service_name" || true
 if ! systemctl restart "$service_name" || ! wait_until_ready; then

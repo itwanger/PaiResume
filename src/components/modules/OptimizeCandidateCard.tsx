@@ -15,6 +15,7 @@ export function OptimizeCandidateCard({ label, value, saving, tags = [], onChang
   const [editing, setEditing] = useState(false)
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle')
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const needsData = /【待补充[：:][^】]*】/.test(value)
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(value)
@@ -35,7 +36,7 @@ export function OptimizeCandidateCard({ label, value, saving, tags = [], onChang
         <h3 className="font-semibold text-slate-900">{label}</h3>
         <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs tabular-nums text-slate-500">{countDisplayCharacters(value)} 字</span>
       </div>
-      <div className="fo-tags">{tags.map(tag => <span key={tag} className={`fo-tag fo-tag-${tag}`}>{candidateTagLabels[tag]}</span>)}</div>
+      <div className="fo-tags">{tags.map(tag => <span key={tag} className={`fo-tag fo-tag-${tag}`}>{candidateTagLabels[tag]}</span>)}{needsData && <span className="fo-tag bg-amber-50 text-amber-700">待补数据</span>}</div>
       {editing ? (
         <textarea
           ref={inputRef}
@@ -49,9 +50,9 @@ export function OptimizeCandidateCard({ label, value, saving, tags = [], onChang
         <p className="mb-6 min-h-64 flex-1 whitespace-pre-wrap break-words text-sm leading-8 text-slate-700">{value}</p>
       )}
       <div className="fo-card-footer mt-auto flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
-        <button type="button" disabled={saving || !value.trim()} onClick={() => onAdopt(value.trim())} className="fo-adopt inline-flex min-h-9 flex-1 items-center justify-center gap-1 whitespace-nowrap rounded-lg border border-primary-200 bg-primary-50 px-2 py-2 text-xs font-medium 2xl:text-sm text-primary-700 transition hover:border-primary-400 hover:bg-primary-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-500 disabled:cursor-not-allowed disabled:opacity-50">
+        <button type="button" disabled={saving || !value.trim()} onClick={() => { if (needsData) { setEditing(true); requestAnimationFrame(() => inputRef.current?.focus()) } else { onAdopt(value.trim()) } }} className="fo-adopt inline-flex min-h-9 flex-1 items-center justify-center gap-1 whitespace-nowrap rounded-lg border border-primary-200 bg-primary-50 px-2 py-2 text-xs font-medium 2xl:text-sm text-primary-700 transition hover:border-primary-400 hover:bg-primary-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-500 disabled:cursor-not-allowed disabled:opacity-50">
           <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="m4 10 4 4 8-8" /></svg>
-          {saving ? '回填中…' : '采纳这个版本'}
+          {saving ? '回填中…' : needsData ? '补充量化数据' : '采纳这个版本'}
         </button>
         <button type="button" aria-label={`${editing ? '完成编辑' : '编辑'}${label}`} aria-pressed={editing} title={editing ? '完成编辑' : '编辑'} disabled={saving} onClick={toggleEdit} className={iconButton}>
           <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">{editing ? <path d="m4 10 4 4 8-8" /> : <><path d="m12 4 4 4M4 16l4-1L17 6a2.1 2.1 0 0 0-3-3l-9 9-1 4Z" /><path d="M10 3H4a1 1 0 0 0-1 1v13h13v-6" /></>}</svg>

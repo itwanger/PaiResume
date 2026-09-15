@@ -223,7 +223,6 @@ chmod 0755 "$preflight_bin/uname"
     > "$preflight_release/dist/index.html"
 )
 printf '%s\n' 'test jar' > "$preflight_release/server/pai-resume-server.jar"
-printf '%s\n' 'prompts: {}' > "$preflight_release/config/field-optimize-prompts.yml"
 printf '%s\n' 'test-release' > "$preflight_release/manifest/release-name"
 printf '%040d\n' 0 > "$preflight_release/manifest/base-commit"
 printf '%s\n' 'commit' > "$preflight_release/manifest/source-mode"
@@ -244,7 +243,6 @@ printf '%s\n' 'dist+java17-jar+config-v2' > "$preflight_release/manifest/artifac
   sha256sum \
     dist/index.html \
     server/pai-resume-server.jar \
-    config/field-optimize-prompts.yml \
     manifest/release-name \
     manifest/base-commit \
     manifest/source-mode \

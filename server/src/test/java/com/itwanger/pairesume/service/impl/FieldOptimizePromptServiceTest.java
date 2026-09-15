@@ -24,7 +24,9 @@ class FieldOptimizePromptServiceTest {
         var store = new FieldOptimizePromptService(jdbc);
         var ai = new AiServiceImpl(new ObjectMapper(), mock(AiProviderConfigService.class));
         ReflectionTestUtils.setField(ai, "fieldOptimizePromptService", store);
-        ReflectionTestUtils.setField(ai, "fieldOptimizePromptConfigFile", "../config/field-optimize-prompts.yml");
+        assertThrows(BusinessException.class, () -> ai.getFieldOptimizePromptConfig("standard"));
+        var seed = Files.readString(Path.of("src/main/resources/db/migration/V46__seed_admin_field_optimize_prompts.sql"));
+        jdbc.execute(seed);
         var standard = ai.getFieldOptimizePromptConfig("standard");
         var asu = ai.getFieldOptimizePromptConfig("asu");
         assertTrue(asu.getSystemPrompt().contains("个人边界"));
@@ -35,7 +37,7 @@ class FieldOptimizePromptServiceTest {
         store.save("asu", asu, 42L);
         ReflectionTestUtils.setField(ai, "fieldOptimizePromptService", new FieldOptimizePromptService(jdbc));
         assertEquals("突出事实和贡献", ai.getFieldOptimizePromptConfig("asu").getDescription());
-        assertEquals(42L, jdbc.queryForObject("SELECT updated_by FROM field_optimize_prompt_config", Long.class));
+        assertEquals(42L, jdbc.queryForObject("SELECT updated_by FROM field_optimize_prompt_config WHERE preset_id = 'asu'", Long.class));
         assertEquals(standard.getSystemPrompt(), ai.getFieldOptimizePromptConfig("standard").getSystemPrompt());
         var request = new ObjectMapper().readValue("""
                 {"fieldType":"responsibility","index":0,"presetId":"asu","prompt":"用户覆盖","systemPrompt":"用户覆盖"}
@@ -44,16 +46,14 @@ class FieldOptimizePromptServiceTest {
                 Map.of("company", "示例公司", "responsibilities", java.util.List.of("原始职责")), request);
         assertEquals("后台模板 原始职责 / 示例公司", ReflectionTestUtils.getField(plan, "prompt"));
         String actualSystemPrompt = ReflectionTestUtils.invokeMethod(ai, "resolveFieldSystemPrompt", request);
-        assertTrue(actualSystemPrompt.startsWith("后台管理的系统提示词"));
-        assertTrue(actualSystemPrompt.contains("candidateTags"));
-        assertTrue(actualSystemPrompt.contains("量化方式遵循后台配置的字段提示词"));
-        assertFalse(actualSystemPrompt.contains("不得返回 quantified 标签"));
-        String legacy = "后台自定义要求\n" + FieldOptimizeCandidateMetadata.MARKER
-                + "\n不得为了量化版补造数字、算法、技术栈或成果。原文没有数字依据时用定性成果，且不得返回 quantified 标签。";
-        assertFalse(FieldOptimizeCandidateMetadata.withInstructions(legacy).contains("不得返回 quantified 标签"));
-        assertTrue(FieldOptimizeCandidateMetadata.withInstructions(legacy).startsWith("后台自定义要求"));
+        assertEquals("后台管理的系统提示词", actualSystemPrompt);
         assertEquals(actualSystemPrompt, ai.getFieldOptimizePromptConfig("asu").getSystemPrompt());
-        assertEquals(actualSystemPrompt, FieldOptimizeCandidateMetadata.withInstructions(actualSystemPrompt));
+        // Seeding on a database with existing Admin edits must not replace those edits.
+        jdbc.execute(seed);
+        assertEquals(actualSystemPrompt, ai.getFieldOptimizePromptConfig("asu").getSystemPrompt());
+        assertEquals(2, jdbc.queryForObject("SELECT COUNT(*) FROM field_optimize_prompt_config", Integer.class));
+        assertTrue(standard.getSystemPrompt().contains("candidateTags"));
+        assertTrue(standard.getResponsibilityPrompt().contains("技术深度"));
         asu.setSkillPrompt("丢失原文占位符");
         assertThrows(BusinessException.class, () -> store.save("asu", asu, 41L));
         assertThrows(BusinessException.class, () -> ai.getFieldOptimizePromptConfig("custom"));

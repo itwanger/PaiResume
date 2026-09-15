@@ -94,6 +94,29 @@ wait_until_ready() {
 current_name="$(basename "$current_target")"
 previous_name="$(basename "$previous_target")"
 
+prompt_tool="$current_target/tools/ai-prompt-snapshot.py"
+prompt_backup="/var/backups/pai-resume/admin-prompts-before-${current_name}.json"
+if [[ ! -f "$prompt_tool" && -f "$previous_target/tools/ai-prompt-snapshot.py" ]]; then
+  prompt_tool="$previous_target/tools/ai-prompt-snapshot.py"
+  prompt_backup="$previous_target/config/admin-ai-prompts.json"
+fi
+rollback_prompt_backup="$(mktemp /var/backups/pai-resume/admin-prompts-rollback.XXXXXX)"
+rm "$rollback_prompt_backup"
+prompt_sync() {
+  MYSQL_USERNAME="${PAIRESUME_BACKUP_MYSQL_USERNAME:-root}" MYSQL_DATABASE=pai_resume \
+  MYSQL_SOCKET="${PAIRESUME_BACKUP_MYSQL_SOCKET:?}" MYSQL_CONFIG_FILE="${PAIRESUME_BACKUP_MYSQL_CONFIG_FILE:-}" MYSQL_PASSWORD= \
+    python3 "$prompt_tool" "${@}"
+}
+if [[ -f "$prompt_tool" ]]; then
+  [[ -f "$prompt_backup" ]] || fail "缺少发布前的提示词备份：${prompt_backup}"
+  prompt_sync export "$rollback_prompt_backup" --allow-empty-field
+  systemctl stop "$service_name"
+  if ! prompt_sync apply "$prompt_backup" --allow-empty-field; then
+    prompt_sync apply "$rollback_prompt_backup" --allow-empty-field || fail "恢复提示词失败"
+    systemctl start "$service_name"
+    fail "回滚提示词失败，已恢复原配置"
+  fi
+fi
 switch_link "$previous_name" "$current_link"
 systemctl reset-failed "$service_name" || true
 if systemctl restart "$service_name" \
@@ -107,6 +130,9 @@ fi
 
 echo "回滚候选未通过，恢复回滚前版本：${current_name}" >&2
 systemctl stop "$service_name" || true
+if [[ -f "$prompt_tool" ]]; then
+  prompt_sync apply "$rollback_prompt_backup" --allow-empty-field || fail "恢复回滚前提示词失败"
+fi
 switch_link "$current_name" "$current_link"
 systemctl reset-failed "$service_name" || true
 systemctl start "$service_name"
