@@ -23,11 +23,17 @@ Backend (run from `server/`):
 ```bash
 mvn spring-boot:run            # Default http://localhost:8084/api
 mvn -DskipTests package        # Build jar
-mvn test -Dtest=ClassName      # Run a single JUnit test class
-mvn test -Dtest=ClassName#method
+mvn test '-Dtest=ClassName#method' # Run the affected JUnit method
 ```
 
-There is currently no frontend test runner configured (`npm test` is not defined).
+Frontend tests include Node tests, Vitest components, and Playwright E2E. Select the affected file and test name, for example:
+
+```bash
+npx vitest run tests/components/Example.test.tsx -t 'affected case'
+node --import tsx --test --test-name-pattern='affected case' tests/resume/example.test.ts
+```
+
+Replace the example paths and names with existing affected tests. Validation scope follows `AGENTS.md`; commands above are a reference, not a checklist. Run full suites only when explicitly requested in the current task.
 
 ## Environment configuration
 
