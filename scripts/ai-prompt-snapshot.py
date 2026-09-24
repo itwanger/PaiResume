@@ -51,14 +51,15 @@ def mysql(sql, env):
     if env.get('MYSQL_CONFIG_FILE'):
         args += ['--defaults-extra-file=' + env['MYSQL_CONFIG_FILE']]
     else:
-        args += ['--no-defaults', '--no-login-paths']
+        args += ['--no-defaults']
     args += ['--batch', '--raw', '--skip-column-names', '--default-character-set=utf8mb4', '--user=' + env.get('MYSQL_USERNAME', 'root')]
     if env.get('MYSQL_SOCKET'):
-        args += ['--protocol=SOCKET', '--socket=' + env['MYSQL_SOCKET']]
+        args += ['--host=localhost', '--socket=' + env['MYSQL_SOCKET']]
     else:
-        args += ['--protocol=TCP', '--host=' + ('127.0.0.1' if env.get('MYSQL_HOST', 'localhost') == 'localhost' else env['MYSQL_HOST']), '--port=' + env.get('MYSQL_PORT', '3306')]
+        args += ['--host=' + ('127.0.0.1' if env.get('MYSQL_HOST', 'localhost') == 'localhost' else env['MYSQL_HOST']), '--port=' + env.get('MYSQL_PORT', '3306')]
     args += ['--database=' + env.get('MYSQL_DATABASE', 'pai_resume')]
     child_env = dict(env)
+    child_env['MYSQL_TEST_LOGIN_FILE'] = os.devnull
     if env.get('MYSQL_PASSWORD'):
         child_env['MYSQL_PWD'] = env['MYSQL_PASSWORD']
     result = subprocess.run(args, input=sql, text=True, capture_output=True, env=child_env)
