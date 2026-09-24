@@ -250,12 +250,15 @@ export function hasPaperContent(content: PaperContent): boolean {
 
 export function normalizeResearchContent(content: Record<string, unknown>): ResearchContent {
   const record = asRecord(content)
+  const legacyWorkContent = toStringValue(record.workContent)
 
   return {
     projectName: toStringValue(record.projectName),
     projectCycle: toStringValue(record.projectCycle),
     background: toStringValue(record.background),
-    workContent: toStringValue(record.workContent),
+    workContent: Array.isArray(record.workContent)
+      ? toStringArray(record.workContent)
+      : legacyWorkContent.split(/\r?\n/).map((line) => line.trim().replace(/^[-*•●]\s*/, '').trim()).filter(Boolean),
     achievements: toStringValue(record.achievements),
   }
 }
@@ -265,7 +268,7 @@ export function hasResearchContent(content: ResearchContent): boolean {
     content.projectName,
     content.projectCycle,
     content.background,
-    content.workContent,
+    ...content.workContent,
     content.achievements,
   ].some((value) => value.trim())
 }

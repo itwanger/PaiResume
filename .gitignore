@@ -53,6 +53,9 @@ lerna-debug.log*
 !/tests/components/LoginPage.test.tsx
 !/tests/components/InternalAccessRoutes.test.tsx
 !/tests/components/ExperienceItemSorter.test.tsx
+!/tests/components/ResearchContent.test.tsx
+!/tests/components/ResearchForm.test.tsx
+!/tests/components/ResearchPdf.test.tsx
 
 # Playwright E2E
 /test-results/

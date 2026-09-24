@@ -9,6 +9,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
+import java.util.List;
 import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -44,5 +45,25 @@ class ResearchFieldOptimizeTest {
             request.setFieldType(field);
             assertThrows(BusinessException.class, () -> ReflectionTestUtils.invokeMethod(ai, "prepareFieldOptimizePlan", "research", Map.of(), request));
         }
+    }
+
+    @Test
+    void indexedResearchWorkContentOptimizesOnlySelectedItem() {
+        var ai = spy(new AiServiceImpl(new ObjectMapper(), mock(AiProviderConfigService.class)));
+        var config = new FieldOptimizePromptConfigDTO();
+        config.setResponsibilityPrompt("后台职责 {{original}} / {{projectName}}");
+        doReturn(config).when(ai).getFieldOptimizePromptConfig("asu");
+        var request = new AiFieldOptimizeRequestDTO();
+        request.setFieldType("research_work_content");
+        request.setIndex(1);
+        request.setPresetId("asu");
+        var content = Map.<String, Object>of("projectName", "科研项目", "background", "研究背景", "workContent", List.of("第一条", "第二条"));
+
+        var plan = ReflectionTestUtils.invokeMethod(ai, "prepareFieldOptimizePlan", "research", content, request);
+        assertEquals("第二条", ReflectionTestUtils.getField(plan, "originalText"));
+        assertTrue(((String) ReflectionTestUtils.getField(plan, "prompt")).contains("后台职责 第二条 / 科研项目"));
+
+        request.setIndex(2);
+        assertThrows(BusinessException.class, () -> ReflectionTestUtils.invokeMethod(ai, "prepareFieldOptimizePlan", "research", content, request));
     }
 }

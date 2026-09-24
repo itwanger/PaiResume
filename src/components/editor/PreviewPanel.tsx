@@ -893,7 +893,16 @@ function ModulePreviewSection({
             <p className="font-semibold">{content.projectName || '科研项目'}</p>
             {content.projectCycle && <p className="text-sm text-gray-400">周期: {content.projectCycle}</p>}
             {content.background && <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">科研背景: {content.background}</p>}
-            {content.workContent && <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">科研内容: {content.workContent}</p>}
+            {content.workContent.some((item) => item.trim()) && (
+              <div className="mt-1 text-sm text-gray-600">
+                <p>科研内容:</p>
+                <ul className="list-disc space-y-1 pl-5">
+                  {content.workContent.filter((item) => item.trim()).map((item, index) => (
+                    <li key={`${index}-${item}`} className="whitespace-pre-wrap">{item}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {content.achievements && <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">成果: {content.achievements}</p>}
           </div>
         )

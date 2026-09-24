@@ -489,7 +489,12 @@ function ModuleGroup({
                 </div>
                 <div className="mt-1.5 space-y-1 text-slate-700">
                   <LabeledCopy label="科研背景" value={content.background} />
-                  <LabeledCopy label="科研内容" value={content.workContent} />
+                  {content.workContent.some((item) => item.trim()) ? (
+                    <div>
+                      <p className="font-bold text-slate-900">科研内容：</p>
+                      <BulletList values={content.workContent.filter((item) => item.trim())} />
+                    </div>
+                  ) : null}
                   <LabeledCopy label="研究成果" value={content.achievements} />
                 </div>
               </div>

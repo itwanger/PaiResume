@@ -510,6 +510,9 @@ function parseResearchSection(lines: string[]): ImportedResumeModule[] {
       const values = parseKeyValueList(entry.lines)
       const dateRange = extractDateRange(values['时间'] || entry.heading)
       const projectName = values['项目名称'] || entry.heading.replace(dateRange.matchedText, '').trim()
+      const workContent = entry.lines
+        .map((line) => matchLabel(stripListMarker(line.trim()), ['科研内容', '工作内容', '研究内容'])?.value || '')
+        .filter(Boolean)
 
       return {
         moduleType: 'research',
@@ -517,7 +520,7 @@ function parseResearchSection(lines: string[]): ImportedResumeModule[] {
           projectName,
           projectCycle: values['项目周期'] || values['时间'] || dateRange.matchedText,
           background: values['项目背景'] || values['背景'] || '',
-          workContent: values['工作内容'] || values['研究内容'] || '',
+          workContent,
           achievements: values['研究成果'] || values['成果'] || collectListItems(entry.lines).join('\n'),
         },
       }

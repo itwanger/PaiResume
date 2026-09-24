@@ -523,6 +523,22 @@ public class AiServiceImpl implements AiService {
             default -> "研究成果";
         };
         var original = getStringValue(content.get(key));
+        if ("workContent".equals(key) && request.getIndex() != null && !(content.get(key) instanceof List<?>)) {
+            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "科研内容索引无效");
+        }
+        if ("workContent".equals(key) && content.get(key) instanceof List<?>) {
+            var workItems = getStringListValue(content.get(key));
+            var index = request.getIndex();
+            if (index != null) {
+                if (index < 0 || index >= workItems.size()) {
+                    throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "科研内容索引无效");
+                }
+                original = workItems.get(index).trim();
+                title = "科研内容 " + (index + 1);
+            } else {
+                original = String.join("\n", workItems).trim();
+            }
+        }
         if (original.isBlank()) {
             throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), title + "为空，暂时无法优化");
         }

@@ -30,7 +30,7 @@ function buildEducationDescription(content: ReturnType<typeof normalizeEducation
 
 function buildResearchExperience(module: ResumeModule): Experience {
   const content = normalizeResearchContent(module.content)
-  const descriptionParts = [content.background, content.workContent, content.achievements].filter(Boolean)
+  const descriptionParts = [content.background, ...content.workContent.filter(Boolean), content.achievements].filter(Boolean)
 
   return {
     id: toExperienceId(module.id),

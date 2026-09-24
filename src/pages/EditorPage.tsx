@@ -1429,7 +1429,7 @@ function getDefaultContentMap(): Record<ModuleType, Record<string, unknown>> {
     },
     skill: { categories: [{ name: '', items: [] }] },
     paper: { journalType: '', journalName: '', publishTime: '', content: '' },
-    research: { projectName: '', projectCycle: '', background: '', workContent: '', achievements: '' },
+    research: { projectName: '', projectCycle: '', background: '', workContent: [], achievements: '' },
     award: { awardName: '', awardTime: '' },
     job_intention: { targetPosition: '', targetCity: '', salaryRange: '', expectedEntryDate: '' },
   }

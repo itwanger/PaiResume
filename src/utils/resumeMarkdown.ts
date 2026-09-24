@@ -292,14 +292,14 @@ function buildResearchSection(modules: ResumeModule[]): string | null {
       content.projectName,
       content.projectCycle,
       content.background,
-      content.workContent,
+      ...content.workContent,
       content.achievements,
     ])) return []
 
     const details = [
       labeledLine('- 科研周期', content.projectCycle),
       labeledLine('- 科研背景', content.background),
-      labeledLine('- 科研内容', content.workContent),
+      ...content.workContent.map((item) => labeledLine('- 科研内容', item)),
       labeledLine('- 研究成果', content.achievements),
     ].filter((line): line is string => Boolean(line))
     return [[`### ${compactLine(content.projectName) || '科研经历'}`, ...details].join('\n')]

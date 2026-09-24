@@ -45,8 +45,8 @@ Font.registerHyphenationCallback((word) => [word])
 Font.register({
   family: 'ResumePdfSans',
   fonts: [
-    { src: resolveFontSource('noto-sans-sc-regular.otf'), fontWeight: 400 },
-    { src: resolveFontSource('noto-sans-sc-bold.otf'), fontWeight: 700 },
+    { src: resolveFontSource('noto-sans-sc-regular.ttf'), fontWeight: 400 },
+    { src: resolveFontSource('noto-sans-sc-bold.ttf'), fontWeight: 700 },
   ],
 })
 
@@ -1027,6 +1027,12 @@ function normalizeWhitespace(value: string) {
     .trim()
 }
 
+function visibleResearchWorkItems(items: string[]) {
+  return items
+    .map((line) => line.trim().replace(/^[-*•●]\s*/, '').trim())
+    .filter(Boolean)
+}
+
 function estimateContinuousPageHeight(modules: ResumeModule[]) {
   const sortedModules = sortModules(modules)
   let textVolume = 0
@@ -1092,7 +1098,8 @@ function estimateContinuousPageHeight(modules: ResumeModule[]) {
 
     if (module.moduleType === 'research') {
       const content = normalizeResearchContent(module.content)
-      textVolume += textLengthForPage([content.projectName, content.projectCycle, content.background, content.workContent, content.achievements])
+      textVolume += textLengthForPage([content.projectName, content.projectCycle, content.background, ...content.workContent, content.achievements])
+      bulletCount += visibleResearchWorkItems(content.workContent).length
       continue
     }
 
@@ -2245,6 +2252,7 @@ function ResumePdfDocument({
               if (!hasResearchContent(content)) {
                 return null
               }
+              const workItems = visibleResearchWorkItems(content.workContent)
               return renderSectionBlock(
                 module.id,
                 '科研经历',
@@ -2256,13 +2264,22 @@ function ResumePdfDocument({
                       {content.projectCycle ? <Text style={[styles.strong, { width: 132, textAlign: 'right' }]}>{content.projectCycle}</Text> : null}
                     </View>
                   ) : (
-                    <>
-                      <Text style={styles.strong}>{content.projectName || '科研项目'}</Text>
-                      {content.projectCycle ? <Text>{content.projectCycle}</Text> : null}
-                    </>
+                    <View style={styles.rowBetween}>
+                      <Text style={[styles.strong, { flexShrink: 1 }]}>{content.projectName || '科研项目'}</Text>
+                      {content.projectCycle ? <Text style={[styles.muted, { flexShrink: 0, textAlign: 'right' }]}>{content.projectCycle}</Text> : null}
+                    </View>
                   )}
                   {content.background ? <Text style={styles.paragraph}>科研背景：{content.background}</Text> : null}
-                  {content.workContent ? <Text style={styles.paragraph}>科研内容：{content.workContent}</Text> : null}
+                  {workItems.length > 0 ? (
+                    <View style={styles.paragraph}>
+                      <Text><Text style={styles.label}>科研内容：</Text></Text>
+                      {workItems.map((item, index) => (
+                        <View key={`${index}-${item}`} style={styles.listItem}>
+                          {renderBulletItem(styles, item, `research-${module.id}-${index}`)}
+                        </View>
+                      ))}
+                    </View>
+                  ) : null}
                   {content.achievements ? <Text style={styles.paragraph}>成果：{content.achievements}</Text> : null}
                   </>
                 )

@@ -28,7 +28,6 @@ describe('field optimization ownership', () => {
   })
   it.each([
     ['research_background', 'background', '科研背景'],
-    ['research_work_content', 'workContent', '科研内容'],
     ['research_achievements', 'achievements', '研究成果'],
   ])('科研字段 %s 单独生成并回填，保留其余草稿', async (fieldType, key, title) => {
     const previousModules = store.modules
@@ -53,6 +52,32 @@ describe('field optimization ownership', () => {
       await screen.findByText('科研编辑器')
       expect(store.updateModuleContent).toHaveBeenCalledWith(1, 2, { ...draft, [key]: '字段优化结果' })
       expect(localStorage.getItem('pai-resume:draft:1:2')).toBeNull()
+    } finally {
+      store.modules = previousModules
+    }
+  })
+  it('逐条优化科研内容时只回填选中的条目', async () => {
+    const previousModules = store.modules
+    const content = { projectName: '科研项目', projectCycle: '2024', background: '原始背景', workContent: ['第一条', '第二条'], achievements: '原始成果' }
+    store.modules = [{ id: 2, moduleType: 'research', content }] as unknown as typeof store.modules
+    api.aiOptimizeFieldStream.mockResolvedValue({ original: '第二条', candidates: ['优化后的第二条'] })
+    try {
+      render(<MemoryRouter initialEntries={['/editor/1/modules/2/field-optimize?fieldType=research_work_content&index=1&returnModuleType=research']}>
+        <Routes>
+          <Route path="/editor/:id/modules/:moduleId/field-optimize" element={<FieldOptimizePage />} />
+          <Route path="/editor/:id" element={<p>科研编辑器</p>} />
+        </Routes>
+      </MemoryRouter>)
+      await screen.findByRole('button', { name: '标准优化' })
+      expect(screen.getByRole('button', { name: '返回科研内容 2编辑' })).toBeInTheDocument()
+      await userEvent.click(screen.getByRole('button', { name: '开始优化' }))
+      await screen.findByText('优化后的第二条')
+      expect(api.aiOptimizeFieldStream.mock.calls[0][2]).toEqual({ fieldType: 'research_work_content', index: 1, presetId: 'standard' })
+      const draft = { ...content, projectName: '尚未同步的科研名称' }
+      localStorage.setItem('pai-resume:draft:1:2', JSON.stringify({ content: draft, serialized: JSON.stringify(draft) }))
+      await userEvent.click(screen.getByRole('button', { name: '采纳这个版本' }))
+      await screen.findByText('科研编辑器')
+      expect(store.updateModuleContent).toHaveBeenCalledWith(1, 2, { ...draft, workContent: ['第一条', '优化后的第二条'] })
     } finally {
       store.modules = previousModules
     }

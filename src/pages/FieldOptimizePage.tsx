@@ -137,9 +137,22 @@ function deriveFieldContext(
 
   if (module.moduleType === 'research' && isResearchOptimizeField(fieldType)) {
     const { key, title } = researchOptimizeFields[fieldType]
+    const content = normalizeResearchContent(module.content)
+    if (fieldType === 'research_work_content' && responsibilityIndex !== null) {
+      const original = content.workContent[responsibilityIndex]?.trim()
+      if (!original) return null
+      return {
+        title: `科研内容 ${responsibilityIndex + 1}`,
+        original,
+        multiCandidate: true,
+        request: { fieldType, index: responsibilityIndex },
+        moduleType: 'research',
+      }
+    }
+    const value = content[key]
     return {
       title,
-      original: normalizeResearchContent(module.content)[key].trim(),
+      original: typeof value === 'string' ? value.trim() : value.join('\n').trim(),
       multiCandidate: true,
       request: { fieldType },
       moduleType: 'research',
@@ -195,6 +208,15 @@ function applyOptimizedText(
   }
 
   if (module.moduleType === 'research' && isResearchOptimizeField(fieldType)) {
+    if (fieldType === 'research_work_content') {
+      const content = normalizeResearchContent(module.content)
+      if (responsibilityIndex !== null) {
+        const workContent = [...content.workContent]
+        workContent[responsibilityIndex] = optimizedText
+        return { ...content, workContent }
+      }
+      return { ...content, workContent: normalizeResearchContent({ workContent: optimizedText }).workContent }
+    }
     return { ...module.content, [researchOptimizeFields[fieldType].key]: optimizedText }
   }
 

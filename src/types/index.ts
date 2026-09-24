@@ -88,7 +88,7 @@ export interface ResearchContent {
   projectName: string
   projectCycle: string
   background: string
-  workContent: string
+  workContent: string[]
   achievements: string
 }
 
